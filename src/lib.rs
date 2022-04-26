@@ -9,8 +9,10 @@ mod error;
 mod scene;
 mod entity_id;
 mod message;
+mod entity_channel;
 
 pub use self::error::*;
 pub use self::scene::*;
 pub use self::entity_id::*;
 pub use self::message::*;
+pub use self::entity_channel::*;
