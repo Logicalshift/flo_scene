@@ -13,3 +13,4 @@ keywords    = [ "message-queue" ]
 [dependencies]
 futures     = "0.3"
 uuid        = { version = "1.0", features = [ "v4" ] }
+desync      = "0.7"
