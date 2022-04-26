@@ -55,19 +55,21 @@ impl<TPayload, TResponse> DerefMut for Message<TPayload, TResponse> {
 }
 
 impl<TPayload, TResponse> fmt::Debug for Message<TPayload, TResponse>
-where TPayload: fmt::Debug {
+where
+    TPayload: fmt::Debug,
+{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         fmt.write_fmt(format_args!("Message({:?})", self.message))
     }
 }
 
 impl<TPayload, TResponse> PartialEq for Message<TPayload, TResponse>
-where TPayload: PartialEq {
+where
+    TPayload: PartialEq,
+{
     fn eq(&self, b: &Self) -> bool {
         self.message.eq(&b.message)
     }
 }
 
-impl<TPayload, TResponse> Eq for Message<TPayload, TResponse>
-where TPayload: Eq {
-}
+impl<TPayload, TResponse> Eq for Message<TPayload, TResponse> where TPayload: Eq {}

@@ -10,7 +10,7 @@ use std::sync::*;
 ///
 pub struct Scene {
     /// The shared state for all entities in this scene
-    core: Arc<Desync<SceneCore>>
+    core: Arc<Desync<SceneCore>>,
 }
 
 impl Default for Scene {
