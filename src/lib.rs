@@ -7,6 +7,8 @@
 
 mod scene;
 mod entity_id;
+mod message;
 
 pub use self::scene::*;
 pub use self::entity_id::*;
+pub use self::message::*;
