@@ -14,6 +14,19 @@ pub struct EntityChannel<TMessage, TResponse> {
 
 impl<TMessage, TResponse> EntityChannel<TMessage, TResponse> {
     ///
+    /// Creates a new entity channel
+    ///
+    pub (crate) fn new(buf_size: usize) -> (EntityChannel<TMessage, TResponse>, mpsc::Receiver<Message<TMessage, TResponse>>) {
+        let (sender, receiver) = mpsc::channel(buf_size);
+
+        let channel = EntityChannel {
+            channel: sender
+        };
+
+        (channel, receiver)
+    }
+
+    ///
     /// Sends a message to the channel and waits for a response
     ///
     pub async fn send(&mut self, message: TMessage) -> Result<TResponse, EntityChannelError> {
