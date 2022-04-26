@@ -29,7 +29,7 @@ impl SceneCore {
         TMessage:   Send,
         TResponse:  Send,
         TFn:        Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
-        TFnFuture:  Future<Output = ()>,
+        TFnFuture:  Send + Future<Output = ()>,
     {
         todo!()
     }
@@ -44,7 +44,7 @@ impl SceneCore {
         TMessage:   Send,
         TResponse:  Send,
         TFn:        Send + FnOnce(BoxStream<'static, (EntityId, Message<TMessage, TResponse>)>) -> TFnFuture,
-        TFnFuture:  Future<Output = ()>,
+        TFnFuture:  Send + Future<Output = ()>,
     {
         todo!()
     }
