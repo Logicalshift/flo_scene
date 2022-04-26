@@ -59,11 +59,31 @@ impl SceneCore {
     ///
     fn create_default<TMessage, TResponse, TFn, TFnFuture>(&mut self, runtime: TFn) -> Result<(), CreateDefaultError>
     where
-        TMessage:   Send,
-        TResponse:  Send,
+        TMessage:   'static + Send,
+        TResponse:  'static + Send,
         TFn:        Send + FnOnce(BoxStream<'static, (EntityId, Message<TMessage, TResponse>)>) -> TFnFuture,
         TFnFuture:  Send + Future<Output = ()>,
     {
         todo!()
+    }
+
+    ///
+    /// Requests that we send messages to a channel for a particular entity
+    ///
+    fn send_to<TMessage, TResponse>(&mut self, entity_id: EntityId) -> Result<EntityChannel<TMessage, TResponse>, EntityChannelError> 
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send, 
+    {
+        // Try to retrieve the entity
+        let entity = self.entities.get(&entity_id);
+        let entity = if let Some(entity) = entity { entity } else { return Err(EntityChannelError::NoSuchEntity); };
+
+        // Attach to the channel in the entity that belongs to this stream type
+        // TODO: attach to a default channel if the entity doesn't have this channel
+        let channel = entity.attach_channel();
+        let channel = if let Some(channel) = channel { channel } else { return Err(EntityChannelError::NotListening); };
+
+        Ok(channel)
     }
 }

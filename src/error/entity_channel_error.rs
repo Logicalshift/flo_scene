@@ -6,6 +6,9 @@ use futures::channel::oneshot;
 ///
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum EntityChannelError {
+    /// The requested entity doesn't exist
+    NoSuchEntity,
+
     /// The entity is no longer listening for these kinds of message
     NotListening,
 }
