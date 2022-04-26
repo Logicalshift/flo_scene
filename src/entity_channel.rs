@@ -7,7 +7,6 @@ use futures::channel::mpsc;
 ///
 /// An entity channel is used to send messages to an entity within a scene
 ///
-#[derive(Clone)]
 pub struct EntityChannel<TMessage, TResponse> {
     /// The channel for sending messages
     channel: mpsc::Sender<Message<TMessage, TResponse>>,
@@ -26,5 +25,13 @@ impl<TMessage, TResponse> EntityChannel<TMessage, TResponse> {
 
         // Wait for the message to be processed
         Ok(receiver.await?)
+    }
+}
+
+impl<TMessage, TResponse> Clone for EntityChannel<TMessage, TResponse> {
+    fn clone(&self) -> Self {
+        EntityChannel {
+            channel: self.channel.clone()
+        }
     }
 }
