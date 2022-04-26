@@ -9,7 +9,7 @@ use std::collections::{HashMap};
 ///
 pub struct Entity {
     /// The base entity channels for this entity (which we clone the requested channels from)
-    channels: HashMap<TypeId, Box<dyn Any>>,
+    channels: HashMap<TypeId, Box<dyn Send + Any>>,
 }
 
 impl Default for Entity {
@@ -26,8 +26,8 @@ impl Entity {
     ///
     pub fn register_channel<TMessage, TResponse>(&mut self, channel: EntityChannel<TMessage, TResponse>) -> Result<(), CreateEntityError>
     where
-        TMessage:   'static,
-        TResponse:  'static,
+        TMessage:   'static + Send,
+        TResponse:  'static + Send,
     {
         let type_id = TypeId::of::<EntityChannel<TMessage, TResponse>>();
 
@@ -46,8 +46,8 @@ impl Entity {
     ///
     pub fn attach_channel<TMessage, TResponse>(&self) -> Option<EntityChannel<TMessage, TResponse>> 
     where
-        TMessage:   'static,
-        TResponse:  'static,
+        TMessage:   'static + Send,
+        TResponse:  'static + Send,
     {
         // Attempt to retrieve a channel of this type
         let type_id = TypeId::of::<EntityChannel<TMessage, TResponse>>();
