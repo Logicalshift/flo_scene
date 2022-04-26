@@ -33,4 +33,19 @@ impl SceneCore {
     {
         todo!()
     }
+
+    ///
+    /// Creates a default behaviour for a particular message type
+    ///
+    /// This message type will be accepted for all entities in the scene
+    ///
+    fn create_default<TMessage, TResponse, TFn, TFnFuture>(&mut self, runtime: TFn) -> Result<(), CreateDefaultError>
+    where
+        TMessage:   Send,
+        TResponse:  Send,
+        TFn:        Send + FnOnce(BoxStream<'static, (EntityId, Message<TMessage, TResponse>)>) -> TFnFuture,
+        TFnFuture:  Future<Output = ()>,
+    {
+        todo!()
+    }
 }
