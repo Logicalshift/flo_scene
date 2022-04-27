@@ -5,6 +5,8 @@ use crate::entity_id::*;
 use crate::entity_channel::*;
 use crate::message::*;
 
+use ::desync::scheduler::*;
+
 use futures::prelude::*;
 use futures::channel::oneshot;
 use futures::stream::{BoxStream};
@@ -44,17 +46,24 @@ impl SceneCore {
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
-        TFn:        Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
+        TFn:        'static + Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
     {
         // Create the entity representation for this item
         let (channel, receiver) = EntityChannel::new(5);
         let entity              = self.entities.entry(entity_id).or_insert_with(|| EntityCore::default());
 
+        let queue = entity.create_queue(&channel)?;
         entity.register_channel(channel)?;
 
         // Start the future running
-        let future              = runtime(receiver.boxed());
+        let future              = async move {
+            let future = scheduler().future_desync(&queue, move || async move {
+                runtime(receiver.boxed()).await
+            }.boxed());
+
+            future.await.ok();
+        };
         let future              = future.boxed();
 
         // Queue a request in the runtime that we will run the entity

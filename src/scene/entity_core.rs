@@ -1,6 +1,9 @@
 use crate::entity_channel::*;
 use crate::error::*;
 
+use ::desync::scheduler::*;
+
+use std::sync::*;
 use std::any::{TypeId, Any};
 use std::collections::{HashMap};
 
@@ -10,12 +13,16 @@ use std::collections::{HashMap};
 pub struct EntityCore {
     /// The base entity channels for this entity (which we clone the requested channels from)
     channels: HashMap<TypeId, Box<dyn Send + Any>>,
+
+    /// The queues for each channel making up this entity
+    queues: HashMap<TypeId, Arc<JobQueue>>,
 }
 
 impl Default for EntityCore {
     fn default() -> Self {
         EntityCore {
-            channels: HashMap::new()
+            channels:   HashMap::new(),
+            queues:     HashMap::new(),
         }
     }
 }
@@ -35,6 +42,27 @@ impl EntityCore {
             // Channel is free
             self.channels.insert(type_id, Box::new(channel));
             Ok(())
+        } else {
+            // Can only have one channel of a particular type per entity
+            Err(CreateEntityError::AlreadyExists)
+        }
+    }
+
+    ///
+    /// Creates a queue to run a particular channel
+    ///
+    pub fn create_queue<TMessage, TResponse>(&mut self, _channel: &EntityChannel<TMessage, TResponse>) -> Result<Arc<JobQueue>, CreateEntityError>
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send,
+    {
+        let type_id = TypeId::of::<EntityChannel<TMessage, TResponse>>();
+        let queue   = scheduler().create_job_queue();
+
+        if !self.queues.contains_key(&type_id) {
+            // Channel is free
+            self.queues.insert(type_id, queue.clone());
+            Ok(queue)
         } else {
             // Can only have one channel of a particular type per entity
             Err(CreateEntityError::AlreadyExists)
