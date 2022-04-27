@@ -6,7 +6,9 @@ use crate::entity_channel::*;
 use crate::message::*;
 
 use futures::prelude::*;
+use futures::channel::oneshot;
 use futures::stream::{BoxStream};
+use futures::future::{BoxFuture};
 
 use std::collections::{HashMap};
 
@@ -16,12 +18,20 @@ use std::collections::{HashMap};
 pub struct SceneCore {
     /// The entities that are available in this core
     entities: HashMap<EntityId, EntityCore>,
+
+    /// Futures waiting to run the entities in this scene
+    waiting_futures: Vec<BoxFuture<'static, ()>>,
+
+    /// Used by the scene that owns this core to request wake-ups (only one scene can be waiting for a wake up at once)
+    wake_scene: Option<oneshot::Sender<()>>,
 }
 
 impl Default for SceneCore {
     fn default() -> SceneCore {
         SceneCore {
-            entities: HashMap::new(),
+            entities:           HashMap::new(),
+            waiting_futures:    vec![],
+            wake_scene:         None,
         }
     }
 }
@@ -35,7 +45,7 @@ impl SceneCore {
         TMessage:   'static + Send,
         TResponse:  'static + Send,
         TFn:        Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
-        TFnFuture:  Send + Future<Output = ()>,
+        TFnFuture:  'static + Send + Future<Output = ()>,
     {
         // Create the entity representation for this item
         let (channel, receiver) = EntityChannel::new(5);
@@ -47,9 +57,15 @@ impl SceneCore {
         let future              = runtime(receiver.boxed());
         let future              = future.boxed();
 
-        // TODO: Queue a request in the runtime that we will run the entity
+        // Queue a request in the runtime that we will run the entity
+        self.waiting_futures.push(future);
 
-        todo!()
+        // Wake up the scene so it can schedule this future
+        if let Some(wake_scene) = self.wake_scene.take() {
+            wake_scene.send(()).ok();
+        }
+
+        Ok(())
     }
 
     ///
@@ -81,6 +97,7 @@ impl SceneCore {
 
         // Attach to the channel in the entity that belongs to this stream type
         // TODO: attach to a default channel if the entity doesn't have this channel
+        // TODO: default channels need to know how to upgrade to the 'real' channel if one is created
         let channel = entity.attach_channel();
         let channel = if let Some(channel) = channel { channel } else { return Err(EntityChannelError::NotListening); };
 
