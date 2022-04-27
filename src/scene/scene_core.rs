@@ -1,4 +1,4 @@
-use super::entity::*;
+use super::entity_core::*;
 
 use crate::error::*;
 use crate::entity_id::*;
@@ -15,7 +15,7 @@ use std::collections::{HashMap};
 ///
 pub struct SceneCore {
     /// The entities that are available in this core
-    entities: HashMap<EntityId, Entity>,
+    entities: HashMap<EntityId, EntityCore>,
 }
 
 impl Default for SceneCore {
@@ -39,7 +39,7 @@ impl SceneCore {
     {
         // Create the entity representation for this item
         let (channel, receiver) = EntityChannel::new(5);
-        let entity              = self.entities.entry(entity_id).or_insert_with(|| Entity::default());
+        let entity              = self.entities.entry(entity_id).or_insert_with(|| EntityCore::default());
 
         entity.register_channel(channel)?;
 

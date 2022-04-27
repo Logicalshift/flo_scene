@@ -1,5 +1,5 @@
 mod scene;
 mod scene_core;
-mod entity;
+mod entity_core;
 
 pub use self::scene::*;

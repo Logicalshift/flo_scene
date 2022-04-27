@@ -7,20 +7,20 @@ use std::collections::{HashMap};
 ///
 /// Stores the data associated with an entity
 ///
-pub struct Entity {
+pub struct EntityCore {
     /// The base entity channels for this entity (which we clone the requested channels from)
     channels: HashMap<TypeId, Box<dyn Send + Any>>,
 }
 
-impl Default for Entity {
-    fn default() -> Entity {
-        Entity {
+impl Default for EntityCore {
+    fn default() -> Self {
+        EntityCore {
             channels: HashMap::new()
         }
     }
 }
 
-impl Entity {
+impl EntityCore {
     ///
     /// Registers a channel as one supported by this entity
     ///
