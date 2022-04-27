@@ -17,13 +17,13 @@ use std::collections::{HashMap};
 ///
 pub struct SceneCore {
     /// The entities that are available in this core
-    entities: HashMap<EntityId, EntityCore>,
+    pub (super) entities: HashMap<EntityId, EntityCore>,
 
     /// Futures waiting to run the entities in this scene
-    waiting_futures: Vec<BoxFuture<'static, ()>>,
+    pub (super) waiting_futures: Vec<BoxFuture<'static, ()>>,
 
     /// Used by the scene that owns this core to request wake-ups (only one scene can be waiting for a wake up at once)
-    wake_scene: Option<oneshot::Sender<()>>,
+    pub (super) wake_scene: Option<oneshot::Sender<()>>,
 }
 
 impl Default for SceneCore {
