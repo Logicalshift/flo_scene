@@ -13,7 +13,7 @@ pub enum SceneContextError {
 }
 
 impl From<thread::AccessError> for SceneContextError {
-    fn from(err: thread::AccessError) -> SceneContextError {
+    fn from(_err: thread::AccessError) -> SceneContextError {
         SceneContextError::ThreadShuttingDown
     }
 }
