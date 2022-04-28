@@ -1,8 +1,12 @@
 use crate::entity_id::*;
 use crate::error::*;
+use crate::message::*;
+use crate::entity_channel::*;
 use crate::scene::scene_core::*;
 
 use ::desync::*;
+use futures::prelude::*;
+use futures::stream::{BoxStream};
 
 use std::mem;
 use std::sync::*;
@@ -41,6 +45,16 @@ impl SceneContext {
     }
 
     ///
+    /// Creates a context for a particular entity and core
+    ///
+    pub (crate) fn for_entity(entity_id: EntityId, core: Arc<Desync<SceneCore>>) -> SceneContext {
+        SceneContext {
+            component:  Some(entity_id),
+            scene_core: Arc::clone(&core),
+        }
+    }
+
+    ///
     /// Evaluates a function within a particular scene context
     ///
     /// This is typically done automatically when running the runtimes for entities, but this can be used if if's ever necessary to
@@ -75,6 +89,41 @@ impl SceneContext {
     ///
     pub fn entity_id(&self) -> Option<EntityId> {
         self.component
+    }
+
+    ///
+    /// Creates a channel to send messages in this context
+    ///
+    pub fn send_to<TMessage, TResponse>(&self, entity_id: EntityId) -> Result<EntityChannel<TMessage, TResponse>, EntityChannelError>
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send, 
+    {
+        self.scene_core.sync(|core| {
+            core.send_to(entity_id)
+        })
+    }
+
+    ///
+    /// Creates an entity that processes a particular kind of message
+    ///
+    pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send,
+        TFn:        'static + Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
+        TFnFuture:  'static + Send + Future<Output = ()>,
+    {
+        // Create a SceneContext for the new component
+        let new_context = Arc::new(SceneContext {
+            component:  Some(entity_id),
+            scene_core: Arc::clone(&self.scene_core),
+        });
+
+        // Request that the core create the entity
+        self.scene_core.sync(move |core| {
+            core.create_entity(new_context, runtime)
+        })
     }
 }
 

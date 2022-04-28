@@ -45,7 +45,7 @@ impl SceneCore {
     ///
     /// Creates an entity that processes a particular kind of message
     ///
-    pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&mut self, scene_context: Arc<SceneContext>, runtime: TFn) -> Result<(), CreateEntityError>
+    pub (crate) fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&mut self, scene_context: Arc<SceneContext>, runtime: TFn) -> Result<(), CreateEntityError>
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
@@ -94,12 +94,12 @@ impl SceneCore {
     ///
     /// This message type will be accepted for all entities in the scene
     ///
-    fn create_default<TMessage, TResponse, TFn, TFnFuture>(&mut self, context: Arc<SceneContext>, runtime: TFn) -> Result<(), CreateDefaultError>
+    pub (crate) fn create_default<TMessage, TResponse, TFn, TFnFuture>(&mut self, context: Arc<SceneContext>, runtime: TFn) -> Result<(), CreateDefaultError>
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
-        TFn:        Send + FnOnce(BoxStream<'static, (EntityId, Message<TMessage, TResponse>)>) -> TFnFuture,
-        TFnFuture:  Send + Future<Output = ()>,
+        TFn:        'static + Send + FnOnce(BoxStream<'static, (EntityId, Message<TMessage, TResponse>)>) -> TFnFuture,
+        TFnFuture:  'static + Send + Future<Output = ()>,
     {
         todo!()
     }
@@ -107,7 +107,7 @@ impl SceneCore {
     ///
     /// Requests that we send messages to a channel for a particular entity
     ///
-    fn send_to<TMessage, TResponse>(&mut self, entity_id: EntityId) -> Result<EntityChannel<TMessage, TResponse>, EntityChannelError> 
+    pub (crate) fn send_to<TMessage, TResponse>(&mut self, entity_id: EntityId) -> Result<EntityChannel<TMessage, TResponse>, EntityChannelError> 
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send, 

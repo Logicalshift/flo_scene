@@ -1,9 +1,14 @@
 use super::scene_core::*;
 use super::scene_waker::*;
 use crate::entity_id::*;
+use crate::context::*;
+use crate::error::*;
+use crate::message::*;
+use crate::entity_channel::*;
 
 use futures::prelude::*;
 use futures::future;
+use futures::stream::{BoxStream};
 use futures::channel::oneshot;
 use futures::task;
 use futures::task::{Poll};
@@ -40,6 +45,38 @@ impl Scene {
         Scene {
             core
         }
+    }
+
+    ///
+    /// Creates a channel to send messages in this context
+    ///
+    pub fn send_to<TMessage, TResponse>(&self, entity_id: EntityId) -> Result<EntityChannel<TMessage, TResponse>, EntityChannelError>
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send, 
+    {
+        self.core.sync(|core| {
+            core.send_to(entity_id)
+        })
+    }
+
+    ///
+    /// Creates an entity that processes a particular kind of message
+    ///
+    pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send,
+        TFn:        'static + Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
+        TFnFuture:  'static + Send + Future<Output = ()>,
+    {
+        // Create a SceneContext for the new component
+        let new_context = Arc::new(SceneContext::for_entity(entity_id, Arc::clone(&self.core)));
+
+        // Request that the core create the entity
+        self.core.sync(move |core| {
+            core.create_entity(new_context, runtime)
+        })
     }
 
     ///
