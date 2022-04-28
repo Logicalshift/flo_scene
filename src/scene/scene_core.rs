@@ -4,14 +4,17 @@ use crate::error::*;
 use crate::entity_id::*;
 use crate::entity_channel::*;
 use crate::message::*;
+use crate::context::*;
 
 use ::desync::scheduler::*;
 
 use futures::prelude::*;
 use futures::channel::oneshot;
 use futures::stream::{BoxStream};
+use futures::future;
 use futures::future::{BoxFuture};
 
+use std::sync::*;
 use std::collections::{HashMap};
 
 ///
@@ -42,7 +45,7 @@ impl SceneCore {
     ///
     /// Creates an entity that processes a particular kind of message
     ///
-    pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&mut self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+    pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&mut self, scene_context: Arc<SceneContext>, runtime: TFn) -> Result<(), CreateEntityError>
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
@@ -50,6 +53,7 @@ impl SceneCore {
         TFnFuture:  'static + Send + Future<Output = ()>,
     {
         // Create the entity representation for this item
+        let entity_id           = scene_context.entity_id().unwrap();
         let (channel, receiver) = EntityChannel::new(5);
         let entity              = self.entities.entry(entity_id).or_insert_with(|| EntityCore::default());
 
@@ -59,7 +63,15 @@ impl SceneCore {
         // Start the future running
         let future              = async move {
             let future = scheduler().future_desync(&queue, move || async move {
-                runtime(receiver.boxed()).await
+                // Start the future running
+                let receiver            = receiver.boxed();
+                let mut runtime_future  = SceneContext::with_context(&scene_context, || runtime(receiver).boxed()).unwrap();
+
+                // Poll it in the scene context
+                future::poll_fn(move |ctxt| {
+                    SceneContext::with_context(&scene_context, || 
+                        runtime_future.poll_unpin(ctxt)).unwrap()
+                }).await
             }.boxed());
 
             future.await.ok();
@@ -82,7 +94,7 @@ impl SceneCore {
     ///
     /// This message type will be accepted for all entities in the scene
     ///
-    fn create_default<TMessage, TResponse, TFn, TFnFuture>(&mut self, runtime: TFn) -> Result<(), CreateDefaultError>
+    fn create_default<TMessage, TResponse, TFn, TFnFuture>(&mut self, context: Arc<SceneContext>, runtime: TFn) -> Result<(), CreateDefaultError>
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,

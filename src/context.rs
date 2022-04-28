@@ -23,8 +23,8 @@ struct DropContext {
 /// The context allows for communication with the current scene
 ///
 pub struct SceneContext {
-    /// The component that's executing code on the current thread
-    component: EntityId,
+    /// The component that's executing code on the current thread, or none for things like default actions
+    component: Option<EntityId>,
 
     /// The core of the scene that the component is a part of
     scene_core: Arc<Desync<SceneCore>>,
@@ -46,10 +46,13 @@ impl SceneContext {
     /// This is typically done automatically when running the runtimes for entities, but this can be used if if's ever necessary to
     /// artificially change contexts (eg: if an entity spawns its own thread, or in an independent runtime)
     ///
-    pub fn with_context<TFn, TResult>(new_context: Arc<SceneContext>, in_context: TFn) -> Result<TResult, SceneContextError>
+    #[inline]
+    pub fn with_context<TFn, TResult>(new_context: &Arc<SceneContext>, in_context: TFn) -> Result<TResult, SceneContextError>
     where
         TFn: FnOnce() -> TResult
     {
+        let new_context = Arc::clone(new_context);
+
         // When the function returns, reset the context
         let last_context = DropContext {
             previous_context: CURRENT_CONTEXT.try_with(|ctxt| ctxt.borrow().clone())?,
@@ -65,6 +68,13 @@ impl SceneContext {
         mem::drop(last_context);
 
         Ok(result)
+    }
+
+    ///
+    /// Returns the component that this context is for
+    ///
+    pub fn entity_id(&self) -> Option<EntityId> {
+        self.component
     }
 }
 
