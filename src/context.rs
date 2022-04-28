@@ -105,6 +105,18 @@ impl SceneContext {
     }
 
     ///
+    /// Send a single message to an entity in this context
+    ///
+    pub async fn send<TMessage, TResponse>(&self, entity_id: EntityId, message: TMessage) -> Result<TResponse, EntityChannelError>
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send, 
+    {
+        let mut channel = self.send_to::<TMessage, TResponse>(entity_id)?;
+        channel.send(message).await
+    }
+
+    ///
     /// Creates an entity that processes a particular kind of message
     ///
     pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
