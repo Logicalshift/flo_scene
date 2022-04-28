@@ -1,5 +1,5 @@
 mod scene;
-mod scene_core;
+pub (crate) mod scene_core;
 mod entity_core;
 mod scene_waker;
 
