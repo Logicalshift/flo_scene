@@ -22,7 +22,8 @@ fn say_hello() {
     // Create a test for this scene
     scene.create_entity::<(), Vec<SceneTestResult>, _, _>(TEST_ENTITY, move |mut msg| async move {
         while let Some(msg) = msg.next().await {
-            let world: String = SceneContext::current().unwrap().send(hello_entity, "Hello".to_string()).await.unwrap();
+            let world: String = SceneContext::current().unwrap()
+                .send(hello_entity, "Hello".to_string()).await.unwrap();
 
             msg.respond(vec![
                 (world == "World".to_string()).into()
