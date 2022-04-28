@@ -85,7 +85,6 @@ impl Scene {
     pub async fn run(self) {
         // Prepare state (gets moved into the poll function)
         let mut running_futures = vec![];
-        let mut wake_receiver   = None;
 
         // Run the scene
         future::poll_fn::<(), _>(move |context| {
@@ -97,7 +96,7 @@ impl Scene {
                     core.wake_scene     = Some(sender);
                     waiting_futures
                 });
-                wake_receiver           = Some(receiver);
+                let mut wake_receiver   = receiver;
 
                 // Each future gets its own waker
                 let waiting_futures = waiting_futures.into_iter()
@@ -133,14 +132,9 @@ impl Scene {
                     }
 
                     // See if the core has woken us up once the futures are polled
-                    if let Some(receiver) = &mut wake_receiver {
-                        if let Poll::Ready(_) = receiver.poll_unpin(context) {
-                            // Finished with the current wake receiver
-                            wake_receiver = None;
-
-                            // Break out of the inner loop to service the core
-                            break;
-                        }
+                    if let Poll::Ready(_) = wake_receiver.poll_unpin(context) {
+                        // Break out of the inner loop to service the core
+                        break;
                     }
 
                     // Stop running once all of the futures are asleep
