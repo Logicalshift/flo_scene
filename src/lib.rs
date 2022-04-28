@@ -18,3 +18,5 @@ pub use self::entity_id::*;
 pub use self::message::*;
 pub use self::entity_channel::*;
 pub use self::context::*;
+
+#[cfg(feature="test-scene")] pub mod test;

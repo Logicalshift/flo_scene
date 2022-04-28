@@ -24,6 +24,7 @@ name = "flo_scene"
 version = "0.1.0"
 dependencies = [
  "desync",
+ "flo_scene",
  "futures",
  "uuid",
 ]
