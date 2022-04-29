@@ -27,10 +27,10 @@ struct DropContext {
 /// The context allows for communication with the current scene
 ///
 pub struct SceneContext {
-    /// The component that's executing code on the current thread, or none for things like default actions
-    component: Option<EntityId>,
+    /// The entity that's executing code on the current thread, or none for things like default actions
+    entity: Option<EntityId>,
 
-    /// The core of the scene that the component is a part of
+    /// The core of the scene that the entity is a part of
     scene_core: Result<Arc<Desync<SceneCore>>, SceneContextError>,
 }
 
@@ -61,7 +61,7 @@ impl SceneContext {
     ///
     fn error(error: SceneContextError) -> SceneContext {
         SceneContext {
-            component:  None,
+            entity:     None,
             scene_core: Err(error),
         }
     }
@@ -71,7 +71,7 @@ impl SceneContext {
     ///
     pub (crate) fn for_entity(entity_id: EntityId, core: Arc<Desync<SceneCore>>) -> SceneContext {
         SceneContext {
-            component:  Some(entity_id),
+            entity:     Some(entity_id),
             scene_core: Ok(Arc::clone(&core)),
         }
     }
@@ -107,10 +107,10 @@ impl SceneContext {
     }
 
     ///
-    /// Returns the component that this context is for
+    /// Returns the entuty that this context is for
     ///
-    pub fn component(&self) -> Option<EntityId> {
-        self.component
+    pub fn entity(&self) -> Option<EntityId> {
+        self.entity
     }
 
     ///
@@ -175,9 +175,9 @@ impl SceneContext {
         TFn:        'static + Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
     {
-        // Create a SceneContext for the new component
+        // Create a SceneContext for the new entity
         let new_context = Arc::new(SceneContext {
-            component:  Some(entity_id),
+            entity:     Some(entity_id),
             scene_core: Ok(Arc::clone(self.scene_core.as_ref()?)),
         });
 
@@ -215,12 +215,12 @@ impl Drop for DropContext {
 ///
 /// Retrieves the entity ID that the current context is executing for
 ///
-pub fn scene_current_component() -> Option<EntityId> {
-    SceneContext::current().component()
+pub fn scene_current_entity() -> Option<EntityId> {
+    SceneContext::current().entity()
 }
 
 ///
-/// Creates a channel for sending messages to a component (in the current context)
+/// Creates a channel for sending messages to a entity (in the current context)
 ///
 pub fn scene_send_to<TMessage, TResponse>(entity_id: EntityId) -> Result<EntityChannel<TMessage, TResponse>, EntityChannelError>
 where
@@ -231,7 +231,7 @@ where
 }
 
 ///
-/// Sends a single message to a component and reads the response
+/// Sends a single message to a entity and reads the response
 ///
 pub async fn scene_send<TMessage, TResponse>(entity_id: EntityId, message: TMessage) -> Result<TResponse, EntityChannelError>
 where

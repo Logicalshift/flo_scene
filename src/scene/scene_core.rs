@@ -53,7 +53,7 @@ impl SceneCore {
         TFnFuture:  'static + Send + Future<Output = ()>,
     {
         // Create the entity representation for this item
-        let entity_id           = scene_context.component().unwrap();
+        let entity_id           = scene_context.entity().unwrap();
         let (channel, receiver) = EntityChannel::new(5);
         let entity              = self.entities.entry(entity_id).or_insert_with(|| EntityCore::default());
 
