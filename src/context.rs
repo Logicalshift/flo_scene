@@ -109,7 +109,7 @@ impl SceneContext {
     ///
     /// Returns the component that this context is for
     ///
-    pub fn entity_id(&self) -> Option<EntityId> {
+    pub fn component(&self) -> Option<EntityId> {
         self.component
     }
 
@@ -166,4 +166,46 @@ impl Drop for DropContext {
         let previous_context = self.previous_context.take();
         CURRENT_CONTEXT.try_with(move |ctxt| *(ctxt.borrow_mut()) = previous_context).ok();
     }
+}
+
+///
+/// Retrieves the entity ID that the current context is executing for
+///
+pub fn scene_current_component() -> Option<EntityId> {
+    SceneContext::current().component()
+}
+
+///
+/// Creates a channel for sending messages to a component (in the current context)
+///
+pub fn scene_send_to<TMessage, TResponse>(entity_id: EntityId) -> Result<EntityChannel<TMessage, TResponse>, EntityChannelError>
+where
+    TMessage:   'static + Send,
+    TResponse:  'static + Send, 
+{
+    SceneContext::current().send_to(entity_id)
+}
+
+///
+/// Sends a single message to a component and reads the response
+///
+pub async fn scene_send<TMessage, TResponse>(entity_id: EntityId, message: TMessage) -> Result<TResponse, EntityChannelError>
+where
+    TMessage:   'static + Send,
+    TResponse:  'static + Send, 
+{
+    SceneContext::current().send(entity_id, message).await
+}
+
+///
+/// Creates a new entity in the current scene
+///
+pub fn scene_create_entity<TMessage, TResponse, TFn, TFnFuture>(entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+where
+    TMessage:   'static + Send,
+    TResponse:  'static + Send,
+    TFn:        'static + Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
+    TFnFuture:  'static + Send + Future<Output = ()>,
+{
+    SceneContext::current().create_entity(entity_id, runtime)
 }
