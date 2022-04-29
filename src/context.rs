@@ -203,6 +203,18 @@ impl SceneContext {
             runtime.await
         })
     }
+
+    ///
+    /// Called when an entity in this context has finished
+    ///
+    pub (crate) fn finish_entity<TMessage, TResponse>(&self, entity_id: EntityId)
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send,
+    {
+        self.scene_core.as_ref().unwrap()
+            .desync(move |core| core.finish_entity::<TMessage, TResponse>(entity_id));
+    }
 }
 
 impl Drop for DropContext {

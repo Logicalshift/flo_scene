@@ -87,4 +87,23 @@ impl EntityCore {
         // Clone it to create the channel for the receiver
         Some(channel.clone())
     }
+
+    ///
+    /// Removes a channel of a particular type from this entity, and returns true if the entity has other channels
+    ///
+    pub fn deregister<TMessage, TResponse>(&mut self) -> bool
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send,
+    {
+        // Attempt to retrieve a channel of this type
+        let type_id = TypeId::of::<EntityChannel<TMessage, TResponse>>();
+
+        // Remove from the channels and queues of this entity
+        self.channels.remove(&type_id);
+        self.queues.remove(&type_id);
+
+        // Result is true if there are still channels
+        !self.channels.is_empty()
+    }
 }

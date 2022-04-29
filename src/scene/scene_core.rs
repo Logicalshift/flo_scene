@@ -68,13 +68,22 @@ impl SceneCore {
                 let mut runtime_future  = SceneContext::with_context(&scene_context, || runtime(receiver).boxed()).unwrap();
 
                 // Poll it in the scene context
-                future::poll_fn(move |ctxt| {
+                future::poll_fn(|ctxt| {
                     SceneContext::with_context(&scene_context, || 
                         runtime_future.poll_unpin(ctxt)).unwrap()
-                }).await
+                }).await;
+
+                // Return the context once we're done
+                scene_context
             }.boxed());
 
-            future.await.ok();
+            // Run the future, and retrieve the scene context
+            let scene_context = future.await.ok();
+
+            // When done, deregister the entity
+            if let Some(scene_context) = scene_context {
+                scene_context.finish_entity::<TMessage, TResponse>(entity_id);
+            }
         };
         let future              = future.boxed();
 
@@ -123,5 +132,26 @@ impl SceneCore {
         let channel = if let Some(channel) = channel { channel } else { return Err(EntityChannelError::NotListening); };
 
         Ok(channel)
+    }
+
+
+    ///
+    /// Called when an entity in this context has finished
+    ///
+    pub (crate) fn finish_entity<TMessage, TResponse>(&mut self, entity_id: EntityId)
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send,
+    {
+        // Fetch the entity
+        let entity = self.entities.get_mut(&entity_id);
+
+        if let Some(entity) = entity {
+            // De-register this channel
+            if !entity.deregister::<TMessage, TResponse>() {
+                // Remove the entity from the core if it has no remaining channels
+                self.entities.remove(&entity_id);
+            }
+        }
     }
 }
