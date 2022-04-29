@@ -31,17 +31,39 @@ pub struct SceneContext {
     component: Option<EntityId>,
 
     /// The core of the scene that the component is a part of
-    scene_core: Arc<Desync<SceneCore>>,
+    scene_core: Result<Arc<Desync<SceneCore>>, SceneContextError>,
 }
 
 impl SceneContext {
     ///
     /// Retrieves the active scene context (or a context error if one is available)
     ///
-    pub fn current() -> Result<Arc<SceneContext>, SceneContextError> {
-        CURRENT_CONTEXT
-            .try_with(|ctxt| ctxt.borrow().clone())?
-            .ok_or(SceneContextError::NoCurrentScene)
+    pub fn current() -> Arc<SceneContext> {
+        let context = CURRENT_CONTEXT
+            .try_with(|ctxt| ctxt.borrow().clone());
+
+        match context {
+            Ok(Some(context))   => context,
+            Ok(None)            => Arc::new(SceneContext::none()),
+            Err(err)            => Arc::new(SceneContext::error(err.into())),
+        }
+    }
+
+    ///
+    /// Creates a scene context that means 'no context'
+    ///
+    fn none() -> SceneContext {
+        Self::error(SceneContextError::NoCurrentScene)
+    }
+
+    ///
+    /// Creates an error scene context
+    ///
+    fn error(error: SceneContextError) -> SceneContext {
+        SceneContext {
+            component:  None,
+            scene_core: Err(error),
+        }
     }
 
     ///
@@ -50,7 +72,7 @@ impl SceneContext {
     pub (crate) fn for_entity(entity_id: EntityId, core: Arc<Desync<SceneCore>>) -> SceneContext {
         SceneContext {
             component:  Some(entity_id),
-            scene_core: Arc::clone(&core),
+            scene_core: Ok(Arc::clone(&core)),
         }
     }
 
@@ -99,7 +121,7 @@ impl SceneContext {
         TMessage:   'static + Send,
         TResponse:  'static + Send, 
     {
-        self.scene_core.sync(|core| {
+        self.scene_core.as_ref()?.sync(|core| {
             core.send_to(entity_id)
         })
     }
@@ -129,11 +151,11 @@ impl SceneContext {
         // Create a SceneContext for the new component
         let new_context = Arc::new(SceneContext {
             component:  Some(entity_id),
-            scene_core: Arc::clone(&self.scene_core),
+            scene_core: Ok(Arc::clone(self.scene_core.as_ref()?)),
         });
 
         // Request that the core create the entity
-        self.scene_core.sync(move |core| {
+        self.scene_core.as_ref()?.sync(move |core| {
             core.create_entity(new_context, runtime)
         })
     }

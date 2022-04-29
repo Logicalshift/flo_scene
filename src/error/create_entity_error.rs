@@ -17,6 +17,12 @@ pub enum CreateEntityError {
 
 impl From<SceneContextError> for CreateEntityError {
     fn from(error: SceneContextError) -> CreateEntityError {
+        CreateEntityError::from(&error)
+    }
+}
+
+impl From<&SceneContextError> for CreateEntityError {
+    fn from(error: &SceneContextError) -> CreateEntityError {
         match error {
             SceneContextError::NoCurrentScene       => CreateEntityError::NoCurrentScene,
             SceneContextError::ThreadShuttingDown   => CreateEntityError::ThreadShuttingDown,

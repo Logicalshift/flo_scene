@@ -35,6 +35,12 @@ impl From<mpsc::SendError> for EntityChannelError {
 
 impl From<SceneContextError> for EntityChannelError {
     fn from(error: SceneContextError) -> EntityChannelError {
+        EntityChannelError::from(&error)
+    }
+}
+
+impl From<&SceneContextError> for EntityChannelError {
+    fn from(error: &SceneContextError) -> EntityChannelError {
         match error {
             SceneContextError::NoCurrentScene       => EntityChannelError::NoCurrentScene,
             SceneContextError::ThreadShuttingDown   => EntityChannelError::ThreadShuttingDown,
