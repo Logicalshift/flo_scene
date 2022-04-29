@@ -139,6 +139,33 @@ impl SceneContext {
     }
 
     ///
+    /// Sends a stream of data to an entity
+    ///
+    /// This will use the `<TMessage, ()>` interface of the entity to send the data
+    ///
+    pub fn send_stream<TMessage>(&self, entity_id: EntityId, stream: impl 'static + Send + Stream<Item=TMessage>) -> Result<impl Send + Future<Output=()>, EntityChannelError> 
+    where
+        TMessage:   'static + Send,
+    {
+        // Connect to the entity
+        let mut channel = self.send_to::<TMessage, ()>(entity_id)?;
+        let mut stream  = stream.boxed();
+
+        Ok(async move {
+            // Future reads from the stream until it's done
+            while let Some(message) = stream.next().await {
+                // Send to the channel and wait for it to respond
+                let response = channel.send(message).await;
+
+                // Break if the channel responds with an error
+                if response.is_err() {
+                    break;
+                }
+            }
+        })
+    }
+
+    ///
     /// Creates an entity that processes a particular kind of message
     ///
     pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
@@ -157,6 +184,23 @@ impl SceneContext {
         // Request that the core create the entity
         self.scene_core.as_ref()?.sync(move |core| {
             core.create_entity(new_context, runtime)
+        })
+    }
+
+    ///
+    /// Creates an entity that processes a stream of messages which receive empty responses
+    ///
+    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+    where
+        TMessage:   'static + Send,
+        TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
+        TFnFuture:  'static + Send + Future<Output = ()>,
+     {
+        self.create_entity(entity_id, move |msgs| async {
+            let msgs    = msgs.map(|message: Message<TMessage, ()>| match message.take(()) { Ok(msg) => msg, Err(msg) => msg });
+            let runtime = runtime(msgs.boxed());
+
+            runtime.await
         })
     }
 }
@@ -198,6 +242,18 @@ where
 }
 
 ///
+/// Sends a stream of data to an entity
+///
+/// This will use the `<TMessage, ()>` interface of the entity to send the data
+///
+pub fn scene_send_stream<TMessage>(entity_id: EntityId, stream: impl 'static + Send + Stream<Item=TMessage>) -> Result<impl Send + Future<Output=()>, EntityChannelError> 
+where
+    TMessage:   'static + Send,
+{
+    SceneContext::current().send_stream(entity_id, stream)
+}
+
+///
 /// Creates a new entity in the current scene
 ///
 pub fn scene_create_entity<TMessage, TResponse, TFn, TFnFuture>(entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
@@ -208,4 +264,16 @@ where
     TFnFuture:  'static + Send + Future<Output = ()>,
 {
     SceneContext::current().create_entity(entity_id, runtime)
+}
+
+///
+/// Creates an entity that processes a stream of messages which receive empty responses
+///
+pub fn scene_create_stream_entity<TMessage, TFn, TFnFuture>(entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+where
+    TMessage:   'static + Send,
+    TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
+    TFnFuture:  'static + Send + Future<Output = ()>,
+{
+    SceneContext::current().create_stream_entity(entity_id, runtime)
 }

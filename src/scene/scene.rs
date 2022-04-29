@@ -80,6 +80,23 @@ impl Scene {
     }
 
     ///
+    /// Creates an entity that processes a stream of messages which receive empty responses
+    ///
+    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+    where
+        TMessage:   'static + Send,
+        TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
+        TFnFuture:  'static + Send + Future<Output = ()>,
+     {
+        self.create_entity(entity_id, move |msgs| async {
+            let msgs    = msgs.map(|message: Message<TMessage, ()>| match message.take(()) { Ok(msg) => msg, Err(msg) => msg });
+            let runtime = runtime(msgs.boxed());
+
+            runtime.await
+        })
+    }
+
+    ///
     /// Runs this scene
     ///
     pub async fn run(self) {

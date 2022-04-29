@@ -29,12 +29,25 @@ impl<TPayload, TResponse> Message<TPayload, TResponse> {
     }
 
     ///
-    /// Returns the result for this message
+    /// Returns the result for this message to the sender
     ///
     /// This will return `Err(response)` if nothing is listening for the result of this message
     ///
     pub fn respond(self, response: TResponse) -> Result<(), TResponse> {
         self.response.send(response)
+    }
+
+    ///
+    /// Responds to the sender and retrieves the payload for the message
+    ///
+    /// This will return `Err(payload)` if nothing is listening for the response
+    ///
+    pub fn take(self, response: TResponse) -> Result<TPayload, TPayload> {
+        if self.response.send(response).is_err() {
+            Err(self.message)
+        } else {
+            Ok(self.message)
+        }
     }
 }
 
