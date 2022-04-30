@@ -16,7 +16,7 @@ impl<TMessage, TResponse> EntityChannel<TMessage, TResponse> {
     ///
     /// Creates a new entity channel
     ///
-    pub (crate) fn new(buf_size: usize) -> (EntityChannel<TMessage, TResponse>, mpsc::Receiver<Message<TMessage, TResponse>>) {
+    pub fn new(buf_size: usize) -> (EntityChannel<TMessage, TResponse>, mpsc::Receiver<Message<TMessage, TResponse>>) {
         let (sender, receiver) = mpsc::channel(buf_size);
 
         let channel = EntityChannel {

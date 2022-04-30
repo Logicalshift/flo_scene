@@ -77,6 +77,16 @@ impl SceneContext {
     }
 
     ///
+    /// Creates a context for a no entity and a particular core
+    ///
+    pub (crate) fn for_default(core: Arc<Desync<SceneCore>>) -> SceneContext {
+        SceneContext {
+            entity:     None,
+            scene_core: Ok(Arc::clone(&core)),
+        }
+    }
+
+    ///
     /// Evaluates a function within a particular scene context
     ///
     /// This is typically done automatically when running the runtimes for entities, but this can be used if if's ever necessary to
@@ -188,6 +198,28 @@ impl SceneContext {
     }
 
     ///
+    /// Creates a default behaviour for a particular kind of message
+    ///
+    pub fn create_default<TMessage, TResponse, TFn, TFnFuture>(&self, runtime: TFn) -> Result<(), CreateDefaultError>
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send,
+        TFn:        'static + Send + FnOnce(BoxStream<'static, Message<(EntityId, TMessage), TResponse>>) -> TFnFuture,
+        TFnFuture:  'static + Send + Future<Output = ()>,
+    {
+        // Create a SceneContext for the new entity
+        let new_context = Arc::new(SceneContext {
+            entity:     None,
+            scene_core: Ok(Arc::clone(self.scene_core.as_ref()?)),
+        });
+
+        // Request that the core create the entity
+        self.scene_core.as_ref()?.sync(move |core| {
+            core.create_default(new_context, runtime)
+        })
+    }
+
+    ///
     /// Creates an entity that processes a stream of messages which receive empty responses
     ///
     pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
@@ -214,6 +246,18 @@ impl SceneContext {
     {
         self.scene_core.as_ref().unwrap()
             .desync(move |core| core.finish_entity::<TMessage, TResponse>(entity_id));
+    }
+
+    ///
+    /// Called when an default channel in this context has finished
+    ///
+    pub (crate) fn finish_default<TMessage, TResponse>(&self)
+    where
+        TMessage:   'static + Send,
+        TResponse:  'static + Send,
+    {
+        self.scene_core.as_ref().unwrap()
+            .desync(move |core| core.finish_default::<TMessage, TResponse>());
     }
 }
 
@@ -279,6 +323,19 @@ where
 }
 
 ///
+///
+/// Creates a new default behaviour in the current scene
+///
+pub fn scene_create_default<TMessage, TResponse, TFn, TFnFuture>(runtime: TFn) -> Result<(), CreateDefaultError>
+where
+    TMessage:   'static + Send,
+    TResponse:  'static + Send,
+    TFn:        'static + Send + FnOnce(BoxStream<'static, Message<(EntityId, TMessage), TResponse>>) -> TFnFuture,
+    TFnFuture:  'static + Send + Future<Output = ()>,
+{
+    SceneContext::current().create_default(runtime)
+}
+
 /// Creates an entity that processes a stream of messages which receive empty responses
 ///
 pub fn scene_create_stream_entity<TMessage, TFn, TFnFuture>(entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
