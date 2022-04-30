@@ -128,6 +128,7 @@ impl SceneCore {
         // Attach to the channel in the entity that belongs to this stream type
         // TODO: attach to a default channel if the entity doesn't have this channel
         // TODO: default channels need to know how to upgrade to the 'real' channel if one is created
+        // TODO: default channels should close for an entity if the entity is shut down
         let channel = entity.attach_channel();
         let channel = if let Some(channel) = channel { channel } else { return Err(EntityChannelError::NotListening); };
 
