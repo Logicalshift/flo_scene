@@ -38,16 +38,10 @@ impl<TPayload, TResponse> Message<TPayload, TResponse> {
     }
 
     ///
-    /// Responds to the sender and retrieves the payload for the message
+    /// Extracts the payload and response sender from this message
     ///
-    /// This will return `Err(payload)` if nothing is listening for the response
-    ///
-    pub fn take(self, response: TResponse) -> Result<TPayload, TPayload> {
-        if self.response.send(response).is_err() {
-            Err(self.message)
-        } else {
-            Ok(self.message)
-        }
+    pub fn take(self) -> (TPayload, oneshot::Sender<TResponse>) {
+        (self.message, self.response)
     }
 }
 

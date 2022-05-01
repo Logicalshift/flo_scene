@@ -55,9 +55,7 @@ impl Scene {
         TMessage:   'static + Send,
         TResponse:  'static + Send, 
     {
-        self.core.sync(|core| {
-            core.send_to(entity_id)
-        })
+        SceneContext::with_no_entity(&self.core).send_to(entity_id)
     }
 
     ///
@@ -70,13 +68,7 @@ impl Scene {
         TFn:        'static + Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
     {
-        // Create a SceneContext for the new component
-        let new_context = Arc::new(SceneContext::for_entity(entity_id, Arc::clone(&self.core)));
-
-        // Request that the core create the entity
-        self.core.sync(move |core| {
-            core.create_entity(new_context, runtime)
-        })
+        SceneContext::with_no_entity(&self.core).create_entity(entity_id, runtime)
     }
 
     ///
@@ -88,12 +80,7 @@ impl Scene {
         TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
      {
-        self.create_entity(entity_id, move |msgs| async {
-            let msgs    = msgs.map(|message: Message<TMessage, ()>| match message.take(()) { Ok(msg) => msg, Err(msg) => msg });
-            let runtime = runtime(msgs.boxed());
-
-            runtime.await
-        })
+        SceneContext::with_no_entity(&self.core).create_stream_entity(entity_id, runtime)
     }
 
     ///

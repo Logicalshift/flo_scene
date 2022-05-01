@@ -8,6 +8,7 @@ use std::sync::*;
 
 #[test]
 fn stream_completion() {
+    // Entities don't consume stream items until they're finished processing
     for _ in 0..100 {
         let scene               = Scene::empty();
         let stream_entity       = EntityId::new();

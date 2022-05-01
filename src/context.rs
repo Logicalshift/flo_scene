@@ -6,6 +6,9 @@ use crate::scene::scene_core::*;
 
 use ::desync::*;
 use futures::prelude::*;
+use futures::task::{Poll};
+use futures::channel::oneshot;
+use futures::stream;
 use futures::stream::{BoxStream};
 
 use std::mem;
@@ -67,11 +70,11 @@ impl SceneContext {
     }
 
     ///
-    /// Creates a context for a particular entity and core
+    /// Returns a context with no active entity 
     ///
-    pub (crate) fn for_entity(entity_id: EntityId, core: Arc<Desync<SceneCore>>) -> SceneContext {
+    pub (crate) fn with_no_entity(core: &Arc<Desync<SceneCore>>) -> SceneContext {
         SceneContext {
-            entity:     Some(entity_id),
+            entity:     None,
             scene_core: Ok(Arc::clone(&core)),
         }
     }
@@ -197,7 +200,28 @@ impl SceneContext {
         TFnFuture:  'static + Send + Future<Output = ()>,
      {
         self.create_entity(entity_id, move |msgs| async {
-            let msgs    = msgs.map(|message: Message<TMessage, ()>| match message.take(()) { Ok(msg) => msg, Err(msg) => msg });
+            let mut last_response: Option<oneshot::Sender<()>>   = None;
+            let mut msgs            = msgs;
+            let msgs                = stream::poll_fn(move |ctxt| {
+                // Respond to the last message before generating the next one (errors are ignored)
+                if let Some(last_response) = last_response.take() {
+                    last_response.send(()).ok();
+                }
+
+                // Retrieve the next message
+                match msgs.poll_next_unpin(ctxt) {
+                    Poll::Pending           => Poll::Pending,
+                    Poll::Ready(None)       => Poll::Ready(None),
+                    Poll::Ready(Some(msg))  => {
+                        let msg: Message<TMessage, ()> = msg;
+                        let (message, response) = msg.take();
+
+                        last_response           = Some(response);
+                        Poll::Ready(Some(message))
+                    }
+                }
+            });
+
             let runtime = runtime(msgs.boxed());
 
             runtime.await
