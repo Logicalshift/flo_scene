@@ -27,6 +27,22 @@ pub trait EntityChannelExt : Sized + EntityChannel {
         TNewResponse:   Send;
 
     ///
+    /// Converts this entity channel to another of a compatible type, by changing the message type only
+    ///
+    fn convert_message<TNewMessage>(self) -> ConvertEntityChannel<Self, TNewMessage, Self::Response>
+    where
+        Self::Message:  From<TNewMessage>,
+        TNewMessage:    Send;
+
+    ///
+    /// Converts this entity channel to another of a compatible type, by changing the message type only
+    ///
+    fn convert_response<TNewResponse>(self) -> ConvertEntityChannel<Self, Self::Message, TNewResponse>
+    where
+        Self::Response: Into<TNewResponse>,
+        TNewResponse:   Send;
+
+    ///
     /// Puts this channel in a box
     ///
     fn boxed<'a>(self) -> BoxedEntityChannel<'a, Self::Message, Self::Response>
@@ -54,6 +70,21 @@ where
         TNewMessage:    Send,
         TNewResponse:   Send,
     {
+        ConvertEntityChannel::new(self)
+    }
+
+    fn convert_message<TNewMessage>(self) -> ConvertEntityChannel<Self, TNewMessage, Self::Response>
+    where
+        Self::Message:  From<TNewMessage>,
+        TNewMessage:    Send,
+    {
+        ConvertEntityChannel::new(self)
+    }
+
+    fn convert_response<TNewResponse>(self) -> ConvertEntityChannel<Self, Self::Message, TNewResponse>
+    where
+        Self::Response: Into<TNewResponse>,
+        TNewResponse:   Send {
         ConvertEntityChannel::new(self)
     }
 
