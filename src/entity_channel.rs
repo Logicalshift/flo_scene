@@ -21,7 +21,7 @@ pub trait EntityChannel : Send {
 ///
 /// A boxed entity channel is used to hide the real type of an entity channel
 ///
-pub type BoxedEntityChannel<'a, TMessage, TResponse> = Box<dyn 'a + Send + EntityChannel<Message=TMessage, Response=TResponse>>;
+pub type BoxedEntityChannel<'a, TMessage, TResponse> = Box<dyn 'a + EntityChannel<Message=TMessage, Response=TResponse>>;
 
 impl<'a, TMessage, TResponse> EntityChannel for BoxedEntityChannel<'a, TMessage, TResponse> {
     type Message    = TMessage;
