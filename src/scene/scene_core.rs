@@ -23,7 +23,7 @@ use std::collections::{HashMap};
 ///
 pub struct SceneCore {
     /// The entities that are available in this core
-    pub (super) entities: HashMap<EntityId, EntityCore>,
+    pub (super) entities: HashMap<EntityId, Arc<Mutex<EntityCore>>>,
 
     /// The default channel to use for a particular channel type
     pub (super) default_channel: HashMap<TypeId, Box<dyn Send + Any>>,
@@ -61,13 +61,18 @@ impl SceneCore {
         TFn:        'static + Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
     {
-        // Create the entity representation for this item
+        // The entity ID is specified in the supplied scene context
         let entity_id           = scene_context.entity().unwrap();
-        let (channel, receiver) = EntityChannel::new(5);
-        let entity              = self.entities.entry(entity_id).or_insert_with(|| EntityCore::default());
 
-        let queue = entity.create_queue(&channel)?;
-        entity.register_channel(channel)?;
+        // The entity must not already exist
+        if self.entities.contains_key(&entity_id) { return Err(CreateEntityError::AlreadyExists); }
+
+        // Create the channel and the eneity
+        let (channel, receiver) = EntityChannel::new(5);
+        let entity              = Arc::new(Mutex::new(EntityCore::new(channel)));
+        let queue               = entity.lock().unwrap().queue();
+
+        self.entities.insert(entity_id, entity);
 
         // Start the future running
         let future              = async move {
@@ -189,7 +194,7 @@ impl SceneCore {
         // TODO: default channels should close for an entity if the entity is shut down
         
         // Attach to the channel in the entity that belongs to this stream type
-        let channel = entity.attach_channel();
+        let channel = entity.lock().unwrap().attach_channel();
         let channel = if let Some(channel) = channel { channel } else { return Err(EntityChannelError::NotListening); };
 
         Ok(channel)
@@ -198,21 +203,8 @@ impl SceneCore {
     ///
     /// Called when an entity in this context has finished
     ///
-    pub (crate) fn finish_entity<TMessage, TResponse>(&mut self, entity_id: EntityId)
-    where
-        TMessage:   'static + Send,
-        TResponse:  'static + Send,
-    {
-        // Fetch the entity
-        let entity = self.entities.get_mut(&entity_id);
-
-        if let Some(entity) = entity {
-            // De-register this channel
-            if !entity.deregister::<TMessage, TResponse>() {
-                // Remove the entity from the core if it has no remaining channels
-                self.entities.remove(&entity_id);
-            }
-        }
+    pub (crate) fn finish_entity(&mut self, entity_id: EntityId) {
+        self.entities.remove(&entity_id);
     }
 
     ///

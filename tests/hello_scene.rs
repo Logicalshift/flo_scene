@@ -58,16 +58,6 @@ fn stream_hello() {
         }
     }).unwrap();
 
-    // Give it another aspect that returns the strings that were streamed into it (given a blank message)
-    scene.create_entity(stream_entity, move |mut messages| async move {
-        while let Some(msg) = messages.next().await {
-            let msg: Message<(), Vec<String>> = msg;
-            let strings = streamed_strings.lock().unwrap().clone();
-
-            msg.respond(strings).ok();
-        }
-    }).unwrap();
-
     // Test sends a couple of strings and then reads them back again
     scene.create_entity(TEST_ENTITY, move |mut messages| async move {
         while let Some(msg) = messages.next().await {
@@ -76,8 +66,8 @@ fn stream_hello() {
             // Stream in some stirngs
             scene_send_stream(stream_entity, stream::iter(vec!["Hello".to_string(), "World".to_string()])).unwrap().await;
 
-            // Read the strings using the 'reader' aspect of the test entity
-            let strings: Vec<String> = scene_send(stream_entity, ()).await.unwrap();
+            // Re-read them from the store
+            let strings: Vec<String> = streamed_strings.lock().unwrap().clone();
 
             if strings == vec!["Hello".to_string(), "World".to_string()] {
                 msg.respond(vec![SceneTestResult::Ok]).unwrap();
