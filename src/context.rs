@@ -117,6 +117,24 @@ impl SceneContext {
     }
 
     ///
+    /// Specify that entities that can process messages of type `TNewMessage` can also process messages of type `TOriginalMessage`
+    ///
+    /// That is, if an entity can be addressed using `EntityChannel<Message=TNewMessage>` it will automatically convert from `TOriginalMessage`
+    /// so that `EntityChannel<Message=TSourceMessage>` also works.
+    ///
+    pub fn convert_message<TOriginalMessage, TNewMessage>(&self) -> Result<(), SceneContextError> 
+    where
+        TOriginalMessage:   'static + Send,
+        TNewMessage:        'static + Send + From<TOriginalMessage>,
+    {
+        self.scene_core.as_ref()?.sync(|core| {
+            core.convert_message::<TOriginalMessage, TNewMessage>();
+        });
+
+        Ok(())
+    }
+
+    ///
     /// Creates a channel to send messages in this context
     ///
     pub fn send_to<TMessage, TResponse>(&self, entity_id: EntityId) -> Result<impl EntityChannel<Message=TMessage, Response=TResponse>, EntityChannelError>

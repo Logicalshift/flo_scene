@@ -12,6 +12,12 @@ pub enum SceneContextError {
     ThreadShuttingDown,
 }
 
+impl From<&SceneContextError> for SceneContextError {
+    fn from(err: &SceneContextError) -> SceneContextError {
+        err.clone()
+    }
+}
+
 impl From<thread::AccessError> for SceneContextError {
     fn from(_err: thread::AccessError) -> SceneContextError {
         SceneContextError::ThreadShuttingDown

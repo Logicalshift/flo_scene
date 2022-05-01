@@ -79,8 +79,22 @@ impl Scene {
         TMessage:   'static + Send,
         TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
-     {
+    {
         SceneContext::with_no_entity(&self.core).create_stream_entity(entity_id, runtime)
+    }
+
+    ///
+    /// Specify that entities that can process messages of type `TNewMessage` can also process messages of type `TOriginalMessage`
+    ///
+    /// That is, if an entity can be addressed using `EntityChannel<Message=TNewMessage>` it will automatically convert from `TOriginalMessage`
+    /// so that `EntityChannel<Message=TSourceMessage>` also works.
+    ///
+    pub fn convert_message<TOriginalMessage, TNewMessage>(&self) -> Result<(), SceneContextError> 
+    where
+        TOriginalMessage:   'static + Send,
+        TNewMessage:        'static + Send + From<TOriginalMessage>,
+    {
+        SceneContext::with_no_entity(&self.core).convert_message::<TOriginalMessage, TNewMessage>()
     }
 
     ///

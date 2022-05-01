@@ -2,6 +2,8 @@ use super::entity_core::*;
 
 use crate::error::*;
 use crate::entity_id::*;
+use crate::entity_channel::*;
+use crate::entity_channel_ext::*;
 use crate::simple_entity_channel::*;
 use crate::message::*;
 use crate::context::*;
@@ -14,8 +16,46 @@ use futures::stream::{BoxStream};
 use futures::future;
 use futures::future::{BoxFuture};
 
+use std::any::{TypeId, Any};
 use std::sync::*;
 use std::collections::{HashMap};
+
+struct MapEntityType {
+    /// Maps from a boxed 'Any' representing the source entity channel type to a boxed 'Any' representing the target entity channel type
+    map_fn: Box<dyn Send + Any>,
+}
+
+impl MapEntityType {
+    ///
+    /// Creates a mapping from one type to another
+    ///
+    pub fn new<TSource, TTarget>() -> MapEntityType 
+    where
+        TSource: 'static + Send,
+        TTarget: 'static + Send + From<TSource>,
+    {
+        // Box a function to convert from source to target
+        let map_fn: Arc<dyn Sync + Send + Fn(TSource) -> TTarget> = Arc::new(|src: TSource| TTarget::from(src));
+
+        // Box again to create the 'any' version of the function
+        MapEntityType {
+            map_fn: Box::new(map_fn)
+        }
+    }
+
+    ///
+    /// Returns the conversion function for mapping from a source to a target type
+    ///
+    pub fn conversion_function<TSource, TTarget>(&self) -> Option<Arc<dyn Sync + Send + Fn(TSource) -> TTarget>> 
+    where
+        TSource: 'static + Send,
+        TTarget: 'static + Send + From<TSource>,
+    {
+        let conversion = self.map_fn.downcast_ref::<Arc<dyn Sync + Send + Fn(TSource) -> TTarget>>()?;
+
+        Some(conversion.clone())
+    }
+}
 
 ///
 /// The scene core represents the state shared between all entities in a scene
@@ -29,6 +69,9 @@ pub struct SceneCore {
 
     /// Used by the scene that owns this core to request wake-ups (only one scene can be waiting for a wake up at once)
     pub (super) wake_scene: Option<oneshot::Sender<()>>,
+
+    /// Provides a function for mapping from one entity channel type to another, based on the message type
+    map_for_message: HashMap<TypeId, HashMap<TypeId, MapEntityType>>,
 }
 
 impl Default for SceneCore {
@@ -37,6 +80,7 @@ impl Default for SceneCore {
             entities:           HashMap::new(),
             waiting_futures:    vec![],
             wake_scene:         None,
+            map_for_message:    HashMap::new(),
         }
     }
 }
@@ -104,9 +148,27 @@ impl SceneCore {
     }
 
     ///
+    /// Specifies that if an entity accepts messages in the format `TOriginalMessage` that these can be converted to `TNewMessage`
+    ///
+    pub (crate) fn convert_message<TOriginalMessage, TNewMessage>(&mut self)
+    where
+        TOriginalMessage:   'static + Send,
+        TNewMessage:        'static + Send + From<TOriginalMessage>,
+    {
+        // Create a converter from TOriginalMessage to TNewMessage
+        let converter       = MapEntityType::new::<TOriginalMessage, TNewMessage>();
+        let original_type   = TypeId::of::<TOriginalMessage>();
+        let new_type        = TypeId::of::<TNewMessage>();
+
+        // Any entity that accepts TNewMessage can also accept TOriginalMessage
+        self.map_for_message.entry(new_type).or_insert_with(|| HashMap::new())
+            .insert(original_type, converter);
+    }
+
+    ///
     /// Requests that we send messages to a channel for a particular entity
     ///
-    pub (crate) fn send_to<TMessage, TResponse>(&mut self, entity_id: EntityId) -> Result<SimpleEntityChannel<TMessage, TResponse>, EntityChannelError> 
+    pub (crate) fn send_to<TMessage, TResponse>(&mut self, entity_id: EntityId) -> Result<BoxedEntityChannel<'static, TMessage, TResponse>, EntityChannelError> 
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send, 
@@ -117,9 +179,22 @@ impl SceneCore {
         
         // Attach to the channel in the entity that belongs to this stream type
         let channel = entity.lock().unwrap().attach_channel();
-        let channel = if let Some(channel) = channel { channel } else { return Err(EntityChannelError::NotListening); };
+        
+        if let Some(channel) = channel { 
+            // Return the direct channel
+            Ok(channel.boxed()) 
+        } else {
+            // Attempt to convert the message if possible
+            let target_message      = entity.lock().unwrap().message_type_id();
+            let source_message      = TypeId::of::<TMessage>();
+            let message_converter   = self.map_for_message.get(&target_message).and_then(|target_hash| target_hash.get(&source_message));
 
-        Ok(channel)
+            if let Some(message_converter) = message_converter {
+                todo!()
+            } else {
+                Err(EntityChannelError::NotListening)
+            }
+        }
     }
 
     ///

@@ -3,7 +3,7 @@ use crate::simple_entity_channel::*;
 use ::desync::scheduler::*;
 
 use std::sync::*;
-use std::any::{Any};
+use std::any::{Any, TypeId};
 
 ///
 /// Stores the data associated with an entity
@@ -14,6 +14,9 @@ pub struct EntityCore {
 
     /// The queue used for running the entity (this runs the entities main future)
     queue: Arc<JobQueue>,
+
+    /// The type ID of the message processed 'natively' by this entity
+    message_type_id: TypeId,
 }
 
 impl EntityCore {
@@ -26,9 +29,17 @@ impl EntityCore {
         TResponse:  'static + Send,
     {
         EntityCore {
-            channel:    Box::new(channel),
-            queue:      scheduler().create_job_queue(),
+            channel:            Box::new(channel),
+            queue:              scheduler().create_job_queue(),
+            message_type_id:    TypeId::of::<TMessage>(),
         }
+    }
+
+    ///
+    /// Retrieves the message processed 'natively' by this channel
+    ///
+    pub fn message_type_id(&self) -> TypeId {
+        self.message_type_id
     }
 
     ///
