@@ -80,25 +80,6 @@ impl Scene {
     }
 
     ///
-    /// Creates a default behaviour for a particular kind of message
-    ///
-    pub fn create_default<TMessage, TResponse, TFn, TFnFuture>(&self, runtime: TFn) -> Result<(), CreateDefaultError>
-    where
-        TMessage:   'static + Send,
-        TResponse:  'static + Send,
-        TFn:        'static + Send + FnOnce(BoxStream<'static, Message<(EntityId, TMessage), TResponse>>) -> TFnFuture,
-        TFnFuture:  'static + Send + Future<Output = ()>,
-    {
-        // Create a SceneContext for the new component
-        let new_context = Arc::new(SceneContext::for_default(Arc::clone(&self.core)));
-
-        // Request that the core create the entity
-        self.core.sync(move |core| {
-            core.create_default(new_context, runtime)
-        })
-    }
-
-    ///
     /// Creates an entity that processes a stream of messages which receive empty responses
     ///
     pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
