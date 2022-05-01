@@ -1,5 +1,6 @@
 use crate::entity_channel::*;
 use crate::mapped_entity_channel::*;
+use crate::convert_entity_channel::*;
 
 ///
 /// Extensions added to all entity channels
@@ -14,6 +15,16 @@ pub trait EntityChannelExt : Sized + EntityChannel {
         TNewResponse:   Send,
         TMessageFn:     Send + Fn(TNewMessage) -> Self::Message,
         TResponseFn:    Send + Fn(Self::Response) -> TNewResponse;
+
+    ///
+    /// Converts this entity channel to another of a compatible type
+    ///
+    fn convert<TNewMessage, TNewResponse>(self) -> ConvertEntityChannel<Self, TNewMessage, TNewResponse>
+    where
+        Self::Message:  From<TNewMessage>,
+        Self::Response: Into<TNewResponse>,
+        TNewMessage:    Send,
+        TNewResponse:   Send;
 
     ///
     /// Puts this channel in a box
@@ -34,6 +45,16 @@ where
         TMessageFn:     Send + Fn(TNewMessage) -> Self::Message,
         TResponseFn:    Send + Fn(Self::Response) -> TNewResponse {
         MappedEntityChannel::new(self, message_map, response_map)
+    }
+
+    fn convert<TNewMessage, TNewResponse>(self) -> ConvertEntityChannel<Self, TNewMessage, TNewResponse>
+    where
+        Self::Message:  From<TNewMessage>,
+        Self::Response: Into<TNewResponse>,
+        TNewMessage:    Send,
+        TNewResponse:   Send,
+    {
+        ConvertEntityChannel::new(self)
     }
 
     fn boxed<'a>(self) -> BoxedEntityChannel<'a, Self::Message, Self::Response> 
