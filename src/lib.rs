@@ -10,6 +10,7 @@ mod scene;
 mod entity_id;
 mod message;
 mod entity_channel;
+mod entity_channel_ext;
 mod simple_entity_channel;
 mod mapped_entity_channel;
 mod context;
