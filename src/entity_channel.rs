@@ -7,10 +7,10 @@ use futures::future::{BoxFuture};
 ///
 pub trait EntityChannel : Send {
     /// The type of message that can be sent to this channel
-    type Message;
+    type Message: Send;
 
     /// The type of response that this channel will generate
-    type Response;
+    type Response: Send;
 
     ///
     /// Sends a message to the channel and waits for a response
@@ -23,7 +23,11 @@ pub trait EntityChannel : Send {
 ///
 pub type BoxedEntityChannel<'a, TMessage, TResponse> = Box<dyn 'a + EntityChannel<Message=TMessage, Response=TResponse>>;
 
-impl<'a, TMessage, TResponse> EntityChannel for BoxedEntityChannel<'a, TMessage, TResponse> {
+impl<'a, TMessage, TResponse> EntityChannel for BoxedEntityChannel<'a, TMessage, TResponse> 
+where
+    TMessage:  Send,
+    TResponse: Send,
+{
     type Message    = TMessage;
     type Response   = TResponse;
 
