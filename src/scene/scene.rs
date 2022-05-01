@@ -50,7 +50,7 @@ impl Scene {
     ///
     /// Creates a channel to send messages in this context
     ///
-    pub fn send_to<TMessage, TResponse>(&self, entity_id: EntityId) -> Result<EntityChannel<TMessage, TResponse>, EntityChannelError>
+    pub fn send_to<TMessage, TResponse>(&self, entity_id: EntityId) -> Result<impl EntityChannel<Message=TMessage, Response=TResponse>, EntityChannelError>
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send, 

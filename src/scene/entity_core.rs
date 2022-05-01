@@ -1,4 +1,4 @@
-use crate::entity_channel::*;
+use crate::simple_entity_channel::*;
 
 use ::desync::scheduler::*;
 
@@ -20,7 +20,7 @@ impl EntityCore {
     ///
     /// Creates a new entity that receives messages on the specified channel
     ///
-    pub fn new<TMessage, TResponse>(channel: EntityChannel<TMessage, TResponse>) -> EntityCore
+    pub fn new<TMessage, TResponse>(channel: SimpleEntityChannel<TMessage, TResponse>) -> EntityCore
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
@@ -44,13 +44,13 @@ impl EntityCore {
     ///
     /// If this entity has an implementation of a particular channel, returns it
     ///
-    pub fn attach_channel<TMessage, TResponse>(&self) -> Option<EntityChannel<TMessage, TResponse>> 
+    pub fn attach_channel<TMessage, TResponse>(&self) -> Option<SimpleEntityChannel<TMessage, TResponse>> 
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
     {
         // Downcast the channel back to a concrete type
-        let channel = self.channel.downcast_ref::<EntityChannel<TMessage, TResponse>>()?;
+        let channel = self.channel.downcast_ref::<SimpleEntityChannel<TMessage, TResponse>>()?;
 
         // Clone it to create the channel for the receiver
         Some(channel.clone())

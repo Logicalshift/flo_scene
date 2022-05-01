@@ -2,7 +2,7 @@ use super::entity_core::*;
 
 use crate::error::*;
 use crate::entity_id::*;
-use crate::entity_channel::*;
+use crate::simple_entity_channel::*;
 use crate::message::*;
 use crate::context::*;
 
@@ -59,7 +59,7 @@ impl SceneCore {
         if self.entities.contains_key(&entity_id) { return Err(CreateEntityError::AlreadyExists); }
 
         // Create the channel and the eneity
-        let (channel, receiver) = EntityChannel::new(5);
+        let (channel, receiver) = SimpleEntityChannel::new(5);
         let entity              = Arc::new(Mutex::new(EntityCore::new(channel)));
         let queue               = entity.lock().unwrap().queue();
 
@@ -106,7 +106,7 @@ impl SceneCore {
     ///
     /// Requests that we send messages to a channel for a particular entity
     ///
-    pub (crate) fn send_to<TMessage, TResponse>(&mut self, entity_id: EntityId) -> Result<EntityChannel<TMessage, TResponse>, EntityChannelError> 
+    pub (crate) fn send_to<TMessage, TResponse>(&mut self, entity_id: EntityId) -> Result<SimpleEntityChannel<TMessage, TResponse>, EntityChannelError> 
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send, 
@@ -114,10 +114,6 @@ impl SceneCore {
         // Try to retrieve the entity
         let entity = self.entities.get(&entity_id);
         let entity = if let Some(entity) = entity { entity } else { return Err(EntityChannelError::NoSuchEntity); };
-
-        // TODO: attach to a default channel if the entity doesn't have this channel
-        // TODO: default channels need to know how to upgrade to the 'real' channel if one is created
-        // TODO: default channels should close for an entity if the entity is shut down
         
         // Attach to the channel in the entity that belongs to this stream type
         let channel = entity.lock().unwrap().attach_channel();

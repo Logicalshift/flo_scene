@@ -1,50 +1,34 @@
 use crate::error::*;
-use crate::message::*;
 
-use futures::prelude::*;
-use futures::channel::mpsc;
+use futures::future::{BoxFuture};
 
 ///
-/// An entity channel is used to send messages to an entity within a scene
+/// EntityChannel is a trait implemented by structures that can send messages to entities within a scene
 ///
-pub struct EntityChannel<TMessage, TResponse> {
-    /// The channel for sending messages
-    channel: mpsc::Sender<Message<TMessage, TResponse>>,
-}
+pub trait EntityChannel : Send {
+    /// The type of message that can be sent to this channel
+    type Message;
 
-impl<TMessage, TResponse> EntityChannel<TMessage, TResponse> {
-    ///
-    /// Creates a new entity channel
-    ///
-    pub fn new(buf_size: usize) -> (EntityChannel<TMessage, TResponse>, mpsc::Receiver<Message<TMessage, TResponse>>) {
-        let (sender, receiver) = mpsc::channel(buf_size);
-
-        let channel = EntityChannel {
-            channel: sender
-        };
-
-        (channel, receiver)
-    }
+    /// The type of response that this channel will generate
+    type Response;
 
     ///
     /// Sends a message to the channel and waits for a response
     ///
-    pub async fn send(&mut self, message: TMessage) -> Result<TResponse, EntityChannelError> {
-        // Wrap the request into a message
-        let (message, receiver) = Message::new(message);
-
-        // Send the message to the channel
-        self.channel.send(message).await?;
-
-        // Wait for the message to be processed
-        Ok(receiver.await?)
-    }
+    fn send<'a>(&'a mut self, message: Self::Message) -> BoxFuture<'a, Result<Self::Response, EntityChannelError>>;
 }
 
-impl<TMessage, TResponse> Clone for EntityChannel<TMessage, TResponse> {
-    fn clone(&self) -> Self {
-        EntityChannel {
-            channel: self.channel.clone()
-        }
+///
+/// A boxed entity channel is used to hide the real type of an entity channel
+///
+pub type BoxedEntityChannel<'a, TMessage, TResponse> = Box<dyn 'a + Send + EntityChannel<Message=TMessage, Response=TResponse>>;
+
+impl<'a, TMessage, TResponse> EntityChannel for BoxedEntityChannel<'a, TMessage, TResponse> {
+    type Message    = TMessage;
+    type Response   = TResponse;
+
+    #[inline]
+    fn send<'b>(&'b mut self, message: Self::Message) -> BoxFuture<'b, Result<Self::Response, EntityChannelError>> {
+        (**self).send(message)
     }
 }

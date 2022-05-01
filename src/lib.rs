@@ -10,6 +10,7 @@ mod scene;
 mod entity_id;
 mod message;
 mod entity_channel;
+mod simple_entity_channel;
 mod context;
 
 pub use self::error::*;
@@ -17,6 +18,7 @@ pub use self::scene::*;
 pub use self::entity_id::*;
 pub use self::message::*;
 pub use self::entity_channel::*;
+pub use self::simple_entity_channel::*;
 pub use self::context::*;
 
 #[cfg(feature="test-scene")] pub mod test;
