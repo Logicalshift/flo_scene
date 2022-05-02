@@ -4,7 +4,6 @@ use crate::entity_channel::*;
 use futures::prelude::*;
 use futures::future::{BoxFuture};
 
-use std::sync::*;
 use std::any::{Any, type_name};
 
 ///
