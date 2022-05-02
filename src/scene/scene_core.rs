@@ -35,10 +35,10 @@ pub struct SceneCore {
     pub (super) wake_scene: Option<oneshot::Sender<()>>,
 
     /// Provides a function for mapping from one entity channel type to another, based on the message type
-    map_for_message: HashMap<TypeId, HashMap<TypeId, MapEntityType>>,
+    map_for_message: HashMap<TypeId, HashMap<TypeId, MapFromEntityType>>,
 
     /// Provides a function for mapping from one entity channel type to another, based on the response type
-    map_for_response: HashMap<TypeId, HashMap<TypeId, MapEntityType>>,
+    map_for_response: HashMap<TypeId, HashMap<TypeId, MapIntoEntityType>>,
 }
 
 impl Default for SceneCore {
@@ -124,7 +124,7 @@ impl SceneCore {
         TNewMessage:        'static + Send + From<TOriginalMessage>,
     {
         // Create a converter from TOriginalMessage to TNewMessage
-        let converter       = MapEntityType::new::<TOriginalMessage, TNewMessage>();
+        let converter       = MapFromEntityType::new::<TOriginalMessage, TNewMessage>();
         let original_type   = TypeId::of::<TOriginalMessage>();
         let new_type        = TypeId::of::<TNewMessage>();
 
@@ -138,17 +138,17 @@ impl SceneCore {
     ///
     pub (crate) fn convert_response<TOriginalResponse, TNewResponse>(&mut self)
     where
-        TOriginalResponse:  'static + Send,
-        TNewResponse:       'static + Send + From<TOriginalResponse>,
+        TOriginalResponse:  'static + Send + Into<TNewResponse>,
+        TNewResponse:       'static + Send,
     {
         // Create a converter from TOriginalResponse to TNewResponse
-        let converter       = MapEntityType::new::<TOriginalResponse, TNewResponse>();
+        let converter       = MapIntoEntityType::new::<TOriginalResponse, TNewResponse>();
         let original_type   = TypeId::of::<TOriginalResponse>();
         let new_type        = TypeId::of::<TNewResponse>();
 
         // Any entity that accepts TNewResponse can also accept TOriginalResponse
-        self.map_for_response.entry(new_type).or_insert_with(|| HashMap::new())
-            .insert(original_type, converter);
+        self.map_for_response.entry(original_type).or_insert_with(|| HashMap::new())
+            .insert(new_type, converter);
     }
 
     ///
@@ -197,6 +197,26 @@ impl SceneCore {
                     let channel             = any_channel.map(
                         move |message| conversion_function(message), 
                         move |mut response| response.downcast_mut::<Option<TResponse>>().unwrap().take().unwrap());
+
+                    Ok(channel.boxed())
+                }
+
+                (None, Some(response_converter)) => {
+                    // Message types must match
+                    if source_message != target_message {
+                        return Err(EntityChannelError::NotListening);
+                    }
+
+                    // We have to go via an AnyEntityChannel as we don't have a place that knows all of the types
+                    let any_channel         = entity.lock().unwrap().attach_channel_any();
+
+                    // Convert from TMessage to a boxed 'Any' function
+                    let conversion_function = response_converter.conversion_function::<TResponse>().unwrap();
+
+                    // Map from the source response to the 'Any' response and from the 'Any' response back to the 'real' response
+                    let channel             = any_channel.map(
+                        move |message: TMessage| Box::new(Some(message)), 
+                        move |response| conversion_function(response));
 
                     Ok(channel.boxed())
                 }

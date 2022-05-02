@@ -105,8 +105,8 @@ impl Scene {
     ///
     pub fn convert_response<TOriginalResponse, TNewResponse>(&self) -> Result<(), SceneContextError> 
     where
-        TOriginalResponse:  'static + Send,
-        TNewResponse:       'static + Send + From<TOriginalResponse>,
+        TOriginalResponse:  'static + Send + Into<TNewResponse>,
+        TNewResponse:       'static + Send,
     {
         SceneContext::with_no_entity(&self.core).convert_response::<TOriginalResponse, TNewResponse>()
     }

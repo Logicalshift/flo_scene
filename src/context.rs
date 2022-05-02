@@ -142,8 +142,8 @@ impl SceneContext {
     ///
     pub fn convert_response<TOriginalResponse, TNewResponse>(&self) -> Result<(), SceneContextError> 
     where
-        TOriginalResponse:  'static + Send,
-        TNewResponse:       'static + Send + From<TOriginalResponse>,
+        TOriginalResponse:  'static + Send + Into<TNewResponse>,
+        TNewResponse:       'static + Send,
     {
         self.scene_core.as_ref()?.sync(|core| {
             core.convert_response::<TOriginalResponse, TNewResponse>();
