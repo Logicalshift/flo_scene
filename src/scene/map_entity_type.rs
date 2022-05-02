@@ -63,10 +63,10 @@ impl MapIntoEntityType {
         // Box a function to convert from source to target
         let map_fn: Arc<dyn Sync + Send + Fn(Box<dyn Send + Any>) -> Option<TTarget>> = Arc::new(|src: Box<dyn Send + Any>| {
             let mut src = src;
-            let src     = src.downcast_mut::<Option<TTarget>>()?;
+            let src     = src.downcast_mut::<Option<TSource>>()?;
             let src     = src.take()?;
 
-            src.into()
+            Some(src.into())
         });
 
         // Box again to create the 'any' version of the function
@@ -81,11 +81,11 @@ impl MapIntoEntityType {
     /// The value is a boxed 'Any' of `Option<TTarget>`. We use an option here as Box<Any> doesn't have a way of otherwise
     /// extracting the wrapped type
     ///
-    pub fn conversion_function<TTarget>(&self) -> Option<Arc<dyn Sync + Send + Fn(Box<dyn Send + Any>) -> TTarget>> 
+    pub fn conversion_function<TTarget>(&self) -> Option<Arc<dyn Sync + Send + Fn(Box<dyn Send + Any>) -> Option<TTarget>>> 
     where
         TTarget: 'static + Send,
     {
-        let conversion = self.map_fn.downcast_ref::<Arc<dyn Sync + Send + Fn(Box<dyn Send + Any>) -> TTarget>>()?;
+        let conversion = self.map_fn.downcast_ref::<Arc<dyn Sync + Send + Fn(Box<dyn Send + Any>) -> Option<TTarget>>>()?;
 
         Some(conversion.clone())
     }
