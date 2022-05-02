@@ -6,6 +6,8 @@ use futures::prelude::*;
 use futures::future::{BoxFuture};
 use futures::channel::mpsc;
 
+use std::mem;
+
 ///
 /// A simple entity channel just relays messages directly to a target channel
 ///
@@ -37,9 +39,6 @@ where
     type Message    = TMessage;
     type Response   = TResponse;
 
-    ///
-    /// Sends a message to the channel and waits for a response
-    ///
     fn send<'a>(&'a mut self, message: TMessage) -> BoxFuture<'a, Result<TResponse, EntityChannelError>> {
         async move {
             // Wrap the request into a message
@@ -50,6 +49,21 @@ where
 
             // Wait for the message to be processed
             Ok(receiver.await?)
+        }.boxed()
+    }
+
+    fn send_without_waiting<'a>(&'a mut self, message: Self::Message) -> BoxFuture<'a, Result<(), EntityChannelError>> {
+        async move {
+            // Wrap the request into a message
+            let (message, receiver) = Message::new(message);
+
+            // Don't care about the response
+            mem::drop(receiver);
+
+            // Send the message to the channel
+            self.channel.send(message).await?;
+
+            Ok(())
         }.boxed()
     }
 }

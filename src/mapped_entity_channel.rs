@@ -50,9 +50,6 @@ where
     type Message    = TNewMessage;
     type Response   = TNewResponse;
 
-    ///
-    /// Sends a message to the channel and waits for a response
-    ///
     fn send<'a>(&'a mut self, message: TNewMessage) -> BoxFuture<'a, Result<Self::Response, EntityChannelError>> {
         async move {
             let message     = (&self.map_message)(message);
@@ -60,6 +57,15 @@ where
             let response    = (&self.map_response)(response);
 
             Ok(response)
+        }.boxed()
+    }
+
+    fn send_without_waiting<'a>(&'a mut self, message: TNewMessage) -> BoxFuture<'a, Result<(), EntityChannelError>> {
+        async move {
+            let message = (&self.map_message)(message);
+            self.source_channel.send(message).await?;
+
+            Ok(())
         }.boxed()
     }
 }

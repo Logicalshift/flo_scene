@@ -16,6 +16,9 @@ use std::any::{Any, type_name};
 pub struct AnyEntityChannel {
     /// The dynamic send function for this channel
     send: Box<dyn Send + Fn(Box<dyn Send + Any>) -> BoxFuture<'static, Result<Box<dyn Send + Any>, EntityChannelError>>>,
+
+    /// The dynamic send function for this channel
+    send_without_waiting: Box<dyn Send + Fn(Box<dyn Send + Any>) -> BoxFuture<'static, Result<(), EntityChannelError>>>,
 }
 
 impl AnyEntityChannel {
@@ -28,8 +31,9 @@ impl AnyEntityChannel {
         TChannel::Message:  'static,
         TChannel::Response: 'static + Sized,
     {
+        let send_channel = channel.clone();
         let send = Box::new(move |boxed_message: Box<dyn Send + Any>| {
-            let mut channel = channel.clone();
+            let mut channel = send_channel.clone();
 
             async move {
                 // Extract the message components
@@ -56,8 +60,34 @@ impl AnyEntityChannel {
             }.boxed()
         });
 
+        let send_without_waiting = Box::new(move |boxed_message: Box<dyn Send + Any>| {
+            let mut channel = channel.clone();
+
+            async move {
+                // Extract the message components
+                let mut message         = boxed_message;
+
+                // Unbox the request. We use `Option<TChannel::Message>` so we can take the message out of the box
+                if let Some(message) = message.downcast_mut::<Option<TChannel::Message>>() {
+                    if let Some(message) = message.take() {
+                        // Send the message
+                        channel.send_without_waiting(message).await?;
+
+                        Ok(())
+                    } else {
+                        // The message was missing
+                        Err(EntityChannelError::MissingMessage)
+                    }
+                } else {
+                    // Did not downcast
+                    Err(EntityChannelError::WrongMessageType(format!("{}", type_name::<TChannel::Message>())))
+                }
+            }.boxed()
+        });
+
         AnyEntityChannel {
-            send
+            send,
+            send_without_waiting,
         }
     }
 }
@@ -69,5 +99,10 @@ impl EntityChannel for AnyEntityChannel {
     #[inline]
     fn send<'a>(&'a mut self, message: Box<dyn Send + Any>) -> BoxFuture<'a, Result<Box<dyn Send + Any>, EntityChannelError>> {
         (self.send)(message)
+    }
+
+    #[inline]
+    fn send_without_waiting<'a>(&'a mut self, message: Box<dyn Send + Any>) -> BoxFuture<'a, Result<(), EntityChannelError>> {
+        (self.send_without_waiting)(message)
     }
 }
