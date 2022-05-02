@@ -17,7 +17,7 @@ use futures::stream::{BoxStream};
 use futures::future;
 use futures::future::{BoxFuture};
 
-use std::any::{TypeId, Any};
+use std::any::{TypeId};
 use std::sync::*;
 use std::collections::{HashMap};
 
@@ -154,9 +154,18 @@ impl SceneCore {
             let message_converter   = self.map_for_message.get(&target_message).and_then(|target_hash| target_hash.get(&source_message));
 
             if let Some(message_converter) = message_converter {
-                // Hrm, the problem here is we know the target message type but not the source type
-                // We can know both in the mapper but that doesn't know enough about the response type
-                todo!()
+                // We have to go via an AnyEntityChannel as we don't have a place that knows all of the types
+                let any_channel         = entity.lock().unwrap().attach_channel_any();
+
+                // Convert from TMessage to a boxed 'Any' function
+                let conversion_function = message_converter.conversion_function::<TMessage>().unwrap();
+
+                // Map from the source message to the 'Any' message and from the 'Any' response back to the 'real' response
+                let channel             = any_channel.map(
+                    move |message| conversion_function(message), 
+                    move |mut response| response.downcast_mut::<Option<TResponse>>().unwrap().take().unwrap());
+
+                Ok(channel.boxed())
             } else {
                 Err(EntityChannelError::NotListening)
             }
@@ -169,24 +178,4 @@ impl SceneCore {
     pub (crate) fn finish_entity(&mut self, entity_id: EntityId) {
         self.entities.remove(&entity_id);
     }
-}
-
-///
-/// Creates a channel that accepts messages that implement `Box<dyn Send + Any>` and unpack as 'Option<Self::Message>'
-///
-fn channel_from_any_message<TChannel>(channel: TChannel) -> impl EntityChannel<Message=Box<dyn Send + Any>, Response=TChannel::Response>
-where
-    TChannel:           EntityChannel,
-    TChannel::Message:  'static,
-    TChannel::Response: 'static,
-{
-    channel.map(|boxed_message: Box<dyn Send + Any>| {
-        // Unbox the message, assuming it's the right type
-        let mut boxed_message   = boxed_message;
-        let unboxed             = boxed_message.downcast_mut::<Option<TChannel::Message>>();
-        let unboxed             = unboxed.expect("Boxed message must be of the expected type");
-        let unboxed             = unboxed.take().expect("Can only unbox message once");
-
-        unboxed
-    }, |response| response)
 }
