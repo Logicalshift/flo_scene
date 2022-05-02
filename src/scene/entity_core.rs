@@ -21,6 +21,9 @@ pub struct EntityCore {
 
     /// The type ID of the message processed 'natively' by this entity
     message_type_id: TypeId,
+
+    /// The type ID of the response processed 'natively' by this entity
+    response_type_id: TypeId,
 }
 
 impl EntityCore {
@@ -40,6 +43,7 @@ impl EntityCore {
             channel:                    Box::new(channel),
             queue:                      scheduler().create_job_queue(),
             message_type_id:            TypeId::of::<TMessage>(),
+            response_type_id:           TypeId::of::<TResponse>(),
         }
     }
 
@@ -48,6 +52,13 @@ impl EntityCore {
     ///
     pub fn message_type_id(&self) -> TypeId {
         self.message_type_id
+    }
+
+    ///
+    /// Retrieves the response processed 'natively' by this channel
+    ///
+    pub fn response_type_id(&self) -> TypeId {
+        self.response_type_id
     }
 
     ///

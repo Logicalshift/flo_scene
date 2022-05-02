@@ -36,6 +36,9 @@ pub struct SceneCore {
 
     /// Provides a function for mapping from one entity channel type to another, based on the message type
     map_for_message: HashMap<TypeId, HashMap<TypeId, MapEntityType>>,
+
+    /// Provides a function for mapping from one entity channel type to another, based on the response type
+    map_for_response: HashMap<TypeId, HashMap<TypeId, MapEntityType>>,
 }
 
 impl Default for SceneCore {
@@ -45,6 +48,7 @@ impl Default for SceneCore {
             waiting_futures:    vec![],
             wake_scene:         None,
             map_for_message:    HashMap::new(),
+            map_for_response:   HashMap::new(),
         }
     }
 }
@@ -130,6 +134,24 @@ impl SceneCore {
     }
 
     ///
+    /// Specifies that if an entity accepts responses in the format `TOriginalResponse` that these can be converted to `TNewResponse`
+    ///
+    pub (crate) fn convert_response<TOriginalResponse, TNewResponse>(&mut self)
+    where
+        TOriginalResponse:  'static + Send,
+        TNewResponse:       'static + Send + From<TOriginalResponse>,
+    {
+        // Create a converter from TOriginalResponse to TNewResponse
+        let converter       = MapEntityType::new::<TOriginalResponse, TNewResponse>();
+        let original_type   = TypeId::of::<TOriginalResponse>();
+        let new_type        = TypeId::of::<TNewResponse>();
+
+        // Any entity that accepts TNewResponse can also accept TOriginalResponse
+        self.map_for_response.entry(new_type).or_insert_with(|| HashMap::new())
+            .insert(original_type, converter);
+    }
+
+    ///
     /// Requests that we send messages to a channel for a particular entity
     ///
     pub (crate) fn send_to<TMessage, TResponse>(&mut self, entity_id: EntityId) -> Result<BoxedEntityChannel<'static, TMessage, TResponse>, EntityChannelError> 
@@ -153,21 +175,35 @@ impl SceneCore {
             let source_message      = TypeId::of::<TMessage>();
             let message_converter   = self.map_for_message.get(&target_message).and_then(|target_hash| target_hash.get(&source_message));
 
-            if let Some(message_converter) = message_converter {
-                // We have to go via an AnyEntityChannel as we don't have a place that knows all of the types
-                let any_channel         = entity.lock().unwrap().attach_channel_any();
+            // ... also possibly convert the responce
+            let target_response     = entity.lock().unwrap().response_type_id();
+            let source_response     = TypeId::of::<TResponse>();
+            let response_converter  = self.map_for_response.get(&target_response).and_then(|target_hash| target_hash.get(&source_response));
 
-                // Convert from TMessage to a boxed 'Any' function
-                let conversion_function = message_converter.conversion_function::<TMessage>().unwrap();
+            match (message_converter, response_converter) {
+                (Some(message_converter), None) => {
+                    // Response types must match
+                    if source_response != target_response {
+                        return Err(EntityChannelError::NotListening);
+                    }
 
-                // Map from the source message to the 'Any' message and from the 'Any' response back to the 'real' response
-                let channel             = any_channel.map(
-                    move |message| conversion_function(message), 
-                    move |mut response| response.downcast_mut::<Option<TResponse>>().unwrap().take().unwrap());
+                    // We have to go via an AnyEntityChannel as we don't have a place that knows all of the types
+                    let any_channel         = entity.lock().unwrap().attach_channel_any();
 
-                Ok(channel.boxed())
-            } else {
-                Err(EntityChannelError::NotListening)
+                    // Convert from TMessage to a boxed 'Any' function
+                    let conversion_function = message_converter.conversion_function::<TMessage>().unwrap();
+
+                    // Map from the source message to the 'Any' message and from the 'Any' response back to the 'real' response
+                    let channel             = any_channel.map(
+                        move |message| conversion_function(message), 
+                        move |mut response| response.downcast_mut::<Option<TResponse>>().unwrap().take().unwrap());
+
+                    Ok(channel.boxed())
+                }
+
+                (None, None) => Err(EntityChannelError::NotListening),
+
+                _ => todo!(),
             }
         }
     }

@@ -98,6 +98,20 @@ impl Scene {
     }
 
     ///
+    /// Specify that entities that can return responses of type `TOriginalResponse` can also return messages of type `TNewResponse`
+    ///
+    /// That is, if an entity can be addressed using `EntityChannel<Response=TOriginalResponse>` it will automatically convert from `TNewResponse`
+    /// so that `EntityChannel<Response=TNewResponse>` also works.
+    ///
+    pub fn convert_response<TOriginalResponse, TNewResponse>(&self) -> Result<(), SceneContextError> 
+    where
+        TOriginalResponse:  'static + Send,
+        TNewResponse:       'static + Send + From<TOriginalResponse>,
+    {
+        SceneContext::with_no_entity(&self.core).convert_response::<TOriginalResponse, TNewResponse>()
+    }
+
+    ///
     /// Runs this scene
     ///
     pub async fn run(self) {

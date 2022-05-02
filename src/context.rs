@@ -120,7 +120,7 @@ impl SceneContext {
     /// Specify that entities that can process messages of type `TNewMessage` can also process messages of type `TOriginalMessage`
     ///
     /// That is, if an entity can be addressed using `EntityChannel<Message=TNewMessage>` it will automatically convert from `TOriginalMessage`
-    /// so that `EntityChannel<Message=TSourceMessage>` also works.
+    /// so that `EntityChannel<Message=TOriginalMessage>` also works.
     ///
     pub fn convert_message<TOriginalMessage, TNewMessage>(&self) -> Result<(), SceneContextError> 
     where
@@ -129,6 +129,24 @@ impl SceneContext {
     {
         self.scene_core.as_ref()?.sync(|core| {
             core.convert_message::<TOriginalMessage, TNewMessage>();
+        });
+
+        Ok(())
+    }
+
+    ///
+    /// Specify that entities that can return responses of type `TOriginalResponse` can also return messages of type `TNewResponse`
+    ///
+    /// That is, if an entity can be addressed using `EntityChannel<Response=TOriginalResponse>` it will automatically convert from `TNewResponse`
+    /// so that `EntityChannel<Response=TNewResponse>` also works.
+    ///
+    pub fn convert_response<TOriginalResponse, TNewResponse>(&self) -> Result<(), SceneContextError> 
+    where
+        TOriginalResponse:  'static + Send,
+        TNewResponse:       'static + Send + From<TOriginalResponse>,
+    {
+        self.scene_core.as_ref()?.sync(|core| {
+            core.convert_response::<TOriginalResponse, TNewResponse>();
         });
 
         Ok(())
