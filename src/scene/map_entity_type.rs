@@ -19,7 +19,7 @@ impl MapEntityType {
         TTarget: 'static + Send + From<TSource>,
     {
         // Box a function to convert from source to target
-        let map_fn: Arc<dyn Sync + Send + Fn(TSource) -> TTarget> = Arc::new(|src: TSource| TTarget::from(src));
+        let map_fn: Arc<dyn Sync + Send + Fn(TSource) -> Box<dyn Send + Any>> = Arc::new(|src: TSource| Box::new(Some(TTarget::from(src))));
 
         // Box again to create the 'any' version of the function
         MapEntityType {
@@ -30,12 +30,14 @@ impl MapEntityType {
     ///
     /// Returns the conversion function for mapping from a source to a target type
     ///
-    pub fn conversion_function<TSource, TTarget>(&self) -> Option<Arc<dyn Sync + Send + Fn(TSource) -> TTarget>> 
+    /// The value is a boxed 'Any' of `Option<TTarget>`. We use an option here as Box<Any> doesn't have a way of otherwise
+    /// extracting the wrapped type
+    ///
+    pub fn conversion_function<TSource>(&self) -> Option<Arc<dyn Sync + Send + Fn(TSource) -> Box<dyn Send + Any>>> 
     where
         TSource: 'static + Send,
-        TTarget: 'static + Send + From<TSource>,
     {
-        let conversion = self.map_fn.downcast_ref::<Arc<dyn Sync + Send + Fn(TSource) -> TTarget>>()?;
+        let conversion = self.map_fn.downcast_ref::<Arc<dyn Sync + Send + Fn(TSource) -> Box<dyn Send + Any>>>()?;
 
         Some(conversion.clone())
     }
