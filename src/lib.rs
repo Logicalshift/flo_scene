@@ -16,6 +16,7 @@ mod any_entity_channel;
 mod mapped_entity_channel;
 mod convert_entity_channel;
 mod context;
+mod standard_components;
 
 pub use self::error::*;
 pub use self::scene::*;
@@ -27,5 +28,6 @@ pub use self::mapped_entity_channel::*;
 pub use self::convert_entity_channel::*;
 pub use self::any_entity_channel::*;
 pub use self::context::*;
+pub use self::standard_components::*;
 
 #[cfg(feature="test-scene")] pub mod test;

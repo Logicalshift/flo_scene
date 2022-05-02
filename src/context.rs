@@ -155,7 +155,7 @@ impl SceneContext {
     ///
     /// Creates a channel to send messages in this context
     ///
-    pub fn send_to<TMessage, TResponse>(&self, entity_id: EntityId) -> Result<impl EntityChannel<Message=TMessage, Response=TResponse>, EntityChannelError>
+    pub fn send_to<TMessage, TResponse>(&self, entity_id: EntityId) -> Result<BoxedEntityChannel<'static, TMessage, TResponse>, EntityChannelError>
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send, 
@@ -294,7 +294,7 @@ pub fn scene_current_entity() -> Option<EntityId> {
 ///
 /// Creates a channel for sending messages to a entity (in the current context)
 ///
-pub fn scene_send_to<TMessage, TResponse>(entity_id: EntityId) -> Result<impl EntityChannel<Message=TMessage, Response=TResponse>, EntityChannelError>
+pub fn scene_send_to<TMessage, TResponse>(entity_id: EntityId) -> Result<BoxedEntityChannel<'static, TMessage, TResponse>, EntityChannelError>
 where
     TMessage:   'static + Send,
     TResponse:  'static + Send, 

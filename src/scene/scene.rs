@@ -5,6 +5,7 @@ use crate::context::*;
 use crate::error::*;
 use crate::message::*;
 use crate::entity_channel::*;
+use crate::standard_components::*;
 
 use futures::prelude::*;
 use futures::future;
@@ -30,7 +31,14 @@ impl Default for Scene {
     /// Creates a scene with the default set of 'well-known' entities
     ///
     fn default() -> Scene {
-        Scene::empty()
+        // Create an empty scene
+        let scene   = Scene::empty();
+        let context = scene.context();
+
+        // Add the standard components
+        create_entity_registry(&context).unwrap();
+
+        scene
     }
 }
 
@@ -45,6 +53,13 @@ impl Scene {
         Scene {
             core
         }
+    }
+
+    ///
+    /// Returns the context for this scene
+    ///
+    pub fn context(&self) -> Arc<SceneContext> {
+        Arc::new(SceneContext::with_no_entity(&self.core))
     }
 
     ///
