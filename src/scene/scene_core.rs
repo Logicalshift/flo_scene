@@ -154,6 +154,8 @@ impl SceneCore {
             let message_converter   = self.map_for_message.get(&target_message).and_then(|target_hash| target_hash.get(&source_message));
 
             if let Some(message_converter) = message_converter {
+                // Hrm, the problem here is we know the target message type but not the source type
+                // We can know both in the mapper but that doesn't know enough about the response type
                 todo!()
             } else {
                 Err(EntityChannelError::NotListening)
