@@ -3,6 +3,7 @@ use crate::error::*;
 use crate::message::*;
 use crate::entity_channel::*;
 use crate::scene::scene_core::*;
+use crate::standard_components::*;
 
 use ::desync::*;
 use futures::prelude::*;
@@ -13,6 +14,7 @@ use futures::stream::{BoxStream};
 
 use std::mem;
 use std::sync::*;
+use std::any::{TypeId};
 use std::cell::{RefCell};
 
 thread_local! {
@@ -127,9 +129,15 @@ impl SceneContext {
         TOriginalMessage:   'static + Send,
         TNewMessage:        'static + Send + From<TOriginalMessage>,
     {
-        self.scene_core.as_ref()?.sync(|core| {
+        self.scene_core.as_ref()?.future_desync(move |core| async move {
+            // Register that one type can be converted to another
             core.convert_message::<TOriginalMessage, TNewMessage>();
-        });
+
+            // Send to the entity registry
+            if let Ok(mut channel) = core.send_to::<InternalRegistryRequest, ()>(ENTITY_REGISTRY) {
+                channel.send_without_waiting(InternalRegistryRequest::ConvertMessage(TypeId::of::<TOriginalMessage>(), TypeId::of::<TNewMessage>())).await.ok();
+            }
+        }.boxed()).detach();
 
         Ok(())
     }
@@ -145,9 +153,15 @@ impl SceneContext {
         TOriginalResponse:  'static + Send + Into<TNewResponse>,
         TNewResponse:       'static + Send,
     {
-        self.scene_core.as_ref()?.sync(|core| {
+        self.scene_core.as_ref()?.future_desync(move |core| async move {
+            // Register that one type can be converted to another
             core.convert_response::<TOriginalResponse, TNewResponse>();
-        });
+
+            // Send to the entity registry
+            if let Ok(mut channel) = core.send_to::<InternalRegistryRequest, ()>(ENTITY_REGISTRY) {
+                channel.send_without_waiting(InternalRegistryRequest::ConvertResponse(TypeId::of::<TOriginalResponse>(), TypeId::of::<TNewResponse>())).await.ok();
+            }
+        }.boxed()).detach();
 
         Ok(())
     }
