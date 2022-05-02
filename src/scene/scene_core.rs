@@ -82,9 +82,7 @@ impl SceneCore {
         // Start the future running
         let future              = async move {
             // Tell the entity registry about the entity that was just created
-            if entity_id != ENTITY_REGISTRY {
-                scene_context.send::<_, ()>(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>(), TypeId::of::<TResponse>())).await.ok();
-            }
+            scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>(), TypeId::of::<TResponse>())).await.ok();
 
             let future = scheduler().future_desync(&queue, move || async move {
                 // Start the future running
@@ -110,9 +108,7 @@ impl SceneCore {
                 scene_context.finish_entity::<TMessage, TResponse>(entity_id);
 
                 // Notify the registry that the entity no longer exists
-                if entity_id != ENTITY_REGISTRY {
-                    scene_context.send::<_, ()>(ENTITY_REGISTRY, InternalRegistryRequest::DestroyedEntity(entity_id)).await.ok();
-                }
+                scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::DestroyedEntity(entity_id)).await.ok();
             }
         };
         let future              = future.boxed();

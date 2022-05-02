@@ -122,7 +122,7 @@ pub (crate) fn create_entity_registry(context: &Arc<SceneContext>) -> Result<(),
                     for maybe_tracker in state.trackers.iter_mut() {
                         if let Some(tracker) = maybe_tracker {
                             // Send that a new entity has been created to the tracker
-                            let send_result = tracker.send(EntityUpdate::CreatedEntity(entity_id)).await;
+                            let send_result = tracker.send_without_waiting(EntityUpdate::CreatedEntity(entity_id)).await;
 
                             // Set to None if the result is an error
                             if send_result.is_err() {
@@ -157,7 +157,7 @@ pub (crate) fn create_entity_registry(context: &Arc<SceneContext>) -> Result<(),
                         for maybe_tracker in state.trackers.iter_mut() {
                             if let Some(tracker) = maybe_tracker {
                                 // Send that a new entity has been destroyed to the tracker
-                                let send_result = tracker.send(EntityUpdate::DestroyedEntity(entity_id)).await;
+                                let send_result = tracker.send_without_waiting(EntityUpdate::DestroyedEntity(entity_id)).await;
 
                                 // Set to None if the result is an error
                                 if send_result.is_err() {
@@ -180,7 +180,7 @@ pub (crate) fn create_entity_registry(context: &Arc<SceneContext>) -> Result<(),
                         // Send the list of entities to the channel
                         let mut channel = channel;
                         for existing_entity_id in state.entities.keys().cloned() {
-                            channel.send(EntityUpdate::CreatedEntity(existing_entity_id)).await.ok();
+                            channel.send_without_waiting(EntityUpdate::CreatedEntity(existing_entity_id)).await.ok();
                         }
 
                         // Add to the list of trackers
