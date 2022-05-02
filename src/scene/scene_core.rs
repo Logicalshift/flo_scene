@@ -9,6 +9,7 @@ use crate::entity_channel_ext::*;
 use crate::simple_entity_channel::*;
 use crate::message::*;
 use crate::context::*;
+use crate::standard_components::*;
 
 use ::desync::scheduler::*;
 
@@ -80,6 +81,9 @@ impl SceneCore {
 
         // Start the future running
         let future              = async move {
+            // Tell the entity registry about the entity that was just created
+            scene_context.send::<_, ()>(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>(), TypeId::of::<TResponse>())).await.ok();
+
             let future = scheduler().future_desync(&queue, move || async move {
                 // Start the future running
                 let receiver            = receiver.boxed();
@@ -100,7 +104,11 @@ impl SceneCore {
 
             // When done, deregister the entity
             if let Some(scene_context) = scene_context {
+                // Finish_entity calls back into the core to remove the entity from the list
                 scene_context.finish_entity::<TMessage, TResponse>(entity_id);
+
+                // Notify the registry that the entity no longer exists
+                scene_context.send::<_, ()>(ENTITY_REGISTRY, InternalRegistryRequest::DestroyedEntity(entity_id)).await.ok();
             }
         };
         let future              = future.boxed();
