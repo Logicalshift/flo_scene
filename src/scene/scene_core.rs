@@ -210,7 +210,7 @@ impl SceneCore {
                     // We have to go via an AnyEntityChannel as we don't have a place that knows all of the types
                     let any_channel         = entity.lock().unwrap().attach_channel_any();
 
-                    // Convert from TMessage to a boxed 'Any' function
+                    // Convert from 'Any' to TResponse
                     let conversion_function = response_converter.conversion_function::<TResponse>().unwrap();
 
                     // Map from the source response to the 'Any' response and from the 'Any' response back to the 'real' response
@@ -221,9 +221,23 @@ impl SceneCore {
                     Ok(channel.boxed())
                 }
 
-                (None, None) => Err(EntityChannelError::NotListening),
+                (Some(message_converter), Some(response_converter)) => {
+                    // We have to go via an AnyEntityChannel as we don't have a place that knows all of the types
+                    let any_channel         = entity.lock().unwrap().attach_channel_any();
 
-                _ => todo!(),
+                    // Convert the message and the response
+                    let message_conversion  = message_converter.conversion_function::<TMessage>().unwrap();
+                    let response_conversion = response_converter.conversion_function::<TResponse>().unwrap();
+
+                    // Map from the source response to the 'Any' response and from the 'Any' response back to the 'real' response
+                    let channel             = any_channel.map(
+                        move |message| message_conversion(message), 
+                        move |response| response_conversion(response).unwrap());
+
+                    Ok(channel.boxed())
+                }
+
+                (None, None) => Err(EntityChannelError::NotListening),
             }
         }
     }
