@@ -176,9 +176,9 @@ impl SceneCore {
             let message_converter   = self.map_for_message.get(&target_message).and_then(|target_hash| target_hash.get(&source_message));
 
             // ... also possibly convert the responce
-            let target_response     = entity.lock().unwrap().response_type_id();
-            let source_response     = TypeId::of::<TResponse>();
-            let response_converter  = self.map_for_response.get(&target_response).and_then(|target_hash| target_hash.get(&source_response));
+            let source_response     = entity.lock().unwrap().response_type_id();
+            let target_response     = TypeId::of::<TResponse>();
+            let response_converter  = self.map_for_response.get(&source_response).and_then(|target_hash| target_hash.get(&target_response));
 
             match (message_converter, response_converter) {
                 (Some(message_converter), None) => {
@@ -216,7 +216,7 @@ impl SceneCore {
                     // Map from the source response to the 'Any' response and from the 'Any' response back to the 'real' response
                     let channel             = any_channel.map(
                         move |message: TMessage| Box::new(Some(message)), 
-                        move |response| conversion_function(response));
+                        move |response| conversion_function(response).unwrap());
 
                     Ok(channel.boxed())
                 }
