@@ -12,6 +12,7 @@ mod message;
 mod entity_channel;
 mod entity_channel_ext;
 mod simple_entity_channel;
+mod any_entity_channel;
 mod mapped_entity_channel;
 mod convert_entity_channel;
 mod context;
@@ -24,6 +25,7 @@ pub use self::entity_channel::*;
 pub use self::simple_entity_channel::*;
 pub use self::mapped_entity_channel::*;
 pub use self::convert_entity_channel::*;
+pub use self::any_entity_channel::*;
 pub use self::context::*;
 
 #[cfg(feature="test-scene")] pub mod test;

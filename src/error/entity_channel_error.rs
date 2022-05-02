@@ -6,13 +6,25 @@ use futures::channel::oneshot;
 ///
 /// Errors that can occur when sending to an entity channel
 ///
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum EntityChannelError {
     /// The requested entity doesn't exist
     NoSuchEntity,
 
     /// The entity is no longer listening for these kinds of message
     NotListening,
+
+    /// A dynamic channel was expecting an entity of a particular type. The parameter is the name of the expected type.
+    WrongMessageType(String),
+
+    /// A dynamic message has already been processed
+    MissingMessage,
+
+    /// A dynamic channel was expecting a response of a particular type. The parameter is the name of the expected type.
+    WrongResponseType(String),
+
+    /// A dynamic message has already been processed
+    MissingResponse,
 
     /// No scene is available to create the channel
     NoCurrentScene,
