@@ -170,3 +170,23 @@ impl SceneCore {
         self.entities.remove(&entity_id);
     }
 }
+
+///
+/// Creates a channel that accepts messages that implement `Box<dyn Send + Any>` and unpack as 'Option<Self::Message>'
+///
+fn channel_from_any_message<TChannel>(channel: TChannel) -> impl EntityChannel<Message=Box<dyn Send + Any>, Response=TChannel::Response>
+where
+    TChannel:           EntityChannel,
+    TChannel::Message:  'static,
+    TChannel::Response: 'static,
+{
+    channel.map(|boxed_message: Box<dyn Send + Any>| {
+        // Unbox the message, assuming it's the right type
+        let mut boxed_message   = boxed_message;
+        let unboxed             = boxed_message.downcast_mut::<Option<TChannel::Message>>();
+        let unboxed             = unboxed.expect("Boxed message must be of the expected type");
+        let unboxed             = unboxed.take().expect("Can only unbox message once");
+
+        unboxed
+    }, |response| response)
+}
