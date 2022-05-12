@@ -3,6 +3,9 @@
 // TODO: scripting component
 // TODO: HTTP server component
 // TODO: JSON streaming component
+// TODO: logging component
+// TODO: error reporting component
+// TODO: progress reporting component
 // TODO: named pipe component (+ component to introduce the contents of a named pipe as components)
 // TODO: component to stop the scene (and other components?)
 
