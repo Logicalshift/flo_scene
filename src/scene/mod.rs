@@ -4,5 +4,6 @@ mod entity_core;
 mod scene_waker;
 mod map_from_entity_type;
 mod map_into_entity_type;
+mod entity_receiver;
 
 pub use self::scene::*;

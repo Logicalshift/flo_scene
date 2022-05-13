@@ -1,4 +1,5 @@
 use super::entity_core::*;
+use super::entity_receiver::*;
 use super::map_from_entity_type::*;
 use super::map_into_entity_type::*;
 
@@ -21,6 +22,7 @@ use futures::future::{BoxFuture};
 
 use std::any::{TypeId};
 use std::sync::*;
+use std::sync::atomic::*;
 use std::collections::{HashMap};
 
 // TODO: way to map messages via a collection (or a stream?) - for entities with a () response 
@@ -43,6 +45,9 @@ pub struct SceneCore {
     /// Used by the scene that owns this core to request wake-ups (only one scene can be waiting for a wake up at once)
     pub (super) wake_scene: Option<oneshot::Sender<()>>,
 
+    /// The number of entities that are currently running or which have a message waiting
+    active_entity_count: Arc<AtomicIsize>,
+
     /// Provides a function for mapping from one entity channel type to another, based on the message type
     map_for_message: HashMap<TypeId, HashMap<TypeId, MapFromEntityType>>,
 
@@ -53,11 +58,12 @@ pub struct SceneCore {
 impl Default for SceneCore {
     fn default() -> SceneCore {
         SceneCore {
-            entities:           HashMap::new(),
-            waiting_futures:    vec![],
-            wake_scene:         None,
-            map_for_message:    HashMap::new(),
-            map_for_response:   HashMap::new(),
+            entities:               HashMap::new(),
+            waiting_futures:        vec![],
+            wake_scene:             None,
+            active_entity_count:    Arc::new(AtomicIsize::new(0)),
+            map_for_message:        HashMap::new(),
+            map_for_response:       HashMap::new(),
         }
     }
 }
@@ -81,6 +87,7 @@ impl SceneCore {
 
         // Create the channel and the eneity
         let (channel, receiver) = SimpleEntityChannel::new(5);
+        let receiver            = EntityReceiver::new(receiver, &self.active_entity_count);
         let entity              = Arc::new(Mutex::new(EntityCore::new(channel)));
         let queue               = entity.lock().unwrap().queue();
 
