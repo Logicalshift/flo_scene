@@ -23,6 +23,13 @@ use std::any::{TypeId};
 use std::sync::*;
 use std::collections::{HashMap};
 
+// TODO: way to map messages via a collection (or a stream?) - for entities with a () response 
+//      (could make it so that collection entities can take any collection, including a 1-item thing?)
+//      (or make it so that channel always receive collections of requests)
+// TODO: way to add futures that run in the background of an entity
+// TODO: way to convert streams of JSON to entity messages
+// TODO: generate a tick message when all channels are idle (silent 'tock' when all channels are empty again after a tick)
+
 ///
 /// The scene core represents the state shared between all entities in a scene
 ///
