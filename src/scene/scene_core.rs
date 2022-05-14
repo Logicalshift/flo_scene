@@ -17,6 +17,7 @@ use ::desync::scheduler::*;
 use futures::prelude::*;
 use futures::channel::oneshot;
 use futures::stream::{BoxStream};
+use futures::task;
 use futures::future;
 use futures::future::{BoxFuture};
 
@@ -94,6 +95,7 @@ impl SceneCore {
         self.entities.insert(entity_id, entity);
 
         // Start the future running
+        let active_entity_count = Arc::clone(&self.active_entity_count);
         let future              = async move {
             // Tell the entity registry about the entity that was just created
             scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>(), TypeId::of::<TResponse>())).await.ok();
@@ -105,8 +107,17 @@ impl SceneCore {
 
                 // Poll it in the scene context
                 future::poll_fn(|ctxt| {
-                    SceneContext::with_context(&scene_context, || 
-                        runtime_future.poll_unpin(ctxt)).unwrap()
+                    let poll_result = SceneContext::with_context(&scene_context, || 
+                        runtime_future.poll_unpin(ctxt)).unwrap();
+
+                    if let task::Poll::Pending = &poll_result {
+                        if active_entity_count.load(Ordering::Relaxed) == 0 {
+                            // All the entities have finished processing all their pending messages
+                            scene_context.send_heartbeat();
+                        }
+                    }
+
+                    poll_result
                 }).await;
 
                 // Return the context once we're done
@@ -270,5 +281,12 @@ impl SceneCore {
     ///
     pub (crate) fn finish_entity(&mut self, entity_id: EntityId) {
         self.entities.remove(&entity_id);
+    }
+
+    ///
+    /// All the entities in the scene are waiting for new messages
+    ///
+    pub (crate) async fn send_heartbeat(&mut self) {
+        println!("TICK");
     }
 }
