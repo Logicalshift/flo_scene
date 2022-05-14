@@ -52,6 +52,9 @@ pub struct SceneCore {
 
     /// Provides a function for mapping from one entity channel type to another, based on the response type
     map_for_response: HashMap<TypeId, HashMap<TypeId, MapIntoEntityType>>,
+
+    /// The current state for the heartbeat of this scene
+    heartbeat_state: HeartbeatState,
 }
 
 impl Default for SceneCore {
@@ -63,6 +66,7 @@ impl Default for SceneCore {
             active_entity_count:    Arc::new(AtomicIsize::new(0)),
             map_for_message:        HashMap::new(),
             map_for_response:       HashMap::new(),
+            heartbeat_state:        HeartbeatState::Tick,
         }
     }
 }
@@ -275,6 +279,25 @@ impl SceneCore {
     /// All the entities in the scene are waiting for new messages
     ///
     pub (crate) async fn send_heartbeat(&mut self) {
-        println!("TICK");
+        match &self.heartbeat_state {
+            HeartbeatState::Tick => {
+                // Request the heartbeat channel
+                if let Ok(mut heartbeat_channel) = self.send_to::<InternalHeartbeatRequest, ()>(HEARTBEAT) {
+                    // The messages resulting from a heartbeat shouldn't generate a heartbeat themselves
+                    self.heartbeat_state = HeartbeatState::Tock;
+
+                    // Send a heartbeat request
+                    if heartbeat_channel.send_without_waiting(InternalHeartbeatRequest::GenerateHeartbeat).await.is_err() {
+                        // Failed to actually generate the heartbeat
+                        self.heartbeat_state = HeartbeatState::Tick;
+                    }
+                }
+            }
+
+            HeartbeatState::Tock => {
+                // The messages generated from a heartbeat have finished
+                self.heartbeat_state = HeartbeatState::Tick;
+            }
+        }
     }
 }
