@@ -305,6 +305,7 @@ impl SceneContext {
     /// Called whenever all of the entities in the scene are waiting for new messages
     ///
     pub (crate) fn send_heartbeat(&self) {
+        // TODO: hangs?
         self.scene_core.as_ref().unwrap()
             .future_desync(move |core| async move {
                 core.send_heartbeat().await;

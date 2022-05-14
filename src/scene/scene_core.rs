@@ -113,6 +113,7 @@ impl SceneCore {
                     if let task::Poll::Pending = &poll_result {
                         if active_entity_count.load(Ordering::Relaxed) == 0 {
                             // All the entities have finished processing all their pending messages
+                            // TODO: must have been awake before polling for this to be a heartbeat
                             scene_context.send_heartbeat();
                         }
                     }

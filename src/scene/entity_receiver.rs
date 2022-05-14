@@ -30,6 +30,8 @@ where
 {
     /// Creates a new entity receiver
     pub fn new(stream: TStream, active_entity_count: &Arc<AtomicIsize>) -> EntityReceiver<TStream> {
+        // TODO: start stream awake
+
         EntityReceiver {
             stream: stream,
             state:  Arc::new(Mutex::new(EntityReceiverState {
