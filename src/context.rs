@@ -352,6 +352,16 @@ where
 }
 
 ///
+/// Sends a single message to a entity without waiting for the response
+///
+pub async fn scene_send_without_waiting<TMessage>(entity_id: EntityId, message: TMessage) -> Result<(), EntityChannelError>
+where
+    TMessage:   'static + Send,
+{
+    SceneContext::current().send_without_waiting(entity_id, message).await
+}
+
+///
 /// Sends a stream of data to an entity
 ///
 /// This will use the `<TMessage, ()>` interface of the entity to send the data

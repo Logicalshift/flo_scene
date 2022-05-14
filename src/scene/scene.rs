@@ -37,6 +37,7 @@ impl Default for Scene {
 
         // Add the standard components
         create_entity_registry(&context).unwrap();
+        create_heartbeat(&context).unwrap();
 
         scene
     }

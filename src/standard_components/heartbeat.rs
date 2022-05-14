@@ -1,6 +1,16 @@
+use crate::context::*;
 use crate::entity_id::*;
+use crate::error::*;
+use crate::entity_channel::*;
+use crate::message::*;
 
+use super::entity_ids::*;
 use super::entity_registry::*;
+
+use futures::prelude::*;
+
+use std::sync::*;
+use std::collections::{HashMap};
 
 ///
 /// The reason a scene is currently 'awake'
@@ -58,4 +68,66 @@ impl From<EntityUpdate> for InternalHeartbeatRequest {
     fn from(req: EntityUpdate) -> InternalHeartbeatRequest {
         InternalHeartbeatRequest::EntityUpdate(req)
     }
+}
+
+///
+/// Creates the heartbeat entity in a context
+///
+pub (crate) fn create_heartbeat(context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
+    // Set up converting the messages that the heartbeat entity can receive
+    context.convert_message::<EntityUpdate, InternalHeartbeatRequest>()?;
+    context.convert_message::<HeartbeatRequest, InternalHeartbeatRequest>()?;
+
+    // Set up the state for the heartbeat entity
+    let mut receivers = HashMap::<EntityId, BoxedEntityChannel<'static, Heartbeat, ()>>::new();
+
+    // Create the heartbeat entity itself
+    context.create_stream_entity(HEARTBEAT, move |mut requests| async move {
+        // Request details on the entities (we track what gets destroyed so we can stop them receiving heartbeats)
+        scene_send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(HEARTBEAT)).await.ok();
+
+        // Main message loop for the heartbeat entity
+        while let Some(message) = requests.next().await {
+            let message: Message<InternalHeartbeatRequest, ()> = message;
+
+            match *message {
+                InternalHeartbeatRequest::GenerateHeartbeat => {
+                    // Send heartbeats to everything that's listening (stop on any error)
+                    let mut stopped = vec![];
+
+                    for (entity_id, channel) in receivers.iter_mut() {
+                        // Try to send to the channel
+                        if channel.send_without_waiting(Heartbeat).await.is_err() {
+                            // Any error adds to the stopped list
+                            stopped.push(*entity_id);
+                        }
+                    }
+
+                    // Remove stopped items from the receivers
+                    stopped.into_iter()
+                        .for_each(|id| { receivers.remove(&id); });
+                }
+
+                InternalHeartbeatRequest::EntityUpdate(EntityUpdate::CreatedEntity(_entity_id)) => {
+                    // Nothing to do
+                }
+
+                InternalHeartbeatRequest::EntityUpdate(EntityUpdate::DestroyedEntity(entity_id)) => {
+                    // Stop sending heartbeats to this entity
+                    receivers.remove(&entity_id);
+                }
+
+                InternalHeartbeatRequest::RequestHeartbeat(entity_id) => {
+                    if let Ok(channel) = scene_send_to::<Heartbeat, ()>(entity_id) {
+                        // Add this channel to the list that get heartbeat messages
+                        receivers.insert(entity_id, channel);
+                    }
+                }
+            }
+
+            message.respond(()).ok();
+        }
+    })?;
+
+    Ok(())
 }
