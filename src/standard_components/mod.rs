@@ -1,4 +1,3 @@
-// TODO: component to generate 'tick' messages whenever channels go from full to empty (and we're not processing a tick)
 // TODO: component to generate timed events
 // TODO: scripting component
 // TODO: HTTP server component
@@ -13,6 +12,8 @@
 
 mod entity_ids;
 mod entity_registry;
+mod heartbeat;
 
 pub use self::entity_ids::*;
 pub use self::entity_registry::*;
+pub use self::heartbeat::*;

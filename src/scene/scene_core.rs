@@ -30,7 +30,6 @@ use std::collections::{HashMap};
 //      (or make it so that channel always receive collections of requests)
 // TODO: way to add futures that run in the background of an entity
 // TODO: way to convert streams of JSON to entity messages
-// TODO: generate a tick message when all channels are idle (silent 'tock' when all channels are empty again after a tick)
 
 ///
 /// The scene core represents the state shared between all entities in a scene
