@@ -306,11 +306,13 @@ impl SceneContext {
     ///
     pub (crate) fn send_heartbeat(&self) {
         // TODO: hangs?
-        self.scene_core.as_ref().unwrap()
-            .future_desync(move |core| async move {
-                core.send_heartbeat().await;
-            }.boxed())
-            .detach();
+        if let Ok(scene_core) = &self.scene_core {
+            scene_core
+                .future_desync(move |core| async move {
+                    core.send_heartbeat().await;
+                }.boxed())
+                .detach();
+        }
     }
 }
 

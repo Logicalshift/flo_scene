@@ -1,3 +1,5 @@
+use crate::context::*;
+
 use futures::prelude::*;
 use futures::task;
 use futures::task::{Poll, Context, Waker, ArcWake};
@@ -66,10 +68,20 @@ where
         match self.stream.poll_next_unpin(&mut context) {
             Poll::Pending => {
                 // Remove the activations from the active entity count (and our state)
-                let mut state = self.state.lock().unwrap();
+                let send_heartbeat = {
+                    let mut state = self.state.lock().unwrap();
 
-                state.activation_count -= initial_activation_count;
-                state.active_entity_count.fetch_sub(initial_activation_count, Ordering::Relaxed);
+                    state.activation_count  -= initial_activation_count;
+                    let previous_count      = state.active_entity_count.fetch_sub(initial_activation_count, Ordering::Relaxed);
+
+                    // Send the heartbeat if the count reaches 0
+                    previous_count == initial_activation_count
+                };
+
+                if send_heartbeat {
+                    // Generate a heartbeat
+                    SceneContext::current().send_heartbeat();
+                }
 
                 Poll::Pending
             }
@@ -79,13 +91,23 @@ where
             }
 
             Poll::Ready(None) => {
-                // Remove the activations from the active entity count (and our state)
-                let mut state = self.state.lock().unwrap();
+                let send_heartbeat = {
+                    // Remove the activations from the active entity count (and our state)
+                    let mut state = self.state.lock().unwrap();
 
-                // Entirely remove this from the active entity count
-                state.future_waker      = None;
-                state.activation_count  = 0;
-                state.active_entity_count.fetch_sub(state.activation_count, Ordering::Relaxed);
+                    // Entirely remove this from the active entity count
+                    state.future_waker      = None;
+                    let previous_count      = state.active_entity_count.fetch_sub(state.activation_count, Ordering::Relaxed);
+                    let send_heartbeat      = previous_count == state.activation_count;
+                    state.activation_count  = 0;
+
+                    send_heartbeat
+                };
+
+                if send_heartbeat {
+                    // Generate a heartbeat
+                    SceneContext::current().send_heartbeat();
+                }
 
                 Poll::Ready(None)
             }
