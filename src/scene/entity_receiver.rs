@@ -32,16 +32,25 @@ where
 {
     /// Creates a new entity receiver
     pub fn new(stream: TStream, active_entity_count: &Arc<AtomicIsize>) -> EntityReceiver<TStream> {
-        // TODO: start stream awake
+        // The stream starts awake
+        active_entity_count.fetch_add(1, Ordering::Relaxed);
 
         EntityReceiver {
             stream: stream,
             state:  Arc::new(Mutex::new(EntityReceiverState {
-                activation_count:       0,
+                activation_count:       1,
                 active_entity_count:    Arc::clone(active_entity_count),
                 future_waker:           None,
             })),
         }
+    }
+}
+
+impl Drop for EntityReceiverState {
+    fn drop(&mut self) {
+        // Ensure that the activation count is updated (note: won't generate a heartbeat if dropped while 'active')
+        self.active_entity_count.fetch_sub(self.activation_count, Ordering::Relaxed);
+        self.activation_count       = 0;
     }
 }
 
