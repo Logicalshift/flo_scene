@@ -2,7 +2,6 @@ use crate::context::*;
 use crate::entity_id::*;
 use crate::error::*;
 use crate::entity_channel::*;
-use crate::message::*;
 
 use super::entity_ids::*;
 use super::entity_registry::*;
@@ -88,9 +87,7 @@ pub (crate) fn create_heartbeat(context: &Arc<SceneContext>) -> Result<(), Creat
 
         // Main message loop for the heartbeat entity
         while let Some(message) = requests.next().await {
-            let message: Message<InternalHeartbeatRequest, ()> = message;
-
-            match *message {
+            match message {
                 InternalHeartbeatRequest::GenerateHeartbeat => {
                     // Send heartbeats to everything that's listening (stop on any error)
                     let mut stopped = vec![];
@@ -124,8 +121,6 @@ pub (crate) fn create_heartbeat(context: &Arc<SceneContext>) -> Result<(), Creat
                     }
                 }
             }
-
-            message.respond(()).ok();
         }
     })?;
 
