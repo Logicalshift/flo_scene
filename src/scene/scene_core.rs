@@ -210,7 +210,7 @@ impl SceneCore {
                 (Some(message_converter), None) => {
                     // Response types must match
                     if source_response != target_response {
-                        return Err(EntityChannelError::NotListening);
+                        return Err(EntityChannelError::WrongResponseType(entity.lock().unwrap().response_type_name()));
                     }
 
                     // We have to go via an AnyEntityChannel as we don't have a place that knows all of the types
@@ -230,7 +230,7 @@ impl SceneCore {
                 (None, Some(response_converter)) => {
                     // Message types must match
                     if source_message != target_message {
-                        return Err(EntityChannelError::NotListening);
+                        return Err(EntityChannelError::WrongMessageType(entity.lock().unwrap().message_type_name()));
                     }
 
                     // We have to go via an AnyEntityChannel as we don't have a place that knows all of the types
@@ -263,7 +263,11 @@ impl SceneCore {
                     Ok(channel.boxed())
                 }
 
-                (None, None) => Err(EntityChannelError::NotListening),
+                (None, None) => {
+                    let entity = entity.lock().unwrap();
+
+                    Err(EntityChannelError::WrongChannelType(entity.message_type_name(), entity.response_type_name()))
+                },
             }
         }
     }

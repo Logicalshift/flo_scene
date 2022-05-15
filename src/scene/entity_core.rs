@@ -4,7 +4,7 @@ use crate::simple_entity_channel::*;
 use ::desync::scheduler::*;
 
 use std::sync::*;
-use std::any::{Any, TypeId};
+use std::any::{Any, TypeId, type_name};
 
 ///
 /// Stores the data associated with an entity
@@ -22,8 +22,14 @@ pub struct EntityCore {
     /// The type ID of the message processed 'natively' by this entity
     message_type_id: TypeId,
 
+    /// The name of the message type for this entity
+    message_type_name: &'static str,
+
     /// The type ID of the response processed 'natively' by this entity
     response_type_id: TypeId,
+
+    /// The name of the response type for this entity
+    response_type_name: &'static str,
 }
 
 impl EntityCore {
@@ -44,6 +50,8 @@ impl EntityCore {
             queue:                      scheduler().create_job_queue(),
             message_type_id:            TypeId::of::<TMessage>(),
             response_type_id:           TypeId::of::<TResponse>(),
+            message_type_name:          type_name::<TMessage>(),
+            response_type_name:         type_name::<TResponse>(),
         }
     }
 
@@ -59,6 +67,20 @@ impl EntityCore {
     ///
     pub fn response_type_id(&self) -> TypeId {
         self.response_type_id
+    }
+
+    ///
+    /// Retrieves the message processed 'natively' by this channel
+    ///
+    pub fn message_type_name(&self) -> String {
+        self.message_type_name.to_string()
+    }
+
+    ///
+    /// Retrieves the response processed 'natively' by this channel
+    ///
+    pub fn response_type_name(&self) -> String {
+        self.response_type_name.to_string()
     }
 
     ///

@@ -12,7 +12,7 @@ pub enum EntityChannelError {
     NoSuchEntity,
 
     /// The entity is no longer listening for these kinds of message
-    NotListening,
+    NoLongerListening,
 
     /// A dynamic channel was expecting an entity of a particular type. The parameter is the name of the expected type.
     WrongMessageType(String),
@@ -22,6 +22,9 @@ pub enum EntityChannelError {
 
     /// A dynamic channel was expecting a response of a particular type. The parameter is the name of the expected type.
     WrongResponseType(String),
+
+    /// Neither the response nor the message type was valid for a particular entity
+    WrongChannelType(String, String),
 
     /// A dynamic message has already been processed
     MissingResponse,
@@ -35,13 +38,13 @@ pub enum EntityChannelError {
 
 impl From<oneshot::Canceled> for EntityChannelError {
     fn from(_: oneshot::Canceled) -> EntityChannelError {
-        EntityChannelError::NotListening
+        EntityChannelError::NoLongerListening
     }
 }
 
 impl From<mpsc::SendError> for EntityChannelError {
     fn from(_: mpsc::SendError) -> EntityChannelError {
-        EntityChannelError::NotListening
+        EntityChannelError::NoLongerListening
     }
 }
 
