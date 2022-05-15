@@ -7,6 +7,31 @@ use futures::channel::mpsc;
 use std::collections::{HashSet};
 
 #[test]
+fn open_entity_registry_channel() {
+    let scene = Scene::default();
+
+    // Create a test for this scene
+    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+        // Whenever a test is requested...
+        while let Some(msg) = msg.next().await {
+            let msg: Message<(), Vec<SceneTestResult>> = msg;
+
+            // Try to open the channel to the entity registry entity and ensure that it's there
+            let channel = scene_send_to::<EntityRegistryRequest, ()>(ENTITY_REGISTRY);
+
+            if channel.is_ok() {
+                msg.respond(vec![SceneTestResult::Ok]).ok();
+            } else {
+                msg.respond(vec![SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))]).ok();
+            }
+        }
+    }).unwrap();
+
+    // Test the scene we just set up
+    test_scene(scene);
+}
+
+#[test]
 fn retrieve_existing_entities() {
     let scene           = Scene::default();
     let hello_entity    = EntityId::new();
