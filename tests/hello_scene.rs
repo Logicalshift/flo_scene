@@ -52,7 +52,7 @@ fn stream_hello() {
 
     // Create an entity that receives a stream of strings and stores them in streamed_strings
     let store_strings = Arc::clone(&streamed_strings);
-    scene.create_stream_entity(stream_entity, move |mut strings| async move {
+    scene.create_stream_entity(stream_entity, StreamEntityResponseStyle::default(), move |mut strings| async move {
         while let Some(string) = strings.next().await {
             store_strings.lock().unwrap().push(string);
         }

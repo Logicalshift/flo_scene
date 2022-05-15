@@ -4,6 +4,7 @@ use crate::message::*;
 use crate::entity_channel::*;
 use crate::scene::scene_core::*;
 use crate::standard_components::*;
+use crate::stream_entity_response_style::*;
 
 use ::desync::*;
 use futures::prelude::*;
@@ -254,38 +255,65 @@ impl SceneContext {
     ///
     /// Creates an entity that processes a stream of messages which receive empty responses
     ///
-    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<(), CreateEntityError>
     where
         TMessage:   'static + Send,
         TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
      {
-        self.create_entity(entity_id, move |msgs| async {
-            let mut last_response: Option<oneshot::Sender<()>>   = None;
-            let mut msgs            = msgs;
-            let msgs                = stream::poll_fn(move |ctxt| {
-                // Respond to the last message before generating the next one (errors are ignored)
-                if let Some(last_response) = last_response.take() {
-                    last_response.send(()).ok();
+        self.create_entity(entity_id, move |msgs| async move {
+            let mut msgs = msgs;
+
+            match response_style {
+                StreamEntityResponseStyle::RespondBeforeProcessing => {
+                    let msgs = stream::poll_fn(move |ctxt| {
+                        // Retrieve the next message
+                        match msgs.poll_next_unpin(ctxt) {
+                            Poll::Pending           => Poll::Pending,
+                            Poll::Ready(None)       => Poll::Ready(None),
+                            Poll::Ready(Some(msg))  => {
+                                let msg: Message<TMessage, ()> = msg;
+                                let (message, response) = msg.take();
+
+                                // Indicate that the message has been received
+                                response.send(()).ok();
+                                Poll::Ready(Some(message))
+                            }
+                        }
+                    });
+
+                    let runtime = runtime(msgs.boxed());
+
+                    runtime.await
                 }
 
-                // Retrieve the next message
-                match msgs.poll_next_unpin(ctxt) {
-                    Poll::Pending           => Poll::Pending,
-                    Poll::Ready(None)       => Poll::Ready(None),
-                    Poll::Ready(Some(msg))  => {
-                        let msg: Message<TMessage, ()> = msg;
-                        let (message, response) = msg.take();
+                StreamEntityResponseStyle::RespondAfterProcessing => {
+                    let mut last_response: Option<oneshot::Sender<()>>  = None;
+                    let msgs                                            = stream::poll_fn(move |ctxt| {
+                        // Respond to the last message before generating the next one (errors are ignored)
+                        if let Some(last_response) = last_response.take() {
+                            last_response.send(()).ok();
+                        }
 
-                        last_response           = Some(response);
-                        Poll::Ready(Some(message))
-                    }
+                        // Retrieve the next message
+                        match msgs.poll_next_unpin(ctxt) {
+                            Poll::Pending           => Poll::Pending,
+                            Poll::Ready(None)       => Poll::Ready(None),
+                            Poll::Ready(Some(msg))  => {
+                                let msg: Message<TMessage, ()> = msg;
+                                let (message, response) = msg.take();
+
+                                last_response           = Some(response);
+                                Poll::Ready(Some(message))
+                            }
+                        }
+                    });
+
+                    let runtime = runtime(msgs.boxed());
+
+                    runtime.await
                 }
-            });
-
-            let runtime = runtime(msgs.boxed());
-
-            runtime.await
+            }
         })
     }
 
@@ -388,11 +416,11 @@ where
 
 /// Creates an entity that processes a stream of messages which receive empty responses
 ///
-pub fn scene_create_stream_entity<TMessage, TFn, TFnFuture>(entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+pub fn scene_create_stream_entity<TMessage, TFn, TFnFuture>(entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<(), CreateEntityError>
 where
     TMessage:   'static + Send,
     TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
     TFnFuture:  'static + Send + Future<Output = ()>,
 {
-    SceneContext::current().create_stream_entity(entity_id, runtime)
+    SceneContext::current().create_stream_entity(entity_id, response_style, runtime)
 }

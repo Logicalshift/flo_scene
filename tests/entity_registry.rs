@@ -70,7 +70,7 @@ fn retrieve_existing_entities() {
             let (sender, receiver)  = mpsc::channel(100);
             let entity_monitor      = EntityId::new();
 
-            scene_create_stream_entity(entity_monitor, move |mut messages| async move {
+            scene_create_stream_entity(entity_monitor, StreamEntityResponseStyle::default(), move |mut messages| async move {
                 let mut sender = sender;
 
                 while let Some(message) = messages.next().await {
@@ -145,7 +145,7 @@ fn retrieve_existing_entities_with_type() {
             let (sender, receiver)  = mpsc::channel(100);
             let entity_monitor      = EntityId::new();
 
-            scene_create_stream_entity(entity_monitor, move |mut messages| async move {
+            scene_create_stream_entity(entity_monitor, StreamEntityResponseStyle::default(), move |mut messages| async move {
                 let mut sender = sender;
 
                 while let Some(message) = messages.next().await {

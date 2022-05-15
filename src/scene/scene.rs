@@ -6,6 +6,7 @@ use crate::error::*;
 use crate::message::*;
 use crate::entity_channel::*;
 use crate::standard_components::*;
+use crate::stream_entity_response_style::*;
 
 use futures::prelude::*;
 use futures::future;
@@ -90,13 +91,13 @@ impl Scene {
     ///
     /// Creates an entity that processes a stream of messages which receive empty responses
     ///
-    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<(), CreateEntityError>
     where
         TMessage:   'static + Send,
         TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
     {
-        SceneContext::with_no_entity(&self.core).create_stream_entity(entity_id, runtime)
+        SceneContext::with_no_entity(&self.core).create_stream_entity(entity_id, response_style, runtime)
     }
 
     ///

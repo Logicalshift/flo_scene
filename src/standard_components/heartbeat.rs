@@ -2,6 +2,7 @@ use crate::context::*;
 use crate::entity_id::*;
 use crate::error::*;
 use crate::entity_channel::*;
+use crate::stream_entity_response_style::*;
 
 use super::entity_ids::*;
 use super::entity_registry::*;
@@ -81,7 +82,7 @@ pub (crate) fn create_heartbeat(context: &Arc<SceneContext>) -> Result<(), Creat
     let mut receivers = HashMap::<EntityId, BoxedEntityChannel<'static, Heartbeat, ()>>::new();
 
     // Create the heartbeat entity itself
-    context.create_stream_entity(HEARTBEAT, move |mut requests| async move {
+    context.create_stream_entity(HEARTBEAT, StreamEntityResponseStyle::default(), move |mut requests| async move {
         // Request details on the entities (we track what gets destroyed so we can stop them receiving heartbeats)
         scene_send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(HEARTBEAT)).await.ok();
 

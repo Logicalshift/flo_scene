@@ -4,6 +4,7 @@ use crate::error::*;
 use crate::context::*;
 use crate::entity_id::*;
 use crate::entity_channel::*;
+use crate::stream_entity_response_style::*;
 
 use futures::prelude::*;
 
@@ -164,7 +165,7 @@ pub (crate) fn create_entity_registry(context: &Arc<SceneContext>) -> Result<(),
     let mut typed_trackers: Vec<Option<(EntityChannelType, BoxedEntityChannel<'static, EntityUpdate, ()>)>> = vec![];
 
     // Create the entity registry (it's just a stream entity)
-    context.create_stream_entity(ENTITY_REGISTRY, move |mut requests| async move {
+    context.create_stream_entity(ENTITY_REGISTRY, StreamEntityResponseStyle::default(), move |mut requests| async move {
         // Read requests from the stream
         while let Some(request) = requests.next().await {
             use InternalRegistryRequest::*;
