@@ -69,15 +69,23 @@ fn receive_heartbeat_after_message() {
         let mut receiver = Some(receiver);
         let background = Desync::new(());
 
+        println!("Test starting");
+
         // Ask the heartbeat entity to send heartbeats to our test entity
         scene_send::<_, ()>(HEARTBEAT, HeartbeatRequest::RequestHeartbeat(receive_heartbeat)).await.unwrap();
+
+        println!("Heartbeat requested");
 
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
 
+            println!("Test message received");
+
             // Send a message to the test request
             scene_send::<_, ()>(receive_heartbeat, TestRequest::Message).await.unwrap();
+
+            println!("Sent message");
 
             // The test itself will prevent a heartbeat (as we're processing a message), so run in the background (the background thread needs to consume the receiver)
             let mut receiver = receiver.take().unwrap();
