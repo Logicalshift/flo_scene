@@ -64,7 +64,7 @@ where
         // Create a new context and load it into the state. Retrieve the number of activations that occurred before the state was created
         let initial_activation_count = {
             // We read the initial activation count before polling in case we're woken up before this function returns
-            let mut state           = self.state.lock().unwrap();
+            let mut state       = self.state.lock().unwrap();
             state.future_waker  = Some(context.waker().clone());
             state.activation_count
         };

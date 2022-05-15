@@ -52,7 +52,7 @@ pub enum EntityUpdate {
 ///
 /// Requests that can be made for the entity registry
 ///
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub (crate) enum InternalRegistryRequest {
     ///
     /// Opens an entity update channel (of type `EntityChannel<EntityUpdate, ()>`) to the specified entity and sends updates to indicate when entities are added or
