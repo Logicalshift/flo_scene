@@ -48,6 +48,9 @@ fn receive_heartbeat_after_message() {
         }
     }
 
+    // Add a converter so the test component can receive heartbeats
+    scene.convert_message::<Heartbeat, TestRequest>().ok();
+
     // Create an entity that forwards its requests to another stream
     let (sender, receiver) = mpsc::channel(100);
     scene.create_entity(receive_heartbeat, |mut msg| async move {
