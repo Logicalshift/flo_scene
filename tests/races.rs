@@ -100,10 +100,13 @@ fn race_retrieve_existing_entities() {
                 scene_create_stream_entity(entity_monitor, StreamEntityResponseStyle::default(), move |mut messages| async move {
                     let mut sender = sender;
 
+                    println!("  Sender: waiting for messages");
                     while let Some(message) = messages.next().await {
+                        println!(" -- Sending {:?}", message);
                         if let EntityUpdate::CreatedEntity(entity_id) = message {
                             sender.send(entity_id).await.ok();
                         }
+                        println!(" -- Sent");
                     }
                 }).unwrap();
 
