@@ -51,7 +51,7 @@ fn race_stream_completion() {
 #[test]
 fn race_retrieve_existing_entities() {
     // This test has been known to hang on rare occasions
-    for i in 0..100 {
+    for i in 0..1000 {
         println!();
         println!("*** ITER {}", i);
 
