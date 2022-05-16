@@ -151,33 +151,45 @@ impl Scene {
                 let waiting_futures = waiting_futures.into_iter()
                     .map(|future| {
                         let waker = Arc::new(SceneWaker::from_context(context));
-                        (waker, future)
+                        Some((waker, future))
                     });
                 running_futures.extend(waiting_futures);
 
                 // Run futures until they're all asleep again, or the core wakes us
                 loop {
                     let mut is_awake            = false;
-                    let mut complete_futures    = vec![];
+                    let mut complete_futures    = false;
 
-                    for (idx, (waker, future)) in running_futures.iter_mut().enumerate() {
-                        // Nothing to do if this future isn't awake yet
-                        if !waker.is_awake() {
-                            continue;
+                    for (idx, maybe_future) in running_futures.iter_mut().enumerate() {
+                        if let Some((waker, future)) = maybe_future {
+                            // Nothing to do if this future isn't awake yet
+                            if !waker.is_awake() {
+                                continue;
+                            }
+
+                            is_awake                = true;
+
+                            // Poll the future to put it back to sleep
+                            waker.go_to_sleep(context);
+
+                            let future_waker        = task::waker(Arc::clone(&waker));
+                            let mut future_context  = task::Context::from_waker(&future_waker);
+
+                            match future.poll_unpin(&mut future_context) {
+                                Poll::Pending   => { }
+                                Poll::Ready(()) => { 
+                                    complete_futures    = true;
+                                    *maybe_future       = None;
+                                }
+                            }
+                        } else {
+                            complete_futures = true;
                         }
+                    }
 
-                        is_awake                = true;
-
-                        // Poll the future to put it back to sleep
-                        waker.go_to_sleep(context);
-
-                        let future_waker        = task::waker(Arc::clone(&waker));
-                        let mut future_context  = task::Context::from_waker(&future_waker);
-
-                        match future.poll_unpin(&mut future_context) {
-                            Poll::Pending   => { }
-                            Poll::Ready(()) => { complete_futures.push(idx); }
-                        }
+                    // Tidy up any complete futures
+                    if complete_futures {
+                        running_futures.retain(|future| future.is_some());
                     }
 
                     // See if the core has woken us up once the futures are polled
