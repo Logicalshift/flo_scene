@@ -160,7 +160,7 @@ impl Scene {
                     let mut is_awake            = false;
                     let mut complete_futures    = false;
 
-                    for (idx, maybe_future) in running_futures.iter_mut().enumerate() {
+                    for maybe_future in running_futures.iter_mut() {
                         if let Some((waker, future)) = maybe_future {
                             // Nothing to do if this future isn't awake yet
                             if !waker.is_awake() {
