@@ -1,14 +1,16 @@
-// TODO: component to generate timed events
-// TODO: scripting component
-// TODO: HTTP server component
-// TODO: JSON streaming component
-// TODO: logging component
-// TODO: error reporting component
-// TODO: progress reporting component
-// TODO: named pipe component (+ component to introduce the contents of a named pipe as components)
-// TODO: component to stop the scene (and other components?)
+// TODO: entity to stop the scene
+// TODO: entity to shut down other entities
+// TODO: entity to generate timed events
+// TODO: scripting entity
+// TODO: HTTP server entity
+// TODO: JSON streaming entity
+// TODO: logging entity
+// TODO: error reporting entity
+// TODO: progress reporting entity
+// TODO: named pipe entity (+ entity to introduce the contents of a named pipe as entities)
+// TODO: entity to stop the scene (and other entities?)
 
-// TODO: component to contain properties/bindings (not really standard as we expect the user to create this)
+// TODO: entity to contain properties/bindings (not really standard as we expect the user to create this)
 
 mod entity_ids;
 mod entity_registry;
