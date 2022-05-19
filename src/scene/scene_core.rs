@@ -1,5 +1,6 @@
 use super::entity_core::*;
 use super::entity_receiver::*;
+use super::background_future::*;
 use super::map_from_entity_type::*;
 use super::map_into_entity_type::*;
 
@@ -39,7 +40,7 @@ pub struct SceneCore {
     pub (super) entities: HashMap<EntityId, Arc<Mutex<EntityCore>>>,
 
     /// Futures waiting to run the entities in this scene
-    pub (super) waiting_futures: Vec<BoxFuture<'static, ()>>,
+    pub (super) waiting_futures: Vec<BackgroundFuture>,
 
     /// Used by the scene that owns this core to request wake-ups (only one scene can be waiting for a wake up at once)
     pub (super) wake_scene: Option<oneshot::Sender<()>>,
@@ -89,6 +90,7 @@ impl SceneCore {
         if self.entities.contains_key(&entity_id) { return Err(CreateEntityError::AlreadyExists); }
 
         // Create the channel and the eneity
+        let entity_future       = BackgroundFuture::new();
         let (channel, receiver) = SimpleEntityChannel::new(5);
         let receiver            = EntityReceiver::new(receiver, &self.active_entity_count);
         let entity              = Arc::new(Mutex::new(EntityCore::new(channel)));
@@ -128,10 +130,10 @@ impl SceneCore {
                 scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::DestroyedEntity(entity_id)).await.ok();
             }
         };
-        let future              = future.boxed();
+        entity_future.core().add_future(future);
 
         // Queue a request in the runtime that we will run the entity
-        self.waiting_futures.push(future);
+        self.waiting_futures.push(entity_future);
 
         // Wake up the scene so it can schedule this future
         if let Some(wake_scene) = self.wake_scene.take() {
