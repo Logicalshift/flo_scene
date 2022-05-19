@@ -19,7 +19,6 @@ use futures::prelude::*;
 use futures::channel::oneshot;
 use futures::stream::{BoxStream};
 use futures::future;
-use futures::future::{BoxFuture};
 
 use std::any::{TypeId};
 use std::sync::*;
