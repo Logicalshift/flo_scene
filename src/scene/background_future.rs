@@ -130,11 +130,14 @@ impl Future for BackgroundFuture {
 
         // Poll the awake futures
         for awake_idx in awake_futures.into_iter() {
-            // TODO: make a context for this future to mark it as awake
+            // Make a context for this future to mark it as awake
+            let waker           = Arc::new(BackgroundWaker { future_idx: awake_idx, core: Arc::clone(&self.core) });
+            let future_waker    = task::waker(waker);
+            let mut context     = task::Context::from_waker(&future_waker);
 
             if let Some(future) = &mut self.futures[awake_idx] {
                 // Poll the future
-                match future.poll_unpin(context) {
+                match future.poll_unpin(&mut context) {
                     Poll::Pending   => { }
                     Poll::Ready(()) => {
                         // Release the future
