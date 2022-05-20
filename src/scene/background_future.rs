@@ -38,6 +38,9 @@ pub (crate) struct BackgroundFutureCore {
 
     /// If the background future is waiting to wake up, this is the waker to call
     waker: Option<task::Waker>,
+
+    /// Set to true if the future is cancelled (should terminate when set)
+    stopped: bool,
 }
 
 ///
@@ -69,6 +72,7 @@ impl BackgroundFuture {
             new_futures:    false,
             awake_futures:  HashSet::new(),
             waker:          None,
+            stopped:        false,
         };
 
         BackgroundFuture {
@@ -99,6 +103,15 @@ impl Future for BackgroundFuture {
 
             // Update the waker so next time something needs to wake us up, poll will be called again
             core.waker = Some(context.waker().clone());
+
+            // Terminate all of the futures if the core is stopped
+            if core.stopped {
+                // Clear any futures from this item
+                self_futures.iter_mut().for_each(|future| *future = None);
+
+                // No more work to do (we don't poll any futures any more)
+                return Poll::Ready(());
+            }
 
             if core.new_futures {
                 // Extend the futures in this struct so it's the same length as the core
@@ -187,6 +200,11 @@ pub (crate) trait ArcBackgroundFutureCore {
     /// Add a future to the list that this core owns
     ///
     fn add_future(&self, future: impl 'static + Send + Future<Output=()>);
+
+    ///
+    /// Stop the future from running
+    ///
+    fn stop(&self);
 }
 
 impl ArcWake for BackgroundWaker {
@@ -252,5 +270,21 @@ impl ArcBackgroundFutureCore for Arc<Mutex<BackgroundFutureCore>> {
     fn add_future(&self, future: impl 'static + Send + Future<Output=()>) {
         self.add_future_without_waking(future);
         self.wake();
+    }
+
+    ///
+    /// Stop the future from running
+    ///
+    fn stop(&self) {
+        let waker = { 
+            let mut core = self.lock().unwrap();
+
+            core.stopped = true;
+            core.waker.take() 
+        };
+
+        if let Some(waker) = waker {
+            waker.wake()
+        }
     }
 }
