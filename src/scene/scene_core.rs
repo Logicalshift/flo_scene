@@ -28,6 +28,7 @@ use std::collections::{HashMap};
 // TODO: way to map messages via a collection (or a stream?) - for entities with a () response 
 //      (could make it so that collection entities can take any collection, including a 1-item thing?)
 //      (or make it so that channel always receive collections of requests)
+// TODO: way to close the stream of messages to an entity to shut it down 'cleanly'
 // TODO: way to add futures that run in the background of an entity
 // TODO: way to convert streams of JSON to entity messages
 
@@ -270,6 +271,18 @@ impl SceneCore {
                     Err(EntityChannelError::WrongChannelType(entity.message_type_name(), entity.response_type_name()))
                 },
             }
+        }
+    }
+
+    ///
+    /// Adds a future to run in the background of this entity
+    ///
+    pub fn run_in_background(&self, entity_id: EntityId, future: impl 'static + Send + Future<Output=()>) -> Result<(), EntityFutureError> {
+        if let Some(entity) = self.entities.get(&entity_id) {
+            entity.lock().unwrap().run_in_background(future);
+            Ok(())
+        } else {
+            Err(EntityFutureError::NoSuchEntity)
         }
     }
 

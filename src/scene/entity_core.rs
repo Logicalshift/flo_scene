@@ -3,6 +3,7 @@ use crate::any_entity_channel::*;
 use crate::simple_entity_channel::*;
 
 use ::desync::scheduler::*;
+use futures::prelude::*;
 
 use std::sync::*;
 use std::any::{Any, TypeId, type_name};
@@ -126,6 +127,17 @@ impl EntityCore {
     pub fn stop(&self) {
         if let Some(background_futures) = self.background_futures.upgrade() {
             background_futures.stop();
+        }
+    }
+
+    ///
+    /// Adds a future to run in the background of this entity
+    ///
+    /// This future will be dropped if this entity is destroyed (eg, by the main loop ending)
+    ///
+    pub fn run_in_background(&self, future: impl 'static + Send + Future<Output=()>) {
+        if let Some(background_futures) = self.background_futures.upgrade() {
+            background_futures.add_future(future);
         }
     }
 }
