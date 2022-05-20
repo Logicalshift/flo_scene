@@ -341,6 +341,23 @@ impl SceneContext {
                 .detach();
         }
     }
+
+    ///
+    /// Adds a future to run in the background of the current entity 
+    ///
+    pub fn run_in_background(&self, future: impl 'static + Send + Future<Output=()>) -> Result<(), EntityFutureError> {
+        let scene_core = self.scene_core.as_ref()?;
+
+        if let Some(entity_id) = self.entity {
+            scene_core.sync(move |core| {
+                core.run_in_background(entity_id, future)
+            })?;
+
+            Ok(())
+        } else {
+            Err(EntityFutureError::NoCurrentEntity)
+        }
+    }
 }
 
 impl Drop for DropContext {
@@ -355,6 +372,13 @@ impl Drop for DropContext {
 ///
 pub fn scene_current_entity() -> Option<EntityId> {
     SceneContext::current().entity()
+}
+
+///
+/// Runs a future in the background of the current entity
+///
+pub fn scene_run_in_background(future: impl 'static + Send + Future<Output=()>) -> Result<(), EntityFutureError> {
+    SceneContext::current().run_in_background(future)
 }
 
 ///
@@ -414,6 +438,7 @@ where
     SceneContext::current().create_entity(entity_id, runtime)
 }
 
+///
 /// Creates an entity that processes a stream of messages which receive empty responses
 ///
 pub fn scene_create_stream_entity<TMessage, TFn, TFnFuture>(entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<(), CreateEntityError>

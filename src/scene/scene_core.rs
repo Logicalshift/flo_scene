@@ -28,8 +28,8 @@ use std::collections::{HashMap};
 // TODO: way to map messages via a collection (or a stream?) - for entities with a () response 
 //      (could make it so that collection entities can take any collection, including a 1-item thing?)
 //      (or make it so that channel always receive collections of requests)
+// TODO: way to leave an entity running but not accept any new streams ('seal' it)
 // TODO: way to close the stream of messages to an entity to shut it down 'cleanly'
-// TODO: way to add futures that run in the background of an entity
 // TODO: way to convert streams of JSON to entity messages
 
 ///
