@@ -92,7 +92,7 @@ impl SceneCore {
         let entity_future       = BackgroundFuture::new();
         let (channel, receiver) = SimpleEntityChannel::new(5);
         let receiver            = EntityReceiver::new(receiver, &self.active_entity_count);
-        let entity              = Arc::new(Mutex::new(EntityCore::new(channel)));
+        let entity              = Arc::new(Mutex::new(EntityCore::new(channel, &entity_future)));
         let queue               = entity.lock().unwrap().queue();
 
         self.entities.insert(entity_id, entity);
