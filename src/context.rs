@@ -345,6 +345,9 @@ impl SceneContext {
     ///
     /// Adds a future to run in the background of the current entity 
     ///
+    /// These background futures will be dropped when the main entity runtime terminates, and are scheduled alongside each other and the main runtime
+    /// (ie, all of the main runtime and the background futures will get scheduled on the same thread)
+    ///
     pub fn run_in_background(&self, future: impl 'static + Send + Future<Output=()>) -> Result<(), EntityFutureError> {
         let scene_core = self.scene_core.as_ref()?;
 
@@ -376,6 +379,9 @@ pub fn scene_current_entity() -> Option<EntityId> {
 
 ///
 /// Runs a future in the background of the current entity
+///
+/// These background futures will be dropped when the main entity runtime terminates, and are scheduled alongside each other and the main runtime
+/// (ie, all of the main runtime and the background futures will get scheduled on the same thread)
 ///
 pub fn scene_run_in_background(future: impl 'static + Send + Future<Output=()>) -> Result<(), EntityFutureError> {
     SceneContext::current().run_in_background(future)
