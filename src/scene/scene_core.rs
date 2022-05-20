@@ -122,11 +122,11 @@ impl SceneCore {
 
             // When done, deregister the entity
             if let Some(scene_context) = scene_context {
-                // Finish_entity calls back into the core to remove the entity from the list
-                scene_context.finish_entity::<TMessage, TResponse>(entity_id);
-
                 // Notify the registry that the entity no longer exists
                 scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::DestroyedEntity(entity_id)).await.ok();
+
+                // Finish_entity calls back into the core to remove the entity from the list (note this calls stop() so this must be done last in the entity future)
+                scene_context.finish_entity::<TMessage, TResponse>(entity_id);
             }
         };
         entity_future.core().add_future(future);
@@ -277,7 +277,9 @@ impl SceneCore {
     /// Called when an entity in this context has finished
     ///
     pub (crate) fn finish_entity(&mut self, entity_id: EntityId) {
-        self.entities.remove(&entity_id);
+        if let Some(entity) = self.entities.remove(&entity_id) {
+            entity.lock().unwrap().stop();
+        }
     }
 
     ///

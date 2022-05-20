@@ -119,4 +119,13 @@ impl EntityCore {
     pub fn attach_channel_any(&self) -> AnyEntityChannel {
         (self.create_conversion_channel)()
     }
+
+    ///
+    /// Stops the tasks associated with this entity from running
+    ///
+    pub fn stop(&self) {
+        if let Some(background_futures) = self.background_futures.upgrade() {
+            background_futures.stop();
+        }
+    }
 }
