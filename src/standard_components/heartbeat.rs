@@ -27,7 +27,7 @@ pub (crate) enum HeartbeatState {
 ///
 /// The 'native' format for the heartbeat entity
 ///
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug)]
 pub (crate) enum InternalHeartbeatRequest {
     /// From the scene core: indicates that a heartbeat has occurred
     GenerateHeartbeat,
@@ -36,16 +36,16 @@ pub (crate) enum InternalHeartbeatRequest {
     EntityUpdate(EntityUpdate),
 
     /// Send Heartbeat messages to the specified entity ID
-    RequestHeartbeat(EntityId),
+    RequestHeartbeat(BoxedEntityChannel<'static, Heartbeat, ()>),
 }
 
 ///
 /// Requests that can be made of the heartbeat entity
 ///
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug)]
 pub enum HeartbeatRequest {
     /// Send Heartbeat messages to the specified entity ID
-    RequestHeartbeat(EntityId),
+    RequestHeartbeat(BoxedEntityChannel<'static, Heartbeat, ()>),
 }
 
 ///
@@ -116,11 +116,9 @@ pub (crate) fn create_heartbeat(context: &Arc<SceneContext>) -> Result<(), Creat
                     receivers.remove(&entity_id);
                 }
 
-                InternalHeartbeatRequest::RequestHeartbeat(entity_id) => {
-                    if let Ok(channel) = scene_send_to::<Heartbeat, ()>(entity_id) {
-                        // Add this channel to the list that get heartbeat messages
-                        receivers.insert(entity_id, channel);
-                    }
+                InternalHeartbeatRequest::RequestHeartbeat(channel) => {
+                    // Add this channel to the list that get heartbeat messages
+                    receivers.insert(channel.entity_id(), channel);
                 }
             }
         }

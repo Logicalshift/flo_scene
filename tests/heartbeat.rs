@@ -72,7 +72,8 @@ fn receive_heartbeat_after_message() {
         println!("Test starting");
 
         // Ask the heartbeat entity to send heartbeats to our test entity
-        scene_send::<_, ()>(HEARTBEAT, HeartbeatRequest::RequestHeartbeat(receive_heartbeat)).await.unwrap();
+        let receive_heartbeat_channel = scene_send_to(receive_heartbeat).unwrap();
+        scene_send::<_, ()>(HEARTBEAT, HeartbeatRequest::RequestHeartbeat(receive_heartbeat_channel)).await.unwrap();
 
         println!("Heartbeat requested");
 
