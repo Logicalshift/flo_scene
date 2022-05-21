@@ -1,5 +1,6 @@
 use crate::error::*;
 use crate::message::*;
+use crate::entity_id::*;
 use crate::entity_channel::*;
 
 use futures::prelude::*;
@@ -14,17 +15,21 @@ use std::mem;
 pub struct SimpleEntityChannel<TMessage, TResponse> {
     /// The channel for sending messages
     channel: mpsc::Sender<Message<TMessage, TResponse>>,
+
+    /// The entity ID that owns this channel
+    entity_id: EntityId,
 }
 
 impl<TMessage, TResponse> SimpleEntityChannel<TMessage, TResponse> {
     ///
     /// Creates a new entity channel
     ///
-    pub fn new(buf_size: usize) -> (SimpleEntityChannel<TMessage, TResponse>, mpsc::Receiver<Message<TMessage, TResponse>>) {
+    pub fn new(entity_id: EntityId, buf_size: usize) -> (SimpleEntityChannel<TMessage, TResponse>, mpsc::Receiver<Message<TMessage, TResponse>>) {
         let (sender, receiver) = mpsc::channel(buf_size);
 
         let channel = SimpleEntityChannel {
-            channel: sender
+            channel:    sender,
+            entity_id:  entity_id,
         };
 
         (channel, receiver)
@@ -38,6 +43,10 @@ where
 {
     type Message    = TMessage;
     type Response   = TResponse;
+
+    fn entity_id(&self) -> EntityId {
+        self.entity_id
+    }
 
     fn send<'a>(&'a mut self, message: TMessage) -> BoxFuture<'a, Result<TResponse, EntityChannelError>> {
         async move {
@@ -71,7 +80,8 @@ where
 impl<TMessage, TResponse> Clone for SimpleEntityChannel<TMessage, TResponse> {
     fn clone(&self) -> Self {
         SimpleEntityChannel {
-            channel: self.channel.clone()
+            channel:    self.channel.clone(),
+            entity_id:  self.entity_id,
         }
     }
 }

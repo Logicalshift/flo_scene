@@ -1,4 +1,5 @@
 use crate::error::*;
+use crate::entity_id::*;
 use crate::entity_channel::*;
 
 use futures::prelude::*;
@@ -14,6 +15,9 @@ use std::any::{Any, type_name};
 /// intermediate stage for converting a channel between types.
 ///
 pub struct AnyEntityChannel {
+    /// The ID of the entity for this channel
+    entity_id: EntityId,
+
     /// The dynamic send function for this channel
     send: Box<dyn Send + Fn(Box<dyn Send + Any>) -> BoxFuture<'static, Result<Box<dyn Send + Any>, EntityChannelError>>>,
 
@@ -31,8 +35,9 @@ impl AnyEntityChannel {
         TChannel::Message:  'static,
         TChannel::Response: 'static + Sized,
     {
-        let send_channel = channel.clone();
-        let send = Box::new(move |boxed_message: Box<dyn Send + Any>| {
+        let entity_id       = channel.entity_id();
+        let send_channel    = channel.clone();
+        let send            = Box::new(move |boxed_message: Box<dyn Send + Any>| {
             let mut channel = send_channel.clone();
 
             async move {
@@ -86,6 +91,7 @@ impl AnyEntityChannel {
         });
 
         AnyEntityChannel {
+            entity_id,
             send,
             send_without_waiting,
         }
@@ -95,6 +101,11 @@ impl AnyEntityChannel {
 impl EntityChannel for AnyEntityChannel {
     type Message    = Box<dyn Send + Any>;
     type Response   = Box<dyn Send + Any>;
+
+    #[inline]
+    fn entity_id(&self) -> EntityId {
+        self.entity_id
+    }
 
     #[inline]
     fn send<'a>(&'a mut self, message: Box<dyn Send + Any>) -> BoxFuture<'a, Result<Box<dyn Send + Any>, EntityChannelError>> {

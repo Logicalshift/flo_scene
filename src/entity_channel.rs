@@ -1,4 +1,5 @@
 use crate::error::*;
+use crate::entity_id::*;
 
 use futures::future::{BoxFuture};
 
@@ -11,6 +12,11 @@ pub trait EntityChannel : Send {
 
     /// The type of response that this channel will generate
     type Response: Send;
+
+    ///
+    /// Returns the ID of the entity that will receive messages from this channel
+    ///
+    fn entity_id(&self) -> EntityId;
 
     ///
     /// Sends a message to the channel and waits for a response
@@ -40,6 +46,11 @@ where
 {
     type Message    = TMessage;
     type Response   = TResponse;
+
+    #[inline]
+    fn entity_id(&self) -> EntityId {
+        (**self).entity_id()
+    }
 
     #[inline]
     fn send<'b>(&'b mut self, message: Self::Message) -> BoxFuture<'b, Result<Self::Response, EntityChannelError>> {

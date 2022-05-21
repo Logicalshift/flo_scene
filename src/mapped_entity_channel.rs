@@ -1,4 +1,5 @@
 use crate::error::*;
+use crate::entity_id::*;
 use crate::entity_channel::*;
 
 use futures::prelude::*;
@@ -49,6 +50,10 @@ where
 {
     type Message    = TNewMessage;
     type Response   = TNewResponse;
+
+    fn entity_id(&self) -> EntityId {
+        self.source_channel.entity_id()
+    }
 
     fn send<'a>(&'a mut self, message: TNewMessage) -> BoxFuture<'a, Result<Self::Response, EntityChannelError>> {
         async move {
