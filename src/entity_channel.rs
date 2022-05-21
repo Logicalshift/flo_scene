@@ -3,6 +3,9 @@ use crate::entity_id::*;
 
 use futures::future::{BoxFuture};
 
+use std::fmt;
+use std::any;
+
 ///
 /// EntityChannel is a trait implemented by structures that can send messages to entities within a scene
 ///
@@ -60,5 +63,15 @@ where
     #[inline]
     fn send_without_waiting<'b>(&'b mut self, message: Self::Message) -> BoxFuture<'b, Result<(), EntityChannelError>> {
         (**self).send_without_waiting(message)
+    }
+}
+
+impl<'a, TMessage, TResponse> fmt::Debug for BoxedEntityChannel<'a, TMessage, TResponse> 
+where
+    TMessage:  Send,
+    TResponse: Send,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        fmt.write_fmt(format_args!("BoxedEntityChannel::<{}, {}>( -> {:?})", any::type_name::<TMessage>(), any::type_name::<TResponse>(), self.entity_id()))
     }
 }
