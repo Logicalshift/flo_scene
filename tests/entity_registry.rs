@@ -81,7 +81,8 @@ fn retrieve_existing_entities() {
             }).unwrap();
 
             // Ask the entity registry to monitor the entities in the scene
-            scene_send::<_, ()>(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(entity_monitor)).await.unwrap();
+            let entity_monitor_channel = scene_send_to(entity_monitor).unwrap();
+            scene_send::<_, ()>(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(entity_monitor_channel)).await.unwrap();
 
             // The 'hello_entity' ID should get sent back to us (pre-existing at the time tracking started)
             let mut receiver    = receiver;
@@ -156,7 +157,8 @@ fn retrieve_existing_entities_with_type() {
             }).unwrap();
 
             // Ask the entity registry to monitor the entities in the scene
-            scene_send::<_, ()>(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntitiesWithType(entity_monitor, EntityChannelType::of::<u64, u64>())).await.unwrap();
+            let entity_monitor_channel = scene_send_to(entity_monitor).unwrap();
+            scene_send::<_, ()>(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntitiesWithType(entity_monitor_channel, EntityChannelType::of::<u64, u64>())).await.unwrap();
 
             // The 'hello_entity' ID should get sent back to us (pre-existing at the time tracking started)
             let mut receiver = receiver;

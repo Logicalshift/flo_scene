@@ -24,18 +24,17 @@ pub struct EntityChannelType {
 ///
 /// Requests that can be made for the entity registry 
 ///
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug)]
 pub enum EntityRegistryRequest {
     ///
-    /// Opens an entity update channel (of type `EntityChannel<EntityUpdate, ()>`) to the specified entity and sends updates to indicate when entities are added or
-    /// removed to/from the scene
+    /// Sends updates for all entities to the specified entity channel
     ///
-    TrackEntities(EntityId),
+    TrackEntities(BoxedEntityChannel<'static, EntityUpdate, ()>),
 
     ///
     /// As for TrackEntities but only for those that use a particular channel type
     ///
-    TrackEntitiesWithType(EntityId, EntityChannelType),
+    TrackEntitiesWithType(BoxedEntityChannel<'static, EntityUpdate, ()>, EntityChannelType),
 }
 
 ///
@@ -53,19 +52,19 @@ pub enum EntityUpdate {
 ///
 /// Requests that can be made for the entity registry
 ///
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub (crate) enum InternalRegistryRequest {
     ///
     /// Opens an entity update channel (of type `EntityChannel<EntityUpdate, ()>`) to the specified entity and sends updates to indicate when entities are added or
     /// removed to/from the scene
     ///
-    TrackEntities(EntityId),
+    TrackEntities(BoxedEntityChannel<'static, EntityUpdate, ()>),
 
     ///
     /// Opens an entity update channel (of type `EntityChannel<EntityUpdate, ()>`) to the specified entity and sends updates to indicate when any entity that can 
     /// accept a channel of this type is created or destroyed
     ///
-    TrackEntitiesWithType(EntityId, EntityChannelType),
+    TrackEntitiesWithType(BoxedEntityChannel<'static, EntityUpdate, ()>, EntityChannelType),
 
     ///
     /// Sent from the scene core: a new entity was created (with the specified message and response types for its main stream)
@@ -267,34 +266,28 @@ pub (crate) fn create_entity_registry(context: &Arc<SceneContext>) -> Result<(),
                     }
                 }
 
-                TrackEntities(target)   => {
-                    // Create a channel to the target
-                    if let Ok(channel) = scene_send_to::<EntityUpdate, ()>(target) {
-                        // Send the list of entities to the channel
-                        let mut channel = channel;
-                        for existing_entity_id in state.entities.keys().cloned() {
-                            channel.send_without_waiting(EntityUpdate::CreatedEntity(existing_entity_id)).await.ok();
-                        }
-
-                        // Add to the list of trackers
-                        trackers.push(Some(channel));
+                TrackEntities(channel)   => {
+                    // Send the list of entities to the channel
+                    let mut channel = channel;
+                    for existing_entity_id in state.entities.keys().cloned() {
+                        channel.send_without_waiting(EntityUpdate::CreatedEntity(existing_entity_id)).await.ok();
                     }
+
+                    // Add to the list of trackers
+                    trackers.push(Some(channel));
                 }
 
-                TrackEntitiesWithType(target, channel_type) => {
-                    // Create a channel to the target
-                    if let Ok(channel) = scene_send_to::<EntityUpdate, ()>(target) {
-                        // Send the list of entities that match this type to the channel
-                        let mut channel = channel;
-                        for (existing_entity_id, existing_type) in state.entities.iter() {
-                            if state.can_convert_type(existing_type, &channel_type) {
-                                channel.send_without_waiting(EntityUpdate::CreatedEntity(*existing_entity_id)).await.ok();
-                            }
+                TrackEntitiesWithType(channel, channel_type) => {
+                    // Send the list of entities that match this type to the channel
+                    let mut channel = channel;
+                    for (existing_entity_id, existing_type) in state.entities.iter() {
+                        if state.can_convert_type(existing_type, &channel_type) {
+                            channel.send_without_waiting(EntityUpdate::CreatedEntity(*existing_entity_id)).await.ok();
                         }
-
-                        // Add to the list of typed trackers
-                        typed_trackers.push(Some((channel_type, channel)));
                     }
+
+                    // Add to the list of typed trackers
+                    typed_trackers.push(Some((channel_type, channel)));
                 }
             }
         }
