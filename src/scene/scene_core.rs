@@ -7,7 +7,7 @@ use super::map_into_entity_type::*;
 use crate::error::*;
 use crate::entity_id::*;
 use crate::entity_channel::*;
-use crate::entity_channel_ext::*;
+use crate::ergonomics::*;
 use crate::simple_entity_channel::*;
 use crate::message::*;
 use crate::context::*;
