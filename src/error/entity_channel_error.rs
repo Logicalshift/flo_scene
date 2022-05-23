@@ -32,6 +32,9 @@ pub enum EntityChannelError {
     /// No scene is available to create the channel
     NoCurrentScene,
 
+    /// The scene context is not available because the scene has finished
+    SceneFinished,
+
     /// The scene was requested from a point where the context was no longer available
     ThreadShuttingDown,
 }
@@ -58,6 +61,7 @@ impl From<&SceneContextError> for EntityChannelError {
     fn from(error: &SceneContextError) -> EntityChannelError {
         match error {
             SceneContextError::NoCurrentScene       => EntityChannelError::NoCurrentScene,
+            SceneContextError::SceneFinished        => EntityChannelError::SceneFinished,
             SceneContextError::ThreadShuttingDown   => EntityChannelError::ThreadShuttingDown,
         }
     }

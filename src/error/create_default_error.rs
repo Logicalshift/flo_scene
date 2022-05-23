@@ -11,6 +11,9 @@ pub enum CreateDefaultError {
     /// Tried to create an entity without a current scene
     NoCurrentScene,
 
+    /// The scene context is not available because the scene has finished
+    SceneFinished,
+
     /// The scene was requested from a point where the context was no longer available
     ThreadShuttingDown,
 }
@@ -25,6 +28,7 @@ impl From<&SceneContextError> for CreateDefaultError {
     fn from(error: &SceneContextError) -> CreateDefaultError {
         match error {
             SceneContextError::NoCurrentScene       => CreateDefaultError::NoCurrentScene,
+            SceneContextError::SceneFinished        => CreateDefaultError::SceneFinished,
             SceneContextError::ThreadShuttingDown   => CreateDefaultError::ThreadShuttingDown,
         }
     }

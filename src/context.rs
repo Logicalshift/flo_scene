@@ -37,7 +37,7 @@ pub struct SceneContext {
     entity: Option<EntityId>,
 
     /// The core of the scene that the entity is a part of
-    scene_core: Result<Arc<Desync<SceneCore>>, SceneContextError>,
+    scene_core: Result<Weak<Desync<SceneCore>>, SceneContextError>,
 }
 
 impl SceneContext {
@@ -78,7 +78,27 @@ impl SceneContext {
     pub (crate) fn with_no_entity(core: &Arc<Desync<SceneCore>>) -> SceneContext {
         SceneContext {
             entity:     None,
-            scene_core: Ok(Arc::clone(&core)),
+            scene_core: Ok(Arc::downgrade(core)),
+        }
+    }
+
+    ///
+    /// Fetches a reference to the scene core
+    ///
+    #[inline]
+    fn scene_core(&self) -> Result<Arc<Desync<SceneCore>>, SceneContextError> {
+        match &self.scene_core {
+            Ok(core) => {
+                if let Some(core) = core.upgrade() {
+                    Ok(core)
+                } else {
+                    Err(SceneContextError::SceneFinished)
+                }
+            }
+
+            Err(err) => {
+                Err(*err)
+            }
         }
     }
 
@@ -130,7 +150,7 @@ impl SceneContext {
         TOriginalMessage:   'static + Send,
         TNewMessage:        'static + Send + From<TOriginalMessage>,
     {
-        self.scene_core.as_ref()?.future_desync(move |core| async move {
+        self.scene_core()?.future_desync(move |core| async move {
             // Register that one type can be converted to another
             core.convert_message::<TOriginalMessage, TNewMessage>();
 
@@ -154,7 +174,7 @@ impl SceneContext {
         TOriginalResponse:  'static + Send + Into<TNewResponse>,
         TNewResponse:       'static + Send,
     {
-        self.scene_core.as_ref()?.future_desync(move |core| async move {
+        self.scene_core()?.future_desync(move |core| async move {
             // Register that one type can be converted to another
             core.convert_response::<TOriginalResponse, TNewResponse>();
 
@@ -175,7 +195,7 @@ impl SceneContext {
         TMessage:   'static + Send,
         TResponse:  'static + Send, 
     {
-        self.scene_core.as_ref()?.sync(|core| {
+        self.scene_core()?.sync(|core| {
             core.send_to(entity_id)
         })
     }
@@ -243,11 +263,11 @@ impl SceneContext {
         // Create a SceneContext for the new entity
         let new_context = Arc::new(SceneContext {
             entity:     Some(entity_id),
-            scene_core: Ok(Arc::clone(self.scene_core.as_ref()?)),
+            scene_core: Ok(Arc::downgrade(&self.scene_core()?)),
         });
 
         // Request that the core create the entity
-        self.scene_core.as_ref()?.sync(move |core| {
+        self.scene_core()?.sync(move |core| {
             core.create_entity(new_context, runtime)
         })
     }
@@ -325,15 +345,16 @@ impl SceneContext {
         TMessage:   'static + Send,
         TResponse:  'static + Send,
     {
-        self.scene_core.as_ref().unwrap()
-            .desync(move |core| core.finish_entity(entity_id));
+        if let Ok(scene_core) = self.scene_core() {
+            scene_core.desync(move |core| core.finish_entity(entity_id));
+        }
     }
 
     ///
     /// Called whenever all of the entities in the scene are waiting for new messages
     ///
     pub (crate) fn send_heartbeat(&self) {
-        if let Ok(scene_core) = &self.scene_core {
+        if let Ok(scene_core) = self.scene_core() {
             scene_core
                 .future_desync(move |core| async move {
                     core.send_heartbeat().await;
@@ -349,7 +370,7 @@ impl SceneContext {
     /// (ie, all of the main runtime and the background futures will get scheduled on the same thread)
     ///
     pub fn run_in_background(&self, future: impl 'static + Send + Future<Output=()>) -> Result<(), EntityFutureError> {
-        let scene_core = self.scene_core.as_ref()?;
+        let scene_core = self.scene_core()?;
 
         if let Some(entity_id) = self.entity {
             scene_core.sync(move |core| {
