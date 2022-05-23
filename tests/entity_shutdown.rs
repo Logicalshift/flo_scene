@@ -6,7 +6,7 @@ use futures::channel::mpsc;
 
 #[test]
 fn seal_entity() {
-    let scene           = Scene::empty();
+    let scene           = Scene::default();
     let hello_entity    = EntityId::new();
 
     // Create an entity that says 'World' in response 'Hello'
@@ -54,7 +54,7 @@ fn seal_entity() {
 
 #[test]
 fn close_entity() {
-    let scene           = Scene::empty();
+    let scene           = Scene::default();
     let hello_entity    = EntityId::new();
 
     let (send_shutdown, is_shutdown) = mpsc::channel(1);
@@ -83,6 +83,10 @@ fn close_entity() {
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
 
+            // Request registry updates
+            let (update_registry, registry_updates) = SimpleEntityChannel::new(TEST_ENTITY, 1000);
+            scene_send::<_, ()>(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(update_registry.boxed())).await.unwrap();
+
             // Open a channel to the entity
             let mut hello_channel = scene_send_to::<String, String>(hello_entity).unwrap();
 
@@ -94,6 +98,14 @@ fn close_entity() {
 
             // 'is_shutdown' should signal
             is_shutdown.next().await;
+
+            // Registry should indicate that the hello was stopped
+            let mut registry_updates = registry_updates;
+            while let Some(msg) = registry_updates.next().await {
+                if *msg == EntityUpdate::DestroyedEntity(hello_entity) {
+                    break;
+                }
+            }
 
             // Wait for the response, and succeed if the result is 'world'
             msg.respond(vec![

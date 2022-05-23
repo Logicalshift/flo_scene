@@ -24,6 +24,7 @@ pub use self::scene::*;
 pub use self::entity_id::*;
 pub use self::message::*;
 pub use self::entity_channel::*;
+pub use self::entity_channel_ext::*;
 pub use self::simple_entity_channel::*;
 pub use self::mapped_entity_channel::*;
 pub use self::convert_entity_channel::*;
