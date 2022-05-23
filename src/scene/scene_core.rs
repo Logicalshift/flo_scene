@@ -28,8 +28,6 @@ use std::collections::{HashMap};
 // TODO: way to map messages via a collection (or a stream?) - for entities with a () response 
 //      (could make it so that collection entities can take any collection, including a 1-item thing?)
 //      (or make it so that channel always receive collections of requests)
-// TODO: way to leave an entity running but not accept any new streams ('seal' it)
-// TODO: way to close the stream of messages to an entity to shut it down 'cleanly'
 // TODO: way to convert streams of JSON to entity messages
 
 ///
@@ -283,6 +281,54 @@ impl SceneCore {
             Ok(())
         } else {
             Err(EntityFutureError::NoSuchEntity)
+        }
+    }
+
+    ///
+    /// 'Seals' an entity, making it so it will continue running but will not allow new channels to be opened to it
+    ///
+    /// (The entity registry won't report that the entity has been sealed)
+    ///
+    pub (crate) fn seal_entity(&mut self, entity_id: EntityId) -> Result<(), EntityChannelError> {
+        if let Some(_entity) = self.entities.remove(&entity_id) {
+            Ok(())
+        } else {
+            Err(EntityChannelError::NoSuchEntity)
+        }
+    }
+
+    ///
+    /// Stops an entity by forcibly stopping its futures
+    ///
+    /// This is a 'hard' stop that will drop the futures in their current state (if the future is running
+    /// this will happen once it stops)
+    ///
+    pub (crate) fn stop_entity(&mut self, entity_id: EntityId) -> Result<(), EntityChannelError> {
+        if let Some(entity) = self.entities.remove(&entity_id) {
+            // TODO: this doesn't inform the entity registry that this entity has been shut down
+            let entity = entity.lock().unwrap();
+            entity.stop();
+
+            Ok(())
+        } else {
+            Err(EntityChannelError::NoSuchEntity)
+        }
+    }
+
+    ///
+    /// Stops an entity by closing its main channel
+    ///
+    /// This is a 'soft' stop operation, so the entity may keep accepting connections until it terminates
+    /// its inner loop. The channel will receive a '
+    ///
+    pub (crate) fn close_entity(&mut self, entity_id: EntityId) -> Result<(), EntityChannelError> {
+        if let Some(entity) = self.entities.get(&entity_id) {
+            let mut entity = entity.lock().unwrap();
+            entity.close();
+
+            Ok(())
+        } else {
+            Err(EntityChannelError::NoSuchEntity)
         }
     }
 

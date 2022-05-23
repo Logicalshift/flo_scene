@@ -382,6 +382,43 @@ impl SceneContext {
             Err(EntityFutureError::NoCurrentEntity)
         }
     }
+
+    ///
+    /// 'Seals' an entity, which leaves it running but makes it impossible to open new channels to it
+    ///
+    /// This is useful when an entity is in use but shouldn't be accessible from any new entities added to the
+    /// scene.
+    ///
+    pub fn seal_entity(&self, entity_id: EntityId) -> Result<(), EntityChannelError> {
+        self.scene_core()?.sync(|core| core.seal_entity(entity_id))?;
+
+        Ok(())
+    }
+
+    ///
+    /// Closes the main channel to an entity, preventing it from receiving any further messages, and usually causing it
+    /// to exit its main loop and shut down.
+    ///
+    /// Entities usually stop in response to their main channel closing, but are capable of running beyond this point.
+    /// The channel will initially be retrievable but unable to receive new messages, and will only stop existing at the
+    /// point the entity fully stops.
+    ///
+    pub fn close_entity(&self, entity_id: EntityId) -> Result<(), EntityChannelError> {
+        self.scene_core()?.sync(|core| core.close_entity(entity_id))?;
+
+        Ok(())
+    }
+
+    ///
+    /// Drops the running futures for the specified entity, causing it to be immediately and impolitely shut down
+    ///
+    /// Generally 'close_entity' should be used instead of this, but this will also shut the entity down.
+    ///
+    pub fn kill_entity(&self, entity_id: EntityId) -> Result<(), EntityChannelError> {
+        self.scene_core()?.sync(|core| core.stop_entity(entity_id))?;
+
+        Ok(())
+    }
 }
 
 impl Drop for DropContext {

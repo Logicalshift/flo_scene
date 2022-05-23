@@ -34,6 +34,13 @@ impl<TMessage, TResponse> SimpleEntityChannel<TMessage, TResponse> {
 
         (channel, receiver)
     }
+
+    ///
+    /// Closes this channel
+    ///
+    pub fn close(&mut self) {
+        self.channel.close_channel();
+    }
 }
 
 impl<TMessage, TResponse> EntityChannel for SimpleEntityChannel<TMessage, TResponse> 
