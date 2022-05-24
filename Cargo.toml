@@ -1,18 +1,22 @@
 [package]
-name        = "flo_scene"
-version     = "0.1.0"
-edition     = "2021"
-authors     = ["Andrew Hunter"]
-license     = "Apache-2.0"
-readme      = "README.md"
-repository  = "https://github.com/Logicalshift/flo_scene"
-description = "Entity-messaging system for composing large programs from small programs"
-categories  = [ "concurrency", "data-structures" ]
-keywords    = [ "message-queue" ]
-resolver    = "2"
+name            = "flo_scene"
+version         = "0.1.0"
+edition         = "2021"
+authors         = ["Andrew Hunter"]
+license         = "Apache-2.0"
+readme          = "README.md"
+repository      = "https://github.com/Logicalshift/flo_scene"
+description     = "Entity-messaging system for composing large programs from small programs"
+categories      = [ "concurrency", "data-structures" ]
+keywords        = [ "message-queue" ]
+resolver        = "2"
 
 [features]
+default         = [ "timer", "logging", "properties" ] 
 test-scene      = [ "futures-timer" ]
+timer           = [ "futures-timer" ]
+logging         = [ ]
+properties      = [ ]
 
 [dependencies]
 futures         = "0.3"

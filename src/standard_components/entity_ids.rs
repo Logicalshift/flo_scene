@@ -16,3 +16,23 @@ pub const ENTITY_REGISTRY: EntityId = EntityId::well_known(uuid!["05FE1AC4-6B61-
 /// entities in a scene have no more pending messages (other than )
 ///
 pub const HEARTBEAT: EntityId       = EntityId::well_known(uuid!["C84E950C-0FA1-47C7-A453-C6C65B1BEEA9"]);
+
+///
+/// UUID of the entity that controls the currently running scene
+///
+pub const SCENE_CONTROL: EntityId   = EntityId::well_known(uuid!["1A0EDDC4-5F99-4BC3-B646-DFD4B71F8B0E"]);
+
+///
+/// UUID of an entity that can provide timed events on request
+///
+pub const TIMER: EntityId           = EntityId::well_known(uuid!["F9F311F6-EAC0-4D7F-ACD1-39BEF2418376"]);
+
+///
+/// UUID of an entity that can provide log messages about a particular scene
+///
+pub const LOGGING: EntityId         = EntityId::well_known(uuid!["E197C07D-BC63-41B1-9B88-ACA4CCAF8B0E"]);
+
+///
+/// UUID of an entity that can manage the properties of other entities
+///
+pub const PROPERTIES: EntityId      = EntityId::well_known(uuid!["1702A40B-198B-4424-808A-68BF1BFA6451"]);
