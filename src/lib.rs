@@ -33,4 +33,4 @@ pub use self::context::*;
 pub use self::stream_entity_response_style::*;
 pub use self::standard_components::*;
 
-#[cfg(feature="test-scene")] pub mod test;
+#[cfg(feature="test-scene")] pub use self::ergonomics::test;
