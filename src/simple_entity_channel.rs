@@ -64,7 +64,7 @@ where
             self.channel.send(message).await?;
 
             // Wait for the message to be processed
-            Ok(receiver.await?)
+            receiver.await.map_err(|_cancelled| EntityChannelError::NoResponse)
         }.boxed()
     }
 

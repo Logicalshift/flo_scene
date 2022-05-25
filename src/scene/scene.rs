@@ -41,6 +41,9 @@ impl Default for Scene {
         create_entity_registry_entity(&context).unwrap();
         create_heartbeat_entity(&context).unwrap();
 
+        #[cfg(feature="timer")]
+        create_timer_entity(TIMER, &context).unwrap();
+
         scene
     }
 }

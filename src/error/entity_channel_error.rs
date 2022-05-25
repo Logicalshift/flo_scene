@@ -11,6 +11,9 @@ pub enum EntityChannelError {
     /// The requested entity doesn't exist
     NoSuchEntity,
 
+    /// The entity didn't generate a response for the message
+    NoResponse,
+
     /// The entity is no longer listening for these kinds of message
     NoLongerListening,
 
