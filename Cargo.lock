@@ -20,13 +20,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "flo_binding"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "711a65cd60b91114a1cecbf6a9d533c3fde6e38532506cde25bc5f7bc87d2fa0"
+dependencies = [
+ "desync",
+ "flo_rope",
+ "futures",
+]
+
+[[package]]
+name = "flo_rope"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "934e2de58fcae0ada41e86f12f49f169d2a0349ebd27fc4cfb3d3ba34db827be"
+
+[[package]]
 name = "flo_scene"
 version = "0.1.0"
 dependencies = [
  "desync",
+ "flo_binding",
+ "flo_rope",
  "flo_scene",
  "futures",
  "futures-timer",
+ "log",
  "uuid",
 ]
 
@@ -156,6 +176,15 @@ name = "libc"
 version = "0.2.125"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5916d2ae698f6de9bfb891ad7a8d65c09d232dc58cc4ac433c7da3b2fd84bc2b"
+
+[[package]]
+name = "log"
+version = "0.4.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
+dependencies = [
+ "cfg-if",
+]
 
 [[package]]
 name = "memchr"
