@@ -6,6 +6,7 @@ use crate::error::*;
 use crate::message::*;
 use crate::entity_channel::*;
 use crate::standard_components::*;
+use crate::simple_entity_channel::*;
 use crate::stream_entity_response_style::*;
 
 use futures::prelude::*;
@@ -78,7 +79,7 @@ impl Scene {
     ///
     /// Creates an entity that processes a particular kind of message
     ///
-    pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+    pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, TResponse>, CreateEntityError>
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
@@ -91,7 +92,7 @@ impl Scene {
     ///
     /// Creates an entity that processes a stream of messages which receive empty responses
     ///
-    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<(), CreateEntityError>
+    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, ()>, CreateEntityError>
     where
         TMessage:   'static + Send,
         TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,

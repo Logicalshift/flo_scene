@@ -74,7 +74,7 @@ impl SceneCore {
     ///
     /// Creates an entity that processes a particular kind of message
     ///
-    pub (crate) fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&mut self, scene_context: Arc<SceneContext>, runtime: TFn) -> Result<(), CreateEntityError>
+    pub (crate) fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&mut self, scene_context: Arc<SceneContext>, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, TResponse>, CreateEntityError>
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
@@ -91,7 +91,7 @@ impl SceneCore {
         let entity_future       = BackgroundFuture::new();
         let (channel, receiver) = SimpleEntityChannel::new(entity_id, 5);
         let receiver            = EntityReceiver::new(receiver, &self.active_entity_count);
-        let entity              = Arc::new(Mutex::new(EntityCore::new(channel, &entity_future)));
+        let entity              = Arc::new(Mutex::new(EntityCore::new(channel.clone(), &entity_future)));
         let queue               = entity.lock().unwrap().queue();
 
         self.entities.insert(entity_id, entity);
@@ -138,7 +138,7 @@ impl SceneCore {
             wake_scene.send(()).ok();
         }
 
-        Ok(())
+        Ok(channel)
     }
 
     ///

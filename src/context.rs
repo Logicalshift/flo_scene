@@ -4,6 +4,7 @@ use crate::message::*;
 use crate::entity_channel::*;
 use crate::scene::scene_core::*;
 use crate::standard_components::*;
+use crate::simple_entity_channel::*;
 use crate::stream_entity_response_style::*;
 
 use ::desync::*;
@@ -253,7 +254,7 @@ impl SceneContext {
     ///
     /// Creates an entity that processes a particular kind of message
     ///
-    pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+    pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, TResponse>, CreateEntityError>
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
@@ -275,7 +276,7 @@ impl SceneContext {
     ///
     /// Creates an entity that processes a stream of messages which receive empty responses
     ///
-    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<(), CreateEntityError>
+    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, ()>, CreateEntityError>
     where
         TMessage:   'static + Send,
         TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
@@ -492,7 +493,7 @@ where
 ///
 /// Creates a new entity in the current scene
 ///
-pub fn scene_create_entity<TMessage, TResponse, TFn, TFnFuture>(entity_id: EntityId, runtime: TFn) -> Result<(), CreateEntityError>
+pub fn scene_create_entity<TMessage, TResponse, TFn, TFnFuture>(entity_id: EntityId, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, TResponse>, CreateEntityError>
 where
     TMessage:   'static + Send,
     TResponse:  'static + Send,
@@ -505,7 +506,7 @@ where
 ///
 /// Creates an entity that processes a stream of messages which receive empty responses
 ///
-pub fn scene_create_stream_entity<TMessage, TFn, TFnFuture>(entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<(), CreateEntityError>
+pub fn scene_create_stream_entity<TMessage, TFn, TFnFuture>(entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, ()>, CreateEntityError>
 where
     TMessage:   'static + Send,
     TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
