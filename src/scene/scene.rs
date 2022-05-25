@@ -38,8 +38,8 @@ impl Default for Scene {
         let context = scene.context();
 
         // Add the standard components
-        create_entity_registry(&context).unwrap();
-        create_heartbeat(&context).unwrap();
+        create_entity_registry_entity(&context).unwrap();
+        create_heartbeat_entity(&context).unwrap();
 
         scene
     }

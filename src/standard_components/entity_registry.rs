@@ -150,7 +150,7 @@ impl RegistryState {
 ///
 /// Creates the entity registry in a context
 ///
-pub (crate) fn create_entity_registry(context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
+pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
     // Programs outside of flo_scene can make requests from the `EntityRegistryRequest` API
     context.convert_message::<EntityRegistryRequest, InternalRegistryRequest>()?;
 

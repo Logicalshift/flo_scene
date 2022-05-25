@@ -73,7 +73,7 @@ impl From<EntityUpdate> for InternalHeartbeatRequest {
 ///
 /// Creates the heartbeat entity in a context
 ///
-pub (crate) fn create_heartbeat(context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
+pub fn create_heartbeat_entity(context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
     // Set up converting the messages that the heartbeat entity can receive
     context.convert_message::<EntityUpdate, InternalHeartbeatRequest>()?;
     context.convert_message::<HeartbeatRequest, InternalHeartbeatRequest>()?;
