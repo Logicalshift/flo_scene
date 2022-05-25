@@ -2,6 +2,8 @@ use crate::entity_channel::*;
 
 use std::time::{Duration};
 
+#[cfg(feature="timer")] use futures_timer::{Delay};
+
 ///
 /// ID of a timer
 ///
