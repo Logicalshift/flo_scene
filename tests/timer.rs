@@ -6,6 +6,7 @@ use futures::prelude::*;
 use std::time::{Duration, Instant};
 
 #[test]
+#[cfg(feature="timer")]
 fn open_channel() {
     let scene = Scene::default();
 
@@ -31,6 +32,7 @@ fn open_channel() {
 }
 
 #[test]
+#[cfg(feature="timer")]
 fn oneshot() {
     let scene = Scene::default();
 
@@ -63,6 +65,7 @@ fn oneshot() {
 
 
 #[test]
+#[cfg(feature="timer")]
 fn repeating() {
     let scene = Scene::default();
 
