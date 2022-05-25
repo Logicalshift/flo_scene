@@ -10,7 +10,7 @@ fn open_heartbeat_channel() {
     let scene = Scene::default();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
@@ -53,7 +53,7 @@ fn receive_heartbeat_after_message() {
 
     // Create an entity that forwards its requests to another stream
     let (sender, receiver) = mpsc::channel(100);
-    scene.create_entity(receive_heartbeat, |mut msg| async move {
+    scene.create_entity(receive_heartbeat, |_context, mut msg| async move {
         let mut sender = sender;
 
         while let Some(msg) = msg.next().await {
@@ -65,7 +65,7 @@ fn receive_heartbeat_after_message() {
     }).unwrap();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         let mut receiver = Some(receiver);
         let background = Desync::new(());
 

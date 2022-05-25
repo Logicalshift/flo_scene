@@ -12,7 +12,7 @@ fn say_hello_in_background() {
     let (mut relay_sender, mut relay_receiver)      = mpsc::channel(5);
 
     // Create an entity that monitors string_receiver in the background
-    scene.create_entity(hello_entity, |mut msg| async move {
+    scene.create_entity(hello_entity, |_context, mut msg| async move {
         scene_run_in_background(async move {
             while let Some(string) = string_receiver.next().await {
                 relay_sender.send(string).await.ok();
@@ -28,7 +28,7 @@ fn say_hello_in_background() {
     }).unwrap();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;

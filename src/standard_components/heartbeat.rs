@@ -82,10 +82,10 @@ pub (crate) fn create_heartbeat(context: &Arc<SceneContext>) -> Result<(), Creat
     let mut receivers = HashMap::<EntityId, BoxedEntityChannel<'static, Heartbeat, ()>>::new();
 
     // Create the heartbeat entity itself
-    context.create_stream_entity(HEARTBEAT, StreamEntityResponseStyle::default(), move |mut requests| async move {
+    context.create_stream_entity(HEARTBEAT, StreamEntityResponseStyle::default(), move |context, mut requests| async move {
         // Request details on the entities (we track what gets destroyed so we can stop them receiving heartbeats)
-        let our_channel = scene_send_to(HEARTBEAT).unwrap();
-        scene_send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(our_channel)).await.ok();
+        let our_channel = context.send_to(HEARTBEAT).unwrap();
+        context.send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(our_channel)).await.ok();
 
         // Main message loop for the heartbeat entity
         while let Some(message) = requests.next().await {

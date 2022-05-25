@@ -78,7 +78,7 @@ impl SceneCore {
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
-        TFn:        'static + Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
+        TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
     {
         // The entity ID is specified in the supplied scene context
@@ -104,7 +104,7 @@ impl SceneCore {
             let future = scheduler().future_desync(&queue, move || async move {
                 // Start the future running
                 let receiver            = receiver.boxed();
-                let mut runtime_future  = SceneContext::with_context(&scene_context, || runtime(receiver).boxed()).unwrap();
+                let mut runtime_future  = SceneContext::with_context(&scene_context, || runtime(Arc::clone(&scene_context), receiver).boxed()).unwrap();
 
                 // Poll it in the scene context
                 future::poll_fn(|ctxt| {

@@ -19,14 +19,14 @@ fn race_stream_completion() {
 
         // Create an entity that receives a stream of strings and stores them in streamed_strings
         let store_strings = Arc::clone(&streamed_strings);
-        scene.create_stream_entity(stream_entity, StreamEntityResponseStyle::RespondAfterProcessing, move |mut strings| async move {
+        scene.create_stream_entity(stream_entity, StreamEntityResponseStyle::RespondAfterProcessing, move |_context, mut strings| async move {
             while let Some(string) = strings.next().await {
                 store_strings.lock().unwrap().push(string);
             }
         }).unwrap();
 
         // Test sends a couple of strings and then reads them back again
-        scene.create_entity(TEST_ENTITY, move |mut messages| async move {
+        scene.create_entity(TEST_ENTITY, move |_context, mut messages| async move {
             while let Some(msg) = messages.next().await {
                 let msg: Message<(), Vec<SceneTestResult>> = msg;
 
@@ -61,7 +61,7 @@ fn race_retrieve_existing_entities() {
 
         // Create an entity that says 'World' in response 'Hello'
         println!("  Create hello_entity...");
-        scene.create_entity(hello_entity, |mut msg| async move {
+        scene.create_entity(hello_entity, |_context, mut msg| async move {
             while let Some(msg) = msg.next().await {
                 let msg: Message<String, String> = msg;
 
@@ -75,7 +75,7 @@ fn race_retrieve_existing_entities() {
 
         // Entity that adds one to any number it's sent
         println!("  Create add_one_entity...");
-        scene.create_entity(add_one_entity, |mut msg| async move {
+        scene.create_entity(add_one_entity, |_context, mut msg| async move {
             while let Some(msg) = msg.next().await {
                 let msg: Message<u64, u64> = msg;
                 let val = *msg;
@@ -85,7 +85,7 @@ fn race_retrieve_existing_entities() {
         }).unwrap();
 
         // Create a test for this scene
-        scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+        scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
             // Whenever a test is requested...
             while let Some(msg) = msg.next().await {
                 let msg: Message<(), Vec<SceneTestResult>> = msg;
@@ -97,7 +97,7 @@ fn race_retrieve_existing_entities() {
                 let entity_monitor      = EntityId::new();
 
                 println!("  Create sender entity...");
-                scene_create_stream_entity(entity_monitor, StreamEntityResponseStyle::default(), move |mut messages| async move {
+                scene_create_stream_entity(entity_monitor, StreamEntityResponseStyle::default(), move |_context, mut messages| async move {
                     let mut sender = sender;
 
                     println!("  Sender: waiting for messages");

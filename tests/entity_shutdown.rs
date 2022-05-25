@@ -10,7 +10,7 @@ fn seal_entity() {
     let hello_entity    = EntityId::new();
 
     // Create an entity that says 'World' in response 'Hello'
-    scene.create_entity(hello_entity, |mut msg| async move {
+    scene.create_entity(hello_entity, |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<String, String> = msg;
 
@@ -23,7 +23,7 @@ fn seal_entity() {
     }).unwrap();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
@@ -60,7 +60,7 @@ fn close_entity() {
     let (send_shutdown, is_shutdown) = mpsc::channel(1);
 
     // Create an entity that says 'World' in response 'Hello'
-    scene.create_entity(hello_entity, |mut msg| async move {
+    scene.create_entity(hello_entity, |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<String, String> = msg;
 
@@ -76,7 +76,7 @@ fn close_entity() {
     }).unwrap();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         let mut is_shutdown = is_shutdown;
 
         // Whenever a test is requested...

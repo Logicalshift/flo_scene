@@ -258,7 +258,7 @@ impl SceneContext {
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
-        TFn:        'static + Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
+        TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
     {
         // Create a SceneContext for the new entity
@@ -279,10 +279,10 @@ impl SceneContext {
     pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, ()>, CreateEntityError>
     where
         TMessage:   'static + Send,
-        TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
+        TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, TMessage>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
      {
-        self.create_entity(entity_id, move |msgs| async move {
+        self.create_entity(entity_id, move |context, msgs| async move {
             let mut msgs = msgs;
 
             match response_style {
@@ -303,7 +303,7 @@ impl SceneContext {
                         }
                     });
 
-                    let runtime = runtime(msgs.boxed());
+                    let runtime = runtime(context, msgs.boxed());
 
                     runtime.await
                 }
@@ -330,7 +330,7 @@ impl SceneContext {
                         }
                     });
 
-                    let runtime = runtime(msgs.boxed());
+                    let runtime = runtime(context, msgs.boxed());
 
                     runtime.await
                 }
@@ -497,7 +497,7 @@ pub fn scene_create_entity<TMessage, TResponse, TFn, TFnFuture>(entity_id: Entit
 where
     TMessage:   'static + Send,
     TResponse:  'static + Send,
-    TFn:        'static + Send + FnOnce(BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
+    TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
     TFnFuture:  'static + Send + Future<Output = ()>,
 {
     SceneContext::current().create_entity(entity_id, runtime)
@@ -509,7 +509,7 @@ where
 pub fn scene_create_stream_entity<TMessage, TFn, TFnFuture>(entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, ()>, CreateEntityError>
 where
     TMessage:   'static + Send,
-    TFn:        'static + Send + FnOnce(BoxStream<'static, TMessage>) -> TFnFuture,
+    TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, TMessage>) -> TFnFuture,
     TFnFuture:  'static + Send + Future<Output = ()>,
 {
     SceneContext::current().create_stream_entity(entity_id, response_style, runtime)

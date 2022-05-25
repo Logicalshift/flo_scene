@@ -12,7 +12,7 @@ fn send_message_before_wait() {
 
     // Create an entity that receives a stream of strings and stores them in streamed_strings
     let (string_sender, string_receiver) = mpsc::channel(100);
-    scene.create_stream_entity(stream_entity, StreamEntityResponseStyle::RespondAfterProcessing, move |mut strings| async move {
+    scene.create_stream_entity(stream_entity, StreamEntityResponseStyle::RespondAfterProcessing, move |_context, mut strings| async move {
         let mut string_sender = string_sender;
 
         // Send a message to the entity before it starts
@@ -28,7 +28,7 @@ fn send_message_before_wait() {
     // Test sends a couple of strings and then reads them back again
     let mut string_receiver = Some(string_receiver);
 
-    scene.create_entity(TEST_ENTITY, move |mut messages| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut messages| async move {
         while let Some(msg) = messages.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
 

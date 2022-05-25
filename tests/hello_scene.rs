@@ -12,7 +12,7 @@ fn say_hello() {
     let hello_entity    = EntityId::new();
 
     // Create an entity that says 'World' in response 'Hello'
-    scene.create_entity(hello_entity, |mut msg| async move {
+    scene.create_entity(hello_entity, |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<String, String> = msg;
 
@@ -25,7 +25,7 @@ fn say_hello() {
     }).unwrap();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
@@ -52,14 +52,14 @@ fn stream_hello() {
 
     // Create an entity that receives a stream of strings and stores them in streamed_strings
     let store_strings = Arc::clone(&streamed_strings);
-    scene.create_stream_entity(stream_entity, StreamEntityResponseStyle::RespondAfterProcessing, move |mut strings| async move {
+    scene.create_stream_entity(stream_entity, StreamEntityResponseStyle::RespondAfterProcessing, move |_context, mut strings| async move {
         while let Some(string) = strings.next().await {
             store_strings.lock().unwrap().push(string);
         }
     }).unwrap();
 
     // Test sends a couple of strings and then reads them back again
-    scene.create_entity(TEST_ENTITY, move |mut messages| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut messages| async move {
         while let Some(msg) = messages.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
 

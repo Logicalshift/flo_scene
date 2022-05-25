@@ -41,7 +41,7 @@ fn convert_message_from_string() {
     let entity_id       = EntityId::new();
 
     // Create an entity that responds to TestMessages
-    scene.create_entity(entity_id, |mut msg| async move {
+    scene.create_entity(entity_id, |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<TestMessage, TestMessage> = msg;
 
@@ -58,7 +58,7 @@ fn convert_message_from_string() {
     scene.convert_message::<u64, TestMessage>().unwrap();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
@@ -83,7 +83,7 @@ fn convert_message_from_number() {
     let entity_id       = EntityId::new();
 
     // Create an entity that responds to TestMessages
-    scene.create_entity(entity_id, |mut msg| async move {
+    scene.create_entity(entity_id, |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<TestMessage, TestMessage> = msg;
 
@@ -100,7 +100,7 @@ fn convert_message_from_number() {
     scene.convert_message::<u64, TestMessage>().unwrap();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
@@ -125,7 +125,7 @@ fn convert_response_to_string() {
     let entity_id       = EntityId::new();
 
     // Create an entity that responds to TestMessages
-    scene.create_entity(entity_id, |mut msg| async move {
+    scene.create_entity(entity_id, |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<TestMessage, TestMessage> = msg;
 
@@ -140,7 +140,7 @@ fn convert_response_to_string() {
     scene.convert_response::<TestMessage, String>().unwrap();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
@@ -165,7 +165,7 @@ fn convert_message_and_response_to_string() {
     let entity_id       = EntityId::new();
 
     // Create an entity that responds to TestMessages
-    scene.create_entity(entity_id, |mut msg| async move {
+    scene.create_entity(entity_id, |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<TestMessage, TestMessage> = msg;
 
@@ -181,7 +181,7 @@ fn convert_message_and_response_to_string() {
     scene.convert_response::<TestMessage, String>().unwrap();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;

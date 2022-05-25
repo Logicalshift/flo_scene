@@ -11,7 +11,7 @@ fn open_entity_registry_channel() {
     let scene = Scene::default();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
@@ -38,7 +38,7 @@ fn retrieve_existing_entities() {
     let add_one_entity  = EntityId::new();
 
     // Create an entity that says 'World' in response 'Hello'
-    scene.create_entity(hello_entity, |mut msg| async move {
+    scene.create_entity(hello_entity, |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<String, String> = msg;
 
@@ -51,7 +51,7 @@ fn retrieve_existing_entities() {
     }).unwrap();
 
     // Entity that adds one to any number it's sent
-    scene.create_entity(add_one_entity, |mut msg| async move {
+    scene.create_entity(add_one_entity, |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<u64, u64> = msg;
             let val = *msg;
@@ -61,7 +61,7 @@ fn retrieve_existing_entities() {
     }).unwrap();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
@@ -70,7 +70,7 @@ fn retrieve_existing_entities() {
             let (sender, receiver)  = mpsc::channel(100);
             let entity_monitor      = EntityId::new();
 
-            scene_create_stream_entity(entity_monitor, StreamEntityResponseStyle::default(), move |mut messages| async move {
+            scene_create_stream_entity(entity_monitor, StreamEntityResponseStyle::default(), move |_context, mut messages| async move {
                 let mut sender = sender;
 
                 while let Some(message) = messages.next().await {
@@ -114,7 +114,7 @@ fn retrieve_existing_entities_with_type() {
     let add_one_entity  = EntityId::new();
 
     // Create an entity that says 'World' in response 'Hello'
-    scene.create_entity(hello_entity, |mut msg| async move {
+    scene.create_entity(hello_entity, |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<String, String> = msg;
 
@@ -127,7 +127,7 @@ fn retrieve_existing_entities_with_type() {
     }).unwrap();
 
     // Entity that adds one to any number it's sent
-    scene.create_entity(add_one_entity, |mut msg| async move {
+    scene.create_entity(add_one_entity, |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<u64, u64> = msg;
             let val = *msg;
@@ -137,7 +137,7 @@ fn retrieve_existing_entities_with_type() {
     }).unwrap();
 
     // Create a test for this scene
-    scene.create_entity(TEST_ENTITY, move |mut msg| async move {
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
@@ -146,7 +146,7 @@ fn retrieve_existing_entities_with_type() {
             let (sender, receiver)  = mpsc::channel(100);
             let entity_monitor      = EntityId::new();
 
-            scene_create_stream_entity(entity_monitor, StreamEntityResponseStyle::default(), move |mut messages| async move {
+            scene_create_stream_entity(entity_monitor, StreamEntityResponseStyle::default(), move |_context, mut messages| async move {
                 let mut sender = sender;
 
                 while let Some(message) = messages.next().await {
