@@ -4,19 +4,28 @@ use futures::stream::{BoxStream};
 
 use std::any::{Any};
 use std::sync::*;
-use std::marker::{PhantomData};
+
+use futures::prelude::*;
+use futures::task;
+use futures::task::{Poll, Context};
+use std::pin::*;
 
 #[cfg(feature="properties")] use crate::context::*;
 #[cfg(feature="properties")] use crate::error::*;
 #[cfg(feature="properties")] use crate::entity_channel::*;
-#[cfg(feature="properties")] use crate::simple_entity_channel::*;
 #[cfg(feature="properties")] use crate::stream_entity_response_style::*;
-
-#[cfg(feature="properties")] use futures::prelude::*;
-#[cfg(feature="properties")] use std::sync::*;
 
 // TODO: we can also use BoxedEntityChannel<'static, TValue, ()> as a sink, which might be more consistent, but not sure how to get the proper behaviour
 // for dropping intermediate values reliably.
+
+///
+/// Core data shared between a property sink and a property stream
+///
+struct PropertyStreamCore<TValue> {
+    is_closed:  bool,
+    next_value: Option<TValue>,
+    waker:      Option<task::Waker>,
+}
 
 ///
 /// Sink used for sending property values
@@ -26,16 +35,14 @@ use std::marker::{PhantomData};
 /// are considered outdated.
 ///
 pub struct PropertySink<TValue> {
-    x: PhantomData<TValue>,
-    // (TODO)
+    core: Arc<Mutex<PropertyStreamCore<TValue>>>,
 }
 
 ///
 /// Receiver for values sent by the property sink
 ///
 pub struct PropertyStream<TValue> {
-    x: PhantomData<TValue>,
-    // (TODO)
+    core: Arc<Mutex<PropertyStreamCore<TValue>>>,
 }
 
 ///
@@ -90,7 +97,7 @@ where
     /// Removes the property with the specified name
     DestroyProperty(PropertyReference),
 
-    /// Sends changes to the property to the specified entity channel. The value will be 'None' when the property is destroyed.
+    /// Sends changes to the property to the specified property sink. The value will be 'None' when the property is destroyed.
     Follow(PropertyReference, PropertySink<Option<TValue>>),
 }
 
@@ -109,6 +116,98 @@ where
     fn from(req: PropertyRequest<TValue>) -> InternalPropertyRequest {
         InternalPropertyRequest::AnyRequest(Box::new(req))
     }
+}
+
+impl<TValue> Sink<TValue> for PropertySink<TValue> {
+    type Error = ();
+
+    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        // Always ready
+        Poll::Ready(Ok(()))
+    }
+
+    fn start_send(self: Pin<&mut Self>, item: TValue) -> Result<(), Self::Error> {
+        let waker = {
+            let mut core    = self.core.lock().unwrap();
+
+            // We always replace the next value (as this is a stream of states, so any previous state is now outdated)
+            core.next_value = Some(item);
+
+            // Take the waker in order to wake up the stream, if it's asleep
+            core.waker.take()
+        };
+
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+
+        Ok(())
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        // Always flushed
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        // We just close straight away
+        let waker = {
+            let mut core    = self.core.lock().unwrap();
+            core.is_closed  = true;
+
+            // Take the waker in order to wake up the stream, if it's asleep
+            core.waker.take()
+        };
+
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl<TValue> Stream for PropertyStream<TValue> {
+    type Item = TValue;
+
+    fn poll_next(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Option<TValue>> {
+        let mut core = self.core.lock().unwrap();
+
+        if core.is_closed {
+            // Result is 'None' if the sink has been closed
+            Poll::Ready(None)
+        } else if let Some(value) = core.next_value.take() {
+            // Return the value if one is ready
+            Poll::Ready(Some(value))
+        } else {
+            // Update the waker
+            core.waker = Some(context.waker().clone());
+
+            // Wait for the value to become available
+            Poll::Pending
+        }
+    }
+}
+
+///
+/// Creates a stream and a sink suitable for sending property values
+///
+/// Property values are considered states, and the stream is a stream of the 'latest state' updates for a property only. Ie, if
+/// two values are sent to the property sink, but the stream is only read after the second value is sent, the stream will only
+/// contain the second value.
+///
+pub fn property_stream<TValue>() -> (PropertySink<TValue>, PropertyStream<TValue>) {
+    let core    = PropertyStreamCore {
+        is_closed:  false,
+        next_value: None,
+        waker:      None,
+    };
+    let core    = Arc::new(Mutex::new(core));
+
+    let sink    = PropertySink { core: Arc::clone(&core) };
+    let stream  = PropertyStream { core: Arc::clone(&core) };
+
+    (sink, stream)
 }
 
 ///

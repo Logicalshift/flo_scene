@@ -2,8 +2,29 @@ use flo_scene::*;
 use flo_scene::test::*;
 
 use futures::prelude::*;
+use futures::executor;
 
-use std::time::{Duration, Instant};
+#[test]
+fn send_value_to_sink() {
+    let (mut sink, mut stream) = property_stream();
+
+    executor::block_on(async {
+        sink.send(2).await.unwrap();
+        assert!(stream.next().await == Some(2));
+    });
+}
+
+#[test]
+fn first_value_dropped_if_two_values_sent_to_sink() {
+    let (mut sink, mut stream) = property_stream();
+
+    // As a properties stream only reports the latest state, if we send two values without reading one, only the first is read
+    executor::block_on(async {
+        sink.send(1).await.unwrap();
+        sink.send(3).await.unwrap();
+        assert!(stream.next().await == Some(3));
+    });
+}
 
 #[test]
 #[cfg(feature="properties")]
