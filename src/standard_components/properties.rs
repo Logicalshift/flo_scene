@@ -286,7 +286,7 @@ struct Property<TValue> {
     current_value: Option<TValue>,
 
     /// The sinks where changes to this property should be sent
-    sinks: Vec<Option<PropertySink<TValue>>>,
+    sinks: Vec<Option<PropertySink<Option<TValue>>>>,
 }
 
 impl<TValue> Drop for Property<TValue> {
@@ -317,7 +317,7 @@ where
                 // Signal the sinks, freeing any that no longer exist
                 for maybe_sink in property.sinks.iter_mut() {
                     if let Some(sink) = maybe_sink {
-                        if sink.send_now(value.clone()).is_err() {
+                        if sink.send_now(Some(value.clone())).is_err() {
                             *maybe_sink = None;
                         }
                     }
@@ -327,6 +327,8 @@ where
                 property.current_value = Some(value);
             }
         }.boxed()).await;
+
+    // TODO: send 'None' to all of the sinks when this stops
 }
 
 ///
@@ -374,7 +376,25 @@ where
         }
 
         Follow(reference, sink) => {
+            // See if there's a property with the appropriate name
+            if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
+                // Try to retrieve the internal value (won't be able to if it's the wrong type)
+                if let Some(property) = property.downcast_mut::<Arc<Mutex<Property<TValue>>>>() {
+                    let mut property = property.lock().unwrap();
 
+                    // If there's a current value, then send that immediately to the sink
+                    if let Some(current_value) = &property.current_value {
+                        sink.send_now(Some(current_value.clone())).ok();
+                    }
+
+                    // Add the sink to the property
+                    if let Some(empty_entry) = property.sinks.iter_mut().filter(|item| item.is_none()).next() {
+                        *empty_entry = Some(sink);
+                    } else {
+                        property.sinks.push(Some(sink));
+                    }
+                }
+            }
         }
     }
 }
@@ -397,6 +417,8 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
     context.create_stream_entity(entity_id, StreamEntityResponseStyle::default(), move |context, mut messages| async move {
         while let Some(message) = messages.next().await {
             let message: InternalPropertyRequest = message;
+
+            // TODO: deal with entity creation and deletion
 
             match message {
                 InternalPropertyRequest::AnyRequest(request) => {
