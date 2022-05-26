@@ -15,6 +15,7 @@ use std::pin::*;
 #[cfg(feature="properties")] use crate::entity_channel::*;
 #[cfg(feature="properties")] use crate::stream_entity_response_style::*;
 
+#[cfg(feature="properties")] use futures::channel::oneshot;
 #[cfg(feature="properties")] use std::collections::{HashMap};
 
 #[cfg(feature="properties")] 
@@ -243,7 +244,7 @@ pub fn property_stream<TValue>() -> (PropertySink<TValue>, PropertyStream<TValue
 ///
 pub fn properties_channel<TValue>(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>, ()>, EntityChannelError>
 where
-    TValue: 'static + Send + Sized,
+    TValue: 'static + Send + Clone + Sized,
 {
     // Add a processor for this type if one doesn't already exist
     {
@@ -265,7 +266,28 @@ where
 /// Used to represent the state of the properties entity at any given time
 ///
 struct PropertiesState {
+    /// The properties for each entity in the scene. The value is an `Arc<Mutex<Property<TValue>>>` in an any box
+    properties: HashMap<EntityId, HashMap<Arc<String>, Box<dyn Send + Any>>>,
+}
 
+///
+/// Data associated with a property
+///
+struct Property<TValue> {
+    /// Used to signal to the property runner that the property is no longer active
+    stop_property: Option<oneshot::Sender<()>>,
+
+    /// The sinks where changes to this property should be sent
+    sinks: Vec<Option<PropertySink<TValue>>>,
+}
+
+impl<TValue> Drop for Property<TValue> {
+    fn drop(&mut self) {
+        // Signal the future that's running this property that it's done
+        if let Some(stop_property) = self.stop_property.take() {
+            stop_property.send(()).ok();
+        }
+    }
 }
 
 ///
@@ -273,7 +295,7 @@ struct PropertiesState {
 ///
 fn process_message<TValue>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, context: &Arc<SceneContext>)
 where
-    TValue: 'static + Send + Sized,
+    TValue: 'static + Send + Clone + Sized,
 {
     // Try to unbox the message. The type is Option<PropertyRequest> so we can take it out of the 'Any' reference
     let mut any_message = any_message;
@@ -284,11 +306,31 @@ where
     use PropertyRequest::*;
     match message {
         CreateProperty(definition) => { 
+            // Create the property
+            let (stop_sender, stop_receiver)    = oneshot::channel();
+            let property                        = Property::<TValue> {
+                stop_property:  Some(stop_sender),
+                sinks:          vec![],
+            };
+            let property                        = Arc::new(Mutex::new(property));
+
+            // Store a copy of the property in the state (we use the entity registry to know which entities exist)
+            let owner   = definition.owner;
+            let name    = definition.name;
+            let values  = definition.values;
+
+            if let Some(entity_properties) = state.properties.get_mut(&owner) {
+                entity_properties.insert(name, Box::new(Arc::clone(&property)));
+            }
+
+            // Run the property in a background future
 
         }
 
         DestroyProperty(reference) => {
-
+            if let Some(entity_properties) = state.properties.get_mut(&reference.owner) {
+                entity_properties.remove(&reference.name);
+            }
         }
 
         Follow(reference, sink) => {
@@ -308,7 +350,7 @@ where
 pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
     // Create the state for the properties entity
     let mut state   = PropertiesState {
-
+        properties: HashMap::new()
     };
 
     // Create the entity itself
