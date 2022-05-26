@@ -19,7 +19,7 @@ use std::pin::*;
 
 #[cfg(feature="properties")] 
 lazy_static! {
-    static ref MESSAGE_PROCESSORS: RwLock<HashMap<TypeId, Box<dyn Send + Sync + Fn(Box<dyn Send + Any>, &PropertiesState) -> ()>>> = RwLock::new(HashMap::new());
+    static ref MESSAGE_PROCESSORS: RwLock<HashMap<TypeId, Box<dyn Send + Sync + Fn(Box<dyn Send + Any>, &mut PropertiesState, &Arc<SceneContext>) -> ()>>> = RwLock::new(HashMap::new());
 }
 
 // TODO: we can also use BoxedEntityChannel<'static, TValue, ()> as a sink, which might be more consistent, but not sure how to get the proper behaviour
@@ -138,6 +138,11 @@ impl<TValue> Sink<TValue> for PropertySink<TValue> {
         let waker = {
             let mut core    = self.core.lock().unwrap();
 
+            // Is an error if the stream has closed
+            if core.is_closed {
+                return Err(());
+            }
+
             // We always replace the next value (as this is a stream of states, so any previous state is now outdated)
             core.next_value = Some(item);
 
@@ -197,6 +202,16 @@ impl<TValue> Stream for PropertyStream<TValue> {
     }
 }
 
+impl<TValue> Drop for PropertyStream<TValue> {
+    fn drop(&mut self) {
+        // Mark the core as closed (sink will return an error next time we try to send to it)
+        let waker = {
+            let mut core    = self.core.lock().unwrap();
+            core.is_closed  = true;
+        };
+    }
+}
+
 ///
 /// Creates a stream and a sink suitable for sending property values
 ///
@@ -228,8 +243,17 @@ pub fn property_stream<TValue>() -> (PropertySink<TValue>, PropertyStream<TValue
 ///
 pub fn properties_channel<TValue>(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>, ()>, EntityChannelError>
 where
-    TValue: 'static + Send + Sized
+    TValue: 'static + Send + Sized,
 {
+    // Add a processor for this type if one doesn't already exist
+    {
+        let mut message_processors = MESSAGE_PROCESSORS.write().unwrap();
+
+        message_processors.entry(TypeId::of::<TValue>()).or_insert_with(|| {
+            Box::new(|message, state, context| process_message::<TValue>(message, state, context))
+        });
+    }
+
     // Ensure that the message is converted to an internal request
     context.convert_message::<PropertyRequest<TValue>, InternalPropertyRequest>()?;
 
@@ -241,7 +265,36 @@ where
 /// Used to represent the state of the properties entity at any given time
 ///
 struct PropertiesState {
-    
+
+}
+
+///
+/// Processes a message, where the message is expected to be of a particular type
+///
+fn process_message<TValue>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, context: &Arc<SceneContext>)
+where
+    TValue: 'static + Send + Sized,
+{
+    // Try to unbox the message. The type is Option<PropertyRequest> so we can take it out of the 'Any' reference
+    let mut any_message = any_message;
+    let message         = any_message.downcast_mut::<Option<PropertyRequest<TValue>>>().and_then(|msg| msg.take());
+    let message         = if let Some(message) = message { message } else { return; };
+
+    // The action depends on the message content
+    use PropertyRequest::*;
+    match message {
+        CreateProperty(definition) => { 
+
+        }
+
+        DestroyProperty(reference) => {
+
+        }
+
+        Follow(reference, sink) => {
+
+        }
+    }
 }
 
 ///
@@ -254,12 +307,12 @@ struct PropertiesState {
 #[cfg(feature="properties")]
 pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
     // Create the state for the properties entity
-    let mut state = PropertiesState {
+    let mut state   = PropertiesState {
 
     };
 
     // Create the entity itself
-    context.create_stream_entity(entity_id, StreamEntityResponseStyle::default(), move |_context, mut messages| async move {
+    context.create_stream_entity(entity_id, StreamEntityResponseStyle::default(), move |context, mut messages| async move {
         while let Some(message) = messages.next().await {
             let message: InternalPropertyRequest = message;
 
@@ -274,7 +327,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                     // Try to retrieve a processor for this type (these are created when properties_channel is called to retrieve properties of this type)
                     if let Some(request_processor) = message_processors.get(&request_type) {
                         // Process the request
-                        request_processor(request, &mut state);
+                        request_processor(request, &mut state, &context);
                     }
                 }
             }

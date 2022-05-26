@@ -4,6 +4,8 @@ use flo_scene::test::*;
 use futures::prelude::*;
 use futures::executor;
 
+use std::mem;
+
 #[test]
 fn send_value_to_sink() {
     let (mut sink, mut stream) = property_stream();
@@ -23,6 +25,19 @@ fn first_value_dropped_if_two_values_sent_to_sink() {
         sink.send(1).await.unwrap();
         sink.send(3).await.unwrap();
         assert!(stream.next().await == Some(3));
+    });
+}
+
+#[test]
+fn sink_error_if_stream_dropped() {
+    let (mut sink, stream) = property_stream();
+
+    // Sending to a sink where the stream is dropped 
+    executor::block_on(async {
+        sink.send(1).await.unwrap();
+
+        mem::drop(stream);
+        assert!(sink.send(3).await.is_err());
     });
 }
 
