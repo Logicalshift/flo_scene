@@ -16,7 +16,7 @@ fn open_channel() {
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
 
-            // Try to open the channel to the timner entity and ensure that it's there
+            // Try to open the channel to the timer entity and ensure that it's there
             let channel = scene_send_to::<TimerRequest, ()>(TIMER);
 
             if channel.is_ok() {
