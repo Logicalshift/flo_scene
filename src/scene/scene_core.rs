@@ -54,6 +54,9 @@ pub struct SceneCore {
 
     /// The current state for the heartbeat of this scene
     heartbeat_state: HeartbeatState,
+
+    /// Scheduler queue used for dispatching background messages
+    pub (crate) message_queue: Arc<JobQueue>,
 }
 
 impl Default for SceneCore {
@@ -66,11 +69,25 @@ impl Default for SceneCore {
             map_for_message:        HashMap::new(),
             map_for_response:       HashMap::new(),
             heartbeat_state:        HeartbeatState::Tick,
+            message_queue:          scheduler().create_job_queue(),
         }
     }
 }
 
 impl SceneCore {
+    ///
+    /// Sends a message using the background message processing queue
+    ///
+    pub (crate) fn send_background_message<TChannel>(&self, mut sender: TChannel, message: TChannel::Message) 
+    where
+        TChannel:           'static + Send + EntityChannel<Response=()>,
+        TChannel::Message:  'static + Send,
+    {
+        scheduler().future_desync(&self.message_queue, move || async move {
+            sender.send_without_waiting(message).await.ok()
+        }.boxed()).detach();
+    }
+
     ///
     /// Creates an entity that processes a particular kind of message
     ///

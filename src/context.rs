@@ -180,8 +180,8 @@ impl SceneContext {
             core.convert_response::<TOriginalResponse, TNewResponse>();
 
             // Send to the entity registry
-            if let Ok(mut channel) = core.send_to::<InternalRegistryRequest, ()>(ENTITY_REGISTRY) {
-                channel.send_without_waiting(InternalRegistryRequest::ConvertResponse(TypeId::of::<TOriginalResponse>(), TypeId::of::<TNewResponse>())).await.ok();
+            if let Ok(channel) = core.send_to::<InternalRegistryRequest, ()>(ENTITY_REGISTRY) {
+                core.send_background_message(channel, InternalRegistryRequest::ConvertResponse(TypeId::of::<TOriginalResponse>(), TypeId::of::<TNewResponse>()));
             }
         }.boxed()).detach();
 
