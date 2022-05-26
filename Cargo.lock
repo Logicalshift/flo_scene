@@ -46,6 +46,7 @@ dependencies = [
  "flo_scene",
  "futures",
  "futures-timer",
+ "lazy_static",
  "log",
  "uuid",
 ]

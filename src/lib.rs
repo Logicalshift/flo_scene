@@ -5,6 +5,8 @@
 //! as entities that communicate by exchanging messages.
 //!
 
+#[cfg(feature="properties")] #[macro_use] extern crate lazy_static;
+
 mod error;
 mod scene;
 mod entity_id;

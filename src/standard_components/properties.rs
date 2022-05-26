@@ -2,7 +2,7 @@ use crate::entity_id::*;
 
 use futures::stream::{BoxStream};
 
-use std::any::{Any};
+use std::any::{TypeId, Any};
 use std::sync::*;
 
 use futures::prelude::*;
@@ -14,6 +14,13 @@ use std::pin::*;
 #[cfg(feature="properties")] use crate::error::*;
 #[cfg(feature="properties")] use crate::entity_channel::*;
 #[cfg(feature="properties")] use crate::stream_entity_response_style::*;
+
+#[cfg(feature="properties")] use std::collections::{HashMap};
+
+#[cfg(feature="properties")] 
+lazy_static! {
+    static ref MESSAGE_PROCESSORS: RwLock<HashMap<TypeId, Box<dyn Send + Sync + Fn(Box<dyn Send + Any>, &PropertiesState) -> ()>>> = RwLock::new(HashMap::new());
+}
 
 // TODO: we can also use BoxedEntityChannel<'static, TValue, ()> as a sink, which might be more consistent, but not sure how to get the proper behaviour
 // for dropping intermediate values reliably.
@@ -114,7 +121,8 @@ where
     TValue: 'static + Send
 {
     fn from(req: PropertyRequest<TValue>) -> InternalPropertyRequest {
-        InternalPropertyRequest::AnyRequest(Box::new(req))
+        // The internal value is Option<PropertyRequest<TValue>>, which allows the caller to take the value out of the box later on
+        InternalPropertyRequest::AnyRequest(Box::new(Some(req)))
     }
 }
 
@@ -211,29 +219,6 @@ pub fn property_stream<TValue>() -> (PropertySink<TValue>, PropertyStream<TValue
 }
 
 ///
-/// Creates a new properties entity with the specified ID in the given context
-///
-/// The result here is '()' as the properties channel is defined per property type. Call `properties_channel()` to retrieve channels
-/// for properties of particular types. Note that while calling `send_to()` on a scene context will also often work, it won't
-/// automatically set up the needed type conversion, so it will fail if called for a type that hasn't been encountered before.
-///
-#[cfg(feature="properties")]
-pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
-    // Create the state for the properties entity
-
-    // Create the entity itself
-    context.create_stream_entity(entity_id, StreamEntityResponseStyle::default(), move |_context, mut messages| async move {
-        while let Some(message) = messages.next().await {
-            let message: InternalPropertyRequest = message;
-
-            // TODO
-        }
-    })?;
-
-    Ok(())
-}
-
-///
 /// Retrieves an entity channel to talk to the properties entity about properties of type `TValue`. This is the same as calling `context.send_to()`
 /// except this will ensure a suitable conversion for communicating with the properties entity is set up. That is `send_to()` won't work until this
 /// has been called at least once for the scene with the property type.
@@ -250,4 +235,51 @@ where
 
     // Send messages to the properties entity
     context.send_to(entity_id)
+}
+
+///
+/// Used to represent the state of the properties entity at any given time
+///
+struct PropertiesState {
+    
+}
+
+///
+/// Creates a new properties entity with the specified ID in the given context
+///
+/// The result here is '()' as the properties channel is defined per property type. Call `properties_channel()` to retrieve channels
+/// for properties of particular types. Note that while calling `send_to()` on a scene context will also often work, it won't
+/// automatically set up the needed type conversion, so it will fail if called for a type that hasn't been encountered before.
+///
+#[cfg(feature="properties")]
+pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
+    // Create the state for the properties entity
+    let mut state = PropertiesState {
+
+    };
+
+    // Create the entity itself
+    context.create_stream_entity(entity_id, StreamEntityResponseStyle::default(), move |_context, mut messages| async move {
+        while let Some(message) = messages.next().await {
+            let message: InternalPropertyRequest = message;
+
+            match message {
+                InternalPropertyRequest::AnyRequest(request) => {
+                    // Lock the message processors so we can read from them
+                    let message_processors = MESSAGE_PROCESSORS.read().unwrap();
+
+                    // Fetch the ID of the type in the request
+                    let request_type = (&*request).type_id();
+
+                    // Try to retrieve a processor for this type (these are created when properties_channel is called to retrieve properties of this type)
+                    if let Some(request_processor) = message_processors.get(&request_type) {
+                        // Process the request
+                        request_processor(request, &mut state);
+                    }
+                }
+            }
+        }
+    })?;
+
+    Ok(())
 }
