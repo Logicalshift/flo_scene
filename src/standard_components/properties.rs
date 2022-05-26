@@ -15,6 +15,7 @@ use std::pin::*;
 #[cfg(feature="properties")] use crate::entity_channel::*;
 #[cfg(feature="properties")] use crate::stream_entity_response_style::*;
 
+#[cfg(feature="properties")] use futures::future;
 #[cfg(feature="properties")] use futures::channel::oneshot;
 #[cfg(feature="properties")] use std::collections::{HashMap};
 
@@ -127,15 +128,8 @@ where
     }
 }
 
-impl<TValue> Sink<TValue> for PropertySink<TValue> {
-    type Error = ();
-
-    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // Always ready
-        Poll::Ready(Ok(()))
-    }
-
-    fn start_send(self: Pin<&mut Self>, item: TValue) -> Result<(), Self::Error> {
+impl<TValue> PropertySink<TValue> {
+    fn send_now(&self, item: TValue) -> Result<(), ()> {
         let waker = {
             let mut core    = self.core.lock().unwrap();
 
@@ -156,6 +150,19 @@ impl<TValue> Sink<TValue> for PropertySink<TValue> {
         }
 
         Ok(())
+    }
+}
+
+impl<TValue> Sink<TValue> for PropertySink<TValue> {
+    type Error = ();
+
+    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        // Always ready
+        Poll::Ready(Ok(()))
+    }
+
+    fn start_send(self: Pin<&mut Self>, item: TValue) -> Result<(), Self::Error> {
+        self.send_now(item)
     }
 
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -206,10 +213,8 @@ impl<TValue> Stream for PropertyStream<TValue> {
 impl<TValue> Drop for PropertyStream<TValue> {
     fn drop(&mut self) {
         // Mark the core as closed (sink will return an error next time we try to send to it)
-        let waker = {
-            let mut core    = self.core.lock().unwrap();
-            core.is_closed  = true;
-        };
+        let mut core    = self.core.lock().unwrap();
+        core.is_closed  = true;
     }
 }
 
@@ -277,6 +282,9 @@ struct Property<TValue> {
     /// Used to signal to the property runner that the property is no longer active
     stop_property: Option<oneshot::Sender<()>>,
 
+    /// The current value, if known
+    current_value: Option<TValue>,
+
     /// The sinks where changes to this property should be sent
     sinks: Vec<Option<PropertySink<TValue>>>,
 }
@@ -288,6 +296,37 @@ impl<TValue> Drop for Property<TValue> {
             stop_property.send(()).ok();
         }
     }
+}
+
+///
+/// The runtime for a single property (dispatches changes to the sinks)
+///
+async fn run_property<TValue>(property: Arc<Mutex<Property<TValue>>>, values: BoxStream<'static, TValue>, stop_receiver: oneshot::Receiver<()>)
+where
+    TValue: 'static + Send + Clone + Sized,
+{
+    // Loop until the values stream closes, or the stop receiver signals
+    future::select(stop_receiver,
+        async move {
+            let mut values = values;
+
+            while let Some(value) = values.next().await {
+                // Lock the property
+                let mut property = property.lock().unwrap();
+
+                // Signal the sinks, freeing any that no longer exist
+                for maybe_sink in property.sinks.iter_mut() {
+                    if let Some(sink) = maybe_sink {
+                        if sink.send_now(value.clone()).is_err() {
+                            *maybe_sink = None;
+                        }
+                    }
+                }
+
+                // Update the current value of the property
+                property.current_value = Some(value);
+            }
+        }.boxed()).await;
 }
 
 ///
@@ -310,6 +349,7 @@ where
             let (stop_sender, stop_receiver)    = oneshot::channel();
             let property                        = Property::<TValue> {
                 stop_property:  Some(stop_sender),
+                current_value:  None,
                 sinks:          vec![],
             };
             let property                        = Arc::new(Mutex::new(property));
@@ -324,7 +364,7 @@ where
             }
 
             // Run the property in a background future
-
+            context.run_in_background(run_property(property, values, stop_receiver)).ok();
         }
 
         DestroyProperty(reference) => {
