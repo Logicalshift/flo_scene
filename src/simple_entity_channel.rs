@@ -77,7 +77,9 @@ where
             mem::drop(receiver);
 
             // Send the message to the channel
-            self.channel.send(message).await?;
+            if let Err(err) = self.channel.try_send(message) {
+                self.channel.send(err.into_inner()).await?;
+            }
 
             Ok(())
         }.boxed()
