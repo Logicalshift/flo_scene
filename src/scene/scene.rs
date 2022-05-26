@@ -44,6 +44,9 @@ impl Default for Scene {
         #[cfg(feature="timer")]
         create_timer_entity(TIMER, &context).unwrap();
 
+        #[cfg(feature="properties")]
+        create_properties_entity(PROPERTIES, &context).unwrap();
+
         scene
     }
 }

@@ -6,6 +6,15 @@ use std::any::{Any};
 use std::sync::*;
 use std::marker::{PhantomData};
 
+#[cfg(feature="properties")] use crate::context::*;
+#[cfg(feature="properties")] use crate::error::*;
+#[cfg(feature="properties")] use crate::entity_channel::*;
+#[cfg(feature="properties")] use crate::simple_entity_channel::*;
+#[cfg(feature="properties")] use crate::stream_entity_response_style::*;
+
+#[cfg(feature="properties")] use futures::prelude::*;
+#[cfg(feature="properties")] use std::sync::*;
+
 // TODO: we can also use BoxedEntityChannel<'static, TValue, ()> as a sink, which might be more consistent, but not sure how to get the proper behaviour
 // for dropping intermediate values reliably.
 
@@ -91,4 +100,55 @@ where
 enum InternalPropertyRequest {
     /// A PropertyRequest<x> that's wrapped in a Box<Any> for a type that is recognised by the property entity
     AnyRequest(Box<dyn Send + Any>),
+}
+
+impl<TValue> From<PropertyRequest<TValue>> for InternalPropertyRequest 
+where
+    TValue: 'static + Send
+{
+    fn from(req: PropertyRequest<TValue>) -> InternalPropertyRequest {
+        InternalPropertyRequest::AnyRequest(Box::new(req))
+    }
+}
+
+///
+/// Creates a new properties entity with the specified ID in the given context
+///
+/// The result here is '()' as the properties channel is defined per property type. Call `properties_channel()` to retrieve channels
+/// for properties of particular types. Note that while calling `send_to()` on a scene context will also often work, it won't
+/// automatically set up the needed type conversion, so it will fail if called for a type that hasn't been encountered before.
+///
+#[cfg(feature="properties")]
+pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
+    // Create the state for the properties entity
+
+    // Create the entity itself
+    context.create_stream_entity(entity_id, StreamEntityResponseStyle::default(), move |_context, mut messages| async move {
+        while let Some(message) = messages.next().await {
+            let message: InternalPropertyRequest = message;
+
+            // TODO
+        }
+    })?;
+
+    Ok(())
+}
+
+///
+/// Retrieves an entity channel to talk to the properties entity about properties of type `TValue`. This is the same as calling `context.send_to()`
+/// except this will ensure a suitable conversion for communicating with the properties entity is set up. That is `send_to()` won't work until this
+/// has been called at least once for the scene with the property type.
+///
+/// Typically `entity_id` should be `PROPERTIES` here, but it's possible to run multiple sets of properties in a given scene so other values are
+/// possible if `create_properties_entity()` has been called for other entity IDs.
+///
+pub fn properties_channel<TValue>(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>, ()>, EntityChannelError>
+where
+    TValue: 'static + Send + Sized
+{
+    // Ensure that the message is converted to an internal request
+    context.convert_message::<PropertyRequest<TValue>, InternalPropertyRequest>()?;
+
+    // Send messages to the properties entity
+    context.send_to(entity_id)
 }
