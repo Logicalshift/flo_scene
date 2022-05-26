@@ -106,8 +106,8 @@ where
     /// Removes the property with the specified name
     DestroyProperty(PropertyReference),
 
-    /// Sends changes to the property to the specified property sink. The value will be 'None' when the property is destroyed.
-    Follow(PropertyReference, PropertySink<Option<TValue>>),
+    /// Sends changes to the property to the specified property sink. The stream will be closed if the property is destroyed or if the source stream is destroyed.
+    Follow(PropertyReference, PropertySink<TValue>),
 }
 
 ///
@@ -150,6 +150,23 @@ impl<TValue> PropertySink<TValue> {
         }
 
         Ok(())
+    }
+}
+
+impl<TValue> Drop for PropertySink<TValue> {
+    fn drop(&mut self) {
+        // We just close straight away
+        let waker = {
+            let mut core    = self.core.lock().unwrap();
+            core.is_closed  = true;
+
+            // Take the waker in order to wake up the stream, if it's asleep
+            core.waker.take()
+        };
+
+        if let Some(waker) = waker {
+            waker.wake();
+        }
     }
 }
 
@@ -286,7 +303,7 @@ struct Property<TValue> {
     current_value: Option<TValue>,
 
     /// The sinks where changes to this property should be sent
-    sinks: Vec<Option<PropertySink<Option<TValue>>>>,
+    sinks: Vec<Option<PropertySink<TValue>>>,
 }
 
 impl<TValue> Drop for Property<TValue> {
@@ -317,7 +334,7 @@ where
                 // Signal the sinks, freeing any that no longer exist
                 for maybe_sink in property.sinks.iter_mut() {
                     if let Some(sink) = maybe_sink {
-                        if sink.send_now(Some(value.clone())).is_err() {
+                        if sink.send_now(value.clone()).is_err() {
                             *maybe_sink = None;
                         }
                     }
@@ -327,8 +344,6 @@ where
                 property.current_value = Some(value);
             }
         }.boxed()).await;
-
-    // TODO: send 'None' to all of the sinks when this stops
 }
 
 ///
@@ -384,7 +399,7 @@ where
 
                     // If there's a current value, then send that immediately to the sink
                     if let Some(current_value) = &property.current_value {
-                        sink.send_now(Some(current_value.clone())).ok();
+                        sink.send_now(current_value.clone()).ok();
                     }
 
                     // Add the sink to the property
