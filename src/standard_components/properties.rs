@@ -14,6 +14,8 @@ use std::pin::*;
 #[cfg(feature="properties")] use crate::error::*;
 #[cfg(feature="properties")] use crate::entity_channel::*;
 #[cfg(feature="properties")] use crate::stream_entity_response_style::*;
+#[cfg(feature="properties")] use super::entity_registry::*;
+#[cfg(feature="properties")] use super::entity_ids::*;
 
 #[cfg(feature="properties")] use futures::future;
 #[cfg(feature="properties")] use futures::channel::oneshot;
@@ -116,6 +118,12 @@ where
 enum InternalPropertyRequest {
     /// A PropertyRequest<x> that's wrapped in a Box<Any> for a type that is recognised by the property entity
     AnyRequest(Box<dyn Send + Any>),
+
+    /// A new entity was created
+    CreatedEntity(EntityId),
+
+    /// An entity was destroyed
+    DestroyedEntity(EntityId),
 }
 
 impl<TValue> From<PropertyRequest<TValue>> for InternalPropertyRequest 
@@ -125,6 +133,15 @@ where
     fn from(req: PropertyRequest<TValue>) -> InternalPropertyRequest {
         // The internal value is Option<PropertyRequest<TValue>>, which allows the caller to take the value out of the box later on
         InternalPropertyRequest::AnyRequest(Box::new(Some(req)))
+    }
+}
+
+impl From<EntityUpdate> for InternalPropertyRequest {
+    fn from(req: EntityUpdate) -> InternalPropertyRequest {
+        match req {
+            EntityUpdate::CreatedEntity(entity_id)      => InternalPropertyRequest::CreatedEntity(entity_id),
+            EntityUpdate::DestroyedEntity(entity_id)    => InternalPropertyRequest::DestroyedEntity(entity_id),
+        }
     }
 }
 
@@ -428,8 +445,16 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         properties: HashMap::new()
     };
 
+    context.convert_message::<EntityUpdate, InternalPropertyRequest>().unwrap();
+
     // Create the entity itself
     context.create_stream_entity(entity_id, StreamEntityResponseStyle::default(), move |context, mut messages| async move {
+        // Request updates from the entity registry
+        let properties      = context.send_to::<EntityUpdate, ()>(entity_id).unwrap();
+        if let Some(mut entity_registry) = context.send_to::<_, ()>(ENTITY_REGISTRY).ok() {
+            entity_registry.send_without_waiting(EntityRegistryRequest::TrackEntities(properties)).await.ok();
+        }
+
         while let Some(message) = messages.next().await {
             let message: InternalPropertyRequest = message;
 
@@ -448,6 +473,14 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                         // Process the request
                         request_processor(request, &mut state, &context);
                     }
+                }
+
+                InternalPropertyRequest::CreatedEntity(entity_id) => { 
+                    state.properties.insert(entity_id, HashMap::new());
+                }
+
+                InternalPropertyRequest::DestroyedEntity(entity_id) => {
+                    state.properties.remove(&entity_id);
                 }
             }
         }
