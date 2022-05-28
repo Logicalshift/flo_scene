@@ -176,8 +176,6 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
 
             match request {
                 CreatedEntity(entity_id, message_type, response_type) => {
-                    let state = &mut state;
-
                     // Add to the list of entities
                     state.entities.insert(entity_id, EntityChannelType::new(message_type, response_type));
 
