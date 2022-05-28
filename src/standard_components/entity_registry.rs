@@ -184,7 +184,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     // Inform the trackers (and tidy up any trackers that are no longer responding)
                     let mut trackers_finished = false;
 
-                    trackers.future_sync(|trackers| async move {
+                    trackers.future_sync(|trackers| async {
                         for maybe_tracker in trackers.iter_mut() {
                             if let Some(tracker) = maybe_tracker {
                                 // Send that a new entity has been created to the tracker
@@ -199,7 +199,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                         }
                     }).await.ok();
 
-                    typed_trackers.future_sync(|typed_trackers| async move {
+                    typed_trackers.future_sync(|typed_trackers| async {
                         let entity_type = EntityChannelType::new(message_type, response_type);
                         for maybe_tracker in typed_trackers.iter_mut() {
                             if let Some((match_type, tracker)) = maybe_tracker {
@@ -242,7 +242,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                         // Inform the trackers that this entity has been removed
                         let mut trackers_finished = false;
 
-                        trackers.future_sync(|trackers| async move {
+                        trackers.future_sync(|trackers| async {
                             for maybe_tracker in trackers.iter_mut() {
                                 if let Some(tracker) = maybe_tracker {
                                     // Send that a new entity has been destroyed to the tracker
@@ -257,7 +257,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                             }
                         }).await.ok();
 
-                        typed_trackers.future_sync(|typed_trackers| async move {
+                        typed_trackers.future_sync(|typed_trackers| async {
                             for maybe_tracker in typed_trackers.iter_mut() {
                                 if let Some((match_type, tracker)) = maybe_tracker {
                                     if state.can_convert_type(&entity_type, match_type) {

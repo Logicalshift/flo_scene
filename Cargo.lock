@@ -11,7 +11,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "desync"
 version = "0.8.0"
-source = "git+https://github.com/logicalshift/desync?branch=v0.8.0#299be98d058e6bdf167139249b3a685ef181ca74"
+source = "git+https://github.com/logicalshift/desync?branch=v0.8.0#7c6025f6650f11df2106545a5ecb6a750dd9384c"
 dependencies = [
  "futures",
  "lazy_static",
