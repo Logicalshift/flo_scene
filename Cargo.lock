@@ -11,7 +11,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "desync"
 version = "0.8.0"
-source = "git+https://github.com/logicalshift/desync?branch=v0.8.0#6936e88df880dd877550138a734a8b08dde68652"
+source = "git+https://github.com/logicalshift/desync?branch=v0.8.0#299be98d058e6bdf167139249b3a685ef181ca74"
 dependencies = [
  "futures",
  "lazy_static",
@@ -21,7 +21,7 @@ dependencies = [
 [[package]]
 name = "flo_binding"
 version = "2.1.0"
-source = "git+https://github.com/logicalshift/flo_binding?branch=v2.1#80f7cef2319f412a0b8d465aa60d97a78a8a6dd0"
+source = "git+https://github.com/logicalshift/flo_binding?branch=v2.1#435c6c9c6f3726d160cccb4cdb823668abac4382"
 dependencies = [
  "desync",
  "flo_rope 0.2.0",

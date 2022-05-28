@@ -7,6 +7,7 @@ use crate::entity_channel::*;
 use crate::stream_entity_response_style::*;
 
 use futures::prelude::*;
+use ::desync::*;
 
 use std::any::{TypeId};
 use std::sync::*;
@@ -160,8 +161,11 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
         convert_response:   HashMap::new(),
     };
 
-    let mut trackers: Vec<Option<BoxedEntityChannel<'static, EntityUpdate, ()>>>                            = vec![];
-    let mut typed_trackers: Vec<Option<(EntityChannelType, BoxedEntityChannel<'static, EntityUpdate, ()>)>> = vec![];
+    let trackers: Vec<Option<BoxedEntityChannel<'static, EntityUpdate, ()>>>                            = vec![];
+    let typed_trackers: Vec<Option<(EntityChannelType, BoxedEntityChannel<'static, EntityUpdate, ()>)>> = vec![];
+
+    let trackers        = Arc::new(Desync::new(trackers));
+    let typed_trackers  = Arc::new(Desync::new(typed_trackers));
 
     // Create the entity registry (it's just a stream entity)
     context.create_stream_entity(ENTITY_REGISTRY, StreamEntityResponseStyle::default(), move |_context, mut requests| async move {
@@ -172,29 +176,17 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
 
             match request {
                 CreatedEntity(entity_id, message_type, response_type) => {
+                    let state = &mut state;
+
                     // Add to the list of entities
                     state.entities.insert(entity_id, EntityChannelType::new(message_type, response_type));
 
                     // Inform the trackers (and tidy up any trackers that are no longer responding)
                     let mut trackers_finished = false;
 
-                    for maybe_tracker in trackers.iter_mut() {
-                        if let Some(tracker) = maybe_tracker {
-                            // Send that a new entity has been created to the tracker
-                            let send_result = tracker.send_without_waiting(EntityUpdate::CreatedEntity(entity_id)).await;
-
-                            // Set to None if the result is an error
-                            if send_result.is_err() {
-                                trackers_finished   = true;
-                                *maybe_tracker      = None;
-                            }
-                        }
-                    }
-
-                    let entity_type = EntityChannelType::new(message_type, response_type);
-                    for maybe_tracker in typed_trackers.iter_mut() {
-                        if let Some((match_type, tracker)) = maybe_tracker {
-                            if state.can_convert_type(&entity_type, match_type) {
+                    trackers.future_sync(|trackers| async move {
+                        for maybe_tracker in trackers.iter_mut() {
+                            if let Some(tracker) = maybe_tracker {
                                 // Send that a new entity has been created to the tracker
                                 let send_result = tracker.send_without_waiting(EntityUpdate::CreatedEntity(entity_id)).await;
 
@@ -205,44 +197,10 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                                 }
                             }
                         }
-                    }
+                    }).await.ok();
 
-                    // Clean out any trackers that are no longer tracking anything
-                    if trackers_finished {
-                        trackers.retain(|tracker| tracker.is_some());
-                        typed_trackers.retain(|tracker| tracker.is_some());
-                    }
-                }
-
-                ConvertMessage(source_type, target_type) => {
-                    // Store that something that accepts 'source_type' can also accept 'target_type'
-                    state.convert_message.entry(target_type).or_insert_with(|| HashSet::new()).insert(source_type);
-                }
-
-                ConvertResponse(source_type, target_type) => {
-                    // Store that something that can respond with 'source_type' can also respond with 'target_type'
-                    state.convert_response.entry(source_type).or_insert_with(|| HashSet::new()).insert(target_type);
-                }
-
-                DestroyedEntity(entity_id) => {
-                    // Remove the entity from the list we're tracking
-                    if let Some(entity_type) = state.entities.remove(&entity_id) {
-                        // Inform the trackers that this entity has been removed
-                        let mut trackers_finished = false;
-
-                        for maybe_tracker in trackers.iter_mut() {
-                            if let Some(tracker) = maybe_tracker {
-                                // Send that a new entity has been destroyed to the tracker
-                                let send_result = tracker.send_without_waiting(EntityUpdate::DestroyedEntity(entity_id)).await;
-
-                                // Set to None if the result is an error
-                                if send_result.is_err() {
-                                    trackers_finished   = true;
-                                    *maybe_tracker      = None;
-                                }
-                            }
-                        }
-
+                    typed_trackers.future_sync(|typed_trackers| async move {
+                        let entity_type = EntityChannelType::new(message_type, response_type);
                         for maybe_tracker in typed_trackers.iter_mut() {
                             if let Some((match_type, tracker)) = maybe_tracker {
                                 if state.can_convert_type(&entity_type, match_type) {
@@ -257,11 +215,69 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                                 }
                             }
                         }
+                    }).await.ok();
+
+                    // Clean out any trackers that are no longer tracking anything
+                    if trackers_finished {
+                        trackers.desync(|trackers| trackers.retain(|tracker| tracker.is_some()));
+                        typed_trackers.desync(|trackers| trackers.retain(|tracker| tracker.is_some()));
+                    }
+                }
+
+                ConvertMessage(source_type, target_type) => {
+                    // Store that something that accepts 'source_type' can also accept 'target_type'
+                    state.convert_message.entry(target_type).or_insert_with(|| HashSet::new()).insert(source_type);
+                }
+
+                ConvertResponse(source_type, target_type) => {
+                    // Store that something that can respond with 'source_type' can also respond with 'target_type'
+                    state.convert_response.entry(source_type).or_insert_with(|| HashSet::new()).insert(target_type);
+                }
+
+                DestroyedEntity(entity_id) => {
+                    let state = &mut state;
+
+                    // Remove the entity from the list we're tracking
+                    if let Some(entity_type) = state.entities.remove(&entity_id) {
+                        // Inform the trackers that this entity has been removed
+                        let mut trackers_finished = false;
+
+                        trackers.future_sync(|trackers| async move {
+                            for maybe_tracker in trackers.iter_mut() {
+                                if let Some(tracker) = maybe_tracker {
+                                    // Send that a new entity has been destroyed to the tracker
+                                    let send_result = tracker.send_without_waiting(EntityUpdate::DestroyedEntity(entity_id)).await;
+
+                                    // Set to None if the result is an error
+                                    if send_result.is_err() {
+                                        trackers_finished   = true;
+                                        *maybe_tracker      = None;
+                                    }
+                                }
+                            }
+                        }).await.ok();
+
+                        typed_trackers.future_sync(|typed_trackers| async move {
+                            for maybe_tracker in typed_trackers.iter_mut() {
+                                if let Some((match_type, tracker)) = maybe_tracker {
+                                    if state.can_convert_type(&entity_type, match_type) {
+                                        // Send that a new entity has been created to the tracker
+                                        let send_result = tracker.send_without_waiting(EntityUpdate::CreatedEntity(entity_id)).await;
+
+                                        // Set to None if the result is an error
+                                        if send_result.is_err() {
+                                            trackers_finished   = true;
+                                            *maybe_tracker      = None;
+                                        }
+                                    }
+                                }
+                            }
+                        }).await.ok();
 
                         // Clean out any trackers that are no longer tracking anything
                         if trackers_finished {
-                            trackers.retain(|tracker| tracker.is_some());
-                            typed_trackers.retain(|tracker| tracker.is_some());
+                            trackers.desync(|trackers| trackers.retain(|tracker| tracker.is_some()));
+                            typed_trackers.desync(|trackers| trackers.retain(|tracker| tracker.is_some()));
                         }
                     }
                 }
@@ -274,7 +290,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     }
 
                     // Add to the list of trackers
-                    trackers.push(Some(channel));
+                    trackers.desync(move |trackers| trackers.push(Some(channel)));
                 }
 
                 TrackEntitiesWithType(channel, channel_type) => {
@@ -287,7 +303,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     }
 
                     // Add to the list of typed trackers
-                    typed_trackers.push(Some((channel_type, channel)));
+                    typed_trackers.desync(move |typed_trackers| typed_trackers.push(Some((channel_type, channel))));
                 }
             }
         }
