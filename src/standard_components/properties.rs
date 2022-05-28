@@ -145,6 +145,34 @@ impl From<EntityUpdate> for InternalPropertyRequest {
     }
 }
 
+impl<TValue> PropertyDefinition<TValue>
+where
+    TValue: 'static + Send + Sized,
+{
+    ///
+    /// Creates a new property definition
+    ///
+    pub fn new(owner: EntityId, name: &str, values: BoxStream<'static, TValue>) -> PropertyDefinition<TValue> {
+        PropertyDefinition {
+            owner:  owner,
+            name:   Arc::new(name.to_string()),
+            values: values,
+        }
+    }
+}
+
+impl PropertyReference {
+    ///
+    /// Creates a new property definition
+    ///
+    pub fn new(owner: EntityId, name: &str) -> PropertyReference {
+        PropertyReference {
+            owner:  owner,
+            name:   Arc::new(name.to_string()),
+        }
+    }
+}
+
 impl<TValue> PropertySink<TValue> {
     fn send_now(&self, item: TValue) -> Result<(), ()> {
         let waker = {
@@ -452,7 +480,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         // Request updates from the entity registry
         let properties      = context.send_to::<EntityUpdate, ()>(entity_id).unwrap();
         if let Some(mut entity_registry) = context.send_to::<_, ()>(ENTITY_REGISTRY).ok() {
-            entity_registry.send_without_waiting(EntityRegistryRequest::TrackEntities(properties)).await.ok();
+            entity_registry.send(EntityRegistryRequest::TrackEntities(properties)).await.ok();
         }
 
         while let Some(message) = messages.next().await {
