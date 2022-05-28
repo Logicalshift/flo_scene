@@ -10,19 +10,8 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "desync"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5f27dcf5aa323a4d6fe62caa089e59f280445a5fa64734ffdbe4cdccf2d927a"
-dependencies = [
- "futures",
- "lazy_static",
- "num_cpus",
-]
-
-[[package]]
-name = "desync"
 version = "0.8.0"
-source = "git+https://github.com/logicalshift/desync?branch=v0.8.0#e8ce4e6e1a3e88ac68340ae443ae35cbb88bf716"
+source = "git+https://github.com/logicalshift/desync?branch=v0.8.0#6936e88df880dd877550138a734a8b08dde68652"
 dependencies = [
  "futures",
  "lazy_static",
@@ -31,13 +20,13 @@ dependencies = [
 
 [[package]]
 name = "flo_binding"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "711a65cd60b91114a1cecbf6a9d533c3fde6e38532506cde25bc5f7bc87d2fa0"
+version = "2.1.0"
+source = "git+https://github.com/logicalshift/flo_binding?branch=v2.1#80f7cef2319f412a0b8d465aa60d97a78a8a6dd0"
 dependencies = [
- "desync 0.7.0",
- "flo_rope",
+ "desync",
+ "flo_rope 0.2.0",
  "futures",
+ "similar",
 ]
 
 [[package]]
@@ -47,12 +36,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "934e2de58fcae0ada41e86f12f49f169d2a0349ebd27fc4cfb3d3ba34db827be"
 
 [[package]]
+name = "flo_rope"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "850cff252418298aac6a91d359aac10cb22abbaed32e4fac94ec3b145468ff14"
+
+[[package]]
 name = "flo_scene"
 version = "0.1.0"
 dependencies = [
- "desync 0.8.0",
+ "desync",
  "flo_binding",
- "flo_rope",
+ "flo_rope 0.1.0",
  "flo_scene",
  "futures",
  "futures-timer",
@@ -184,9 +179,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.125"
+version = "0.2.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5916d2ae698f6de9bfb891ad7a8d65c09d232dc58cc4ac433c7da3b2fd84bc2b"
+checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 
 [[package]]
 name = "log"
@@ -227,11 +222,11 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.38"
+version = "1.0.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9027b48e9d4c9175fa2218adf3557f91c1137021739951d4932f5f8268ac48aa"
+checksum = "c54b25569025b7fc9651de43004ae593a75ad88543b17178aa5e1b9c4f15f56f"
 dependencies = [
- "unicode-xid",
+ "unicode-ident",
 ]
 
 [[package]]
@@ -244,6 +239,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "similar"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e24979f63a11545f5f2c60141afe249d4f19f84581ea2138065e400941d83d3"
+
+[[package]]
 name = "slab"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -251,26 +252,26 @@ checksum = "eb703cfe953bccee95685111adeedb76fabe4e97549a58d16f03ea7b9367bb32"
 
 [[package]]
 name = "syn"
-version = "1.0.94"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a07e33e919ebcd69113d5be0e4d70c5707004ff45188910106854f38b960df4a"
+checksum = "fbaf6116ab8924f39d52792136fb74fd60a80194cf1b1c6ffa6453eef1c3f942"
 dependencies = [
  "proc-macro2",
  "quote",
- "unicode-xid",
+ "unicode-ident",
 ]
 
 [[package]]
-name = "unicode-xid"
-version = "0.2.3"
+name = "unicode-ident"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "957e51f3646910546462e67d5f7599b9e4fb8acdd304b087a6494730f9eebf04"
+checksum = "d22af068fba1eb5edcb4aea19d382b2a3deb4c8f9d475c589b6ada9e0fd493ee"
 
 [[package]]
 name = "uuid"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cfcd319456c4d6ea10087ed423473267e1a071f3bc0aa89f80d60997843c6f0"
+checksum = "93bbc61e655a4833cf400d0d15bf3649313422fa7572886ad6dab16d79886365"
 dependencies = [
  "getrandom",
 ]
