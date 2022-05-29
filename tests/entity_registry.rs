@@ -81,6 +81,12 @@ fn retrieve_existing_entities() {
             }).unwrap();
 
             // Ask the entity registry to monitor the entities in the scene
+            
+            // Note this illustrates an interesting problem: the entity is immediately available after create_entity has been called
+            // but it might not be initialised. So this TrackEntities message can (and general does) arrive at the entity registry before
+            // the CreatedEntity message. Then it tries to send the existing entities, filling up the channel for the new entity and
+            // never getting to processing the CreatedEntity message (which is a deadlock as the registry is stuck trying to send
+            // messages and the receiver of those messages is waiting for a response to its CreatedEntity request)
             let entity_monitor_channel = scene_send_to(entity_monitor).unwrap();
             scene_send::<_, ()>(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(entity_monitor_channel)).await.unwrap();
 
