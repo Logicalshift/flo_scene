@@ -116,7 +116,7 @@ impl SceneCore {
         // Start the future running
         let future              = async move {
             // Tell the entity registry about the entity that was just created
-            scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>(), TypeId::of::<TResponse>())).await.ok();
+            scene_context.send::<_, ()>(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>(), TypeId::of::<TResponse>())).await.ok();
 
             let future = scheduler().future_desync(&queue, move || async move {
                 // Start the future running

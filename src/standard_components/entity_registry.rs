@@ -2,9 +2,9 @@ use super::entity_ids::*;
 
 use crate::error::*;
 use crate::context::*;
+use crate::message::*;
 use crate::entity_id::*;
 use crate::entity_channel::*;
-use crate::stream_entity_response_style::*;
 
 use futures::prelude::*;
 use ::desync::*;
@@ -73,6 +73,11 @@ pub (crate) enum InternalRegistryRequest {
     CreatedEntity(EntityId, TypeId, TypeId),
 
     ///
+    /// Send from the scene 
+    ///
+    DestroyedEntity(EntityId),
+
+    ///
     /// Indicates that one message type can be converted to another
     ///
     ConvertMessage(TypeId, TypeId),
@@ -81,11 +86,6 @@ pub (crate) enum InternalRegistryRequest {
     /// Indicates that one response type can be converted to another
     ///
     ConvertResponse(TypeId, TypeId),
-
-    ///
-    /// Send from the scene 
-    ///
-    DestroyedEntity(EntityId),
 }
 
 impl From<EntityRegistryRequest> for InternalRegistryRequest {
@@ -168,14 +168,20 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
     let typed_trackers  = Arc::new(Desync::new(typed_trackers));
 
     // Create the entity registry (it's just a stream entity)
-    context.create_stream_entity(ENTITY_REGISTRY, StreamEntityResponseStyle::default(), move |_context, mut requests| async move {
+    context.create_entity(ENTITY_REGISTRY, move |context, mut requests| async move {
         // Read requests from the stream
         while let Some(request) = requests.next().await {
             use InternalRegistryRequest::*;
-            let request: InternalRegistryRequest = request;
+
+            let request: Message<InternalRegistryRequest, ()>   = request;
+            let (request, response)                             = request.take();
 
             match request {
                 CreatedEntity(entity_id, message_type, response_type) => {
+                    let entity_id       = entity_id;
+                    let message_type    = message_type;
+                    let response_type   = response_type;
+
                     // Add to the list of entities
                     state.entities.insert(entity_id, EntityChannelType::new(message_type, response_type));
 
@@ -215,6 +221,9 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                         }
                     }).await.ok();
 
+                    // Once all of the trackers have been informed of the new entity, respond OK
+                    response.send(()).ok();
+
                     // Clean out any trackers that are no longer tracking anything
                     if trackers_finished {
                         trackers.desync(|trackers| trackers.retain(|tracker| tracker.is_some()));
@@ -222,18 +231,11 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     }
                 }
 
-                ConvertMessage(source_type, target_type) => {
-                    // Store that something that accepts 'source_type' can also accept 'target_type'
-                    state.convert_message.entry(target_type).or_insert_with(|| HashSet::new()).insert(source_type);
-                }
-
-                ConvertResponse(source_type, target_type) => {
-                    // Store that something that can respond with 'source_type' can also respond with 'target_type'
-                    state.convert_response.entry(source_type).or_insert_with(|| HashSet::new()).insert(target_type);
-                }
-
                 DestroyedEntity(entity_id) => {
-                    let state = &mut state;
+                    let entity_id       = entity_id;
+
+                    // We respond OK before the entity finishes being destroyed
+                    response.send(()).ok();
 
                     // Remove the entity from the list we're tracking
                     if let Some(entity_type) = state.entities.remove(&entity_id) {
@@ -280,7 +282,24 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     }
                 }
 
+                ConvertMessage(source_type, target_type) => {
+                    // Store that something that accepts 'source_type' can also accept 'target_type'
+                    state.convert_message.entry(target_type).or_insert_with(|| HashSet::new()).insert(source_type);
+                    response.send(()).ok();
+                }
+
+                ConvertResponse(source_type, target_type) => {
+                    // Store that something that can respond with 'source_type' can also respond with 'target_type'
+                    state.convert_response.entry(source_type).or_insert_with(|| HashSet::new()).insert(target_type);
+                    response.send(()).ok();
+                }
+
                 TrackEntities(channel)   => {
+                    // For TrackEntities, we could respond after sending all the existing entities: this is a problem if an entity
+                    // requests tracking sent to itself, as we could block when the channel fills up, and the channel might be waiting
+                    // for the response to start reading the results.
+                    response.send(()).ok();
+
                     // Send the list of entities to the channel
                     let mut channel = channel;
                     for existing_entity_id in state.entities.keys().cloned() {
@@ -292,6 +311,8 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                 }
 
                 TrackEntitiesWithType(channel, channel_type) => {
+                    response.send(()).ok();
+
                     // Send the list of entities that match this type to the channel
                     let mut channel = channel;
                     for (existing_entity_id, existing_type) in state.entities.iter() {
