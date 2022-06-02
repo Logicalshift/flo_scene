@@ -161,11 +161,8 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
         convert_response:   HashMap::new(),
     };
 
-    let trackers: Vec<Option<BoxedEntityChannel<'static, EntityUpdate, ()>>>                            = vec![];
-    let typed_trackers: Vec<Option<(EntityChannelType, BoxedEntityChannel<'static, EntityUpdate, ()>)>> = vec![];
-
-    let trackers        = Arc::new(Desync::new(trackers));
-    let typed_trackers  = Arc::new(Desync::new(typed_trackers));
+    let mut trackers: Vec<Option<BoxedEntityChannel<'static, EntityUpdate, ()>>>                            = vec![];
+    let mut typed_trackers: Vec<Option<(EntityChannelType, BoxedEntityChannel<'static, EntityUpdate, ()>)>> = vec![];
 
     // Create the entity registry (it's just a stream entity)
     context.create_entity(ENTITY_REGISTRY, move |context, mut requests| async move {
@@ -185,50 +182,34 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     // Add to the list of entities
                     state.entities.insert(entity_id, EntityChannelType::new(message_type, response_type));
 
-                    // Inform the trackers (and tidy up any trackers that are no longer responding)
-                    let mut trackers_finished = false;
+                    // Inform the trackers
+                    // TODO: tidy up any trackers that are no longer responding
+                    let mut futures             = vec![];
 
-                    trackers.future_sync(|trackers| async {
-                        for maybe_tracker in trackers.iter_mut() {
-                            if let Some(tracker) = maybe_tracker {
+                    for maybe_tracker in trackers.iter_mut() {
+                        if let Some(tracker) = maybe_tracker {
+                            // Send that a new entity has been created to the tracker
+                            futures.push(tracker.send_without_waiting(EntityUpdate::CreatedEntity(entity_id)));
+                        }
+                    }
+
+                    let entity_type = EntityChannelType::new(message_type, response_type);
+                    for maybe_tracker in typed_trackers.iter_mut() {
+                        if let Some((match_type, tracker)) = maybe_tracker {
+                            if state.can_convert_type(&entity_type, match_type) {
                                 // Send that a new entity has been created to the tracker
-                                let send_result = tracker.send_without_waiting(EntityUpdate::CreatedEntity(entity_id)).await;
-
-                                // Set to None if the result is an error
-                                if send_result.is_err() {
-                                    trackers_finished   = true;
-                                    *maybe_tracker      = None;
-                                }
+                                futures.push(tracker.send_without_waiting(EntityUpdate::CreatedEntity(entity_id)));
                             }
                         }
-                    }).await.ok();
+                    }
 
-                    typed_trackers.future_sync(|typed_trackers| async {
-                        let entity_type = EntityChannelType::new(message_type, response_type);
-                        for maybe_tracker in typed_trackers.iter_mut() {
-                            if let Some((match_type, tracker)) = maybe_tracker {
-                                if state.can_convert_type(&entity_type, match_type) {
-                                    // Send that a new entity has been created to the tracker
-                                    let send_result = tracker.send_without_waiting(EntityUpdate::CreatedEntity(entity_id)).await;
-
-                                    // Set to None if the result is an error
-                                    if send_result.is_err() {
-                                        trackers_finished   = true;
-                                        *maybe_tracker      = None;
-                                    }
-                                }
-                            }
-                        }
-                    }).await.ok();
+                    // If any of the trackers have not completed sending their messages, put the task into the background
+                    if !futures.is_empty() {
+                        context.run_in_background(async move { future::join_all(futures).await; });
+                    }
 
                     // Once all of the trackers have been informed of the new entity, respond OK
                     response.send(()).ok();
-
-                    // Clean out any trackers that are no longer tracking anything
-                    if trackers_finished {
-                        trackers.desync(|trackers| trackers.retain(|tracker| tracker.is_some()));
-                        typed_trackers.desync(|trackers| trackers.retain(|tracker| tracker.is_some()));
-                    }
                 }
 
                 DestroyedEntity(entity_id) => {
@@ -238,46 +219,30 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     response.send(()).ok();
 
                     // Remove the entity from the list we're tracking
+                    // TODO: tidy up any trackers that are no longer responding
                     if let Some(entity_type) = state.entities.remove(&entity_id) {
                         // Inform the trackers that this entity has been removed
-                        let mut trackers_finished = false;
+                        let mut futures = vec![];
 
-                        trackers.future_sync(|trackers| async {
-                            for maybe_tracker in trackers.iter_mut() {
-                                if let Some(tracker) = maybe_tracker {
+                        for maybe_tracker in trackers.iter_mut() {
+                            if let Some(tracker) = maybe_tracker {
+                                // Send that a new entity has been destroyed to the tracker
+                                futures.push(tracker.send_without_waiting(EntityUpdate::DestroyedEntity(entity_id)));
+                            }
+                        }
+
+                        for maybe_tracker in typed_trackers.iter_mut() {
+                            if let Some((match_type, tracker)) = maybe_tracker {
+                                if state.can_convert_type(&entity_type, match_type) {
                                     // Send that a new entity has been destroyed to the tracker
-                                    let send_result = tracker.send_without_waiting(EntityUpdate::DestroyedEntity(entity_id)).await;
-
-                                    // Set to None if the result is an error
-                                    if send_result.is_err() {
-                                        trackers_finished   = true;
-                                        *maybe_tracker      = None;
-                                    }
+                                    futures.push(tracker.send_without_waiting(EntityUpdate::DestroyedEntity(entity_id)));
                                 }
                             }
-                        }).await.ok();
+                        }
 
-                        typed_trackers.future_sync(|typed_trackers| async {
-                            for maybe_tracker in typed_trackers.iter_mut() {
-                                if let Some((match_type, tracker)) = maybe_tracker {
-                                    if state.can_convert_type(&entity_type, match_type) {
-                                        // Send that a new entity has been created to the tracker
-                                        let send_result = tracker.send_without_waiting(EntityUpdate::CreatedEntity(entity_id)).await;
-
-                                        // Set to None if the result is an error
-                                        if send_result.is_err() {
-                                            trackers_finished   = true;
-                                            *maybe_tracker      = None;
-                                        }
-                                    }
-                                }
-                            }
-                        }).await.ok();
-
-                        // Clean out any trackers that are no longer tracking anything
-                        if trackers_finished {
-                            trackers.desync(|trackers| trackers.retain(|tracker| tracker.is_some()));
-                            typed_trackers.desync(|trackers| trackers.retain(|tracker| tracker.is_some()));
+                        // If any of the trackers have not completed sending their messages, put the task into the background
+                        if !futures.is_empty() {
+                            context.run_in_background(async move { future::join_all(futures).await; });
                         }
                     }
                 }
@@ -302,12 +267,17 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
 
                     // Send the list of entities to the channel
                     let mut channel = channel;
+                    let mut futures = vec![];
                     for existing_entity_id in state.entities.keys().cloned() {
-                        channel.send_without_waiting(EntityUpdate::CreatedEntity(existing_entity_id)).await.ok();
+                        futures.push(channel.send_without_waiting(EntityUpdate::CreatedEntity(existing_entity_id)));
+                    }
+
+                    if !futures.is_empty() {
+                        context.run_in_background(async move { future::join_all(futures).await; });
                     }
 
                     // Add to the list of trackers
-                    trackers.desync(move |trackers| trackers.push(Some(channel)));
+                    trackers.push(Some(channel));
                 }
 
                 TrackEntitiesWithType(channel, channel_type) => {
@@ -315,14 +285,19 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
 
                     // Send the list of entities that match this type to the channel
                     let mut channel = channel;
+                    let mut futures = vec![];
                     for (existing_entity_id, existing_type) in state.entities.iter() {
                         if state.can_convert_type(existing_type, &channel_type) {
-                            channel.send_without_waiting(EntityUpdate::CreatedEntity(*existing_entity_id)).await.ok();
+                            futures.push(channel.send_without_waiting(EntityUpdate::CreatedEntity(*existing_entity_id)));
                         }
                     }
 
+                    if !futures.is_empty() {
+                        context.run_in_background(async move { future::join_all(futures).await; });
+                    }
+
                     // Add to the list of typed trackers
-                    typed_trackers.desync(move |typed_trackers| typed_trackers.push(Some((channel_type, channel))));
+                    typed_trackers.push(Some((channel_type, channel)));
                 }
             }
         }
