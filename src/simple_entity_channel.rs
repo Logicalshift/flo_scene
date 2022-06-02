@@ -68,17 +68,24 @@ where
         }.boxed()
     }
 
-    fn send_without_waiting<'a>(&'a mut self, message: Self::Message) -> BoxFuture<'a, Result<(), EntityChannelError>> {
+    fn send_without_waiting(&mut self, message: Self::Message) -> BoxFuture<'static, Result<(), EntityChannelError>> {
+        // Wrap the request into a message
+        let (message, receiver) = Message::new(message);
+
+        // Don't care about the response
+        mem::drop(receiver);
+
+        // Send the message to the channel
+        let future = if let Err(err) = self.channel.try_send(message) {
+            let mut future_channel = self.channel.clone();
+            Some(async move { future_channel.send(err.into_inner()).await })
+        } else {
+            None
+        };
+
         async move {
-            // Wrap the request into a message
-            let (message, receiver) = Message::new(message);
-
-            // Don't care about the response
-            mem::drop(receiver);
-
-            // Send the message to the channel
-            if let Err(err) = self.channel.try_send(message) {
-                self.channel.send(err.into_inner()).await?;
+            if let Some(future) = future {
+                future.await?;
             }
 
             Ok(())

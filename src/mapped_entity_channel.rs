@@ -65,10 +65,12 @@ where
         }.boxed()
     }
 
-    fn send_without_waiting<'a>(&'a mut self, message: TNewMessage) -> BoxFuture<'a, Result<(), EntityChannelError>> {
+    fn send_without_waiting(&mut self, message: TNewMessage) -> BoxFuture<'static, Result<(), EntityChannelError>> {
+        let message = (&self.map_message)(message);
+        let future  = self.source_channel.send_without_waiting(message);
+
         async move {
-            let message = (&self.map_message)(message);
-            self.source_channel.send(message).await?;
+            future.await?;
 
             Ok(())
         }.boxed()
