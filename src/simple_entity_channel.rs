@@ -419,3 +419,65 @@ impl<TMessage, TResponse> Clone for SimpleEntityChannel<TMessage, TResponse> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use futures::future;
+    use futures::executor;
+
+    #[test]
+    fn receive_from_buffer() {
+        let (channel, receiver) = SimpleEntityChannel::<(), ()>::new(EntityId::new(), 10);
+
+        // Fill with 5 pending requests (first request will be 'sent' straight away)
+        let mut channel = channel;
+        let requests    = (0..6).into_iter().map(|_| {
+            let msg = channel.send_without_waiting(());
+            async move {
+                msg.await.unwrap();
+            }.boxed()
+        });
+        let results     = async move {
+            let mut receiver = receiver;
+            for i in 0..6 {
+                receiver.next().await.unwrap();
+                println!("Received {}", i);
+            }
+        };
+
+        let all_futures = vec![results.boxed()].into_iter().chain(requests).collect::<Vec<_>>();
+
+        executor::block_on(async move {
+            future::join_all(all_futures).await;
+        });
+    }
+
+    #[test]
+    fn overfill_then_drain() {
+        let (channel, receiver) = SimpleEntityChannel::<(), ()>::new(EntityId::new(), 1);
+
+        // Fill with 5 pending requests (first request will be 'sent' straight away)
+        let mut channel = channel;
+        let requests    = (0..6).into_iter().map(|_| {
+            let msg = channel.send_without_waiting(());
+            async move {
+                msg.await.unwrap();
+            }.boxed()
+        });
+        let results     = async move {
+            let mut receiver = receiver;
+            for i in 0..6 {
+                receiver.next().await.unwrap();
+                println!("Received {}", i);
+            }
+        };
+
+        let all_futures = vec![results.boxed()].into_iter().chain(requests).collect::<Vec<_>>();
+
+        executor::block_on(async move {
+            future::join_all(all_futures).await;
+        });
+    }
+}
