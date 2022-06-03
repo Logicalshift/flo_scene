@@ -178,7 +178,7 @@ impl<TMessage, TResponse> Future for WaitingMessage<TMessage, TResponse> {
                 return Poll::Ready(Err(EntityChannelError::NoLongerListening));
             }
 
-            if core.ready_messages.len() >= core.buf_size || core.waiting_tickets.front().map(|first| first.id) == Some(ticket_id) {
+            if core.ready_messages.len() >= core.buf_size || core.waiting_tickets.front().map(|first| first.id) != Some(ticket_id) {
                 // There's no space in the buffer, or this is not the first ticket
                 for ticket in core.waiting_tickets.iter_mut() {
                     if ticket.id == ticket_id {
