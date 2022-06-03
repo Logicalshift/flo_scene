@@ -480,4 +480,33 @@ mod test {
             future::join_all(all_futures).await;
         });
     }
+
+    #[test]
+    fn overfilled_ordering() {
+        let (channel, receiver) = SimpleEntityChannel::<usize, ()>::new(EntityId::new(), 2);
+
+        // Fill with 5 pending requests (first request will be 'sent' straight away)
+        let mut channel = channel;
+        let requests    = (0..10).into_iter().map(|i| {
+            let msg = channel.send_without_waiting(i);
+            async move {
+                msg.await.unwrap();
+            }.boxed()
+        });
+        let results     = async move {
+            let mut receiver = receiver;
+            for i in 0..10 {
+                let msg = receiver.next().await.unwrap();
+                println!("Received {} {}", i, *msg);
+
+                assert!(i == *msg);
+            }
+        };
+
+        let all_futures = vec![results.boxed()].into_iter().chain(requests).collect::<Vec<_>>();
+
+        executor::block_on(async move {
+            future::join_all(all_futures).await;
+        });
+    }
 }
