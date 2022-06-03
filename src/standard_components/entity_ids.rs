@@ -3,6 +3,11 @@ use crate::entity_id::*;
 use uuid::*;
 
 ///
+/// Entity created to run unit tests
+///
+pub const TEST_ENTITY: EntityId = EntityId::well_known(uuid!["5B93BD5F-39F5-4B57-ABE9-DF593F331E86"]);
+
+///
 /// UUID of the entity registry entity.
 ///
 /// The entity registry is used to track entities as they're created and destroyed

@@ -8,8 +8,6 @@ use futures_timer::{Delay};
 
 use std::time::{Duration};
 
-pub const TEST_ENTITY: EntityId = EntityId::well_known(uuid!["5B93BD5F-39F5-4B57-ABE9-DF593F331E86"]);
-
 ///
 /// Result of a test on an entity in a scene
 ///
