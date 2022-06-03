@@ -260,11 +260,6 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                 }
 
                 TrackEntities(channel)   => {
-                    // For TrackEntities, we could respond after sending all the existing entities: this is a problem if an entity
-                    // requests tracking sent to itself, as we could block when the channel fills up, and the channel might be waiting
-                    // for the response to start reading the results.
-                    response.send(()).ok();
-
                     // Send the list of entities to the channel
                     let mut channel = channel;
                     let mut futures = vec![];
@@ -276,13 +271,14 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                         context.run_in_background(async move { future::join_all(futures).await; });
                     }
 
+                    // All the entities are being tracked
+                    response.send(()).ok();
+
                     // Add to the list of trackers
                     trackers.push(Some(channel));
                 }
 
                 TrackEntitiesWithType(channel, channel_type) => {
-                    response.send(()).ok();
-
                     // Send the list of entities that match this type to the channel
                     let mut channel = channel;
                     let mut futures = vec![];
@@ -295,6 +291,8 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     if !futures.is_empty() {
                         context.run_in_background(async move { future::join_all(futures).await; });
                     }
+
+                    response.send(()).ok();
 
                     // Add to the list of typed trackers
                     typed_trackers.push(Some((channel_type, channel)));
