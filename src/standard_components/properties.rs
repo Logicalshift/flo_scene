@@ -317,7 +317,7 @@ where
     {
         let mut message_processors = MESSAGE_PROCESSORS.write().unwrap();
 
-        message_processors.entry(TypeId::of::<TValue>()).or_insert_with(|| {
+        message_processors.entry(TypeId::of::<Option<PropertyRequest<TValue>>>()).or_insert_with(|| {
             Box::new(|message, state, context| process_message::<TValue>(message, state, context))
         });
     }
