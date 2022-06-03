@@ -5,7 +5,6 @@ use crate::entity_channel::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
-use futures::channel::mpsc;
 use futures::task;
 use futures::task::{Context, Poll};
 
@@ -315,8 +314,8 @@ impl<TMessage, TResponse> Drop for SimpleEntityChannelReceiver<TMessage, TRespon
 /// A simple entity channel just relays messages directly to a target channel
 ///
 pub struct SimpleEntityChannel<TMessage, TResponse> {
-    /// The channel for sending messages
-    channel: mpsc::Sender<Message<TMessage, TResponse>>,
+    /// The core, used for sending messages
+    core: Arc<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>,
 
     /// The entity ID that owns this channel
     entity_id: EntityId,
@@ -331,10 +330,18 @@ where
     /// Creates a new entity channel
     ///
     pub fn new(entity_id: EntityId, buf_size: usize) -> (SimpleEntityChannel<TMessage, TResponse>, impl 'static + Send + Stream<Item=Message<TMessage, TResponse>>) {
-        let (sender, receiver) = mpsc::channel(buf_size);
+        // Create the core
+        let core = SimpleEntityChannelCore::new(buf_size);
+        let core = Arc::new(Mutex::new(core));
 
+        // Create the receiver
+        let receiver = SimpleEntityChannelReceiver {
+            core: Arc::clone(&core)
+        };
+
+        // Create the channel
         let channel = SimpleEntityChannel {
-            channel:    sender,
+            core:       core,
             entity_id:  entity_id,
         };
 
@@ -345,7 +352,19 @@ where
     /// Closes this channel
     ///
     pub fn close(&mut self) {
-        self.channel.close_channel();
+        let waker = {
+            let mut core = self.core.lock().unwrap();
+
+            // Set the core are closed
+            core.closed = true;
+
+            // Wake the receiver so it shuts down
+            core.receiver_waker.take()
+        };
+
+        if let Some(waker) = waker {
+            waker.wake();
+        }
     }
 }
 
@@ -367,7 +386,7 @@ where
             let (message, receiver) = Message::new(message);
 
             // Send the message to the channel
-            self.channel.send(message).await?;
+            SimpleEntityChannelCore::send_message(&self.core, message).await?;
 
             // Wait for the message to be processed
             receiver.await.map_err(|_cancelled| EntityChannelError::NoResponse)
@@ -382,17 +401,10 @@ where
         mem::drop(receiver);
 
         // Send the message to the channel
-        let future = if let Err(err) = self.channel.try_send(message) {
-            let mut future_channel = self.channel.clone();
-            Some(async move { future_channel.send(err.into_inner()).await })
-        } else {
-            None
-        };
+        let future = SimpleEntityChannelCore::send_message(&self.core, message);
 
         async move {
-            if let Some(future) = future {
-                future.await?;
-            }
+            future.await?;
 
             Ok(())
         }.boxed()
@@ -402,7 +414,7 @@ where
 impl<TMessage, TResponse> Clone for SimpleEntityChannel<TMessage, TResponse> {
     fn clone(&self) -> Self {
         SimpleEntityChannel {
-            channel:    self.channel.clone(),
+            core:       self.core.clone(),
             entity_id:  self.entity_id,
         }
     }
