@@ -3,6 +3,7 @@ use flo_scene::test::*;
 
 use futures::prelude::*;
 
+use std::mem;
 use std::time::{Duration, Instant};
 
 #[test]
@@ -88,7 +89,7 @@ fn repeating() {
             let Timeout(timer_id_3, when_3) = *receiver.next().await.unwrap();
             let end_time                    = Instant::now().duration_since(start_time);
 
-            receiver.close();
+            mem::drop(receiver);
 
             msg.respond(vec![
                 (timer_id_1 == TimerId(42)).into(),
