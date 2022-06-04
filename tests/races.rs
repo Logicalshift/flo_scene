@@ -184,26 +184,34 @@ fn close_entity() {
                 scene_send::<_, ()>(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(update_registry.boxed())).await.unwrap();
 
                 // Open a channel to the entity
+                println!("  Opening channel");
                 let mut hello_channel = scene_send_to::<String, String>(hello_entity).unwrap();
 
-                // Seal the entity
+                // Close the entity
+                println!("  Closing entity");
                 SceneContext::current().close_entity(hello_entity).unwrap();
 
                 // Should no longer be able to send to the main channel
+                println!("  Sending test message");
                 let world = hello_channel.send("Hello".to_string()).await;
 
                 // 'is_shutdown' should signal
+                println!("  Receiving shutdown");
                 is_shutdown.next().await;
 
                 // Registry should indicate that the hello was stopped
+                println!("  Waiting for registry");
                 let mut registry_updates = registry_updates;
                 while let Some(msg) = registry_updates.next().await {
+                    println!("    Registry update");
                     if *msg == EntityUpdate::DestroyedEntity(hello_entity) {
+                        println!("    Destroyed our entity");
                         break;
                     }
                 }
 
                 // Wait for the response, and succeed if the result is 'world'
+                println!("Checking response");
                 msg.respond(vec![
                     world.is_err().into(),
                 ]).unwrap();
