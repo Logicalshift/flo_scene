@@ -147,7 +147,7 @@ fn race_retrieve_existing_entities() {
 
 #[test]
 fn close_entity() {
-    for i in 0..100 {
+    for i in 0..1000 {
         println!("*** ITER {}", i);
 
         let scene           = Scene::default();
@@ -211,15 +211,20 @@ fn close_entity() {
                 }
 
                 // Wait for the response, and succeed if the result is 'world'
-                println!("Checking response");
+                println!("Checking response ({:?})", world);
+
                 msg.respond(vec![
                     world.is_err().into(),
                 ]).unwrap();
+
+                println!("Test finished");
             }
         }).unwrap();
 
         // Test the scene we just set up
+        println!("Running scene");
         test_scene(scene);
+        println!("Scene complete");
     }
 }
 
