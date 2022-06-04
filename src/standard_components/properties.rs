@@ -119,6 +119,9 @@ enum InternalPropertyRequest {
     /// A PropertyRequest<x> that's wrapped in a Box<Any> for a type that is recognised by the property entity
     AnyRequest(Box<dyn Send + Any>),
 
+    /// Pings the properties entity to ensure it's ready for requests
+    Ready,
+
     /// A new entity was created
     CreatedEntity(EntityId),
 
@@ -309,7 +312,7 @@ pub fn property_stream<TValue>() -> (PropertySink<TValue>, PropertyStream<TValue
 /// Typically `entity_id` should be `PROPERTIES` here, but it's possible to run multiple sets of properties in a given scene so other values are
 /// possible if `create_properties_entity()` has been called for other entity IDs.
 ///
-pub fn properties_channel<TValue>(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>, ()>, EntityChannelError>
+pub async fn properties_channel<TValue>(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>, ()>, EntityChannelError>
 where
     TValue: 'static + Send + Clone + Sized,
 {
@@ -321,6 +324,10 @@ where
             Box::new(|message, state, context| process_message::<TValue>(message, state, context))
         });
     }
+
+    // Before returning a channel, wait for the properties entity to become ready
+    // (This is most useful at startup when we need the entity tracking to start up before anything else)
+    context.send::<_, ()>(PROPERTIES, InternalPropertyRequest::Ready).await.ok();
 
     // Ensure that the message is converted to an internal request
     context.convert_message::<PropertyRequest<TValue>, InternalPropertyRequest>()?;
@@ -486,9 +493,11 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         while let Some(message) = messages.next().await {
             let message: InternalPropertyRequest = message;
 
-            // TODO: deal with entity creation and deletion
-
             match message {
+                InternalPropertyRequest::Ready => {
+                    // This is just used to synchronise requests to the entity
+                }
+
                 InternalPropertyRequest::AnyRequest(request) => {
                     // Lock the message processors so we can read from them
                     let message_processors = MESSAGE_PROCESSORS.read().unwrap();

@@ -54,8 +54,8 @@ fn open_channel_i64() {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
 
             // Try to open the channel to the properties entity and ensure that it's there
-            let channel         = properties_channel::<i64>(PROPERTIES, &SceneContext::current());
-            let same_channel    = properties_channel::<i64>(PROPERTIES, &SceneContext::current());
+            let channel         = properties_channel::<i64>(PROPERTIES, &SceneContext::current()).await;
+            let same_channel    = properties_channel::<i64>(PROPERTIES, &SceneContext::current()).await;
 
             if channel.is_ok() && same_channel.is_ok() {
                 msg.respond(vec![SceneTestResult::Ok]).ok();
@@ -81,8 +81,8 @@ fn open_channel_string() {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
 
             // Try to open the channel to the properties entity and ensure that it's there
-            let channel         = properties_channel::<String>(PROPERTIES, &SceneContext::current());
-            let same_channel    = properties_channel::<String>(PROPERTIES, &SceneContext::current());
+            let channel         = properties_channel::<String>(PROPERTIES, &SceneContext::current()).await;
+            let same_channel    = properties_channel::<String>(PROPERTIES, &SceneContext::current()).await;
 
             if channel.is_ok() && same_channel.is_ok() {
                 msg.respond(vec![SceneTestResult::Ok]).ok();
@@ -108,7 +108,7 @@ fn follow_string_property() {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
 
             // Create a channel to the properties object
-            let mut channel                         = properties_channel::<String>(PROPERTIES, &SceneContext::current()).unwrap();
+            let mut channel                         = properties_channel::<String>(PROPERTIES, &SceneContext::current()).await.unwrap();
 
             // Create a string property
             let (string_sender, string_receiver)    = mpsc::channel(5);
