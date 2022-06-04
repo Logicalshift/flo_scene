@@ -1,7 +1,5 @@
 // * TODO: entity to stop the scene
-// * TODO: entity to generate timed events
 // * TODO: logging entity
-// * TODO: entity to contain properties/bindings (not really standard as we expect the user to create this)
 
 // TODO: entity to shut down other entities
 // TODO: scripting entity
