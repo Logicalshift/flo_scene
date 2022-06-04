@@ -296,7 +296,7 @@ impl<TMessage, TResponse> Drop for SimpleEntityChannelReceiver<TMessage, TRespon
         let wakers = {
             let mut core = self.core.lock().unwrap();
 
-            // Set the core as closed
+            // Set the core as closed so no new messages can be added
             core.closed = true;
 
             // Clear the messages
