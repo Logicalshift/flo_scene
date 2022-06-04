@@ -362,19 +362,33 @@ where
     /// Closes this channel
     ///
     pub fn close(&mut self) {
-        let waker = {
+        let (receiver_waker, ticket_wakers) = {
             let mut core = self.core.lock().unwrap();
 
             // Set the core are closed
             core.closed = true;
 
-            // Wake the receiver so it shuts down
-            core.receiver_waker.take()
+            // Clear waiting messages
+            core.ready_messages = VecDeque::new();
+
+            // Take the wakers for all of the tickets
+            let wakers = core.waiting_tickets
+                .iter_mut()
+                .flat_map(|ticket| ticket.waker.take())
+                .collect::<Vec<_>>();
+
+            // Clear the tickets
+            core.waiting_tickets = VecDeque::new();
+
+            // Wake the receiver so it shuts down, and the tickets so they notice that the core is closed
+            (core.receiver_waker.take(), wakers)
         };
 
-        if let Some(waker) = waker {
-            waker.wake();
+        if let Some(receiver_waker) = receiver_waker {
+            receiver_waker.wake();
         }
+
+        ticket_wakers.into_iter().for_each(|ticket_waker| ticket_waker.wake());
     }
 }
 
