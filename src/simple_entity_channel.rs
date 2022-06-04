@@ -262,14 +262,13 @@ impl<TMessage, TResponse> Stream for SimpleEntityChannelReceiver<TMessage, TResp
         let (next_message, ticket_waker) = {
             let mut core = self.core.lock().unwrap();
 
-            if core.closed {
-                return Poll::Ready(None);
-            }
-
             // Try to retrieve a message
             if let Some(message) = core.ready_messages.pop_front() {
                 // We've got a message to send
                 (Some(message), core.waiting_tickets.front_mut().and_then(|ticket| ticket.waker.take()))
+            } else if core.closed {
+                // Return 'closed' as soon as the ready messages are empty
+                return Poll::Ready(None);
             } else {
                 // The core is empty (need to wake the first ticket to send its message if it's not awake at the moment)
                 core.receiver_waker = Some(context.waker().clone());
