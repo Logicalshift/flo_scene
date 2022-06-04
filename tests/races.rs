@@ -146,6 +146,76 @@ fn race_retrieve_existing_entities() {
 }
 
 #[test]
+fn close_entity() {
+    for i in 0..1000 {
+        println!("*** ITER {}", i);
+
+        let scene           = Scene::default();
+        let hello_entity    = EntityId::new();
+
+        let (send_shutdown, is_shutdown) = mpsc::channel(1);
+
+        // Create an entity that says 'World' in response 'Hello'
+        scene.create_entity(hello_entity, |_context, mut msg| async move {
+            while let Some(msg) = msg.next().await {
+                let msg: Message<String, String> = msg;
+
+                if *msg == "Hello".to_string() {
+                    msg.respond("World".to_string()).unwrap();
+                } else {
+                    msg.respond("???".to_string()).unwrap();
+                }
+            }
+
+            let mut send_shutdown = send_shutdown;
+            send_shutdown.send(()).await.ok();
+        }).unwrap();
+
+        // Create a test for this scene
+        scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
+            let mut is_shutdown = is_shutdown;
+
+            // Whenever a test is requested...
+            while let Some(msg) = msg.next().await {
+                let msg: Message<(), Vec<SceneTestResult>> = msg;
+
+                // Request registry updates
+                let (update_registry, registry_updates) = SimpleEntityChannel::new(TEST_ENTITY, 1000);
+                scene_send::<_, ()>(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(update_registry.boxed())).await.unwrap();
+
+                // Open a channel to the entity
+                let mut hello_channel = scene_send_to::<String, String>(hello_entity).unwrap();
+
+                // Seal the entity
+                SceneContext::current().close_entity(hello_entity).unwrap();
+
+                // Should no longer be able to send to the main channel
+                let world = hello_channel.send("Hello".to_string()).await;
+
+                // 'is_shutdown' should signal
+                is_shutdown.next().await;
+
+                // Registry should indicate that the hello was stopped
+                let mut registry_updates = registry_updates;
+                while let Some(msg) = registry_updates.next().await {
+                    if *msg == EntityUpdate::DestroyedEntity(hello_entity) {
+                        break;
+                    }
+                }
+
+                // Wait for the response, and succeed if the result is 'world'
+                msg.respond(vec![
+                    world.is_err().into(),
+                ]).unwrap();
+            }
+        }).unwrap();
+
+        // Test the scene we just set up
+        test_scene(scene);
+    }
+}
+
+#[test]
 #[cfg(feature="properties")]
 fn follow_string_property() {
     for i in 1..1000 {
