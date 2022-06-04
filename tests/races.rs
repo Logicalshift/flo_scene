@@ -147,7 +147,7 @@ fn race_retrieve_existing_entities() {
 
 #[test]
 fn close_entity() {
-    for i in 0..1000 {
+    for i in 0..100 {
         println!("*** ITER {}", i);
 
         let scene           = Scene::default();
