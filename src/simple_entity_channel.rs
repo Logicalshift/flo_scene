@@ -368,9 +368,6 @@ where
             // Set the core are closed
             core.closed = true;
 
-            // Clear waiting messages
-            core.ready_messages = VecDeque::new();
-
             // Take the wakers for all of the tickets
             let wakers = core.waiting_tickets
                 .iter_mut()
