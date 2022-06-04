@@ -109,14 +109,19 @@ impl<TMessage, TResponse> SimpleEntityChannelCore<TMessage, TResponse> {
     ///
     fn send_message(arc_self: &Arc<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>, message: Message<TMessage, TResponse>) -> impl Future<Output=Result<(), EntityChannelError>> {
         let mut waiting = None;
+        let mut err     = None;
 
         // Prepare to send the message by talking to the core
         let waker = {
             let mut core = arc_self.lock().unwrap();
 
-            // TODO: stop if the core is closed
+            // Stop if the core is closed
+            if core.closed {
+                // Error is 'No longer listening' if the core is closed
+                err = Some(EntityChannelError::NoLongerListening);
 
-            if core.ready_messages.len() < core.buf_size && core.waiting_tickets.len() == 0 {
+                None
+            } else if core.ready_messages.len() < core.buf_size && core.waiting_tickets.len() == 0 {
                 // Add the message to the ready buffer if the core is already ready
                 core.ready_messages.push_back(message);
 
@@ -151,6 +156,12 @@ impl<TMessage, TResponse> SimpleEntityChannelCore<TMessage, TResponse> {
 
         // Wait for the message to send, if there is one
         async move {
+            // Stop immediately if there's an error
+            if let Some(err) = err {
+                return Err(err);
+            }
+
+            // If the buffer is full, wait for the ticket to come up
             if let Some(waiting) = waiting {
                 waiting.await?;
             }
