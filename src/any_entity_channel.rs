@@ -29,9 +29,9 @@ impl AnyEntityChannel {
     ///
     /// Converts a channel to an 'any' channel
     ///
-    pub fn from_channel<TChannel: EntityChannel>(channel: TChannel) -> AnyEntityChannel 
+    pub fn from_channel<TChannel>(channel: TChannel) -> AnyEntityChannel 
     where
-        TChannel:           'static + Clone,
+        TChannel:           'static + EntityChannel + Clone,
         TChannel::Message:  'static,
         TChannel::Response: 'static + Sized,
     {
@@ -40,28 +40,32 @@ impl AnyEntityChannel {
         let send            = Box::new(move |boxed_message: Box<dyn Send + Any>| {
             let mut channel = send_channel.clone();
 
-            async move {
-                // Extract the message components
-                let mut message         = boxed_message;
+            // Extract the message components
+            let mut message         = boxed_message;
 
-                // Unbox the request. We use `Option<TChannel::Message>` so we can take the message out of the box
-                if let Some(message) = message.downcast_mut::<Option<TChannel::Message>>() {
-                    if let Some(message) = message.take() {
-                        // Send the message
-                        let response = channel.send(message).await?;
-
-                        // Box up the response. We use `Option<TChannel::Response>` so the receiver can take the response out of the box.
-                        let response: Box<dyn Send + Any> = Box::new(Some(response));
-
-                        Ok(response)
-                    } else {
-                        // The message was missing
-                        Err(EntityChannelError::MissingMessage)
-                    }
+            // Unbox the request. We use `Option<TChannel::Message>` so we can take the message out of the box
+            let send_future = if let Some(message) = message.downcast_mut::<Option<TChannel::Message>>() {
+                if let Some(message) = message.take() {
+                    // Send the message
+                    // TODO: we need to call channel.send() immediately, but this causes lifetime issues with 'channel', which we can't move into the future
+                    Ok(async move { channel.send(message).await })
                 } else {
-                    // Did not downcast
-                    Err(EntityChannelError::WrongMessageType(format!("{}", type_name::<TChannel::Message>())))
+                    // The message was missing
+                    Err(EntityChannelError::MissingMessage)
                 }
+            } else {
+                // Did not downcast
+                Err(EntityChannelError::WrongMessageType(format!("{}", type_name::<TChannel::Message>())))
+            };
+
+            async move {
+                // Wait for the future we just created
+                let response = send_future?.await?;
+
+                // Box up the response. We use `Option<TChannel::Response>` so the receiver can take the response out of the box.
+                let response: Box<dyn Send + Any> = Box::new(Some(response));
+
+                Ok(response)
             }.boxed()
         });
 
