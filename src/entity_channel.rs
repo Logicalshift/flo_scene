@@ -22,6 +22,11 @@ pub trait EntityChannel : Send {
     fn entity_id(&self) -> EntityId;
 
     ///
+    /// True if this channel has been closed
+    ///
+    fn is_closed(&self) -> bool;
+
+    ///
     /// Sends a message to the channel and waits for a response
     ///
     fn send<'a>(&'a mut self, message: Self::Message) -> BoxFuture<'a, Result<Self::Response, EntityChannelError>>;
@@ -53,6 +58,11 @@ where
     #[inline]
     fn entity_id(&self) -> EntityId {
         (**self).entity_id()
+    }
+
+    #[inline]
+    fn is_closed(&self) -> bool {
+        (**self).is_closed()
     }
 
     #[inline]

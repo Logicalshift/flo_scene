@@ -405,6 +405,10 @@ where
         self.entity_id
     }
 
+    fn is_closed(&self) -> bool {
+        self.core.lock().unwrap().closed
+    }
+
     fn send<'a>(&'a mut self, message: TMessage) -> BoxFuture<'a, Result<TResponse, EntityChannelError>> {
         // Wrap the request into a message
         let (message, receiver) = Message::new(message);

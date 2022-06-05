@@ -55,6 +55,10 @@ where
         self.source_channel.entity_id()
     }
 
+    fn is_closed(&self) -> bool {
+        self.source_channel.is_closed()
+    }
+
     fn send<'a>(&'a mut self, message: TNewMessage) -> BoxFuture<'a, Result<Self::Response, EntityChannelError>> {
         async move {
             let message     = (&self.map_message)(message);

@@ -18,6 +18,9 @@ pub struct AnyEntityChannel {
     /// The ID of the entity for this channel
     entity_id: EntityId,
 
+    /// Returns whether or not the original channel is closed
+    is_closed: Box<dyn Send + Fn() -> bool>,
+
     /// The dynamic send function for this channel
     send: Box<dyn Send + Fn(Box<dyn Send + Any>) -> BoxFuture<'static, Result<Box<dyn Send + Any>, EntityChannelError>>>,
 
@@ -36,6 +39,12 @@ impl AnyEntityChannel {
         TChannel::Response: 'static + Sized,
     {
         let entity_id       = channel.entity_id();
+
+        let closed_channel  = channel.clone();
+        let is_closed       = Box::new(move || {
+            closed_channel.is_closed()
+        });
+
         let send_channel    = channel.clone();
         let send            = Box::new(move |boxed_message: Box<dyn Send + Any>| {
             let mut channel = send_channel.clone();
@@ -98,6 +107,7 @@ impl AnyEntityChannel {
 
         AnyEntityChannel {
             entity_id,
+            is_closed,
             send,
             send_without_waiting,
         }
@@ -111,6 +121,11 @@ impl EntityChannel for AnyEntityChannel {
     #[inline]
     fn entity_id(&self) -> EntityId {
         self.entity_id
+    }
+
+    #[inline]
+    fn is_closed(&self) -> bool {
+        (self.is_closed)()
     }
 
     #[inline]
