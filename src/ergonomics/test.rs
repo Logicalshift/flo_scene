@@ -3,7 +3,6 @@ use crate::*;
 use futures::prelude::*;
 use futures::future;
 use futures::executor;
-use uuid::*;
 use futures_timer::{Delay};
 
 use std::time::{Duration};

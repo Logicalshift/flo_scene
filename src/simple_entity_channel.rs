@@ -257,7 +257,7 @@ impl<TMessage, TResponse> Drop for WaitingMessage<TMessage, TResponse> {
 impl<TMessage, TResponse> Stream for SimpleEntityChannelReceiver<TMessage, TResponse> {
     type Item = Message<TMessage, TResponse>;
 
-    fn poll_next(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, context: &mut Context) -> Poll<Option<Self::Item>> {
         // Try to receive the next message (and a waker for the first ticket)
         let (next_message, ticket_waker) = {
             let mut core = self.core.lock().unwrap();

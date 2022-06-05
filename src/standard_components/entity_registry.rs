@@ -7,7 +7,6 @@ use crate::entity_id::*;
 use crate::entity_channel::*;
 
 use futures::prelude::*;
-use ::desync::*;
 
 use std::any::{TypeId};
 use std::sync::*;
