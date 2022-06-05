@@ -483,7 +483,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
     context.convert_message::<EntityUpdate, InternalPropertyRequest>().unwrap();
 
     // Create the entity itself
-    context.create_stream_entity(entity_id, StreamEntityResponseStyle::default(), move |context, mut messages| async move {
+    context.create_stream_entity(entity_id, StreamEntityResponseStyle::RespondAfterProcessing, move |context, mut messages| async move {
         // Request updates from the entity registry
         let properties      = context.send_to::<EntityUpdate, ()>(entity_id).unwrap();
         if let Some(mut entity_registry) = context.send_to::<_, ()>(ENTITY_REGISTRY).ok() {
