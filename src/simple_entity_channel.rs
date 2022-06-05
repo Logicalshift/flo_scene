@@ -107,7 +107,7 @@ impl<TMessage, TResponse> SimpleEntityChannelCore<TMessage, TResponse> {
     ///
     /// Sends a message to the core
     ///
-    fn send_message(arc_self: &Arc<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>, message: Message<TMessage, TResponse>) -> impl Future<Output=Result<(), EntityChannelError>> {
+    fn send_message(_entity_id: EntityId, arc_self: &Arc<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>, message: Message<TMessage, TResponse>) -> impl Future<Output=Result<(), EntityChannelError>> {
         let mut waiting = None;
         let mut err     = None;
 
@@ -411,7 +411,7 @@ where
             let (message, receiver) = Message::new(message);
 
             // Send the message to the channel
-            SimpleEntityChannelCore::send_message(&self.core, message).await?;
+            SimpleEntityChannelCore::send_message(self.entity_id, &self.core, message).await?;
 
             // Wait for the message to be processed
             receiver.await.map_err(|_cancelled| EntityChannelError::NoResponse)
@@ -426,7 +426,7 @@ where
         mem::drop(receiver);
 
         // Send the message to the channel
-        let future = SimpleEntityChannelCore::send_message(&self.core, message);
+        let future = SimpleEntityChannelCore::send_message(self.entity_id, &self.core, message);
 
         async move {
             future.await?;
