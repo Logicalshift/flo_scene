@@ -323,6 +323,10 @@ impl<TMessage, TResponse> Drop for SimpleEntityChannelReceiver<TMessage, TRespon
 ///
 /// A simple entity channel just relays messages directly to a target channel
 ///
+/// This provides an additional guarantee over what `mpsc::channel()` can provide for sending messages: at the point the future for
+/// `send` or `send_without_waiting` is generated, the order that the message will be delivered in is fixed. This prevents race conditions
+/// from forming where two messages can be delivered in a different order than expected.
+///
 pub struct SimpleEntityChannel<TMessage, TResponse> {
     /// The core, used for sending messages
     core: Arc<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>,
