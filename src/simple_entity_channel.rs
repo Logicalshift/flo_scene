@@ -406,12 +406,14 @@ where
     }
 
     fn send<'a>(&'a mut self, message: TMessage) -> BoxFuture<'a, Result<TResponse, EntityChannelError>> {
-        async move {
-            // Wrap the request into a message
-            let (message, receiver) = Message::new(message);
+        // Wrap the request into a message
+        let (message, receiver) = Message::new(message);
 
-            // Send the message to the channel
-            SimpleEntityChannelCore::send_message(self.entity_id, &self.core, message).await?;
+        // Send the message to the channel
+        let send_message = SimpleEntityChannelCore::send_message(self.entity_id, &self.core, message);
+
+        async move {
+            send_message.await?;
 
             // Wait for the message to be processed
             receiver.await.map_err(|_cancelled| EntityChannelError::NoResponse)
