@@ -68,25 +68,27 @@ impl AnyEntityChannel {
         let send_without_waiting = Box::new(move |boxed_message: Box<dyn Send + Any>| {
             let mut channel = channel.clone();
 
-            async move {
-                // Extract the message components
-                let mut message         = boxed_message;
+            // Extract the message components
+            let mut message         = boxed_message;
 
-                // Unbox the request. We use `Option<TChannel::Message>` so we can take the message out of the box
-                if let Some(message) = message.downcast_mut::<Option<TChannel::Message>>() {
-                    if let Some(message) = message.take() {
-                        // Send the message
-                        channel.send_without_waiting(message).await?;
-
-                        Ok(())
-                    } else {
-                        // The message was missing
-                        Err(EntityChannelError::MissingMessage)
-                    }
+            // Unbox the request. We use `Option<TChannel::Message>` so we can take the message out of the box
+            let send_future = if let Some(message) = message.downcast_mut::<Option<TChannel::Message>>() {
+                if let Some(message) = message.take() {
+                    // Create the future to send the message
+                    Ok(channel.send_without_waiting(message))
                 } else {
-                    // Did not downcast
-                    Err(EntityChannelError::WrongMessageType(format!("{}", type_name::<TChannel::Message>())))
+                    // The message was missing
+                    Err(EntityChannelError::MissingMessage)
                 }
+            } else {
+                // Did not downcast
+                Err(EntityChannelError::WrongMessageType(format!("{}", type_name::<TChannel::Message>())))
+            };
+
+            async move {
+                send_future?.await?;
+
+                Ok(())
             }.boxed()
         });
 
