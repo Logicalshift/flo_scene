@@ -146,7 +146,7 @@ fn race_retrieve_existing_entities() {
 }
 
 #[test]
-fn close_entity() {
+fn race_close_entity() {
     for i in 0..1000 {
         println!("*** ITER {}", i);
 
@@ -230,7 +230,7 @@ fn close_entity() {
 
 #[test]
 #[cfg(feature="properties")]
-fn follow_string_property() {
+fn race_follow_string_property() {
     for i in 1..1000 {
         println!("*** ITER {}", i);
 
@@ -243,16 +243,22 @@ fn follow_string_property() {
                 let msg: Message<(), Vec<SceneTestResult>> = msg;
 
                 // Create a channel to the properties object
+                println!("Request properties channel");
                 let mut channel                         = properties_channel::<String>(PROPERTIES, &SceneContext::current()).await.unwrap();
 
                 // Create a string property
+                println!("Create string sender/sinks");
                 let (string_sender, string_receiver)    = mpsc::channel(5);
                 let (string_sink, string_stream)        = property_stream();
+
+                println!("Create test entity property");
                 channel.send_without_waiting(PropertyRequest::CreateProperty(PropertyDefinition::new(TEST_ENTITY, "TestString", string_receiver.boxed()))).await.unwrap();
+                println!("Follow test entity property");
                 channel.send_without_waiting(PropertyRequest::Follow(PropertyReference::new(TEST_ENTITY, "TestString"), string_sink)).await.unwrap();
 
                 // If we send a value to the property, it should show up on the property stream
                 let mut string_sender   = string_sender;
+                println!("Send string");
                 string_sender.send("Test".to_string()).await.unwrap();
 
                 let mut string_stream   = string_stream;
