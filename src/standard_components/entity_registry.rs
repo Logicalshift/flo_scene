@@ -229,7 +229,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
 
                     // If any of the trackers have not completed sending their messages, put the task into the background
                     if !futures.is_empty() {
-                        context.run_in_background(async move { future::join_all(futures).await; });
+                        context.run_in_background(async move { future::join_all(futures).await; }).ok();
                     }
 
                     // Once all of the trackers have been informed of the new entity, respond OK
@@ -265,7 +265,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
 
                         // If any of the trackers have not completed sending their messages, put the task into the background
                         if !futures.is_empty() {
-                            context.run_in_background(async move { future::join_all(futures).await; });
+                            context.run_in_background(async move { future::join_all(futures).await; }).ok();
                         }
                     }
                 }
@@ -291,7 +291,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     }
 
                     if !futures.is_empty() {
-                        context.run_in_background(async move { future::join_all(futures).await; });
+                        context.run_in_background(async move { future::join_all(futures).await; }).ok();
                     }
 
                     // All the entities are being tracked
@@ -312,7 +312,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     }
 
                     if !futures.is_empty() {
-                        context.run_in_background(async move { future::join_all(futures).await; });
+                        context.run_in_background(async move { future::join_all(futures).await; }).ok();
                     }
 
                     response.send(()).ok();
