@@ -40,6 +40,9 @@ pub enum EntityChannelError {
 
     /// The scene was requested from a point where the context was no longer available
     ThreadShuttingDown,
+
+    /// The specified property is not defined
+    NoSuchProperty,
 }
 
 impl From<oneshot::Canceled> for EntityChannelError {
