@@ -172,6 +172,32 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
             let request: Message<InternalRegistryRequest, ()>   = request;
             let (request, response)                             = request.take();
 
+            // Remove any trackers that have been closed since the last message
+            let mut removed_trackers = false;
+            for maybe_tracker in trackers.iter_mut() {
+                if let Some(tracker) = maybe_tracker {
+                    if tracker.is_closed() {
+                        *maybe_tracker      = None;
+                        removed_trackers    = true;
+                    }
+                }
+            }
+
+            for maybe_tracker in typed_trackers.iter_mut() {
+                if let Some((_, tracker)) = maybe_tracker {
+                    if tracker.is_closed() {
+                        *maybe_tracker      = None;
+                        removed_trackers    = true;
+                    }
+                }
+            }
+
+            if removed_trackers {
+                trackers.retain(|tracker| tracker.is_some());
+                typed_trackers.retain(|tracker| tracker.is_some());
+            }
+
+            // Process the actual request
             match request {
                 CreatedEntity(entity_id, message_type, response_type) => {
                     let entity_id       = entity_id;
@@ -182,7 +208,6 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     state.entities.insert(entity_id, EntityChannelType::new(message_type, response_type));
 
                     // Inform the trackers
-                    // TODO: tidy up any trackers that are no longer responding
                     let mut futures             = vec![];
 
                     for maybe_tracker in trackers.iter_mut() {
@@ -218,7 +243,6 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     response.send(()).ok();
 
                     // Remove the entity from the list we're tracking
-                    // TODO: tidy up any trackers that are no longer responding
                     if let Some(entity_type) = state.entities.remove(&entity_id) {
                         // Inform the trackers that this entity has been removed
                         let mut futures = vec![];
