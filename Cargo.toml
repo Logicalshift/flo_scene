@@ -30,6 +30,3 @@ lazy_static     = { version = "1.4", optional = true }
 
 [dev-dependencies]
 flo_scene       = { path = ".", features = ["test-scene"] }
-
-[patch.crates-io]
-flo_binding     = { git = "https://github.com/logicalshift/flo_binding", branch = "v2.1" }
