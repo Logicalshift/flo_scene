@@ -88,3 +88,9 @@ From within the context of an entity, it's possible to create background tasks. 
         }
     });
 ```
+
+It's also possible to re-establish the scene context without passing it around if necessary. This can be useful for tasks like logging where passing around entity channels or contexts can be inconvenient or impossible.
+
+```Rust
+    let logging_channel = SceneContext::current().send_to::<LogRequest, ()>(LOGGING_ENTITY).unwrap();
+```
