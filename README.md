@@ -52,4 +52,39 @@ Messages can be sent to entities via `EntityChannel` objects: it's necessary to 
 It's possible to set up converters for any message type that can be converted `Into<>` or `From<>` another. This can provide a number of features: for instance making incompatible programs compatible with each other, private 'internal' messages or multiple ways to communicate with the same entity.
 
 ```Rust
+    enum MyOtherEntityRequest {
+        AnotherTestRequest
+    }
+
+    impl Into<MyEntityRequest> for MyOtherEntityRequest {
+        fn into(req: MyOtherEntityRequest) -> MyEntityRequest {
+            match req {
+                MyOtherEntityRequest::AnotherTestRequest => MyEntityRequest::TestRequest
+            }
+        }
+    }
+
+    context.convert_message::<MyOtherEntityRequest, MyEntityRequest>().unwrap();
+```
+
+From within the context of an entity, it's possible to create background tasks. This makes it much easier to schedule requests without interrupting the main message processing loop.
+
+```Rust
+    scene.create_entity(my_entity, |context, message_stream| async move {
+        while let Some(message) = message_stream.next().await {
+            let message: Message<MyEntityRequest, ()> = message;
+
+            match *message {
+                MyEntityRequest::TestRequest => {
+                    context.run_in_background(async move {
+                        some_other_task().await;
+
+                        println!("Test!")
+
+                        message.respond(()).ok();
+                    });
+                }
+            }
+        }
+    });
 ```
