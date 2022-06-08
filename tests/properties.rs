@@ -179,3 +179,77 @@ fn bind_string_property() {
     // Test the scene we just set up
     test_scene(scene);
 }
+
+#[test]
+#[cfg(feature="properties")]
+fn property_unbinds_when_entity_destroyed() {
+    let scene = Scene::default();
+
+    struct StopTestEntity;
+    let property_entity = EntityId::new();
+    scene.create_entity(property_entity, move |_context, mut msg| async move {
+        while let Some(msg) = msg.next().await {
+            let msg: Message<StopTestEntity, ()> = msg;
+
+            msg.respond(()).ok();
+            break;
+        }
+    }).unwrap();
+
+    // Create a test for this scene
+    scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
+        // Whenever a test is requested...
+        while let Some(msg) = msg.next().await {
+            let msg: Message<(), Vec<SceneTestResult>> = msg;
+
+            // Create a string property from a binding
+            let binding             = bind("Test".to_string());
+            property_create_on_entity(property_entity, "TestProperty", binding.clone()).await.unwrap();
+
+            // Retrieve the binding for the property we just created
+            let value               = property_bind::<String>(property_entity, "TestProperty").await.unwrap();
+            let initial_value       = value.get();
+
+            // Watch for updates on the bound property
+            let mut value_updates   = follow(value.clone());
+            let initial_value_again = value_updates.next().await;
+
+            // Update our original binding (which the property is following)
+            binding.set("AnotherTest".to_string());
+
+            // Wait for the value to update (as it gets sent via another entity, this is not instant)
+            let next_value          = value_updates.next().await;
+
+            // Retrieve the updated value via the binding
+            let another_value       = value.get();
+
+            // Watch for entities stopping
+            let (stopped_entities, mut stop_receiver) = SimpleEntityChannel::new(TEST_ENTITY, 5);
+            context.send::<_, ()>(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(stopped_entities.boxed())).await.unwrap();
+
+            // Stop the property entity
+            context.send::<_, ()>(property_entity, StopTestEntity).await.unwrap();
+
+            // Wait for it to stop
+            while let Some(msg) = stop_receiver.next().await {
+                if *msg == EntityUpdate::DestroyedEntity(property_entity) {
+                    break;
+                }
+            }
+
+            // Property should no longer exist in the properties object
+            let error_value = property_bind::<String>(property_entity, "TestProperty").await;
+
+            msg.respond(vec![
+                (initial_value == "Test".to_string()).into(),
+                (initial_value_again == Some("Test".to_string())).into(),
+                (next_value == Some("AnotherTest".to_string())).into(),
+                (another_value == "AnotherTest".to_string()).into(),
+                (error_value.is_err()).into(),
+            ]).ok();
+        }
+    }).unwrap();
+
+    // Test the scene we just set up
+    test_scene(scene);
+}
