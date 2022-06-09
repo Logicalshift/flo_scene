@@ -114,6 +114,9 @@ where
 
     /// Sends changes to the property to the specified property sink. The stream will be closed if the property is destroyed or if the source stream is destroyed.
     Follow(PropertyReference, PropertySink<TValue>),
+
+    /// Retrieves the `BindRef<TValue>` containing this property (this shares the data more efficiently than Follow does)
+    Get(PropertyReference),
 }
 
 ///
@@ -362,7 +365,7 @@ where
                 // Take the response to de-any-fy it
                 optional_bindref.take()
             } else {
-                // Wrong type
+                // Wrong type of response
                 None
             }
         } else {
@@ -390,7 +393,7 @@ struct Property<TValue> {
     stop_property: Option<oneshot::Sender<()>>,
 
     /// The current value, if known
-    current_value: Option<TValue>,
+    current_value: BindRef<TValue>,
 
     /// The sinks where changes to this property should be sent
     sinks: Vec<Option<PropertySink<TValue>>>,
@@ -429,9 +432,6 @@ where
                         }
                     }
                 }
-
-                // Update the current value of the property
-                property.current_value = Some(value);
             }
         }.boxed()).await;
 }
@@ -456,7 +456,7 @@ where
             let (stop_sender, stop_receiver)    = oneshot::channel();
             let property                        = Property::<TValue> {
                 stop_property:  Some(stop_sender),
-                current_value:  None,
+                current_value:  definition.values.clone(),
                 sinks:          vec![],
             };
             let property                        = Arc::new(Mutex::new(property));
@@ -492,9 +492,7 @@ where
                     let mut property = property.lock().unwrap();
 
                     // If there's a current value, then send that immediately to the sink
-                    if let Some(current_value) = &property.current_value {
-                        sink.send_now(current_value.clone()).ok();
-                    }
+                    sink.send_now(property.current_value.get()).ok();
 
                     // Add the sink to the property
                     if let Some(empty_entry) = property.sinks.iter_mut().filter(|item| item.is_none()).next() {
@@ -506,6 +504,20 @@ where
             }
 
             None
+        }
+
+        Get(reference) => {
+            // See if there's a property with the appropriate name
+            if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
+                if let Some(property) = property.downcast_mut::<Arc<Mutex<Property<TValue>>>>() {
+                    // Return the binding to the caller
+                    Some(property.lock().unwrap().current_value.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
         }
     }
 }
