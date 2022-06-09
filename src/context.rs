@@ -244,12 +244,15 @@ impl SceneContext {
     ///
     /// Given a channel that produces an empty response, sends a message without waiting for the channel to finish processing it
     ///
-    pub async fn send_without_waiting<TMessage>(&self, entity_id: EntityId, message: TMessage) -> Result<(), EntityChannelError>
+    pub fn send_without_waiting<TMessage>(&self, entity_id: EntityId, message: TMessage) -> impl 'static + Future<Output=Result<(), EntityChannelError>>
     where
         TMessage:   'static + Send,
     {
-        let mut channel = self.send_to::<TMessage, ()>(entity_id)?;
-        channel.send_without_waiting(message).await
+        let channel = self.send_to::<TMessage, ()>(entity_id);
+        async move {
+            let mut channel = channel?;
+            channel.send_without_waiting(message).await
+        }
     }
 
     ///
