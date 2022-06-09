@@ -29,12 +29,8 @@ lazy_static! {
 struct InternalPropertyResponse(Box<dyn Send + Any>);
 
 ///
-/// A single value property is defined in a format that's suitable for use with the `flo_binding` library. That is, as a stream of
-/// values. It won't be fully defined until the stream returns an initial value.
-///
-/// The `follow()` function in the `flo_binding` crate is the easiest way to generate a suitable stream. Typically a property stream
-/// will drop values that are not read in time: the `ExpiringPublisher` publisher found in the `flo_stream` crate is a good way to 
-/// generate these streams from other sources.
+/// A single value property is defined in a format that's suitable for use with the `flo_binding` library, which is to say the
+/// `BindRef` type, which can be used as a reference to any other binding.
 ///
 /// Note that while there's a standard property entity with the `PROPERTIES` entity ID, it's possible to create new property entities
 /// to define properties with entirely independent 'namespaces'.
@@ -57,6 +53,31 @@ where
 }
 
 ///
+/// A rope property definition is based around a `RopeBinding` instead of a `BindRef` and can track sequences of things (with optional
+/// attributes)
+///
+/// Note that while there's a standard property entity with the `PROPERTIES` entity ID, it's possible to create new property entities
+/// to define properties with entirely independent 'namespaces'.
+///
+pub struct RopePropertyDefinition<TCell, TAttribute> 
+where
+    TCell:      'static + Send + Unpin + Clone + PartialEq,
+    TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default
+{
+    /// The entity that owns this property
+    pub owner: EntityId,
+
+    /// The name of this property
+    pub name: Arc<String>,
+
+    /// The stream of values for this property
+    ///
+    /// The property won't be created until this has returned at least one value. The property will stop updating but not be destroyed
+    /// if this stream is closed.
+    pub values: RopeBinding<TCell, TAttribute>,
+}
+
+///
 /// A reference to an existing property
 ///
 pub struct PropertyReference {
@@ -76,6 +97,24 @@ where
 {
     /// Creates a new property
     CreateProperty(PropertyDefinition<TValue>),
+
+    /// Removes the property with the specified name
+    DestroyProperty(PropertyReference),
+
+    /// Retrieves the `BindRef<TValue>` containing this property (this shares the data more efficiently than Follow does)
+    Get(PropertyReference),
+}
+
+///
+/// Requests that can be made of a property entity that contains a rope property
+///
+pub enum RopePropertyRequest<TCell, TAttribute> 
+where
+    TCell:      'static + Send + Unpin + Clone + PartialEq,
+    TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default
+{
+    /// Creates a new property
+    CreateProperty(RopePropertyDefinition<TCell, TAttribute>),
 
     /// Removes the property with the specified name
     DestroyProperty(PropertyReference),
