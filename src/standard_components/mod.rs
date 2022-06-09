@@ -15,7 +15,8 @@ mod heartbeat;
 mod scene_control;
 mod timer;
 mod logging;
-mod properties;
+
+#[cfg(feature="properties")] mod properties;
 
 pub use self::entity_ids::*;
 pub use self::entity_registry::*;
@@ -23,4 +24,5 @@ pub use self::heartbeat::*;
 pub use self::scene_control::*;
 pub use self::timer::*;
 pub use self::logging::*;
-pub use self::properties::*;
+
+#[cfg(feature="properties")] pub use self::properties::*;

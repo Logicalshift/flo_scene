@@ -1,25 +1,22 @@
 use crate::entity_id::*;
+use crate::context::*;
+use crate::error::*;
+use crate::entity_channel::*;
+use crate::stream_entity_response_style::*;
+use super::entity_registry::*;
+use super::entity_ids::*;
 
+use futures::prelude::*;
 use futures::stream::{BoxStream};
+use futures::task;
+use futures::task::{Poll, Context};
+use futures::future;
+use futures::channel::oneshot;
 
 use std::any::{TypeId, Any};
 use std::sync::*;
-
-use futures::prelude::*;
-use futures::task;
-use futures::task::{Poll, Context};
 use std::pin::*;
-
-#[cfg(feature="properties")] use crate::context::*;
-#[cfg(feature="properties")] use crate::error::*;
-#[cfg(feature="properties")] use crate::entity_channel::*;
-#[cfg(feature="properties")] use crate::stream_entity_response_style::*;
-#[cfg(feature="properties")] use super::entity_registry::*;
-#[cfg(feature="properties")] use super::entity_ids::*;
-
-#[cfg(feature="properties")] use futures::future;
-#[cfg(feature="properties")] use futures::channel::oneshot;
-#[cfg(feature="properties")] use std::collections::{HashMap};
+use std::collections::{HashMap};
 
 #[cfg(feature="properties")] 
 lazy_static! {
