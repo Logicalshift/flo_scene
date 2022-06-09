@@ -342,7 +342,7 @@ where
             Box::new(|message, state, context| {
                 let response = process_message::<TValue>(message, state, context);
                 let response = if let Some(response) = response {
-                    Some(InternalPropertyResponse(Box::new(response)))
+                    Some(InternalPropertyResponse(Box::new(Some(response))))
                 } else {
                     None
                 };
