@@ -355,7 +355,20 @@ where
 
     // Ensure that the message is converted to an internal request
     context.convert_message::<PropertyRequest<TValue>, InternalPropertyRequest>()?;
-    context.map_response::<Option<InternalPropertyResponse>, Option<BindRef<TValue>>, _>(|internal_response| None)?;
+    context.map_response::<Option<InternalPropertyResponse>, Option<BindRef<TValue>>, _>(|internal_response| {
+        if let Some(InternalPropertyResponse(mut any_box)) = internal_response {
+            // The 'Any' inside InternalPropertyResponse is itself an option (so we can extract the value)
+            if let Some(optional_bindref) = any_box.downcast_mut::<Option<BindRef<TValue>>>() {
+                // Take the response to de-any-fy it
+                optional_bindref.take()
+            } else {
+                // Wrong type
+                None
+            }
+        } else {
+            None
+        }
+    })?;
 
     // Send messages to the properties entity
     context.send_to(entity_id)
