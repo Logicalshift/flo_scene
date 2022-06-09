@@ -10,14 +10,9 @@ use super::entity_ids::*;
 use flo_binding::*;
 
 use futures::prelude::*;
-use futures::task;
-use futures::task::{Poll, Context};
-use futures::future;
-use futures::channel::oneshot;
 
 use std::any::{TypeId, Any};
 use std::sync::*;
-use std::pin::*;
 use std::collections::{HashMap};
 
 #[cfg(feature="properties")] 
@@ -32,33 +27,6 @@ lazy_static! {
 /// Some property requests can respond with a value (eg: a binding)
 ///
 struct InternalPropertyResponse(Box<dyn Send + Any>);
-
-///
-/// Core data shared between a property sink and a property stream
-///
-struct PropertyStreamCore<TValue> {
-    is_closed:  bool,
-    next_value: Option<TValue>,
-    waker:      Option<task::Waker>,
-}
-
-///
-/// Sink used for sending property values
-///
-/// This has the property that if the last value was not read before a new value is received, the new value
-/// will replace it. This is suitable for properties, which have a 'current' value and where intermediate values
-/// are considered outdated.
-///
-pub struct PropertySink<TValue> {
-    core: Arc<Mutex<PropertyStreamCore<TValue>>>,
-}
-
-///
-/// Receiver for values sent by the property sink
-///
-pub struct PropertyStream<TValue> {
-    core: Arc<Mutex<PropertyStreamCore<TValue>>>,
-}
 
 ///
 /// A single value property is defined in a format that's suitable for use with the `flo_binding` library. That is, as a stream of
@@ -111,9 +79,6 @@ where
 
     /// Removes the property with the specified name
     DestroyProperty(PropertyReference),
-
-    /// Sends changes to the property to the specified property sink. The stream will be closed if the property is destroyed or if the source stream is destroyed.
-    Follow(PropertyReference, PropertySink<TValue>),
 
     /// Retrieves the `BindRef<TValue>` containing this property (this shares the data more efficiently than Follow does)
     Get(PropertyReference),
@@ -194,134 +159,6 @@ impl PropertyReference {
     }
 }
 
-impl<TValue> PropertySink<TValue> {
-    fn send_now(&self, item: TValue) -> Result<(), ()> {
-        let waker = {
-            let mut core    = self.core.lock().unwrap();
-
-            // Is an error if the stream has closed
-            if core.is_closed {
-                return Err(());
-            }
-
-            // We always replace the next value (as this is a stream of states, so any previous state is now outdated)
-            core.next_value = Some(item);
-
-            // Take the waker in order to wake up the stream, if it's asleep
-            core.waker.take()
-        };
-
-        if let Some(waker) = waker {
-            waker.wake();
-        }
-
-        Ok(())
-    }
-}
-
-impl<TValue> Drop for PropertySink<TValue> {
-    fn drop(&mut self) {
-        // We just close straight away
-        let waker = {
-            let mut core    = self.core.lock().unwrap();
-            core.is_closed  = true;
-
-            // Take the waker in order to wake up the stream, if it's asleep
-            core.waker.take()
-        };
-
-        if let Some(waker) = waker {
-            waker.wake();
-        }
-    }
-}
-
-impl<TValue> Sink<TValue> for PropertySink<TValue> {
-    type Error = ();
-
-    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // Always ready
-        Poll::Ready(Ok(()))
-    }
-
-    fn start_send(self: Pin<&mut Self>, item: TValue) -> Result<(), Self::Error> {
-        self.send_now(item)
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // Always flushed
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // We just close straight away
-        let waker = {
-            let mut core    = self.core.lock().unwrap();
-            core.is_closed  = true;
-
-            // Take the waker in order to wake up the stream, if it's asleep
-            core.waker.take()
-        };
-
-        if let Some(waker) = waker {
-            waker.wake();
-        }
-
-        Poll::Ready(Ok(()))
-    }
-}
-
-impl<TValue> Stream for PropertyStream<TValue> {
-    type Item = TValue;
-
-    fn poll_next(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Option<TValue>> {
-        let mut core = self.core.lock().unwrap();
-
-        if core.is_closed {
-            // Result is 'None' if the sink has been closed
-            Poll::Ready(None)
-        } else if let Some(value) = core.next_value.take() {
-            // Return the value if one is ready
-            Poll::Ready(Some(value))
-        } else {
-            // Update the waker
-            core.waker = Some(context.waker().clone());
-
-            // Wait for the value to become available
-            Poll::Pending
-        }
-    }
-}
-
-impl<TValue> Drop for PropertyStream<TValue> {
-    fn drop(&mut self) {
-        // Mark the core as closed (sink will return an error next time we try to send to it)
-        let mut core    = self.core.lock().unwrap();
-        core.is_closed  = true;
-    }
-}
-
-///
-/// Creates a stream and a sink suitable for sending property values
-///
-/// Property values are considered states, and the stream is a stream of the 'latest state' updates for a property only. Ie, if
-/// two values are sent to the property sink, but the stream is only read after the second value is sent, the stream will only
-/// contain the second value.
-///
-pub fn property_stream<TValue>() -> (PropertySink<TValue>, PropertyStream<TValue>) {
-    let core    = PropertyStreamCore {
-        is_closed:  false,
-        next_value: None,
-        waker:      None,
-    };
-    let core    = Arc::new(Mutex::new(core));
-
-    let sink    = PropertySink { core: Arc::clone(&core) };
-    let stream  = PropertyStream { core: Arc::clone(&core) };
-
-    (sink, stream)
-}
-
 ///
 /// Retrieves an entity channel to talk to the properties entity about properties of type `TValue`. This is the same as calling `context.send_to()`
 /// except this will ensure a suitable conversion for communicating with the properties entity is set up. That is `send_to()` won't work until this
@@ -389,57 +226,14 @@ struct PropertiesState {
 /// Data associated with a property
 ///
 struct Property<TValue> {
-    /// Used to signal to the property runner that the property is no longer active
-    stop_property: Option<oneshot::Sender<()>>,
-
     /// The current value, if known
     current_value: BindRef<TValue>,
-
-    /// The sinks where changes to this property should be sent
-    sinks: Vec<Option<PropertySink<TValue>>>,
-}
-
-impl<TValue> Drop for Property<TValue> {
-    fn drop(&mut self) {
-        // Signal the future that's running this property that it's done
-        if let Some(stop_property) = self.stop_property.take() {
-            stop_property.send(()).ok();
-        }
-    }
-}
-
-///
-/// The runtime for a single property (dispatches changes to the sinks)
-///
-async fn run_property<TValue>(property: Arc<Mutex<Property<TValue>>>, values: BindRef<TValue>, stop_receiver: oneshot::Receiver<()>)
-where
-    TValue: 'static + PartialEq + Clone + Send + Sized,
-{
-    // Loop until the values stream closes, or the stop receiver signals
-    future::select(stop_receiver,
-        async move {
-            let mut values = follow(values).boxed();
-
-            while let Some(value) = values.next().await {
-                // Lock the property
-                let mut property = property.lock().unwrap();
-
-                // Signal the sinks, freeing any that no longer exist
-                for maybe_sink in property.sinks.iter_mut() {
-                    if let Some(sink) = maybe_sink {
-                        if sink.send_now(value.clone()).is_err() {
-                            *maybe_sink = None;
-                        }
-                    }
-                }
-            }
-        }.boxed()).await;
 }
 
 ///
 /// Processes a message, where the message is expected to be of a particular type
 ///
-fn process_message<TValue>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, context: &Arc<SceneContext>) -> Option<BindRef<TValue>>
+fn process_message<TValue>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, _context: &Arc<SceneContext>) -> Option<BindRef<TValue>>
 where
     TValue: 'static + PartialEq + Clone + Send + Sized,
 {
@@ -452,26 +246,20 @@ where
     use PropertyRequest::*;
     match message {
         CreateProperty(definition) => { 
-            // Create the property
-            let (stop_sender, stop_receiver)    = oneshot::channel();
-            let property                        = Property::<TValue> {
-                stop_property:  Some(stop_sender),
-                current_value:  definition.values.clone(),
-                sinks:          vec![],
-            };
-            let property                        = Arc::new(Mutex::new(property));
-
-            // Store a copy of the property in the state (we use the entity registry to know which entities exist)
             let owner   = definition.owner;
             let name    = definition.name;
             let values  = definition.values;
 
+            // Create the property
+            let property                        = Property::<TValue> {
+                current_value:  values,
+            };
+            let property                        = Arc::new(Mutex::new(property));
+
+            // Store a copy of the property in the state (we use the entity registry to know which entities exist)
             if let Some(entity_properties) = state.properties.get_mut(&owner) {
                 entity_properties.insert(name, Box::new(Arc::clone(&property)));
             }
-
-            // Run the property in a background future
-            context.run_in_background(run_property(property, values, stop_receiver)).ok();
 
             None
         }
@@ -479,28 +267,6 @@ where
         DestroyProperty(reference) => {
             if let Some(entity_properties) = state.properties.get_mut(&reference.owner) {
                 entity_properties.remove(&reference.name);
-            }
-
-            None
-        }
-
-        Follow(reference, sink) => {
-            // See if there's a property with the appropriate name
-            if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
-                // Try to retrieve the internal value (won't be able to if it's the wrong type)
-                if let Some(property) = property.downcast_mut::<Arc<Mutex<Property<TValue>>>>() {
-                    let mut property = property.lock().unwrap();
-
-                    // If there's a current value, then send that immediately to the sink
-                    sink.send_now(property.current_value.get()).ok();
-
-                    // Add the sink to the property
-                    if let Some(empty_entry) = property.sinks.iter_mut().filter(|item| item.is_none()).next() {
-                        *empty_entry = Some(sink);
-                    } else {
-                        property.sinks.push(Some(sink));
-                    }
-                }
             }
 
             None
