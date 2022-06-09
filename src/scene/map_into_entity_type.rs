@@ -34,6 +34,31 @@ impl MapIntoEntityType {
     }
 
     ///
+    /// Creates a mapping from one type to another using a mapping function
+    ///
+    pub fn with_map_fn<TSource, TTarget, TMapFn>(map_fn: TMapFn) -> MapIntoEntityType
+    where
+        TSource:    'static + Send,
+        TTarget:    'static + Send,
+        TMapFn:     'static + Send + Sync + Fn(TSource) -> TTarget,
+    {
+        // Box a function to convert from source to target
+        let map_fn: Arc<dyn Sync + Send + Fn(Box<dyn Send + Any>) -> Option<TTarget>> = Arc::new(move |src: Box<dyn Send + Any>| {
+            let mut src = src;
+            let src     = src.downcast_mut::<Option<TSource>>()?;
+            let src     = src.take()?;
+            let tgt     = map_fn(src);
+
+            Some(tgt)
+        });
+
+        // Box again to create the 'any' version of the function
+        MapIntoEntityType {
+            map_fn: Box::new(map_fn)
+        }
+    }
+
+    ///
     /// Returns the conversion function for mapping from a source to a target type
     ///
     /// The value is a boxed 'Any' of `Option<TTarget>`. We use an option here as Box<Any> doesn't have a way of otherwise

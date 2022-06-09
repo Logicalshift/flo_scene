@@ -199,6 +199,28 @@ impl SceneCore {
     }
 
     ///
+    /// Specifies an arbitrary mapping between two responses
+    ///
+    /// This is slightly more unsafe than `convert_response` as conversions can overwrite each other, but provides more
+    /// flexibility in case the converted types cannot have an 'Into' sensibly declared for them.
+    ///
+    pub (crate) fn map_response<TOriginalResponse, TNewResponse, TMapFn>(&mut self, map_fn: TMapFn)
+        where
+        TOriginalResponse:  'static + Send,
+        TNewResponse:       'static + Send,
+        TMapFn:             'static + Send + Sync + Fn(TOriginalResponse) -> TNewResponse,
+    {
+        // Create a converter from TOriginalResponse to TNewResponse
+        let converter       = MapIntoEntityType::with_map_fn::<TOriginalResponse, TNewResponse, _>(map_fn);
+        let original_type   = TypeId::of::<TOriginalResponse>();
+        let new_type        = TypeId::of::<TNewResponse>();
+
+        // Any entity that accepts TNewResponse can also accept TOriginalResponse
+        self.map_for_response.entry(original_type).or_insert_with(|| HashMap::new())
+            .insert(new_type, converter);
+    }
+
+    ///
     /// Requests that we send messages to a channel for a particular entity
     ///
     pub (crate) fn send_to<TMessage, TResponse>(&mut self, entity_id: EntityId) -> Result<BoxedEntityChannel<'static, TMessage, TResponse>, EntityChannelError> 

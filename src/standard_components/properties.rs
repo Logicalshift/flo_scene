@@ -355,7 +355,7 @@ where
 
     // Ensure that the message is converted to an internal request
     context.convert_message::<PropertyRequest<TValue>, InternalPropertyRequest>()?;
-    // TODO: context.convert_response::<InternalPropertyResponse, Option<BindRef<TValue>>>()?;
+    context.map_response::<Option<InternalPropertyResponse>, Option<BindRef<TValue>>, _>(|internal_response| None)?;
 
     // Send messages to the properties entity
     context.send_to(entity_id)
@@ -512,6 +512,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
     };
 
     context.convert_message::<EntityUpdate, InternalPropertyRequest>().unwrap();
+    context.map_response::<Option<InternalPropertyResponse>, (), _>(|_| ()).unwrap();
 
     // Create the entity itself
     context.create_entity(entity_id, move |context, mut messages| async move {

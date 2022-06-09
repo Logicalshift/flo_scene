@@ -189,6 +189,34 @@ impl SceneContext {
     }
 
     ///
+    /// Specify that entities that can return responses of type `TOriginalResponse` can also return messages of type `TNewResponse`, using a map function
+    ///
+    /// That is, if an entity can be addressed using `EntityChannel<Response=TOriginalResponse>` it will automatically convert from `TNewResponse`
+    /// so that `EntityChannel<Response=TNewResponse>` also works.
+    ///
+    /// Note that while this is more general than `convert_response`, it's a lot less safe in the case where it's called multiple times as it may
+    /// change the behaviour of something else if the map function is redefined.
+    ///
+    pub fn map_response<TOriginalResponse, TNewResponse, TMapFn>(&self, map_fn: TMapFn) -> Result<(), SceneContextError> 
+    where
+        TOriginalResponse:  'static + Send,
+        TNewResponse:       'static + Send,
+        TMapFn:             'static + Send + Sync + Fn(TOriginalResponse) -> TNewResponse,
+    {
+        self.scene_core()?.future_desync(move |core| async move {
+            // Register that one type can be converted to another
+            core.map_response(map_fn);
+
+            // Send to the entity registry
+            if let Ok(channel) = core.send_to::<InternalRegistryRequest, ()>(ENTITY_REGISTRY) {
+                core.send_background_message(channel, InternalRegistryRequest::ConvertResponse(TypeId::of::<TOriginalResponse>(), TypeId::of::<TNewResponse>()));
+            }
+        }.boxed()).detach();
+
+        Ok(())
+    }
+
+    ///
     /// Creates a channel to send messages in this context
     ///
     pub fn send_to<TMessage, TResponse>(&self, entity_id: EntityId) -> Result<BoxedEntityChannel<'static, TMessage, TResponse>, EntityChannelError>
