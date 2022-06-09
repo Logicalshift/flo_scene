@@ -119,7 +119,10 @@ impl SceneCore {
             if entity_id != ENTITY_REGISTRY {
                 scene_context.send::<_, ()>(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>(), TypeId::of::<TResponse>())).await.ok();
             } else {
-                scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>(), TypeId::of::<TResponse>())).await.ok();
+                let send = scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>(), TypeId::of::<TResponse>()));
+                scene_context.run_in_background(async move {
+                    send.await.ok();
+                }).ok();
             }
 
             let future = scheduler().future_desync(&queue, move || async move {
