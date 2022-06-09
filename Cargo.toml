@@ -9,10 +9,9 @@ repository      = "https://github.com/Logicalshift/flo_scene"
 description     = "Entity-messaging system for composing large programs from small programs"
 categories      = [ "concurrency", "data-structures" ]
 keywords        = [ "message-queue" ]
-resolver        = "2"
 
 [features]
-default         = [ "timer", "logging", "properties" ] 
+default         = [ "timer", "logging", "properties", "test-scene" ] 
 test-scene      = [ "futures-timer" ]
 timer           = [ "futures-timer" ]
 logging         = [ "log" ]
