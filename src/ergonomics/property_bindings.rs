@@ -99,28 +99,16 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
 
         async move {
             // Retrieve the properties channel
-            let mut channel     = properties_channel::<TValue>(PROPERTIES, &context).await?;
-
-            // Create a stream and a sink to follow the property
-            let (sink, stream)  = property_stream();
+            let mut channel = properties_channel::<TValue>(PROPERTIES, &context).await?;
 
             // Request that the channel send values to the sink
-            channel.send(PropertyRequest::Follow(reference, sink)).await?;
+            let binding     = channel.send(PropertyRequest::Get(reference)).await?;
 
-            // Try to fetch an initial value for the property
-            let mut stream      = stream;
-            let initial_value   = stream.next().await;
-            let initial_value   = if let Some(initial_value) = initial_value {
-                initial_value
+            if let Some(binding) = binding {
+                Ok(binding)
             } else {
-                return Err(EntityChannelError::NoSuchProperty);
-            };
-
-            // Create a stream binding from the stream
-            let binding = bind_stream(stream, initial_value, |_last_item, item| item);
-
-            // Turn into a BindRef
-            Ok(BindRef::from(binding))
+                Err(EntityChannelError::NoSuchProperty)
+            }
         }.boxed()
     }
 }
