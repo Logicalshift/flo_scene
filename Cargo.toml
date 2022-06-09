@@ -26,6 +26,3 @@ flo_binding     = { version = "2.2", optional = true }
 flo_rope        = { version = "0.1", optional = true }
 log             = { version = "0.4", optional = true }
 lazy_static     = { version = "1.4", optional = true }
-
-[patch.crates-io]
-flo_binding     = { git = "https://github.com/Logicalshift/flo_binding", branch = "v2.2" }

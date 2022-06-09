@@ -22,7 +22,8 @@ dependencies = [
 [[package]]
 name = "flo_binding"
 version = "2.2.0"
-source = "git+https://github.com/Logicalshift/flo_binding?branch=v2.2#31fcb903be2f160f3524ba46ae289fae5b70dff6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "977896e629aff194e818cff206edf14ea8dc1dc172d66f893d1010bedea5f3d8"
 dependencies = [
  "desync",
  "flo_rope 0.2.0",
