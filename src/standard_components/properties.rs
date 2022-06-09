@@ -6,8 +6,9 @@ use crate::stream_entity_response_style::*;
 use super::entity_registry::*;
 use super::entity_ids::*;
 
+use flo_binding::*;
+
 use futures::prelude::*;
-use futures::stream::{BoxStream};
 use futures::task;
 use futures::task::{Poll, Context};
 use futures::future;
@@ -66,7 +67,7 @@ pub struct PropertyStream<TValue> {
 ///
 pub struct PropertyDefinition<TValue> 
 where
-    TValue: 'static + Send + Sized,
+    TValue: 'static + PartialEq + Clone + Send + Sized,
 {
     /// The entity that owns this property
     pub owner: EntityId,
@@ -78,7 +79,7 @@ where
     ///
     /// The property won't be created until this has returned at least one value. The property will stop updating but not be destroyed
     /// if this stream is closed.
-    pub values: BoxStream<'static, TValue>,
+    pub values: BindRef<TValue>,
 }
 
 ///
@@ -97,7 +98,7 @@ pub struct PropertyReference {
 ///
 pub enum PropertyRequest<TValue> 
 where
-    TValue: 'static + Send + Sized,
+    TValue: 'static + PartialEq + Clone + Send + Sized,
 {
     /// Creates a new property
     CreateProperty(PropertyDefinition<TValue>),
@@ -128,7 +129,7 @@ enum InternalPropertyRequest {
 
 impl<TValue> From<PropertyRequest<TValue>> for InternalPropertyRequest 
 where
-    TValue: 'static + Send
+    TValue: 'static + PartialEq + Clone + Send + Sized,
 {
     fn from(req: PropertyRequest<TValue>) -> InternalPropertyRequest {
         // The internal value is Option<PropertyRequest<TValue>>, which allows the caller to take the value out of the box later on
@@ -147,16 +148,27 @@ impl From<EntityUpdate> for InternalPropertyRequest {
 
 impl<TValue> PropertyDefinition<TValue>
 where
-    TValue: 'static + Send + Sized,
+    TValue: 'static + PartialEq + Clone + Send + Sized,
 {
     ///
-    /// Creates a new property definition
+    /// Creates a new property definition that has the most recent value received on a stream
     ///
-    pub fn new(owner: EntityId, name: &str, values: BoxStream<'static, TValue>) -> PropertyDefinition<TValue> {
+    pub fn from_stream(owner: EntityId, name: &str, values: impl 'static + Send + Unpin + Stream<Item=TValue>, default_value: TValue) -> PropertyDefinition<TValue> {
         PropertyDefinition {
             owner:  owner,
             name:   Arc::new(name.to_string()),
-            values: values,
+            values: BindRef::from(bind_stream(values, default_value, |_old, new| new)),
+        }
+    }
+
+    ///
+    /// Creates a new property definition from an existing bound value
+    ///
+    pub fn from_binding(owner: EntityId, name: &str, values: impl Into<BindRef<TValue>>) -> PropertyDefinition<TValue> {
+        PropertyDefinition {
+            owner:  owner,
+            name:   Arc::new(name.to_string()),
+            values: values.into(),
         }
     }
 }
@@ -311,7 +323,7 @@ pub fn property_stream<TValue>() -> (PropertySink<TValue>, PropertyStream<TValue
 ///
 pub async fn properties_channel<TValue>(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>, ()>, EntityChannelError>
 where
-    TValue: 'static + Send + Clone + Sized,
+    TValue: 'static + PartialEq + Clone + Send + Sized,
 {
     // Add a processor for this type if one doesn't already exist
     {
@@ -367,14 +379,14 @@ impl<TValue> Drop for Property<TValue> {
 ///
 /// The runtime for a single property (dispatches changes to the sinks)
 ///
-async fn run_property<TValue>(property: Arc<Mutex<Property<TValue>>>, values: BoxStream<'static, TValue>, stop_receiver: oneshot::Receiver<()>)
+async fn run_property<TValue>(property: Arc<Mutex<Property<TValue>>>, values: BindRef<TValue>, stop_receiver: oneshot::Receiver<()>)
 where
-    TValue: 'static + Send + Clone + Sized,
+    TValue: 'static + PartialEq + Clone + Send + Sized,
 {
     // Loop until the values stream closes, or the stop receiver signals
     future::select(stop_receiver,
         async move {
-            let mut values = values;
+            let mut values = follow(values).boxed();
 
             while let Some(value) = values.next().await {
                 // Lock the property
@@ -400,7 +412,7 @@ where
 ///
 fn process_message<TValue>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, context: &Arc<SceneContext>)
 where
-    TValue: 'static + Send + Clone + Sized,
+    TValue: 'static + PartialEq + Clone + Send + Sized,
 {
     // Try to unbox the message. The type is Option<PropertyRequest> so we can take it out of the 'Any' reference
     let mut any_message = any_message;

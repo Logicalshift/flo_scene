@@ -17,18 +17,16 @@ pub trait SceneContextPropertiesExt {
     ///
     /// Creates a property from a `flo_binding` binding on the current entity
     ///
-    fn property_create<TValue, TBound>(&self, property_name: &str, binding: TBound) -> BoxFuture<'static, Result<(), EntityChannelError>>
+    fn property_create<TValue>(&self, property_name: &str, binding: impl Into<BindRef<TValue>>) -> BoxFuture<'static, Result<(), EntityChannelError>>
     where 
-        TBound: 'static + Bound<TValue>,
-        TValue: 'static + Clone + Send + Unpin;
+        TValue: 'static + PartialEq + Clone + Send + Sized;
 
     ///
     /// Creates a property from a `flo_binding` binding on a different entity
     ///
-    fn property_create_on_entity<TValue, TBound>(&self, entity_id: EntityId, property_name: &str, binding: TBound) -> BoxFuture<'static, Result<(), EntityChannelError>>
+    fn property_create_on_entity<TValue>(&self, entity_id: EntityId, property_name: &str, binding: impl Into<BindRef<TValue>>) -> BoxFuture<'static, Result<(), EntityChannelError>>
     where 
-        TBound: 'static + Bound<TValue>,
-        TValue: 'static + Clone + Send + Unpin;
+        TValue: 'static + PartialEq + Clone + Send + Sized;
 
     ///
     /// Creates a binding from a known entity ID and property name
@@ -42,14 +40,13 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
     ///
     /// Creates a property from a `flo_binding` binding on the current entity
     ///
-    fn property_create<TValue, TBound>(&self, property_name: &str, binding: TBound) -> BoxFuture<'static, Result<(), EntityChannelError>>
+    fn property_create<TValue>(&self, property_name: &str, binding: impl Into<BindRef<TValue>>) -> BoxFuture<'static, Result<(), EntityChannelError>>
     where 
-        TBound: 'static + Bound<TValue>,
-        TValue: 'static + Clone + Send + Unpin,
+        TValue: 'static + PartialEq + Clone + Send + Sized,
     {
         let context             = Arc::clone(self);
         let entity_id           = self.entity();
-        let property_definition = entity_id.map(|entity_id| PropertyDefinition::new(entity_id, property_name, follow(binding).boxed()));
+        let property_definition = entity_id.map(|entity_id| PropertyDefinition::from_binding(entity_id, property_name, binding));
 
         async move {
             if let Some(property_definition) = property_definition {
@@ -70,13 +67,12 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
     ///
     /// Creates a property from a `flo_binding` binding on a different entity
     ///
-    fn property_create_on_entity<TValue, TBound>(&self, entity_id: EntityId, property_name: &str, binding: TBound) -> BoxFuture<'static, Result<(), EntityChannelError>>
+    fn property_create_on_entity<TValue>(&self, entity_id: EntityId, property_name: &str, binding: impl Into<BindRef<TValue>>) -> BoxFuture<'static, Result<(), EntityChannelError>>
     where 
-        TBound: 'static + Bound<TValue>,
-        TValue: 'static + Clone + Send + Unpin,
+        TValue: 'static + PartialEq + Clone + Send + Sized,
     {
         let context             = Arc::clone(self);
-        let property_definition = PropertyDefinition::new(entity_id, property_name, follow(binding).boxed());
+        let property_definition = PropertyDefinition::from_binding(entity_id, property_name, binding);
 
         async move {
             // Retrieve the channel
@@ -132,10 +128,9 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
 ///
 /// Creates a property from a `flo_binding` binding on the current entity
 ///
-pub async fn property_create<TValue, TBound>(property_name: &str, binding: TBound) -> Result<(), EntityChannelError>
+pub async fn property_create<TValue>(property_name: &str, binding: impl Into<BindRef<TValue>>) -> Result<(), EntityChannelError>
 where 
-    TBound: 'static + Bound<TValue>,
-    TValue: 'static + Clone + Send + Unpin
+    TValue: 'static + Clone + Send + PartialEq,
 {
     SceneContext::current().property_create(property_name, binding).await
 }
@@ -143,10 +138,9 @@ where
 ///
 /// Creates a property from a `flo_binding` binding on a different entity
 ///
-pub async fn property_create_on_entity<TValue, TBound>(entity_id: EntityId, property_name: &str, binding: TBound) -> Result<(), EntityChannelError>
+pub async fn property_create_on_entity<TValue>(entity_id: EntityId, property_name: &str, binding: impl Into<BindRef<TValue>>) -> Result<(), EntityChannelError>
 where 
-    TBound: 'static + Bound<TValue>,
-    TValue: 'static + Clone + Send + Unpin
+    TValue: 'static + Clone + Send + PartialEq,
 {
     SceneContext::current().property_create_on_entity(entity_id, property_name, binding).await
 }
