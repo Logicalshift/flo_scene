@@ -302,10 +302,10 @@ where
             let values  = definition.values;
 
             // Create the property
-            let property                        = Property::<TValue> {
+            let property    = Property::<TValue> {
                 current_value:  values,
             };
-            let property                        = Arc::new(Mutex::new(property));
+            let property    = Arc::new(property);
 
             // Store a copy of the property in the state (we use the entity registry to know which entities exist)
             if let Some(entity_properties) = state.properties.get_mut(&owner) {
@@ -326,9 +326,9 @@ where
         Get(reference) => {
             // See if there's a property with the appropriate name
             if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
-                if let Some(property) = property.downcast_mut::<Arc<Mutex<Property<TValue>>>>() {
+                if let Some(property) = property.downcast_mut::<Arc<Property<TValue>>>() {
                     // Return the binding to the caller
-                    Some(property.lock().unwrap().current_value.clone())
+                    Some(property.current_value.clone())
                 } else {
                     None
                 }
