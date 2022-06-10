@@ -270,6 +270,18 @@ struct Property<TValue> {
 }
 
 ///
+/// Data associated with a rope property
+///
+struct RopeProperty<TCell, TAttribute> 
+where
+    TCell:      'static + Send + Unpin + Clone + PartialEq,
+    TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default,
+{
+    /// The current value, if known
+    current_value: RopeBinding<TCell, TAttribute>,
+}
+
+///
 /// Processes a message, where the message is expected to be of a particular type
 ///
 fn process_message<TValue>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, _context: &Arc<SceneContext>) -> Option<BindRef<TValue>>
@@ -317,6 +329,65 @@ where
                 if let Some(property) = property.downcast_mut::<Arc<Mutex<Property<TValue>>>>() {
                     // Return the binding to the caller
                     Some(property.lock().unwrap().current_value.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+    }
+}
+
+///
+/// Processes a message, where the message is expected to be of a particular type
+///
+fn process_rope_message<TCell, TAttribute>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, _context: &Arc<SceneContext>) -> Option<RopeBinding<TCell, TAttribute>>
+where
+    TCell:      'static + Send + Unpin + Clone + PartialEq,
+    TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default,
+{
+    // Try to unbox the message. The type is Option<PropertyRequest> so we can take it out of the 'Any' reference
+    let mut any_message = any_message;
+    let message         = any_message.downcast_mut::<Option<RopePropertyRequest<TCell, TAttribute>>>().and_then(|msg| msg.take());
+    let message         = if let Some(message) = message { message } else { return None; };
+
+    // The action depends on the message content
+    use RopePropertyRequest::*;
+    match message {
+        CreateProperty(definition) => { 
+            let owner   = definition.owner;
+            let name    = definition.name;
+            let values  = definition.values;
+
+            // Create the property
+            let property    = RopeProperty::<TCell, TAttribute> {
+                current_value:  values,
+            };
+            let property    = Arc::new(property);
+
+            // Store a copy of the property in the state (we use the entity registry to know which entities exist)
+            if let Some(entity_properties) = state.properties.get_mut(&owner) {
+                entity_properties.insert(name, Box::new(Arc::clone(&property)));
+            }
+
+            None
+        }
+
+        DestroyProperty(reference) => {
+            if let Some(entity_properties) = state.properties.get_mut(&reference.owner) {
+                entity_properties.remove(&reference.name);
+            }
+
+            None
+        }
+
+        Get(reference) => {
+            // See if there's a property with the appropriate name
+            if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
+                if let Some(property) = property.downcast_mut::<Arc<RopeProperty<TCell, TAttribute>>>() {
+                    // Return the binding to the caller
+                    Some(property.current_value.clone())
                 } else {
                     None
                 }
