@@ -4,7 +4,11 @@ use flo_scene::test::*;
 use futures::prelude::*;
 use futures::channel::mpsc;
 
+use futures_timer::{Delay};
+
 #[cfg(feature="properties")] use flo_binding::*;
+
+use std::time::{Duration};
 
 #[test]
 #[cfg(feature="properties")]
@@ -72,7 +76,7 @@ fn follow_string_property() {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
 
             // Create a channel to the properties object
-            let mut channel                         = properties_channel::<String>(PROPERTIES, &SceneContext::current()).await.unwrap();
+            let mut channel         = properties_channel::<String>(PROPERTIES, &SceneContext::current()).await.unwrap();
 
             // Create a string property
             let (string_sender, string_receiver)    = mpsc::channel(5);
@@ -256,5 +260,44 @@ fn property_unbinds_when_entity_destroyed() {
     }).unwrap();
 
     // Test the scene we just set up
+    test_scene(scene);
+}
+
+#[test]
+#[cfg(feature="properties")]
+fn entities_property() {
+    let scene = Scene::default();
+
+    let sample_entity = EntityId::new();
+    scene.create_entity(sample_entity, |_ctxt, mut messages| async move {
+        while let Some(msg) = messages.next().await {
+            let _msg: Message<(), ()> = msg;
+        }
+    }).unwrap();
+
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
+        while let Some(msg) = msg.next().await {
+            let msg: Message<(), Vec<SceneTestResult>> = msg;
+
+            // TODO: the property creation is slightly delayed so this delay might be needed (fix so it's not)
+            Delay::new(Duration::from_millis(500)).await;
+
+            let entities            = rope_bind::<EntityId, ()>(PROPERTIES, "Entities").await.unwrap();
+            let mut entity_stream   = entities.follow_changes();
+
+            loop {
+                // Check for the test entity in the list (test fails if it's never found/this times out)
+                if entities.read_cells(0..entities.len()).any(|entity_id| entity_id == sample_entity) {
+                    break;
+                }
+
+                // Wait for the entities to update
+                entity_stream.next().await;
+            }
+
+            msg.respond(vec![SceneTestResult::Ok]).ok();
+        }
+    }).unwrap();
+
     test_scene(scene);
 }
