@@ -145,6 +145,48 @@ fn bind_string_property() {
 
 #[test]
 #[cfg(feature="properties")]
+fn bind_char_rope() {
+    let scene = Scene::default();
+
+    // Create a test for this scene
+    scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
+        // Whenever a test is requested...
+        while let Some(msg) = msg.next().await {
+            let msg: Message<(), Vec<SceneTestResult>> = msg;
+
+            // Create a string property from a binding
+            let binding             = RopeBindingMut::<char, ()>::new();
+            rope_create("TestProperty", RopeBinding::from_mutable(&binding)).await.unwrap();
+
+            // Retrieve the binding for the property we just created
+            let value               = rope_bind::<char, ()>(TEST_ENTITY, "TestProperty").await.unwrap();
+            let initial_value       = value.read_cells(0..value.len()).collect::<Vec<_>>();
+
+            // Watch for updates on the bound property
+            let mut value_updates   = value.follow_changes();
+
+            // Update our original binding (which the property is following)
+            binding.replace(0..0, vec!['T', 'e', 's', 't']);
+
+            // Wait for the value to update (as it gets sent via another entity, this is not instant)
+            let _next_value         = value_updates.next().await;
+
+            // Retrieve the updated value via the binding
+            let another_value       = value.read_cells(0..value.len()).collect::<Vec<_>>();
+
+            msg.respond(vec![
+                (initial_value == vec![]).into(),
+                (another_value == vec!['T', 'e', 's', 't']).into(),
+            ]).ok();
+        }
+    }).unwrap();
+
+    // Test the scene we just set up
+    test_scene(scene);
+}
+
+#[test]
+#[cfg(feature="properties")]
 fn property_unbinds_when_entity_destroyed() {
     let scene = Scene::default();
 
