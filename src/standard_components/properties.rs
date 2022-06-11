@@ -7,6 +7,7 @@ use crate::message::*;
 use super::entity_registry::*;
 use super::entity_ids::*;
 
+use flo_rope::*;
 use flo_binding::*;
 
 use futures::prelude::*;
@@ -149,6 +150,17 @@ where
         InternalPropertyRequest::AnyRequest(Box::new(Some(req)))
     }
 }
+impl<TCell, TAttribute> From<RopePropertyRequest<TCell, TAttribute>> for InternalPropertyRequest 
+where
+    TCell:      'static + Send + Unpin + Clone + PartialEq,
+    TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default,
+{
+    fn from(req: RopePropertyRequest<TCell, TAttribute>) -> InternalPropertyRequest {
+        // The internal value is Option<PropertyRequest<TValue>>, which allows the caller to take the value out of the box later on
+        InternalPropertyRequest::AnyRequest(Box::new(Some(req)))
+    }
+}
+
 
 impl From<EntityUpdate> for InternalPropertyRequest {
     fn from(req: EntityUpdate) -> InternalPropertyRequest {
@@ -179,6 +191,34 @@ where
     ///
     pub fn from_binding(owner: EntityId, name: &str, values: impl Into<BindRef<TValue>>) -> PropertyDefinition<TValue> {
         PropertyDefinition {
+            owner:  owner,
+            name:   Arc::new(name.to_string()),
+            values: values.into(),
+        }
+    }
+}
+
+impl<TCell, TAttribute> RopePropertyDefinition<TCell, TAttribute>
+where
+    TCell:      'static + Send + Unpin + Clone + PartialEq,
+    TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default
+{
+    ///
+    /// Creates a new property definition that has the most recent value received on a stream
+    ///
+    pub fn from_stream(owner: EntityId, name: &str, values: impl 'static + Send + Unpin + Stream<Item=RopeAction<TCell, TAttribute>>) -> RopePropertyDefinition<TCell, TAttribute> {
+        RopePropertyDefinition {
+            owner:  owner,
+            name:   Arc::new(name.to_string()),
+            values: RopeBinding::from_stream(values),
+        }
+    }
+
+    ///
+    /// Creates a new property definition from an existing bound value
+    ///
+    pub fn from_binding(owner: EntityId, name: &str, values: impl Into<RopeBinding<TCell, TAttribute>>) -> RopePropertyDefinition<TCell, TAttribute> {
+        RopePropertyDefinition {
             owner:  owner,
             name:   Arc::new(name.to_string()),
             values: values.into(),
@@ -240,6 +280,60 @@ where
             if let Some(optional_bindref) = any_box.downcast_mut::<Option<BindRef<TValue>>>() {
                 // Take the response to de-any-fy it
                 optional_bindref.take()
+            } else {
+                // Wrong type of response
+                None
+            }
+        } else {
+            None
+        }
+    })?;
+
+    // Send messages to the properties entity
+    context.send_to(entity_id)
+}
+
+///
+/// Retrieves an entity channel to talk to the properties entity about rope properties of type `<TCell, TAttribute>.
+///
+/// Typically `entity_id` should be `PROPERTIES` here, but it's possible to run multiple sets of properties in a given scene so other values are
+/// possible if `create_properties_entity()` has been called for other entity IDs.
+///
+pub async fn rope_properties_channel<TCell, TAttribute>(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, RopePropertyRequest<TCell, TAttribute>, Option<RopeBinding<TCell, TAttribute>>>, EntityChannelError>
+where
+    TCell:      'static + Send + Unpin + Clone + PartialEq,
+    TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default,
+{
+    // Add a processor for this type if one doesn't already exist
+    {
+        let mut message_processors = MESSAGE_PROCESSORS.write().unwrap();
+
+        message_processors.entry(TypeId::of::<Option<RopePropertyRequest<TCell, TAttribute>>>()).or_insert_with(|| {
+            Box::new(|message, state, context| {
+                let response = process_rope_message::<TCell, TAttribute>(message, state, context);
+                let response = if let Some(response) = response {
+                    Some(InternalPropertyResponse(Box::new(Some(response))))
+                } else {
+                    None
+                };
+
+                response
+            })
+        });
+    }
+
+    // Before returning a channel, wait for the properties entity to become ready
+    // (This is most useful at startup when we need the entity tracking to start up before anything else)
+    context.send::<_, ()>(PROPERTIES, InternalPropertyRequest::Ready).await.ok();
+
+    // Ensure that the message is converted to an internal request
+    context.convert_message::<RopePropertyRequest<TCell, TAttribute>, InternalPropertyRequest>()?;
+    context.map_response::<Option<InternalPropertyResponse>, Option<RopeBinding<TCell, TAttribute>>, _>(|internal_response| {
+        if let Some(InternalPropertyResponse(mut any_box)) = internal_response {
+            // The 'Any' inside InternalPropertyResponse is itself an option (so we can extract the value)
+            if let Some(optional_ropebinding) = any_box.downcast_mut::<Option<RopeBinding<TCell, TAttribute>>>() {
+                // Take the response to de-any-fy it
+                optional_ropebinding.take()
             } else {
                 // Wrong type of response
                 None

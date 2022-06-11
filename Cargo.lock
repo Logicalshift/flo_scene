@@ -26,16 +26,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "977896e629aff194e818cff206edf14ea8dc1dc172d66f893d1010bedea5f3d8"
 dependencies = [
  "desync",
- "flo_rope 0.2.0",
+ "flo_rope",
  "futures",
  "similar",
 ]
-
-[[package]]
-name = "flo_rope"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "934e2de58fcae0ada41e86f12f49f169d2a0349ebd27fc4cfb3d3ba34db827be"
 
 [[package]]
 name = "flo_rope"
@@ -49,7 +43,7 @@ version = "0.1.0"
 dependencies = [
  "desync",
  "flo_binding",
- "flo_rope 0.1.0",
+ "flo_rope",
  "futures",
  "futures-timer",
  "lazy_static",
