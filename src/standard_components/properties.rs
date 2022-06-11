@@ -3,6 +3,7 @@ use crate::context::*;
 use crate::error::*;
 use crate::entity_channel::*;
 use crate::message::*;
+use crate::ergonomics::*;
 
 use super::entity_registry::*;
 use super::entity_ids::*;
@@ -353,6 +354,9 @@ where
 struct PropertiesState {
     /// The properties for each entity in the scene. The value is an `Arc<Mutex<Property<TValue>>>` in an any box
     properties: HashMap<EntityId, HashMap<Arc<String>, Box<dyn Send + Any>>>,
+
+    /// Binding containing the list of registered entities
+    entities: RopeBindingMut<EntityId, ()>,
 }
 
 ///
@@ -503,7 +507,8 @@ where
 pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
     // Create the state for the properties entity
     let mut state   = PropertiesState {
-        properties: HashMap::new()
+        properties: HashMap::new(),
+        entities:   RopeBindingMut::new(),
     };
 
     context.convert_message::<EntityUpdate, InternalPropertyRequest>().unwrap();
@@ -516,6 +521,12 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         if let Some(mut entity_registry) = context.send_to::<_, ()>(ENTITY_REGISTRY).ok() {
             entity_registry.send(EntityRegistryRequest::TrackEntities(properties)).await.ok();
         }
+
+        // Bind the properties for the properties entity itself
+        let entities = RopeBinding::from_mutable(&state.entities);
+        context.run_in_background(async move {
+            rope_create("Entities", entities).await.ok();
+        }).ok();
 
         while let Some(message) = messages.next().await {
             let message: Message<InternalPropertyRequest, Option<InternalPropertyResponse>> = message;
@@ -548,12 +559,18 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                     state.properties.insert(entity_id, HashMap::new());
 
                     responder.send(None).ok();
+
+                    // Add the new entity to the start of the entity list
+                    state.entities.replace(0..0, vec![entity_id]);
                 }
 
-                InternalPropertyRequest::DestroyedEntity(entity_id) => {
-                    state.properties.remove(&entity_id);
+                InternalPropertyRequest::DestroyedEntity(destroyed_entity_id) => {
+                    state.properties.remove(&destroyed_entity_id);
 
                     responder.send(None).ok();
+
+                    // Remove the entity from the list
+                    state.entities.retain_cells(|entity_id| entity_id != &destroyed_entity_id);
                 }
             }
         }
