@@ -34,6 +34,30 @@ pub trait SceneContextPropertiesExt {
     fn property_bind<TValue>(&self, entity_id: EntityId, property_name: &str) -> BoxFuture<'static, Result<BindRef<TValue>, EntityChannelError>>
     where
         TValue: 'static + Clone + Send + PartialEq;
+
+    ///
+    /// Creates a rope property from a `RopeBinding` on the current entity
+    ///
+    fn rope_create<TCell, TAttribute>(&self, property_name: &str, binding: impl Into<RopeBinding<TCell, TAttribute>>) -> BoxFuture<'static, Result<(), EntityChannelError>>
+    where 
+        TCell:      'static + Send + Unpin + Clone + PartialEq,
+        TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default;
+
+    ///
+    /// Creates a property from a `flo_binding` binding on a different entity
+    ///
+    fn rope_create_on_entity<TCell, TAttribute>(&self, entity_id: EntityId, property_name: &str, binding: impl Into<RopeBinding<TCell, TAttribute>>) -> BoxFuture<'static, Result<(), EntityChannelError>>
+    where 
+        TCell:      'static + Send + Unpin + Clone + PartialEq,
+        TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default;
+
+    ///
+    /// Creates a binding from a known entity ID and property name
+    ///
+    fn rope_bind<TCell, TAttribute>(&self, entity_id: EntityId, property_name: &str) -> BoxFuture<'static, Result<RopeBinding<TCell, TAttribute>, EntityChannelError>>
+    where 
+        TCell:      'static + Send + Unpin + Clone + PartialEq,
+        TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default;
 }
 
 impl SceneContextPropertiesExt for Arc<SceneContext> {
@@ -111,6 +135,82 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
             }
         }.boxed()
     }
+
+    ///
+    /// Creates a rope property from a `RopeBinding` on the current entity
+    ///
+    fn rope_create<TCell, TAttribute>(&self, property_name: &str, binding: impl Into<RopeBinding<TCell, TAttribute>>) -> BoxFuture<'static, Result<(), EntityChannelError>>
+    where 
+        TCell:      'static + Send + Unpin + Clone + PartialEq,
+        TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default,
+    {
+        let context             = Arc::clone(self);
+        let entity_id           = self.entity();
+        let property_definition = entity_id.map(|entity_id| RopePropertyDefinition::from_binding(entity_id, property_name, binding));
+
+        async move {
+            if let Some(property_definition) = property_definition {
+                // Retrieve the channel
+                let mut channel = rope_properties_channel::<TCell, TAttribute>(PROPERTIES, &context).await?;
+
+                // Create the property
+                channel.send(RopePropertyRequest::CreateProperty(property_definition)).await?;
+
+                Ok(())
+            } else {
+                // No entity set
+                Err(EntityChannelError::NoCurrentScene)
+            }
+        }.boxed()
+    }
+
+    ///
+    /// Creates a property from a `flo_binding` binding on a different entity
+    ///
+    fn rope_create_on_entity<TCell, TAttribute>(&self, entity_id: EntityId, property_name: &str, binding: impl Into<RopeBinding<TCell, TAttribute>>) -> BoxFuture<'static, Result<(), EntityChannelError>>
+    where 
+        TCell:      'static + Send + Unpin + Clone + PartialEq,
+        TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default,
+    {
+        let context             = Arc::clone(self);
+        let property_definition = RopePropertyDefinition::from_binding(entity_id, property_name, binding);
+
+        async move {
+            // Retrieve the channel
+            let mut channel = rope_properties_channel::<TCell, TAttribute>(PROPERTIES, &context).await?;
+
+            // Create the property
+            channel.send(RopePropertyRequest::CreateProperty(property_definition)).await?;
+
+            Ok(())
+        }.boxed()
+    }
+
+    ///
+    /// Creates a binding from a known entity ID and property name
+    ///
+    fn rope_bind<TCell, TAttribute>(&self, entity_id: EntityId, property_name: &str) -> BoxFuture<'static, Result<RopeBinding<TCell, TAttribute>, EntityChannelError>>
+    where 
+        TCell:      'static + Send + Unpin + Clone + PartialEq,
+        TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default,
+    {
+        let context     = Arc::clone(self);
+        let reference   = PropertyReference::new(entity_id, property_name);
+
+        async move {
+            // Retrieve the properties channel
+            let mut channel = rope_properties_channel::<TCell, TAttribute>(PROPERTIES, &context).await?;
+
+            // Request that the channel send values to the sink
+            let binding     = channel.send(RopePropertyRequest::Get(reference)).await?;
+
+            if let Some(binding) = binding {
+                Ok(binding)
+            } else {
+                Err(EntityChannelError::NoSuchProperty)
+            }
+        }.boxed()
+    }
 }
 
 ///
@@ -141,4 +241,37 @@ where
     TValue: 'static + Clone + Send + PartialEq
 {
     SceneContext::current().property_bind(entity_id, property_name).await
+}
+
+///
+/// Creates a rope property from a `RopeBinding` on the current entity
+///
+pub fn rope_create<TCell, TAttribute>(property_name: &str, binding: impl Into<RopeBinding<TCell, TAttribute>>) -> BoxFuture<'static, Result<(), EntityChannelError>>
+where 
+    TCell:      'static + Send + Unpin + Clone + PartialEq,
+    TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default
+{
+    SceneContext::current().rope_create(property_name, binding)
+}
+
+///
+/// Creates a property from a `flo_binding` binding on a different entity
+///
+pub fn rope_create_on_entity<TCell, TAttribute>(entity_id: EntityId, property_name: &str, binding: impl Into<RopeBinding<TCell, TAttribute>>) -> BoxFuture<'static, Result<(), EntityChannelError>>
+where 
+    TCell:      'static + Send + Unpin + Clone + PartialEq,
+    TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default
+{
+    SceneContext::current().rope_create_on_entity(entity_id, property_name, binding)
+}
+
+///
+/// Creates a binding from a known entity ID and property name
+///
+pub fn rope_bind<TCell, TAttribute>(entity_id: EntityId, property_name: &str) -> BoxFuture<'static, Result<RopeBinding<TCell, TAttribute>, EntityChannelError>>
+where 
+    TCell:      'static + Send + Unpin + Clone + PartialEq,
+    TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default
+{
+    SceneContext::current().rope_bind(entity_id, property_name)
 }
