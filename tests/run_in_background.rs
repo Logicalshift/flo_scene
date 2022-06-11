@@ -3,6 +3,7 @@ use flo_scene::test::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
+use futures::channel::oneshot;
 
 #[test]
 fn say_hello_in_background() {
@@ -42,6 +43,34 @@ fn say_hello_in_background() {
             // Wait for the response, and succeed if the result is 'world'
             msg.respond(vec![
                 (received == Some("Hello".to_string())).into()
+            ]).unwrap();
+        }
+    }).unwrap();
+
+    // Test the scene we just set up
+    test_scene(scene);
+}
+
+#[test]
+fn background_has_current_scene() {
+    let scene                                       = Scene::empty();
+
+    // Create a test for this scene
+    scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
+        // Whenever a test is requested...
+        while let Some(msg) = msg.next().await {
+            let msg: Message<(), Vec<SceneTestResult>> = msg;
+
+            let (sender, receiver) = oneshot::channel();
+            context.run_in_background(async move {
+                sender.send(SceneContext::current().entity() == Some(TEST_ENTITY)).ok();
+            }).unwrap();
+
+            let is_ok = receiver.await.unwrap();
+
+            // Wait for the response, and succeed if the result is 'world'
+            msg.respond(vec![
+                is_ok.into()
             ]).unwrap();
         }
     }).unwrap();
