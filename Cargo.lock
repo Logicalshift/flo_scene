@@ -10,9 +10,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "desync"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "515d7406a93a07832e838e672de72fb6d52d7f00c2d2ccffc8dedf23339d43db"
+checksum = "5e6153a36b0b5ab1c0777e6b1c4811b22bb2dc012c62bfce72b098a09f3e679a"
 dependencies = [
  "futures",
  "lazy_static",
@@ -22,7 +22,7 @@ dependencies = [
 [[package]]
 name = "flo_binding"
 version = "2.3.0"
-source = "git+https://github.com/Logicalshift/flo_binding?branch=v2.3#e86725a32732696a74fc2d66349d12b5c1782f1a"
+source = "git+https://github.com/Logicalshift/flo_binding?branch=v2.3#5f5777b9d104bd51020436ee10e6cdb7aba838f4"
 dependencies = [
  "desync",
  "flo_rope",
