@@ -535,12 +535,15 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         }
 
         // Bind the properties for the properties entity itself
-        let mut entities_channel = rope_properties_channel(entity_id, &context).await.unwrap();
-        entities_channel
-            .send_without_waiting(RopePropertyRequest::CreateProperty(RopePropertyDefinition::from_binding(entity_id, "Entities", &state.entities)))
-            .map(|maybe_err| { maybe_err.ok(); })
-            .run_in_background()
-            .ok();
+        let entities_channel = rope_properties_channel(entity_id, &context).await.ok();
+        if let Some(mut entities_channel) = entities_channel {
+            // Possible to fail if the scene is shut down very quickly
+            entities_channel
+                .send_without_waiting(RopePropertyRequest::CreateProperty(RopePropertyDefinition::from_binding(entity_id, "Entities", &state.entities)))
+                .map(|maybe_err| { maybe_err.ok(); })
+                .run_in_background()
+                .ok();
+        }
 
         while let Some(message) = messages.next().await {
             let message: Message<InternalPropertyRequest, Option<InternalPropertyResponse>> = message;
