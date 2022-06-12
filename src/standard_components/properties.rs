@@ -545,6 +545,38 @@ where
             };
             let property    = Arc::new(property);
 
+            // If there are any trackers for this property type in the state, then notify them than this property was created
+            let trackers = state.trackers
+                .get_mut(&TypeId::of::<Arc<RopeProperty<TCell, TAttribute>>>())
+                .and_then(|trackers| trackers.get_mut(&*name));
+
+            if let Some(trackers) = trackers {
+                let mut pending_messages    = vec![];
+                let new_reference           = PropertyReference::new(owner, &*name);
+
+                // Queue messages saying this property was created
+                for maybe_tracker in trackers.iter_mut() {
+                    if let Some(tracker) = maybe_tracker {
+                        if tracker.is_closed() {
+                            // Mark for later cleanup
+                            *maybe_tracker = None;
+                        } else {
+                            // Send to this tracker
+                            let send_future = tracker.send_without_waiting(new_reference.clone()).map(|_maybe_err| ());
+                            pending_messages.push(send_future);
+                        }
+                    }
+                }
+
+                // Finish the messages in the background
+                if !pending_messages.is_empty() {
+                    future::join_all(pending_messages).map(|_| ()).run_in_background().ok();
+                }
+
+                // Throw out any trackers that are done
+                trackers.retain(|tracker| tracker.is_some());
+            }
+
             // Store a copy of the property in the state (we use the entity registry to know which entities exist)
             if let Some(entity_properties) = state.properties.get_mut(&owner) {
                 entity_properties.insert(name, Box::new(Arc::clone(&property)));
@@ -576,7 +608,30 @@ where
         }
 
         TrackPropertiesWithName(name, channel) => {
-            todo!()
+            let our_type    = TypeId::of::<Arc<RopeProperty<TCell, TAttribute>>>();
+            let mut channel = channel;
+
+            // Send messages about properties with this name and type (need to iterate across all entities)
+            let mut pending_messages = vec![];
+
+            for (entity_id, properties) in state.properties.iter() {
+                if let Some(property) = properties.get(&name) {
+                    if (**property).type_id() == our_type {
+                        let send_future = channel.send_without_waiting(PropertyReference::new(*entity_id, &name)).map(|_maybe_err| ());
+                        pending_messages.push(send_future);
+                    }
+                }
+            }
+
+            future::join_all(pending_messages).map(|_| ()).run_in_background().ok();
+
+            // Create a tracker for properties as they're created
+            state.trackers
+                .entry(our_type).or_insert_with(|| HashMap::new())
+                .entry(name).or_insert_with(|| vec![])
+                .push(Some(channel));
+
+            None
         }
     }
 }
