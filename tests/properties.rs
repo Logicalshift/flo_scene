@@ -8,8 +8,6 @@ use futures_timer::{Delay};
 
 #[cfg(feature="properties")] use flo_binding::*;
 
-use std::time::{Duration};
-
 #[test]
 #[cfg(feature="properties")]
 fn open_channel_i64() {
@@ -278,9 +276,6 @@ fn entities_property() {
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
             let msg: Message<(), Vec<SceneTestResult>> = msg;
-
-            // TODO: the property creation is slightly delayed so this delay might be needed (fix so it's not)
-            Delay::new(Duration::from_millis(500)).await;
 
             let entities            = rope_bind::<EntityId, ()>(PROPERTIES, "Entities").await.unwrap();
             let mut entity_stream   = entities.follow_changes();
