@@ -245,10 +245,13 @@ impl PropertyReference {
 /// except this will ensure a suitable conversion for communicating with the properties entity is set up. That is `send_to()` won't work until this
 /// has been called at least once for the scene with the property type.
 ///
-/// Typically `entity_id` should be `PROPERTIES` here, but it's possible to run multiple sets of properties in a given scene so other values are
+/// `properties_entity_id` is the ID of the properties entity that the caller wants a channel for (it's not the ID of the entity that is having
+/// properties attached to it)
+///
+/// Typically `properties_entity_id` should be `PROPERTIES` here, but it's possible to run multiple sets of properties in a given scene so other values are
 /// possible if `create_properties_entity()` has been called for other entity IDs.
 ///
-pub async fn properties_channel<TValue>(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>, Option<BindRef<TValue>>>, EntityChannelError>
+pub async fn properties_channel<TValue>(properties_entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>, Option<BindRef<TValue>>>, EntityChannelError>
 where
     TValue: 'static + PartialEq + Clone + Send + Sized,
 {
@@ -272,7 +275,10 @@ where
 
     // Before returning a channel, wait for the properties entity to become ready
     // (This is most useful at startup when we need the entity tracking to start up before anything else)
-    context.send::<_, ()>(PROPERTIES, InternalPropertyRequest::Ready).await.ok();
+    // We don't do this for the properties entity itself (so it has a chance to declare some properties before it becomes 'ready')
+    if context.entity() != Some(properties_entity_id) {
+        context.send::<_, ()>(properties_entity_id, InternalPropertyRequest::Ready).await.ok();
+    }
 
     // Ensure that the message is converted to an internal request
     context.convert_message::<PropertyRequest<TValue>, InternalPropertyRequest>()?;
@@ -292,16 +298,19 @@ where
     })?;
 
     // Send messages to the properties entity
-    context.send_to(entity_id)
+    context.send_to(properties_entity_id)
 }
 
 ///
 /// Retrieves an entity channel to talk to the properties entity about rope properties of type `<TCell, TAttribute>.
 ///
-/// Typically `entity_id` should be `PROPERTIES` here, but it's possible to run multiple sets of properties in a given scene so other values are
+/// `properties_entity_id` is the ID of the properties entity that the caller wants a channel for (it's not the ID of the entity that is having
+/// properties attached to it)
+///
+/// Typically `properties_entity_id` should be `PROPERTIES` here, but it's possible to run multiple sets of properties in a given scene so other values are
 /// possible if `create_properties_entity()` has been called for other entity IDs.
 ///
-pub async fn rope_properties_channel<TCell, TAttribute>(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, RopePropertyRequest<TCell, TAttribute>, Option<RopeBinding<TCell, TAttribute>>>, EntityChannelError>
+pub async fn rope_properties_channel<TCell, TAttribute>(properties_entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, RopePropertyRequest<TCell, TAttribute>, Option<RopeBinding<TCell, TAttribute>>>, EntityChannelError>
 where
     TCell:      'static + Send + Unpin + Clone + PartialEq,
     TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default,
@@ -326,7 +335,9 @@ where
 
     // Before returning a channel, wait for the properties entity to become ready
     // (This is most useful at startup when we need the entity tracking to start up before anything else)
-    context.send::<_, ()>(PROPERTIES, InternalPropertyRequest::Ready).await.ok();
+    if context.entity() != Some(properties_entity_id) {
+        context.send::<_, ()>(properties_entity_id, InternalPropertyRequest::Ready).await.ok();
+    }
 
     // Ensure that the message is converted to an internal request
     context.convert_message::<RopePropertyRequest<TCell, TAttribute>, InternalPropertyRequest>()?;
@@ -346,7 +357,7 @@ where
     })?;
 
     // Send messages to the properties entity
-    context.send_to(entity_id)
+    context.send_to(properties_entity_id)
 }
 
 ///
@@ -524,7 +535,12 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         }
 
         // Bind the properties for the properties entity itself
-        rope_create("Entities", &state.entities).map(|maybe_err| { maybe_err.ok(); }).run_in_background().ok();
+        let mut entities_channel = rope_properties_channel(entity_id, &context).await.unwrap();
+        entities_channel
+            .send_without_waiting(RopePropertyRequest::CreateProperty(RopePropertyDefinition::from_binding(entity_id, "Entities", &state.entities)))
+            .map(|maybe_err| { maybe_err.ok(); })
+            .run_in_background()
+            .ok();
 
         while let Some(message) = messages.next().await {
             let message: Message<InternalPropertyRequest, Option<InternalPropertyResponse>> = message;
