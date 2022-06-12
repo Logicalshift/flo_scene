@@ -498,7 +498,7 @@ where
 
             for (entity_id, properties) in state.properties.iter() {
                 if let Some(property) = properties.get(&name) {
-                    if property.type_id() == our_type {
+                    if (**property).type_id() == our_type {
                         let send_future = channel.send_without_waiting(PropertyReference::new(*entity_id, &name)).map(|_maybe_err| ());
                         pending_messages.push(send_future);
                     }
