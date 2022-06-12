@@ -523,9 +523,9 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         }
 
         // Bind the properties for the properties entity itself
-        let entities = RopeBinding::from_mutable(&state.entities);
+        let create_entities_property = rope_create("Entities", &state.entities);
         context.run_in_background(async move {
-            rope_create("Entities", entities).await.ok();
+            create_entities_property.await.ok();
         }).ok();
 
         while let Some(message) = messages.next().await {
