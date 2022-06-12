@@ -53,7 +53,7 @@ fn say_hello_in_background() {
 
 #[test]
 fn background_has_current_scene() {
-    let scene                                       = Scene::empty();
+    let scene   = Scene::empty();
 
     // Create a test for this scene
     scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {

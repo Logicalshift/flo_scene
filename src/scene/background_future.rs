@@ -1,3 +1,5 @@
+use crate::context::*;
+
 use futures::prelude::*;
 use futures::future::{BoxFuture};
 use futures::task;
@@ -52,6 +54,9 @@ pub (crate) struct BackgroundFuture {
 
     /// The core can be used to add or remove new futures while this background future is running
     core: Arc<Mutex<BackgroundFutureCore>>,
+
+    /// The scene context the futures should run in
+    scene_context: Arc<SceneContext>,
 }
 
 struct BackgroundWaker {
@@ -66,7 +71,7 @@ impl BackgroundFuture {
     ///
     /// Creates a new background future and its core
     ///
-    pub fn new() -> BackgroundFuture {
+    pub fn new(context: Arc<SceneContext>) -> BackgroundFuture {
         let core = BackgroundFutureCore {
             futures:        vec![],
             new_futures:    false,
@@ -76,8 +81,9 @@ impl BackgroundFuture {
         };
 
         BackgroundFuture {
-            futures:    vec![],
-            core:       Arc::new(Mutex::new(core)),
+            futures:        vec![],
+            core:           Arc::new(Mutex::new(core)),
+            scene_context:  context,
         }
     }
 
@@ -142,12 +148,14 @@ impl Future for BackgroundFuture {
                 core.awake_futures.drain().collect::<Vec<_>>()
             };
 
-            // Stop once there are no awake futures left
+            // Stop polling once there are no awake futures left
             if awake_futures.is_empty() {
                 break;
             }
 
             // Poll the awake futures
+            let scene_context = Arc::clone(&self.scene_context);
+
             for awake_idx in awake_futures.into_iter() {
                 // Make a context for this future to mark it as awake
                 let waker           = Arc::new(BackgroundWaker { future_idx: awake_idx, core: Arc::clone(&self.core) });
@@ -156,7 +164,10 @@ impl Future for BackgroundFuture {
 
                 if let Some(future) = &mut self.futures[awake_idx] {
                     // Poll the future
-                    match future.poll_unpin(&mut context) {
+                    let poll_result = SceneContext::with_context(&scene_context, || future.poll_unpin(&mut context)).unwrap();
+
+                    // Poll the future
+                    match poll_result {
                         Poll::Pending   => { }
                         Poll::Ready(()) => {
                             // Release the future

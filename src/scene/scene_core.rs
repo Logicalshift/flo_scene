@@ -105,7 +105,7 @@ impl SceneCore {
         if self.entities.contains_key(&entity_id) { return Err(CreateEntityError::AlreadyExists); }
 
         // Create the channel and the eneity
-        let entity_future       = BackgroundFuture::new();
+        let entity_future       = BackgroundFuture::new(Arc::clone(&scene_context));
         let (channel, receiver) = SimpleEntityChannel::new(entity_id, 5);
         let receiver            = EntityReceiver::new(receiver, &self.active_entity_count);
         let entity              = Arc::new(Mutex::new(EntityCore::new(channel.clone(), &entity_future)));
@@ -133,6 +133,8 @@ impl SceneCore {
                 let mut runtime_future  = SceneContext::with_context(&scene_context, || runtime(Arc::clone(&scene_context), receiver).boxed()).unwrap();
 
                 // Poll it in the scene context
+                // Note: even though the background future applies the scene context, we're running in a desync future here so need to reapply it in case
+                // things end up running on a separate thread (TODO: run the whole background future as a desync...)
                 future::poll_fn(|ctxt| {
                     SceneContext::with_context(&scene_context, || 
                         runtime_future.poll_unpin(ctxt)).unwrap()
