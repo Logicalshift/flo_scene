@@ -5,6 +5,7 @@ use crate::context::*;
 use crate::message::*;
 use crate::entity_id::*;
 use crate::entity_channel::*;
+use crate::ergonomics::*;
 
 use futures::prelude::*;
 
@@ -164,7 +165,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
     let mut typed_trackers: Vec<Option<(EntityChannelType, BoxedEntityChannel<'static, EntityUpdate, ()>)>> = vec![];
 
     // Create the entity registry (it's just a stream entity)
-    context.create_entity(ENTITY_REGISTRY, move |context, mut requests| async move {
+    context.create_entity(ENTITY_REGISTRY, move |_context, mut requests| async move {
         // Read requests from the stream
         while let Some(request) = requests.next().await {
             use InternalRegistryRequest::*;
@@ -229,7 +230,10 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
 
                     // If any of the trackers have not completed sending their messages, put the task into the background
                     if !futures.is_empty() {
-                        context.run_in_background(async move { future::join_all(futures).await; }).ok();
+                        future::join_all(futures)
+                            .map(|_| ())
+                            .run_in_background()
+                            .ok();
                     }
 
                     // Once all of the trackers have been informed of the new entity, respond OK
@@ -265,8 +269,11 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
 
                         // If any of the trackers have not completed sending their messages, put the task into the background
                         if !futures.is_empty() {
-                            context.run_in_background(async move { future::join_all(futures).await; }).ok();
-                        }
+                            future::join_all(futures)
+                                .map(|_| ())
+                                .run_in_background()
+                                .ok();
+                            }
                     }
                 }
 
@@ -291,7 +298,10 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     }
 
                     if !futures.is_empty() {
-                        context.run_in_background(async move { future::join_all(futures).await; }).ok();
+                        future::join_all(futures)
+                            .map(|_| ())
+                            .run_in_background()
+                            .ok();
                     }
 
                     // All the entities are being tracked
@@ -312,7 +322,10 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     }
 
                     if !futures.is_empty() {
-                        context.run_in_background(async move { future::join_all(futures).await; }).ok();
+                        future::join_all(futures)
+                            .map(|_| ())
+                            .run_in_background()
+                            .ok();
                     }
 
                     response.send(()).ok();
