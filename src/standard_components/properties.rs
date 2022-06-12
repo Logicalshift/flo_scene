@@ -82,6 +82,7 @@ where
 ///
 /// A reference to an existing property
 ///
+#[derive(Clone, PartialEq, Hash, Debug)]
 pub struct PropertyReference {
     /// The entity that owns this property
     pub owner: EntityId,
