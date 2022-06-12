@@ -151,7 +151,7 @@ impl SceneContext {
         TOriginalMessage:   'static + Send,
         TNewMessage:        'static + Send + From<TOriginalMessage>,
     {
-        self.scene_core()?.future_desync(move |core| async move {
+        self.scene_core()?.sync(move |core| {
             // Register that one type can be converted to another
             core.convert_message::<TOriginalMessage, TNewMessage>();
 
@@ -159,7 +159,7 @@ impl SceneContext {
             if let Ok(channel) = core.send_to::<InternalRegistryRequest, ()>(ENTITY_REGISTRY) {
                 core.send_background_message(channel, InternalRegistryRequest::ConvertMessage(TypeId::of::<TOriginalMessage>(), TypeId::of::<TNewMessage>()));
             }
-        }.boxed()).detach();
+        });
 
         Ok(())
     }
@@ -175,7 +175,7 @@ impl SceneContext {
         TOriginalResponse:  'static + Send + Into<TNewResponse>,
         TNewResponse:       'static + Send,
     {
-        self.scene_core()?.future_desync(move |core| async move {
+        self.scene_core()?.sync(move |core| {
             // Register that one type can be converted to another
             core.convert_response::<TOriginalResponse, TNewResponse>();
 
@@ -183,7 +183,7 @@ impl SceneContext {
             if let Ok(channel) = core.send_to::<InternalRegistryRequest, ()>(ENTITY_REGISTRY) {
                 core.send_background_message(channel, InternalRegistryRequest::ConvertResponse(TypeId::of::<TOriginalResponse>(), TypeId::of::<TNewResponse>()));
             }
-        }.boxed()).detach();
+        });
 
         Ok(())
     }
@@ -203,7 +203,7 @@ impl SceneContext {
         TNewResponse:       'static + Send,
         TMapFn:             'static + Send + Sync + Fn(TOriginalResponse) -> TNewResponse,
     {
-        self.scene_core()?.future_desync(move |core| async move {
+        self.scene_core()?.sync(move |core| {
             // Register that one type can be converted to another
             core.map_response(map_fn);
 
@@ -211,7 +211,7 @@ impl SceneContext {
             if let Ok(channel) = core.send_to::<InternalRegistryRequest, ()>(ENTITY_REGISTRY) {
                 core.send_background_message(channel, InternalRegistryRequest::ConvertResponse(TypeId::of::<TOriginalResponse>(), TypeId::of::<TNewResponse>()));
             }
-        }.boxed()).detach();
+        });
 
         Ok(())
     }
