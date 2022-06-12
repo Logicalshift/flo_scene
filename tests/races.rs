@@ -64,6 +64,8 @@ fn race_retrieve_existing_entities() {
         // Create an entity that says 'World' in response 'Hello'
         println!("  Create hello_entity...");
         scene.create_entity(hello_entity, |_context, mut msg| async move {
+            println!("    Hello entity starting");
+
             while let Some(msg) = msg.next().await {
                 let msg: Message<String, String> = msg;
 
@@ -78,6 +80,8 @@ fn race_retrieve_existing_entities() {
         // Entity that adds one to any number it's sent
         println!("  Create add_one_entity...");
         scene.create_entity(add_one_entity, |_context, mut msg| async move {
+            println!("    Add one entity starting");
+
             while let Some(msg) = msg.next().await {
                 let msg: Message<u64, u64> = msg;
                 let val = *msg;
@@ -87,7 +91,10 @@ fn race_retrieve_existing_entities() {
         }).unwrap();
 
         // Create a test for this scene
+        println!("  Create test entity...");
         scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
+            println!("    Test entity starting");
+
             // Whenever a test is requested...
             while let Some(msg) = msg.next().await {
                 let msg: Message<(), Vec<SceneTestResult>> = msg;
@@ -141,6 +148,7 @@ fn race_retrieve_existing_entities() {
         }).unwrap();
 
         // Test the scene we just set up
+        println!("  Testing scene...");
         test_scene(scene);
 
         println!("*** FINISH ITER {}", i);
