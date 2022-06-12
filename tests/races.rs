@@ -14,7 +14,10 @@ use std::collections::{HashSet};
 #[test]
 fn race_stream_completion() {
     // Entities don't consume stream items until they're finished processing
-    for _ in 0..100 {
+    for i in 0..100 {
+        println!();
+        println!("*** STREAM COMPLETION ITER {}", i);
+
         let scene               = Scene::empty();
         let stream_entity       = EntityId::new();
         let streamed_strings    = Arc::new(Mutex::new(vec![]));
@@ -47,6 +50,8 @@ fn race_stream_completion() {
         }).unwrap();
 
         test_scene(scene);
+
+        println!("*** STREAM COMPLETION FINISH ITER {}", i);
     }
 }
 
@@ -55,7 +60,7 @@ fn race_retrieve_existing_entities() {
     // This test has been known to hang on rare occasions
     for i in 0..1000 {
         println!();
-        println!("*** ITER {}", i);
+        println!("*** RETRIEVE EXISTING ITER {}", i);
 
         let scene           = Scene::default();
         let hello_entity    = EntityId::new();
@@ -151,14 +156,14 @@ fn race_retrieve_existing_entities() {
         println!("  Testing scene...");
         test_scene(scene);
 
-        println!("*** FINISH ITER {}", i);
+        println!("*** RETRIEVE EXISTING FINISH ITER {}", i);
     }
 }
 
 #[test]
 fn race_close_entity() {
     for i in 0..1000 {
-        println!("*** ITER {}", i);
+        println!("*** CLOSE ENTITY ITER {}", i);
 
         let scene           = Scene::default();
         let hello_entity    = EntityId::new();
@@ -235,6 +240,8 @@ fn race_close_entity() {
         println!("Running scene");
         test_scene(scene);
         println!("Scene complete");
+
+        println!("*** CLOSE ENTITY FINISH ITER {}", i);
     }
 }
 
@@ -242,7 +249,7 @@ fn race_close_entity() {
 #[cfg(feature="properties")]
 fn race_follow_string_property() {
     for i in 1..1000 {
-        println!("*** ITER {}", i);
+        println!("*** FOLLOW_STRING_PROPERTY ITER {}", i);
 
         let scene = Scene::default();
 
@@ -285,5 +292,7 @@ fn race_follow_string_property() {
 
         // Test the scene we just set up
         test_scene(scene);
+
+        println!("*** FOLLOW_STRING_PROPERTY FINISH ITER {}", i);
     }
 }
