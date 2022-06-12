@@ -106,6 +106,9 @@ where
 
     /// Retrieves the `BindRef<TValue>` containing this property (this shares the data more efficiently than Follow does)
     Get(PropertyReference),
+
+    /// Whenever a property with the specified name is created, notify the specified channel
+    TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyReference, ()>),
 }
 
 ///
@@ -124,6 +127,9 @@ where
 
     /// Retrieves the `BindRef<TValue>` containing this property (this shares the data more efficiently than Follow does)
     Get(PropertyReference),
+
+    /// Whenever a property with the specified name is created, notify the specified channel
+    TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyReference, ()>),
 }
 
 ///
@@ -369,6 +375,9 @@ struct PropertiesState {
 
     /// Binding containing the list of registered entities
     entities: RopeBindingMut<EntityId, ()>,
+
+    /// Trackers for properties of particular types (type -> names -> channels)
+    trackers: HashMap<TypeId, HashMap<String, Vec<Option<BoxedEntityChannel<'static, PropertyReference, ()>>>>>,
 }
 
 ///
@@ -446,6 +455,10 @@ where
                 None
             }
         }
+
+        TrackPropertiesWithName(name, channel) => {
+            todo!()
+        }
     }
 }
 
@@ -505,6 +518,10 @@ where
                 None
             }
         }
+
+        TrackPropertiesWithName(name, channel) => {
+            todo!()
+        }
     }
 }
 
@@ -521,6 +538,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
     let mut state   = PropertiesState {
         properties: HashMap::new(),
         entities:   RopeBindingMut::new(),
+        trackers:   HashMap::new(),
     };
 
     context.convert_message::<EntityUpdate, InternalPropertyRequest>().unwrap();
