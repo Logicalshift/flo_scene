@@ -194,7 +194,7 @@ impl Scene {
 
                             match future.poll_unpin(&mut future_context) {
                                 Poll::Pending   => { }
-                                Poll::Ready(()) => { 
+                                Poll::Ready(_)  => { 
                                     complete_futures    = true;
                                     *maybe_future       = None;
                                 }

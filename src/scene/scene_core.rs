@@ -18,7 +18,6 @@ use ::desync::scheduler::*;
 use futures::prelude::*;
 use futures::channel::oneshot;
 use futures::stream::{BoxStream};
-use futures::future;
 
 use std::any::{TypeId};
 use std::sync::*;
@@ -38,7 +37,7 @@ pub struct SceneCore {
     pub (super) entities: HashMap<EntityId, Arc<Mutex<EntityCore>>>,
 
     /// Futures waiting to run the entities in this scene
-    pub (super) waiting_futures: Vec<BackgroundFuture>,
+    pub (super) waiting_futures: Vec<SchedulerFuture<()>>,
 
     /// Used by the scene that owns this core to request wake-ups (only one scene can be waiting for a wake up at once)
     pub (super) wake_scene: Option<oneshot::Sender<()>>,
@@ -127,39 +126,21 @@ impl SceneCore {
                 }).ok();
             }
 
-            let future = scheduler().future_desync(&queue, move || async move {
-                // Start the future running
-                let receiver            = receiver.boxed();
-                let mut runtime_future  = SceneContext::with_context(&scene_context, || runtime(Arc::clone(&scene_context), receiver).boxed()).unwrap();
+            // Create and run the actual runtime future
+            let runtime_future = runtime(Arc::clone(&scene_context), receiver.boxed());
+            runtime_future.await;
 
-                // Poll it in the scene context
-                // Note: even though the background future applies the scene context, we're running in a desync future here so need to reapply it in case
-                // things end up running on a separate thread (TODO: run the whole background future as a desync...)
-                future::poll_fn(|ctxt| {
-                    SceneContext::with_context(&scene_context, || 
-                        runtime_future.poll_unpin(ctxt)).unwrap()
-                }).await;
+            // Notify the registry that the entity no longer exists
+            scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::DestroyedEntity(entity_id)).await.ok();
 
-                // Return the context once we're done
-                scene_context
-            }.boxed());
-
-            // Run the future, and retrieve the scene context
-            let scene_context = future.await.ok();
-
-            // When done, deregister the entity
-            if let Some(scene_context) = scene_context {
-                // Notify the registry that the entity no longer exists
-                scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::DestroyedEntity(entity_id)).await.ok();
-
-                // Finish_entity calls back into the core to remove the entity from the list (note this calls stop() so this must be done last in the entity future)
-                scene_context.finish_entity::<TMessage, TResponse>(entity_id);
-            }
+            // Finish_entity calls back into the core to remove the entity from the list (note this calls stop() so this must be done last in the entity future)
+            scene_context.finish_entity::<TMessage, TResponse>(entity_id);
         };
         entity_future.core().add_future(future);
 
         // Queue a request in the runtime that we will run the entity
-        self.waiting_futures.push(entity_future);
+        let queued_future = scheduler().future_desync(&queue, move || entity_future);
+        self.waiting_futures.push(queued_future);
 
         // Wake up the scene so it can schedule this future
         if let Some(wake_scene) = self.wake_scene.take() {
