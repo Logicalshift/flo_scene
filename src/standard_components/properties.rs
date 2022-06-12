@@ -523,10 +523,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         }
 
         // Bind the properties for the properties entity itself
-        let create_entities_property = rope_create("Entities", &state.entities);
-        context.run_in_background(async move {
-            create_entities_property.await.ok();
-        }).ok();
+        rope_create("Entities", &state.entities).map(|maybe_err| { maybe_err.ok(); }).run_in_background().ok();
 
         while let Some(message) = messages.next().await {
             let message: Message<InternalPropertyRequest, Option<InternalPropertyResponse>> = message;
