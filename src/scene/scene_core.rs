@@ -84,7 +84,7 @@ impl SceneCore {
     {
         scheduler().future_desync(&self.message_queue, move || async move {
             sender.send_without_waiting(message).await.ok()
-        }.boxed()).detach();
+        }).detach();
     }
 
     ///
