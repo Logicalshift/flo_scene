@@ -4,8 +4,6 @@ use flo_scene::test::*;
 use futures::prelude::*;
 use futures::channel::mpsc;
 
-use futures_timer::{Delay};
-
 #[cfg(feature="properties")] use flo_binding::*;
 
 #[test]
