@@ -20,7 +20,7 @@ properties      = [ "flo_binding", "flo_rope", "lazy_static" ]
 [dependencies]
 futures         = "0.3"
 uuid            = { version = "1.0", features = [ "v4" ] }
-desync          = "0.8"
+desync          = "0.9"
 futures-timer   = { version = "3.0", optional = true }
 flo_binding     = { version = "2.3", optional = true }
 flo_rope        = { version = "0.2", optional = true }
@@ -29,3 +29,4 @@ lazy_static     = { version = "1.4", optional = true }
 
 [patch.crates-io]
 flo_binding     = { git = "https://github.com/Logicalshift/flo_binding", branch = "v2.3" }
+desync          = { git = "https://github.com/Logicalshift/desync", branch = "v0.9" }

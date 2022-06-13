@@ -103,7 +103,7 @@ fn receive_heartbeat_after_message() {
                         return;
                     }
                 }
-            }).detach();
+            }.boxed()).detach();
         }
     }).unwrap();
 
