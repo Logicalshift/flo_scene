@@ -84,8 +84,9 @@ pub fn create_heartbeat_entity(context: &Arc<SceneContext>) -> Result<(), Create
     // Create the heartbeat entity itself
     context.create_stream_entity(HEARTBEAT, StreamEntityResponseStyle::default(), move |context, mut requests| async move {
         // Request details on the entities (we track what gets destroyed so we can stop them receiving heartbeats)
-        let our_channel = context.send_to(HEARTBEAT).unwrap();
-        context.send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(our_channel)).await.ok();
+        if let Ok(our_channel) = context.send_to(HEARTBEAT) {
+            context.send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(our_channel)).await.ok();
+        }
 
         // Main message loop for the heartbeat entity
         while let Some(message) = requests.next().await {

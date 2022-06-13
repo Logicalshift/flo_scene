@@ -658,7 +658,9 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
     // Create the entity itself
     context.create_entity(entity_id, move |context, mut messages| async move {
         // Request updates from the entity registry
-        let properties      = context.send_to::<EntityUpdate, ()>(entity_id).unwrap();
+        let properties      = context.send_to::<EntityUpdate, ()>(entity_id);
+        let properties      = if let Ok(properties) = properties { properties } else { return; };
+
         if let Some(mut entity_registry) = context.send_to::<_, ()>(ENTITY_REGISTRY).ok() {
             entity_registry.send(EntityRegistryRequest::TrackEntities(properties)).await.ok();
         }
