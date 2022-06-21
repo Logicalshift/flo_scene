@@ -56,6 +56,9 @@ struct SimpleEntityChannelCore<TMessage, TResponse> {
     /// The maximum number of messages that can be ready at once
     buf_size: usize,
 
+    /// The count of the number of channels that can talk to this core (the receiver gets closed if the number of channels goes to 0)
+    num_channels: usize,
+
     /// The queue of messages ready for sending to the receiver
     ready_messages: VecDeque<Message<TMessage, TResponse>>,
 
@@ -92,12 +95,13 @@ struct SimpleEntityChannelReceiver<TMessage, TResponse> {
 
 impl<TMessage, TResponse> SimpleEntityChannelCore<TMessage, TResponse> {
     ///
-    /// Creates a new 
+    /// Creates a new simple entity channel core, set up to have 1 open channel
     ///
     fn new(buf_size: usize) -> SimpleEntityChannelCore<TMessage, TResponse> {
         SimpleEntityChannelCore {
             buf_size:           buf_size,
             ready_messages:     VecDeque::new(),
+            num_channels:       1,
             waiting_tickets:    VecDeque::new(),
             closed:             false,
             receiver_waker:     None,
@@ -444,9 +448,36 @@ where
 
 impl<TMessage, TResponse> Clone for SimpleEntityChannel<TMessage, TResponse> {
     fn clone(&self) -> Self {
+        // Add an extra channel to the core
+        self.core.lock().unwrap().num_channels += 1;
+
         SimpleEntityChannel {
             core:       self.core.clone(),
             entity_id:  self.entity_id,
+        }
+    }
+}
+
+impl<TMessage, TResponse> Drop for SimpleEntityChannel<TMessage, TResponse> {
+    fn drop(&mut self) {
+        // Reduce the channel count
+        let waker = {
+            let mut core = self.core.lock().unwrap();
+
+            // Reduce the number of channels and close the core if it reaches 0
+            core.num_channels -= 1;
+
+            if core.num_channels == 0 {
+                core.closed = true;
+                core.receiver_waker.take()
+            } else {
+                None
+            }
+        };
+
+        // Wake the receiver if the number of channels is 0
+        if let Some(waker) = waker {
+            waker.wake();
         }
     }
 }
