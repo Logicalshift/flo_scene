@@ -297,7 +297,7 @@ impl<TMessage, TResponse> Stream for SimpleEntityChannelReceiver<TMessage, TResp
 
 impl<TMessage, TResponse> Drop for SimpleEntityChannelReceiver<TMessage, TResponse> {
     fn drop(&mut self) {
-        let wakers = {
+        let (wakers, old_tickets) = {
             let mut core = self.core.lock().unwrap();
 
             // Set the core as closed so no new messages can be added
@@ -313,14 +313,18 @@ impl<TMessage, TResponse> Drop for SimpleEntityChannelReceiver<TMessage, TRespon
                 .collect::<Vec<_>>();
 
             // Clear the tickets
-            core.waiting_tickets = VecDeque::new();
+            let mut old_tickets = VecDeque::new();
+            mem::swap(&mut old_tickets, &mut core.waiting_tickets);
 
-            wakers
+            (wakers, old_tickets)
         };
 
         // Wake all of the tickets so they can return errors (now the core is closed)
         wakers.into_iter()
             .for_each(|waker| waker.wake());
+
+        // Drop the old tickets outside of the lock
+        mem::drop(old_tickets);
     }
 }
 
