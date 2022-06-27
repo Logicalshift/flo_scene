@@ -34,7 +34,7 @@ use std::collections::{HashMap};
 ///
 pub struct SceneCore {
     /// The entities that are available in this core
-    pub (super) entities: HashMap<EntityId, Arc<Mutex<EntityCore>>>,
+    pub (super) entities: HashMap<EntityId, EntityCore>,
 
     /// Futures waiting to run the entities in this scene
     pub (super) waiting_futures: Vec<SchedulerFuture<()>>,
@@ -107,8 +107,8 @@ impl SceneCore {
         let entity_future       = BackgroundFuture::new(Arc::clone(&scene_context));
         let (channel, receiver) = SimpleEntityChannel::new(entity_id, 5);
         let receiver            = EntityReceiver::new(receiver, &self.active_entity_count);
-        let entity              = Arc::new(Mutex::new(EntityCore::new(channel.clone(), &entity_future)));
-        let queue               = entity.lock().unwrap().queue();
+        let entity              = EntityCore::new(channel.clone(), &entity_future);
+        let queue               = entity.queue();
 
         self.entities.insert(entity_id, entity);
 
@@ -221,19 +221,19 @@ impl SceneCore {
         let entity = if let Some(entity) = entity { entity } else { return Err(EntityChannelError::NoSuchEntity); };
         
         // Attach to the channel in the entity that belongs to this stream type
-        let channel = entity.lock().unwrap().attach_channel();
+        let channel = entity.attach_channel();
         
         if let Some(channel) = channel { 
             // Return the direct channel
             Ok(channel.boxed()) 
         } else {
             // Attempt to convert the message if possible
-            let target_message      = entity.lock().unwrap().message_type_id();
+            let target_message      = entity.message_type_id();
             let source_message      = TypeId::of::<TMessage>();
             let message_converter   = self.map_for_message.get(&target_message).and_then(|target_hash| target_hash.get(&source_message));
 
             // ... also possibly convert the responce
-            let source_response     = entity.lock().unwrap().response_type_id();
+            let source_response     = entity.response_type_id();
             let target_response     = TypeId::of::<TResponse>();
             let response_converter  = self.map_for_response.get(&source_response).and_then(|target_hash| target_hash.get(&target_response));
 
@@ -241,11 +241,11 @@ impl SceneCore {
                 (Some(message_converter), None) => {
                     // Response types must match
                     if source_response != target_response {
-                        return Err(EntityChannelError::WrongResponseType(entity.lock().unwrap().response_type_name()));
+                        return Err(EntityChannelError::WrongResponseType(entity.response_type_name()));
                     }
 
                     // We have to go via an AnyEntityChannel as we don't have a place that knows all of the types
-                    let any_channel         = entity.lock().unwrap().attach_channel_any();
+                    let any_channel         = entity.attach_channel_any();
 
                     // Convert from TMessage to a boxed 'Any' function
                     let conversion_function = message_converter.conversion_function::<TMessage>().unwrap();
@@ -261,11 +261,11 @@ impl SceneCore {
                 (None, Some(response_converter)) => {
                     // Message types must match
                     if source_message != target_message {
-                        return Err(EntityChannelError::WrongMessageType(entity.lock().unwrap().message_type_name()));
+                        return Err(EntityChannelError::WrongMessageType(entity.message_type_name()));
                     }
 
                     // We have to go via an AnyEntityChannel as we don't have a place that knows all of the types
-                    let any_channel         = entity.lock().unwrap().attach_channel_any();
+                    let any_channel         = entity.attach_channel_any();
 
                     // Convert from 'Any' to TResponse
                     let conversion_function = response_converter.conversion_function::<TResponse>().unwrap();
@@ -280,7 +280,7 @@ impl SceneCore {
 
                 (Some(message_converter), Some(response_converter)) => {
                     // We have to go via an AnyEntityChannel as we don't have a place that knows all of the types
-                    let any_channel         = entity.lock().unwrap().attach_channel_any();
+                    let any_channel         = entity.attach_channel_any();
 
                     // Convert the message and the response
                     let message_conversion  = message_converter.conversion_function::<TMessage>().unwrap();
@@ -295,8 +295,6 @@ impl SceneCore {
                 }
 
                 (None, None) => {
-                    let entity = entity.lock().unwrap();
-
                     Err(EntityChannelError::WrongChannelType(entity.message_type_name(), entity.response_type_name()))
                 },
             }
@@ -308,7 +306,7 @@ impl SceneCore {
     ///
     pub fn run_in_background(&self, entity_id: EntityId, future: impl 'static + Send + Future<Output=()>) -> Result<(), EntityFutureError> {
         if let Some(entity) = self.entities.get(&entity_id) {
-            entity.lock().unwrap().run_in_background(future);
+            entity.run_in_background(future);
             Ok(())
         } else {
             Err(EntityFutureError::NoSuchEntity)
@@ -337,7 +335,6 @@ impl SceneCore {
     pub (crate) fn stop_entity(&mut self, entity_id: EntityId) -> Result<(), EntityChannelError> {
         if let Some(entity) = self.entities.remove(&entity_id) {
             // TODO: this doesn't inform the entity registry that this entity has been shut down
-            let entity = entity.lock().unwrap();
             entity.stop();
 
             Ok(())
@@ -353,8 +350,7 @@ impl SceneCore {
     /// its inner loop. The channel will receive a '
     ///
     pub (crate) fn close_entity(&mut self, entity_id: EntityId) -> Result<(), EntityChannelError> {
-        if let Some(entity) = self.entities.get(&entity_id) {
-            let mut entity = entity.lock().unwrap();
+        if let Some(entity) = self.entities.get_mut(&entity_id) {
             entity.close();
 
             Ok(())
@@ -368,7 +364,7 @@ impl SceneCore {
     ///
     pub (crate) fn finish_entity(&mut self, entity_id: EntityId) {
         if let Some(entity) = self.entities.remove(&entity_id) {
-            entity.lock().unwrap().stop();
+            entity.stop();
         }
     }
 
