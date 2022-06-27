@@ -105,11 +105,13 @@ fn say_hello_in_background_when_sealed() {
     let (mut relay_sender, mut relay_receiver)      = mpsc::channel(5);
 
     // Create an entity that monitors string_receiver in the background
-    scene.create_entity(hello_entity, move |context, mut msg| async move {
+    // As the entity is sealed, we need to hold on to a channel to stop it from being shut down
+    let _hello_channel = scene.create_entity(hello_entity, move |context, mut msg| async move {
         context.seal_entity(hello_entity).unwrap();
 
         context.run_in_background(async move {
             while let Some(string) = string_receiver.next().await {
+                println!("Run in background: {:?}", string);
                 relay_sender.send(string).await.ok();
             }
         }).unwrap();
@@ -133,6 +135,7 @@ fn say_hello_in_background_when_sealed() {
 
             // Should receive another message from the receiver
             let received = relay_receiver.next().await;
+            println!("Received: {:?}", received);
 
             // Wait for the response, and succeed if the result is 'world'
             msg.respond(vec![
