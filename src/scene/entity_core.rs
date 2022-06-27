@@ -1,9 +1,7 @@
-use super::background_future::*;
 use crate::any_entity_channel::*;
 use crate::simple_entity_channel::*;
 
 use ::desync::scheduler::*;
-use futures::prelude::*;
 
 use std::sync::*;
 use std::any::{Any, TypeId, type_name};
@@ -12,9 +10,6 @@ use std::any::{Any, TypeId, type_name};
 /// Stores the data associated with an entity
 ///
 pub (crate) struct EntityCore {
-    /// A background future core: can be used to schedule other tasks to be performed by this entity
-    background_futures: Weak<Mutex<BackgroundFutureCore>>,
-
     /// A conversion channel, which has the same response type but the message type is `Box<dyn Any + Send>`. This is of type `BoxedMessageChannel<TResponse>`
     create_conversion_channel: Box<dyn Send + Fn() -> AnyEntityChannel>,
 
@@ -44,7 +39,7 @@ impl EntityCore {
     ///
     /// Creates a new entity that receives messages on the specified channel
     ///
-    pub fn new<TMessage, TResponse>(channel: SimpleEntityChannel<TMessage, TResponse>, background_future: &BackgroundFuture) -> EntityCore
+    pub fn new<TMessage, TResponse>(channel: SimpleEntityChannel<TMessage, TResponse>) -> EntityCore
     where
         TMessage:   'static + Send,
         TResponse:  'static + Send,
@@ -58,7 +53,6 @@ impl EntityCore {
         };
 
         EntityCore {
-            background_futures:         Arc::downgrade(&background_future.core()),
             create_conversion_channel:  Box::new(create_conversion_channel),
             channel:                    Box::new(channel),
             close_channel:              Box::new(close_channel),
@@ -144,19 +138,5 @@ impl EntityCore {
     /// Stops the tasks associated with this entity from running
     ///
     pub fn stop(&self) {
-        if let Some(background_futures) = self.background_futures.upgrade() {
-            background_futures.stop();
-        }
-    }
-
-    ///
-    /// Adds a future to run in the background of this entity
-    ///
-    /// This future will be dropped if this entity is destroyed (eg, by the main loop ending)
-    ///
-    pub fn run_in_background(&self, future: impl 'static + Send + Future<Output=()>) {
-        if let Some(background_futures) = self.background_futures.upgrade() {
-            background_futures.add_future(future);
-        }
     }
 }

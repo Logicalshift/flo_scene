@@ -36,6 +36,9 @@ pub struct SceneCore {
     /// The entities that are available in this core
     pub (super) entities: HashMap<EntityId, EntityCore>,
 
+    /// The background futures, if they're available for the entity
+    entity_background_futures: HashMap<EntityId, Weak<Mutex<BackgroundFutureCore>>>,
+
     /// Futures waiting to run the entities in this scene
     pub (super) waiting_futures: Vec<SchedulerFuture<()>>,
 
@@ -61,14 +64,15 @@ pub struct SceneCore {
 impl Default for SceneCore {
     fn default() -> SceneCore {
         SceneCore {
-            entities:               HashMap::new(),
-            waiting_futures:        vec![],
-            wake_scene:             None,
-            active_entity_count:    Arc::new(AtomicIsize::new(0)),
-            map_for_message:        HashMap::new(),
-            map_for_response:       HashMap::new(),
-            heartbeat_state:        HeartbeatState::Tick,
-            message_queue:          scheduler().create_job_queue(),
+            entities:                   HashMap::new(),
+            entity_background_futures:  HashMap::new(),
+            waiting_futures:            vec![],
+            wake_scene:                 None,
+            active_entity_count:        Arc::new(AtomicIsize::new(0)),
+            map_for_message:            HashMap::new(),
+            map_for_response:           HashMap::new(),
+            heartbeat_state:            HeartbeatState::Tick,
+            message_queue:              scheduler().create_job_queue(),
         }
     }
 }
@@ -107,10 +111,11 @@ impl SceneCore {
         let entity_future       = BackgroundFuture::new(Arc::clone(&scene_context));
         let (channel, receiver) = SimpleEntityChannel::new(entity_id, 5);
         let receiver            = EntityReceiver::new(receiver, &self.active_entity_count);
-        let entity              = EntityCore::new(channel.clone(), &entity_future);
+        let entity              = EntityCore::new(channel.clone());
         let queue               = entity.queue();
 
         self.entities.insert(entity_id, entity);
+        self.entity_background_futures.insert(entity_id, Arc::downgrade(&entity_future.core()));
 
         // Start the future running
         let future              = async move {
@@ -305,8 +310,8 @@ impl SceneCore {
     /// Adds a future to run in the background of this entity
     ///
     pub fn run_in_background(&self, entity_id: EntityId, future: impl 'static + Send + Future<Output=()>) -> Result<(), EntityFutureError> {
-        if let Some(entity) = self.entities.get(&entity_id) {
-            entity.run_in_background(future);
+        if let Some(background_future) = self.entity_background_futures.get(&entity_id).and_then(|weak| weak.upgrade()) {
+            background_future.add_future(future);
             Ok(())
         } else {
             Err(EntityFutureError::NoSuchEntity)
@@ -333,6 +338,12 @@ impl SceneCore {
     /// this will happen once it stops)
     ///
     pub (crate) fn stop_entity(&mut self, entity_id: EntityId) -> Result<(), EntityChannelError> {
+        // Stop the background future if there is one
+        if let Some(background_future) = self.entity_background_futures.remove(&entity_id).and_then(|weak| weak.upgrade()) {
+            background_future.stop();
+        }
+
+        // Stop the entity, if there is one
         if let Some(entity) = self.entities.remove(&entity_id) {
             // TODO: this doesn't inform the entity registry that this entity has been shut down
             entity.stop();
@@ -363,6 +374,10 @@ impl SceneCore {
     /// Called when an entity in this context has finished
     ///
     pub (crate) fn finish_entity(&mut self, entity_id: EntityId) {
+        if let Some(background_future) = self.entity_background_futures.remove(&entity_id).and_then(|weak| weak.upgrade()) {
+            background_future.stop();
+        }
+
         if let Some(entity) = self.entities.remove(&entity_id) {
             entity.stop();
         }
