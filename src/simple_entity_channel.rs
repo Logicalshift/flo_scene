@@ -2,6 +2,9 @@ use crate::error::*;
 use crate::message::*;
 use crate::entity_id::*;
 use crate::entity_channel::*;
+use crate::immediate_entity_channel::*;
+
+use ::desync::scheduler::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
@@ -68,6 +71,9 @@ struct SimpleEntityChannelCore<TMessage, TResponse> {
     /// Set to true if the receiver has been dropped or the channel has been closed some other way
     closed: bool,
 
+    /// Immediate-mode messages that are waiting to be sent (None if this has not been created yet)
+    immediate_queue: Option<Arc<JobQueue>>,
+
     /// The waker for the receiver for the core
     receiver_waker: Option<task::Waker>,
 }
@@ -93,7 +99,11 @@ struct SimpleEntityChannelReceiver<TMessage, TResponse> {
     core: Arc<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>
 }
 
-impl<TMessage, TResponse> SimpleEntityChannelCore<TMessage, TResponse> {
+impl<TMessage, TResponse> SimpleEntityChannelCore<TMessage, TResponse> 
+where
+    TMessage:   'static + Send,
+    TResponse:  'static + Send,
+{
     ///
     /// Creates a new simple entity channel core, set up to have 1 open channel
     ///
@@ -105,7 +115,78 @@ impl<TMessage, TResponse> SimpleEntityChannelCore<TMessage, TResponse> {
             waiting_tickets:    VecDeque::new(),
             closed:             false,
             receiver_waker:     None,
+            immediate_queue:    None,
         }
+    }
+
+    ///
+    /// Sends a message to the core in immediate mode
+    ///
+    fn send_message_now(_entity_id: EntityId, arc_self: &Arc<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>, message: Message<TMessage, TResponse>) -> Result<(), EntityChannelError> {
+        let mut waiting = None;
+        let mut err     = None;
+
+        // Prepare to send the message by talking to the core
+        let waker = {
+            let mut core = arc_self.lock().unwrap();
+
+            // Stop if the core is closed
+            if core.closed {
+                // Error is 'No longer listening' if the core is closed
+                err = Some(EntityChannelError::NoLongerListening);
+
+                None
+            } else if core.ready_messages.len() < core.buf_size && core.waiting_tickets.len() == 0 {
+                // Add the message to the ready buffer if the core is already ready
+                core.ready_messages.push_back(message);
+
+                core.receiver_waker.take()
+            } else {
+                // Wait for a particular slot to free up before sending the message. We support an unlimited number of futures waiting for a slot, and will send messages in the order that they were originally requested
+                let ticket_id       = TicketId::new();
+                let ticket          = Ticket {
+                    id:         ticket_id,
+                    waker:      None,
+                    message:    Some(message),
+                };
+
+                core.waiting_tickets.push_back(ticket);
+
+                // Create a future for when there's space for this message
+                let immediate_queue = core.immediate_queue.get_or_insert_with(|| scheduler().create_job_queue());
+                let waiting_future  = WaitingMessage {
+                    ticket_id:  ticket_id,
+                    core:       Arc::downgrade(arc_self),
+                    completed:  false,
+                };
+
+                // Queue as a future_desync (so we can wait for it synchronously later on)
+                waiting = Some(scheduler().future_desync(&*immediate_queue, move || {
+                    async move { 
+                        waiting_future.await
+                    }.boxed()
+                }));
+
+                core.receiver_waker.take()
+            }
+        };
+
+        // Wake the receiver if needed
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+
+        // Stop if there's an error
+        if let Some(err) = err {
+            return Err(err);
+        }
+
+        // If the queue is generating backpressure, then syncronously wait for it to be ready
+        if let Some(waiting) = waiting {
+            waiting.sync().unwrap()?
+        }
+
+        Ok(())
     }
 
     ///
@@ -401,6 +482,21 @@ where
     }
 }
 
+impl<TMessage, TResponse> ImmediateEntityChannel for SimpleEntityChannel<TMessage, TResponse> 
+where
+    TMessage:   'static + Send,
+    TResponse:  'static + Send,
+{
+    #[inline]
+    fn send_immediate(&mut self, message: Self::Message) -> Result<(), EntityChannelError> {
+        // Wrap the request into a message (no receiver for this type of message)
+        let (message, _receiver) = Message::new(message);
+
+        // Send the message immediately
+        SimpleEntityChannelCore::send_message_now(self.entity_id, &self.core, message)
+    }
+}
+
 impl<TMessage, TResponse> EntityChannel for SimpleEntityChannel<TMessage, TResponse> 
 where
     TMessage:   'static + Send,
@@ -417,7 +513,7 @@ where
         self.core.lock().unwrap().closed
     }
 
-    fn send<'a>(&'a mut self, message: TMessage) -> BoxFuture<'a, Result<TResponse, EntityChannelError>> {
+    fn send<'a>(&'a mut self, message: Self::Message) -> BoxFuture<'a, Result<TResponse, EntityChannelError>> {
         // Wrap the request into a message
         let (message, receiver) = Message::new(message);
 
