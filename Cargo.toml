@@ -29,4 +29,4 @@ lazy_static     = { version = "1.4", optional = true }
 
 [patch.crates-io]
 flo_binding     = { git = "https://github.com/Logicalshift/flo_binding", branch = "v3.0" }
-desync          = { path = "../desync" }
+desync          = { git = "https://github.com/Logicalshift/desync", branch = "v0.9" }
