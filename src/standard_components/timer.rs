@@ -4,7 +4,6 @@ use std::time::{Duration};
 #[cfg(feature="timer")] use crate::error::*;
 #[cfg(feature="timer")] use crate::entity_channel::*;
 #[cfg(feature="timer")] use crate::entity_id::*;
-#[cfg(feature="timer")] use crate::simple_entity_channel::*;
 #[cfg(feature="timer")] use crate::stream_entity_response_style::*;
 
 #[cfg(feature="timer")] use futures::prelude::*;
@@ -46,7 +45,7 @@ impl Default for TimerId {
 /// This responds to TimerRequests, 
 ///
 #[cfg(feature="timer")]
-pub fn create_timer_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<SimpleEntityChannel<TimerRequest, ()>, CreateEntityError> {
+pub fn create_timer_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<impl EntityChannel<Message=TimerRequest, Response=()>, CreateEntityError> {
     // The timer entity is a 'respond after processing' stream, which is OK as it doesn't send directly to any other channels while processing a request
     context.create_stream_entity(entity_id, StreamEntityResponseStyle::RespondAfterProcessing, |context, mut timer_messages| async move {
         while let Some(message) = timer_messages.next().await {
