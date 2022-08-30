@@ -17,6 +17,7 @@ mod timer;
 mod logging;
 
 #[cfg(feature="properties")] mod properties;
+#[cfg(feature="properties")] mod floating_binding;
 
 pub use self::entity_ids::*;
 pub use self::entity_registry::*;
@@ -26,3 +27,4 @@ pub use self::timer::*;
 pub use self::logging::*;
 
 #[cfg(feature="properties")] pub use self::properties::*;
+#[cfg(feature="properties")] pub use self::floating_binding::*;
