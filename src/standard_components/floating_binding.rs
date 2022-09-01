@@ -240,6 +240,28 @@ where
     }
 }
 
+impl<TValue> Drop for FloatingBindingTarget<TValue> {
+    fn drop(&mut self) {
+        let to_notify = {
+            let mut core = self.core.lock().unwrap();
+
+            // Set the state to 'abandoned' if it's currently 'waiting'
+            if let FloatingState::Waiting = &core.binding {
+                core.binding = FloatingState::Abandoned;
+
+                // Notify everything
+                core.when_changed.iter().map(|notifiable| notifiable.clone_for_inspection()).collect::<Vec<_>>()
+            } else {
+                // Nothing to notify
+                vec![]
+            }
+        };
+
+        // Send out any needed notifications about the binding being abandoned
+        to_notify.into_iter().for_each(|notifiable| { notifiable.mark_as_changed(); });
+    }
+}
+
 impl<TValue> FloatingBinding<TValue> 
 where
     TValue: 'static + Clone + Send,
