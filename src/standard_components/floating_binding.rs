@@ -169,9 +169,8 @@ where
             }
 
             FloatingState::Value(binding) => {
-                // Use a computed binding to map the value and create a new watcher from that
-                let binding = binding.clone();
-                computed(move || FloatingState::Value(binding.get())).watch(what)
+                // Use a mapped binding to map the value and create a new watcher from that
+                binding.map_binding(|value| FloatingState::Value(value)).watch(what)
             }
 
             FloatingState::Abandoned    => Arc::new(NotifyWatcher::new(move || FloatingState::Abandoned, what).0),
