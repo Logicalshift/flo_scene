@@ -2,6 +2,7 @@ use flo_binding::*;
 use flo_binding::releasable::*;
 use flo_binding::binding_context::*;
 
+use std::mem;
 use std::sync::*;
 
 ///
@@ -17,17 +18,25 @@ pub struct FloatingBinding<TValue> {
 }
 
 ///
+/// The floating binding target is used to supply the binding when it becomes available
+///
+pub struct FloatingBindingTarget<TValue> {
+    /// The core of this binding (shared with the target)
+    core: Arc<Mutex<FloatingBindingCore<TValue>>>,
+}
+
+///
 /// Core shared between a floating binding and its target
 ///
 struct FloatingBindingCore<TValue> {
     /// The binding, once it has been supplied by the remote object
     binding: FloatingState<BindRef<TValue>>,
 
-    /// If there are any notifications in 'when_bound', this will pass on the notification
+    /// If there are any notifications in 'when_changed', this will pass on the notification
     binding_watcher: Option<Box<dyn Releasable>>,
 
     /// The actions to notify when the binding is updated
-    when_bound: Vec<ReleasableNotifiable>,
+    when_changed: Vec<ReleasableNotifiable>,
 }
 
 ///
@@ -102,7 +111,7 @@ impl<TValue> Changeable for FloatingBinding<TValue> {
             FloatingState::Waiting      => {
                 // The remote value hasn't arrived yet: notify via this object
                 let releasable = ReleasableNotifiable::new(what);
-                core.when_bound.push(releasable.clone_as_owned());
+                core.when_changed.push(releasable.clone_as_owned());
 
                 Box::new(releasable)
             },
@@ -151,8 +160,97 @@ where
         let watch_binding           = self.clone();
         let (watcher, notifiable)   = NotifyWatcher::new(move || watch_binding.get(), what);
 
-        core.when_bound.push(notifiable);
+        core.when_changed.push(notifiable);     // TODO: this won't work after the binding has finished binding
 
         Arc::new(watcher)
+    }
+}
+
+impl<TValue> FloatingBindingTarget<TValue> 
+where
+    TValue: 'static,
+{
+    ///
+    /// Finishes the binding for this target
+    ///
+    pub fn finish_binding(self, binding: BindRef<TValue>) {
+        // Take a weak reference to the core (this is used to call the notifications when the BindRef changes, which is the only way this binding can change once it has been bound)
+        let weak_core = Arc::downgrade(&self.core);
+
+        let to_notify = {
+            // Fetch the core
+            let mut core    = self.core.lock().unwrap();
+
+            // Copy the values to be notified 
+            let to_notify   = core.when_changed.iter().map(|notifiable| notifiable.clone_for_inspection()).collect::<Vec<_>>();
+            if !to_notify.is_empty() {
+                // Take ownership of the notifiables
+                let mut to_notify       = core.when_changed.iter().map(|notifiable| notifiable.clone_for_inspection()).collect::<Vec<_>>();
+                mem::swap(&mut to_notify, &mut core.when_changed);
+
+                // Notify via the BindRef
+                let bindref_changed     = binding.when_changed(notify(move || {
+                    if let Some(core) = weak_core.upgrade() {
+                        // Clean out any notifications that are no longer in use
+                        to_notify.retain(|item| item.is_in_use());
+
+                        // Notify anything that's left
+                        to_notify.iter()
+                            .for_each(|notifiable| { notifiable.mark_as_changed(); });
+
+                        // Drop the notifications from the core if there's nothing left
+                        if to_notify.is_empty() {
+                            let mut core            = core.lock().unwrap();
+                            core.binding_watcher    = None;
+                        }
+                    } else {
+                        // Once the core is gone, there's nothing left to notify
+                        to_notify = vec![];
+                    }
+                }));
+
+                core.binding_watcher    = Some(bindref_changed);
+            }
+
+            // Update the binding
+            core.binding    = FloatingState::Value(binding);
+
+            to_notify
+        };
+
+        // Notify anything that's listening that the binding is available
+        to_notify.into_iter()
+            .for_each(|notifiable| { notifiable.mark_as_changed(); });
+
+        // Everything else notifies via the new bindref from now on, so we don't need the when_changed list any more
+        self.core.lock().unwrap().when_changed = vec![];
+    }
+}
+
+impl<TValue> FloatingBinding<TValue> 
+where
+    TValue: 'static,
+{
+    ///
+    /// Creates a new floating binding in the waiting state and a target for setting the final binding
+    ///
+    pub fn new() -> (FloatingBinding<TValue>, FloatingBindingTarget<TValue>) {
+        // Create the core in a waiting state
+        let core = FloatingBindingCore {
+            binding:            FloatingState::Waiting,
+            binding_watcher:    None,
+            when_changed:       vec![],
+        };
+        let core    = Arc::new(Mutex::new(core));
+
+        // Create the binding and its target
+        let binding = FloatingBinding {
+            core: Arc::clone(&core),
+        };
+        let target = FloatingBindingTarget {
+            core: Arc::clone(&core),
+        };
+
+        (binding, target)
     }
 }
