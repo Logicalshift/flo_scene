@@ -131,7 +131,7 @@ impl<TValue> Changeable for FloatingBinding<TValue> {
 
 impl<TValue> Bound for FloatingBinding<TValue> 
 where
-    TValue: 'static,
+    TValue: 'static + Clone + Send,
 {
     type Value = FloatingState<TValue>;
 
@@ -157,12 +157,26 @@ where
     #[inline]
     fn watch(&self, what: Arc<dyn Notifiable>) -> Arc<dyn Watcher<Self::Value>> {
         let mut core                = self.core.lock().unwrap();
-        let watch_binding           = self.clone();
-        let (watcher, notifiable)   = NotifyWatcher::new(move || watch_binding.get(), what);
+        match &core.binding {
+            FloatingState::Waiting => {
+                // Create a watcher that notifies when this changes
+                let watch_binding           = self.clone();
+                let (watcher, notifiable)   = NotifyWatcher::new(move || watch_binding.get(), what);
 
-        core.when_changed.push(notifiable);     // TODO: this won't work after the binding has finished binding
+                core.when_changed.push(notifiable);
 
-        Arc::new(watcher)
+                Arc::new(watcher)
+            }
+
+            FloatingState::Value(binding) => {
+                // Use a computed binding to map the value and create a new watcher from that
+                let binding = binding.clone();
+                computed(move || FloatingState::Value(binding.get())).watch(what)
+            }
+
+            FloatingState::Abandoned    => Arc::new(NotifyWatcher::new(move || FloatingState::Abandoned, what).0),
+            FloatingState::Missing      => Arc::new(NotifyWatcher::new(move || FloatingState::Missing, what).0),
+        }
     }
 }
 
@@ -229,7 +243,7 @@ where
 
 impl<TValue> FloatingBinding<TValue> 
 where
-    TValue: 'static,
+    TValue: 'static + Clone + Send,
 {
     ///
     /// Creates a new floating binding in the waiting state and a target for setting the final binding
