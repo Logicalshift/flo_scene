@@ -238,6 +238,25 @@ where
         // Everything else notifies via the new bindref from now on, so we don't need the when_changed list any more
         self.core.lock().unwrap().when_changed = vec![];
     }
+
+    ///
+    /// Indicates that the value to be bound is missing
+    ///
+    pub fn missing(self) {
+        let to_notify = {
+            let mut core = self.core.lock().unwrap();
+
+            // Set the state to 'missing'
+            core.binding = FloatingState::Missing;
+
+            // Notify everything
+            core.when_changed.iter().map(|notifiable| notifiable.clone_for_inspection()).collect::<Vec<_>>()
+        };
+
+        // Send out any needed notifications about the binding being abandoned
+        to_notify.into_iter().for_each(|notifiable| { notifiable.mark_as_changed(); });
+    }
+
 }
 
 impl<TValue> Drop for FloatingBindingTarget<TValue> {
