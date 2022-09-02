@@ -341,7 +341,7 @@ where
     ///
     pub async fn wait_for_binding(self) -> Result<BindRef<TValue>, BindingError> {
         let (mut wait_for_binding, _monitor_lifetime) = {
-            let core = self.core.lock().unwrap();
+            let mut core = self.core.lock().unwrap();
 
             // Short-circuit if the binding is already known or abandoned, otherwise follow updates to this binding
             match &core.binding {
@@ -349,11 +349,11 @@ where
                 FloatingState::Missing      => { return Err(BindingError::Missing); },
                 FloatingState::Value(value) => { return Ok(value.clone()); },
                 FloatingState::Waiting      => {
-                    mem::drop(core);
-
                     // Add a notification every time the value in this object changes
                     let (mut send, recv)    = mpsc::channel(1);
-                    let monitor_lifetime    = self.when_changed(notify(move || { send.try_send(()).ok(); }));
+
+                    let monitor_lifetime    = ReleasableNotifiable::new(notify(move || { send.try_send(()).ok(); }));
+                    core.when_changed.push(monitor_lifetime.clone_as_owned());
 
                     (recv, monitor_lifetime)
                 },
