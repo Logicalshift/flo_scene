@@ -349,6 +349,8 @@ where
                 FloatingState::Missing      => { return Err(BindingError::Missing); },
                 FloatingState::Value(value) => { return Ok(value.clone()); },
                 FloatingState::Waiting      => {
+                    mem::drop(core);
+
                     // Add a notification every time the value in this object changes
                     let (mut send, recv)    = mpsc::channel(1);
                     let monitor_lifetime    = self.when_changed(notify(move || { send.try_send(()).ok(); }));
