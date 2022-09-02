@@ -180,3 +180,62 @@ fn notify_via_context() {
     assert!(computed.get() == Some(1));
     assert!(*notify_1.lock().unwrap() == true);
 }
+
+#[test]
+#[cfg(feature="properties")]
+fn wait_for_binding_immediate() {
+    use std::time::{Duration};
+    use futures::prelude::*;
+    use futures::future;
+    use futures::future::{Either};
+    use futures::executor;
+    use futures_timer::{Delay};
+
+    let (binding, target)   = FloatingBinding::new();
+
+    target.finish_binding(bind(1).into());
+
+    let binding = executor::block_on(async {
+        let delay   = Delay::new(Duration::from_millis(1_000));
+        let binding = binding.wait_for_binding();
+
+        println!("Waiting for binding");
+        match future::select(binding.boxed(), delay).await {
+            Either::Left((binding, _))  => binding.unwrap(),
+            Either::Right(_)            => panic!("Timed out"),
+        }
+    });
+
+    assert!(binding.get() == 1);
+}
+
+#[test]
+#[cfg(feature="properties")]
+fn wait_for_binding() {
+    use std::thread;
+    use std::time::{Duration};
+    use futures::prelude::*;
+    use futures::future;
+    use futures::future::{Either};
+    use futures::executor;
+    use futures_timer::{Delay};
+
+    let (binding, target)   = FloatingBinding::new();
+
+    thread::spawn(move || {
+        thread::sleep(Duration::from_millis(50));
+        target.finish_binding(bind(1).into());
+    });
+
+    let binding = executor::block_on(async {
+        let delay   = Delay::new(Duration::from_millis(1_000));
+        let binding = binding.wait_for_binding();
+
+        match future::select(binding.boxed(), delay).await {
+            Either::Left((binding, _))  => binding.unwrap(),
+            Either::Right(_)            => panic!("Timed out"),
+        }
+    });
+
+    assert!(binding.get() == 1);
+}
