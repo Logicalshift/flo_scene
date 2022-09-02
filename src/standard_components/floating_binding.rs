@@ -314,7 +314,30 @@ where
     }
 
     ///
+    /// If this binding has been bound to a value, returns the underlying binding. Can also return 'None' if the
+    /// binding is not yet available, or an error if the binding is unavaiable for any reason.
+    ///
+    /// This can be used in combination with `when_changed()` to wait for a binding to become available without
+    /// using a future. Note that using `map_binding()` can also be used to supply a default value during the 
+    /// period where the full binding is unavailable.
+    ///
+    pub fn try_get_binding(&self) -> Result<Option<BindRef<TValue>>, BindingError> {
+        let core = self.core.lock().unwrap();
+
+        match &core.binding {
+            FloatingState::Abandoned    => { Err(BindingError::Abandoned) },
+            FloatingState::Missing      => { Err(BindingError::Missing) },
+            FloatingState::Value(value) => { Ok(Some(value.clone())) },
+            FloatingState::Waiting      => { Ok(None) },
+        }
+    }
+
+    ///
     /// Waits for the binding to become ready, returning the bound value once done
+    ///
+    /// It is also possible to use `when_changed()` or `watch()` in combination with `try_get_binding()` to wait for
+    /// a binding without having to use a future. Another approach is to use `map_binding()` to map the various 'floating'
+    /// values to default values while the binding is waiting to be fully bound.
     ///
     pub async fn wait_for_binding(self) -> Result<BindRef<TValue>, BindingError> {
         let (mut wait_for_binding, _monitor_lifetime) = {
