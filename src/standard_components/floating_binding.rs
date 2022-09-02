@@ -1,12 +1,17 @@
+use crate::error::*;
+
 use flo_binding::*;
 use flo_binding::releasable::*;
 use flo_binding::binding_context::*;
+
+use futures::prelude::*;
+use futures::channel::mpsc;
 
 use std::mem;
 use std::sync::*;
 
 ///
-/// A floating binding is associated with a binding target that will be bound at some unspecified point in the future
+/// A floating binding is associated with a binding target that will be bound to its true value at some unspecified point in the future
 ///
 /// The design of this structure allows the binding to be used directly, or as a waypoint for retrieving the final
 /// `BindRef` either as a future or by blocking. In single-threaded contexts, the version using a future is much to
@@ -306,5 +311,44 @@ where
         };
 
         (binding, target)
+    }
+
+    ///
+    /// Waits for the binding to become ready, returning the bound value once done
+    ///
+    pub async fn wait_for_binding(self) -> Result<BindRef<TValue>, BindingError> {
+        let (mut wait_for_binding, _monitor_lifetime) = {
+            let core = self.core.lock().unwrap();
+
+            // Short-circuit if the binding is already known or abandoned, otherwise follow updates to this binding
+            match &core.binding {
+                FloatingState::Abandoned    => { return Err(BindingError::Abandoned); },
+                FloatingState::Missing      => { return Err(BindingError::Missing); },
+                FloatingState::Value(value) => { return Ok(value.clone()); },
+                FloatingState::Waiting      => {
+                    // Add a notification every time the value in this object changes
+                    let (mut send, recv)    = mpsc::channel(1);
+                    let monitor_lifetime    = self.when_changed(notify(move || { send.try_send(()).ok(); }));
+
+                    (recv, monitor_lifetime)
+                },
+            }
+        };
+
+        // Check the core every time the channel notifies us
+        while let Some(()) = wait_for_binding.next().await {
+            let core = self.core.lock().unwrap();
+
+            // Keep waiting until the core leaves the 'waiting' state
+            match &core.binding {
+                FloatingState::Abandoned    => { return Err(BindingError::Abandoned); },
+                FloatingState::Missing      => { return Err(BindingError::Missing); },
+                FloatingState::Value(value) => { return Ok(value.clone()); },
+                FloatingState::Waiting      => { }
+            }
+        }
+
+        // If the stream ends, then the binding was presumably abandoned
+        Err(BindingError::Abandoned)
     }
 }
