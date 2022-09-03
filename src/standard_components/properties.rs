@@ -101,7 +101,7 @@ where
     Get(PropertyReference, FloatingBindingTarget<BindRef<TValue>>),
 
     /// Whenever a property with the specified name is created, notify the specified channel
-    TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyReference, ()>),
+    TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyReference>),
 }
 
 ///
@@ -122,7 +122,7 @@ where
     Get(PropertyReference, FloatingBindingTarget<RopeBinding<TCell, TAttribute>>),
 
     /// Whenever a property with the specified name is created, notify the specified channel
-    TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyReference, ()>),
+    TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyReference>),
 }
 
 ///
@@ -251,7 +251,7 @@ impl PropertyReference {
 /// Typically `properties_entity_id` should be `PROPERTIES` here, but it's possible to run multiple sets of properties in a given scene so other values are
 /// possible if `create_properties_entity()` has been called for other entity IDs.
 ///
-pub async fn properties_channel<TValue>(properties_entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>, ()>, EntityChannelError>
+pub async fn properties_channel<TValue>(properties_entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>>, EntityChannelError>
 where
     TValue: 'static + PartialEq + Clone + Send + Sized,
 {
@@ -287,7 +287,7 @@ where
 /// Typically `properties_entity_id` should be `PROPERTIES` here, but it's possible to run multiple sets of properties in a given scene so other values are
 /// possible if `create_properties_entity()` has been called for other entity IDs.
 ///
-pub async fn rope_properties_channel<TCell, TAttribute>(properties_entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, RopePropertyRequest<TCell, TAttribute>, ()>, EntityChannelError>
+pub async fn rope_properties_channel<TCell, TAttribute>(properties_entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, RopePropertyRequest<TCell, TAttribute>>, EntityChannelError>
 where
     TCell:      'static + Send + Unpin + Clone + PartialEq,
     TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default,
@@ -325,7 +325,7 @@ struct PropertiesState {
     entities: RopeBindingMut<EntityId, ()>,
 
     /// Trackers for properties of particular types (type -> names -> channels)
-    trackers: HashMap<TypeId, HashMap<String, Vec<Option<BoxedEntityChannel<'static, PropertyReference, ()>>>>>,
+    trackers: HashMap<TypeId, HashMap<String, Vec<Option<BoxedEntityChannel<'static, PropertyReference>>>>>,
 }
 
 ///

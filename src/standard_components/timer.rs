@@ -26,10 +26,10 @@ pub struct Timeout(pub TimerId, pub Duration);
 ///
 pub enum TimerRequest {
     /// Fires a single timer event after Duration (from the point this request is retired)
-    OneShot(TimerId, Duration, BoxedEntityChannel<'static, Timeout, ()>),
+    OneShot(TimerId, Duration, BoxedEntityChannel<'static, Timeout>),
 
     /// Fires a repeating timer event every Duration (may skip notifications for timeouts that occur while the message is being processed)
-    Repeating(TimerId, Duration, BoxedEntityChannel<'static, Timeout, ()>),
+    Repeating(TimerId, Duration, BoxedEntityChannel<'static, Timeout>),
 }
 
 impl Default for TimerId {

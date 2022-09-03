@@ -36,7 +36,7 @@ pub (crate) enum InternalHeartbeatRequest {
     EntityUpdate(EntityUpdate),
 
     /// Send Heartbeat messages to the specified entity ID
-    RequestHeartbeat(BoxedEntityChannel<'static, Heartbeat, ()>),
+    RequestHeartbeat(BoxedEntityChannel<'static, Heartbeat>),
 }
 
 ///
@@ -45,7 +45,7 @@ pub (crate) enum InternalHeartbeatRequest {
 #[derive(Debug)]
 pub enum HeartbeatRequest {
     /// Send Heartbeat messages to the specified entity ID
-    RequestHeartbeat(BoxedEntityChannel<'static, Heartbeat, ()>),
+    RequestHeartbeat(BoxedEntityChannel<'static, Heartbeat>),
 }
 
 ///
@@ -79,7 +79,7 @@ pub fn create_heartbeat_entity(context: &Arc<SceneContext>) -> Result<impl Entit
     context.convert_message::<HeartbeatRequest, InternalHeartbeatRequest>()?;
 
     // Set up the state for the heartbeat entity
-    let mut receivers = HashMap::<EntityId, BoxedEntityChannel<'static, Heartbeat, ()>>::new();
+    let mut receivers = HashMap::<EntityId, BoxedEntityChannel<'static, Heartbeat>>::new();
 
     // Create the heartbeat entity itself
     Ok(context.create_entity(HEARTBEAT, move |context, mut requests| async move {
