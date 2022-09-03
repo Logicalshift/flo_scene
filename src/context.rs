@@ -1,11 +1,9 @@
 use crate::entity_id::*;
 use crate::error::*;
-use crate::message::*;
 use crate::entity_channel::*;
 use crate::scene::scene_core::*;
 use crate::standard_components::*;
 use crate::simple_entity_channel::*;
-use crate::stream_entity_response_style::*;
 
 use ::desync::*;
 use futures::prelude::*;
@@ -165,64 +163,11 @@ impl SceneContext {
     }
 
     ///
-    /// Specify that entities that can return responses of type `TOriginalResponse` can also return messages of type `TNewResponse`
-    ///
-    /// That is, if an entity can be addressed using `EntityChannel<Response=TOriginalResponse>` it will automatically convert from `TNewResponse`
-    /// so that `EntityChannel<Response=TNewResponse>` also works.
-    ///
-    pub fn convert_response<TOriginalResponse, TNewResponse>(&self) -> Result<(), SceneContextError> 
-    where
-        TOriginalResponse:  'static + Send + Into<TNewResponse>,
-        TNewResponse:       'static + Send,
-    {
-        self.scene_core()?.sync(move |core| {
-            // Register that one type can be converted to another
-            core.convert_response::<TOriginalResponse, TNewResponse>();
-
-            // Send to the entity registry
-            if let Ok(channel) = core.send_to::<InternalRegistryRequest, ()>(ENTITY_REGISTRY) {
-                core.send_background_message(channel, InternalRegistryRequest::ConvertResponse(TypeId::of::<TOriginalResponse>(), TypeId::of::<TNewResponse>()));
-            }
-        });
-
-        Ok(())
-    }
-
-    ///
-    /// Specify that entities that can return responses of type `TOriginalResponse` can also return messages of type `TNewResponse`, using a map function
-    ///
-    /// That is, if an entity can be addressed using `EntityChannel<Response=TOriginalResponse>` it will automatically convert from `TNewResponse`
-    /// so that `EntityChannel<Response=TNewResponse>` also works.
-    ///
-    /// Note that while this is more general than `convert_response`, it's a lot less safe in the case where it's called multiple times as it may
-    /// change the behaviour of something else if the map function is redefined.
-    ///
-    pub fn map_response<TOriginalResponse, TNewResponse, TMapFn>(&self, map_fn: TMapFn) -> Result<(), SceneContextError> 
-    where
-        TOriginalResponse:  'static + Send,
-        TNewResponse:       'static + Send,
-        TMapFn:             'static + Send + Sync + Fn(TOriginalResponse) -> TNewResponse,
-    {
-        self.scene_core()?.sync(move |core| {
-            // Register that one type can be converted to another
-            core.map_response(map_fn);
-
-            // Send to the entity registry
-            if let Ok(channel) = core.send_to::<InternalRegistryRequest, ()>(ENTITY_REGISTRY) {
-                core.send_background_message(channel, InternalRegistryRequest::ConvertResponse(TypeId::of::<TOriginalResponse>(), TypeId::of::<TNewResponse>()));
-            }
-        });
-
-        Ok(())
-    }
-
-    ///
     /// Creates a channel to send messages in this context
     ///
-    pub fn send_to<TMessage, TResponse>(&self, entity_id: EntityId) -> Result<BoxedEntityChannel<'static, TMessage, TResponse>, EntityChannelError>
+    pub fn send_to<TMessage>(&self, entity_id: EntityId) -> Result<BoxedEntityChannel<'static, TMessage>, EntityChannelError>
     where
         TMessage:   'static + Send,
-        TResponse:  'static + Send, 
     {
         self.scene_core()?.sync(|core| {
             core.send_to(entity_id)
@@ -230,25 +175,13 @@ impl SceneContext {
     }
 
     ///
-    /// Send a single message to an entity in this context
-    ///
-    pub async fn send<TMessage, TResponse>(&self, entity_id: EntityId, message: TMessage) -> Result<TResponse, EntityChannelError>
-    where
-        TMessage:   'static + Send,
-        TResponse:  'static + Send, 
-    {
-        let mut channel = self.send_to::<TMessage, TResponse>(entity_id)?;
-        channel.send(message).await
-    }
-
-    ///
-    /// Given a channel that produces an empty response, sends a message without waiting for the channel to finish processing it
+    /// Sends a message without waiting for the channel to finish processing it
     ///
     pub fn send_without_waiting<TMessage>(&self, entity_id: EntityId, message: TMessage) -> impl 'static + Future<Output=Result<(), EntityChannelError>>
     where
         TMessage:   'static + Send,
     {
-        let channel = self.send_to::<TMessage, ()>(entity_id);
+        let channel = self.send_to::<TMessage>(entity_id);
         async move {
             let mut channel = channel?;
             channel.send_without_waiting(message).await
@@ -271,8 +204,8 @@ impl SceneContext {
         Ok(async move {
             // Future reads from the stream until it's done
             while let Some(message) = stream.next().await {
-                // Send to the channel and wait for it to respond
-                let response = channel.send(message).await;
+                // Send to the channel
+                let response = channel.send_without_waiting(message).await;
 
                 // Break if the channel responds with an error
                 if response.is_err() {
@@ -285,11 +218,10 @@ impl SceneContext {
     ///
     /// Creates an entity that processes a particular kind of message
     ///
-    pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, TResponse>, CreateEntityError>
+    pub fn create_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<SimpleEntityChannel<TMessage>, CreateEntityError>
     where
         TMessage:   'static + Send,
-        TResponse:  'static + Send,
-        TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
+        TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, TMessage>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
     {
         // Create a SceneContext for the new entity
@@ -305,77 +237,11 @@ impl SceneContext {
     }
 
     ///
-    /// Creates an entity that processes a stream of messages which receive empty responses
-    ///
-    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, ()>, CreateEntityError>
-    where
-        TMessage:   'static + Send,
-        TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, TMessage>) -> TFnFuture,
-        TFnFuture:  'static + Send + Future<Output = ()>,
-     {
-        self.create_entity(entity_id, move |context, msgs| async move {
-            let mut msgs = msgs;
-
-            match response_style {
-                StreamEntityResponseStyle::RespondBeforeProcessing => {
-                    let msgs = stream::poll_fn(move |ctxt| {
-                        // Retrieve the next message
-                        match msgs.poll_next_unpin(ctxt) {
-                            Poll::Pending           => Poll::Pending,
-                            Poll::Ready(None)       => Poll::Ready(None),
-                            Poll::Ready(Some(msg))  => {
-                                let msg: Message<TMessage, ()> = msg;
-                                let (message, response) = msg.take();
-
-                                // Indicate that the message has been received
-                                response.send(()).ok();
-                                Poll::Ready(Some(message))
-                            }
-                        }
-                    });
-
-                    let runtime = runtime(context, msgs.boxed());
-
-                    runtime.await
-                }
-
-                StreamEntityResponseStyle::RespondAfterProcessing => {
-                    let mut last_response: Option<oneshot::Sender<()>>  = None;
-                    let msgs                                            = stream::poll_fn(move |ctxt| {
-                        // Respond to the last message before generating the next one (errors are ignored)
-                        if let Some(last_response) = last_response.take() {
-                            last_response.send(()).ok();
-                        }
-
-                        // Retrieve the next message
-                        match msgs.poll_next_unpin(ctxt) {
-                            Poll::Pending           => Poll::Pending,
-                            Poll::Ready(None)       => Poll::Ready(None),
-                            Poll::Ready(Some(msg))  => {
-                                let msg: Message<TMessage, ()> = msg;
-                                let (message, response) = msg.take();
-
-                                last_response           = Some(response);
-                                Poll::Ready(Some(message))
-                            }
-                        }
-                    });
-
-                    let runtime = runtime(context, msgs.boxed());
-
-                    runtime.await
-                }
-            }
-        })
-    }
-
-    ///
     /// Called when an entity in this context has finished
     ///
-    pub (crate) fn finish_entity<TMessage, TResponse>(&self, entity_id: EntityId)
+    pub (crate) fn finish_entity<TMessage>(&self, entity_id: EntityId)
     where
         TMessage:   'static + Send,
-        TResponse:  'static + Send,
     {
         if let Ok(scene_core) = self.scene_core() {
             scene_core.desync(move |core| core.finish_entity(entity_id));
@@ -480,27 +346,15 @@ pub fn scene_run_in_background(future: impl 'static + Send + Future<Output=()>) 
 ///
 /// Creates a channel for sending messages to a entity (in the current context)
 ///
-pub fn scene_send_to<TMessage, TResponse>(entity_id: EntityId) -> Result<BoxedEntityChannel<'static, TMessage, TResponse>, EntityChannelError>
+pub fn scene_send_to<TMessage>(entity_id: EntityId) -> Result<BoxedEntityChannel<'static, TMessage>, EntityChannelError>
 where
     TMessage:   'static + Send,
-    TResponse:  'static + Send, 
 {
     SceneContext::current().send_to(entity_id)
 }
 
 ///
-/// Sends a single message to a entity and reads the response
-///
-pub async fn scene_send<TMessage, TResponse>(entity_id: EntityId, message: TMessage) -> Result<TResponse, EntityChannelError>
-where
-    TMessage:   'static + Send,
-    TResponse:  'static + Send, 
-{
-    SceneContext::current().send(entity_id, message).await
-}
-
-///
-/// Sends a single message to a entity without waiting for the response
+/// Sends a single message to an entity
 ///
 pub async fn scene_send_without_waiting<TMessage>(entity_id: EntityId, message: TMessage) -> Result<(), EntityChannelError>
 where
@@ -524,24 +378,11 @@ where
 ///
 /// Creates a new entity in the current scene
 ///
-pub fn scene_create_entity<TMessage, TResponse, TFn, TFnFuture>(entity_id: EntityId, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, TResponse>, CreateEntityError>
-where
-    TMessage:   'static + Send,
-    TResponse:  'static + Send,
-    TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
-    TFnFuture:  'static + Send + Future<Output = ()>,
-{
-    SceneContext::current().create_entity(entity_id, runtime)
-}
-
-///
-/// Creates an entity that processes a stream of messages which receive empty responses
-///
-pub fn scene_create_stream_entity<TMessage, TFn, TFnFuture>(entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, ()>, CreateEntityError>
+pub fn scene_create_entity<TMessage, TFn, TFnFuture>(entity_id: EntityId, runtime: TFn) -> Result<SimpleEntityChannel<TMessage>, CreateEntityError>
 where
     TMessage:   'static + Send,
     TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, TMessage>) -> TFnFuture,
     TFnFuture:  'static + Send + Future<Output = ()>,
 {
-    SceneContext::current().create_stream_entity(entity_id, response_style, runtime)
+    SceneContext::current().create_entity(entity_id, runtime)
 }
