@@ -596,7 +596,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         let properties      = if let Ok(properties) = properties { properties } else { return; };
 
         if let Some(mut entity_registry) = context.send_to(ENTITY_REGISTRY).ok() {
-            entity_registry.send(EntityRegistryRequest::TrackEntities(properties)).await.ok();
+            entity_registry.send_without_waiting(EntityRegistryRequest::TrackEntities(properties)).await.ok();
         }
 
         // Bind the properties for the properties entity itself
