@@ -28,12 +28,12 @@ pub enum EntityRegistryRequest {
     ///
     /// Sends updates for all entities to the specified entity channel
     ///
-    TrackEntities(BoxedEntityChannel<'static, EntityUpdate, ()>),
+    TrackEntities(BoxedEntityChannel<'static, EntityUpdate>),
 
     ///
     /// As for TrackEntities but only for those that use a particular channel type
     ///
-    TrackEntitiesWithType(BoxedEntityChannel<'static, EntityUpdate, ()>, EntityChannelType),
+    TrackEntitiesWithType(BoxedEntityChannel<'static, EntityUpdate>, EntityChannelType),
 }
 
 ///
@@ -57,13 +57,13 @@ pub (crate) enum InternalRegistryRequest {
     /// Opens an entity update channel (of type `EntityChannel<EntityUpdate, ()>`) to the specified entity and sends updates to indicate when entities are added or
     /// removed to/from the scene
     ///
-    TrackEntities(BoxedEntityChannel<'static, EntityUpdate, ()>),
+    TrackEntities(BoxedEntityChannel<'static, EntityUpdate>),
 
     ///
     /// Opens an entity update channel (of type `EntityChannel<EntityUpdate, ()>`) to the specified entity and sends updates to indicate when any entity that can 
     /// accept a channel of this type is created or destroyed
     ///
-    TrackEntitiesWithType(BoxedEntityChannel<'static, EntityUpdate, ()>, EntityChannelType),
+    TrackEntitiesWithType(BoxedEntityChannel<'static, EntityUpdate>, EntityChannelType),
 
     ///
     /// Sent from the scene core: a new entity was created (with the specified message type for its main stream)
@@ -146,8 +146,8 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
         convert_message:    HashMap::new(),
     };
 
-    let mut trackers: Vec<Option<BoxedEntityChannel<'static, EntityUpdate, ()>>>                            = vec![];
-    let mut typed_trackers: Vec<Option<(EntityChannelType, BoxedEntityChannel<'static, EntityUpdate, ()>)>> = vec![];
+    let mut trackers: Vec<Option<BoxedEntityChannel<'static, EntityUpdate>>>                            = vec![];
+    let mut typed_trackers: Vec<Option<(EntityChannelType, BoxedEntityChannel<'static, EntityUpdate>)>> = vec![];
 
     // Create the entity registry (it's just a stream entity)
     context.create_entity(ENTITY_REGISTRY, move |_context, mut requests| async move {
