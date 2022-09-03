@@ -7,9 +7,6 @@ use crate::simple_entity_channel::*;
 
 use ::desync::*;
 use futures::prelude::*;
-use futures::task::{Poll};
-use futures::channel::oneshot;
-use futures::stream;
 use futures::stream::{BoxStream};
 
 use std::mem;
