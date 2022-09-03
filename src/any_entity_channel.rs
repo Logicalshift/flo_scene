@@ -91,11 +91,6 @@ impl EntityChannel for AnyEntityChannel {
     }
 
     #[inline]
-    fn send<'a>(&'a mut self, message: Box<dyn Send + Any>) -> BoxFuture<'a, Result<Box<dyn Send + Any>, EntityChannelError>> {
-        (self.send)(message)
-    }
-
-    #[inline]
     fn send_without_waiting(&mut self, message: Box<dyn Send + Any>) -> BoxFuture<'static, Result<(), EntityChannelError>> {
         (self.send_without_waiting)(message)
     }
