@@ -35,7 +35,7 @@ pub struct FloatingBindingTarget<TValue> {
 ///
 struct FloatingBindingCore<TValue> {
     /// The binding, once it has been supplied by the remote object
-    binding: FloatingState<BindRef<TValue>>,
+    binding: FloatingState<TValue> ,
 
     /// If there are any notifications in 'when_changed', this will pass on the notification
     binding_watcher: Option<Box<dyn Releasable>>,
@@ -107,7 +107,10 @@ impl<TValue> Clone for FloatingBinding<TValue> {
     }
 }
 
-impl<TValue> Changeable for FloatingBinding<TValue> {
+impl<TValue> Changeable for FloatingBinding<TValue> 
+where
+    TValue: Changeable
+{
     fn when_changed(&self, what: Arc<dyn Notifiable>) -> Box<dyn Releasable> {
         let mut core = self.core.lock().unwrap();
 
@@ -136,9 +139,10 @@ impl<TValue> Changeable for FloatingBinding<TValue> {
 
 impl<TValue> Bound for FloatingBinding<TValue> 
 where
-    TValue: 'static + Clone + Send,
+    TValue:         'static + Clone + Send + Bound,
+    TValue::Value:  'static + Clone + Send,
 {
-    type Value = FloatingState<TValue>;
+    type Value = FloatingState<TValue::Value>;
 
     #[inline]
     fn get(&self) -> Self::Value {
@@ -186,12 +190,12 @@ where
 
 impl<TValue> FloatingBindingTarget<TValue> 
 where
-    TValue: 'static,
+    TValue: 'static + Bound,
 {
     ///
     /// Finishes the binding for this target
     ///
-    pub fn finish_binding(self, binding: BindRef<TValue>) {
+    pub fn finish_binding(self, binding: TValue) {
         // Take a weak reference to the core (this is used to call the notifications when the BindRef changes, which is the only way this binding can change once it has been bound)
         let weak_core = Arc::downgrade(&self.core);
 
@@ -288,7 +292,8 @@ impl<TValue> Drop for FloatingBindingTarget<TValue> {
 
 impl<TValue> FloatingBinding<TValue> 
 where
-    TValue: 'static + Clone + Send,
+    TValue:         'static + Clone + Send + Bound,
+    TValue::Value:  'static + Clone + Send,
 {
     ///
     /// Creates a new floating binding in the waiting state and a target for setting the final binding
@@ -321,7 +326,7 @@ where
     /// using a future. Note that using `map_binding()` can also be used to supply a default value during the 
     /// period where the full binding is unavailable.
     ///
-    pub fn try_get_binding(&self) -> Result<Option<BindRef<TValue>>, BindingError> {
+    pub fn try_get_binding(&self) -> Result<Option<TValue>, BindingError> {
         let core = self.core.lock().unwrap();
 
         match &core.binding {
@@ -339,7 +344,7 @@ where
     /// a binding without having to use a future. Another approach is to use `map_binding()` to map the various 'floating'
     /// values to default values while the binding is waiting to be fully bound.
     ///
-    pub async fn wait_for_binding(self) -> Result<BindRef<TValue>, BindingError> {
+    pub async fn wait_for_binding(self) -> Result<TValue, BindingError> {
         let (mut wait_for_binding, _monitor_lifetime) = {
             let mut core = self.core.lock().unwrap();
 

@@ -7,7 +7,7 @@
 #[test]
 #[cfg(feature="properties")]
 fn initially_waiting() {
-    let (binding, _target) = FloatingBinding::<u32>::new();
+    let (binding, _target) = FloatingBinding::<Binding<u32>>::new();
 
     assert!(binding.get() == FloatingState::Waiting);
 }
@@ -17,7 +17,7 @@ fn initially_waiting() {
 fn bind_target() {
     let (binding, target) = FloatingBinding::new();
 
-    target.finish_binding(bind(1).into());
+    target.finish_binding(bind(1));
 
     assert!(binding.get() == FloatingState::Value(1));
 }
@@ -25,7 +25,7 @@ fn bind_target() {
 #[test]
 #[cfg(feature="properties")]
 fn abandon_binding() {
-    let (binding, target) = FloatingBinding::<u32>::new();
+    let (binding, target) = FloatingBinding::<Binding<u32>>::new();
 
     mem::drop(target);
 
@@ -35,7 +35,7 @@ fn abandon_binding() {
 #[test]
 #[cfg(feature="properties")]
 fn missing_binding() {
-    let (binding, target) = FloatingBinding::<u32>::new();
+    let (binding, target) = FloatingBinding::<Binding<u32>>::new();
 
     target.missing();
 
@@ -45,7 +45,7 @@ fn missing_binding() {
 #[test]
 #[cfg(feature="properties")]
 fn try_get_initially_waiting() {
-    let (binding, _target) = FloatingBinding::<u32>::new();
+    let (binding, _target) = FloatingBinding::<Binding<u32>>::new();
 
     assert!(binding.try_get_binding().unwrap().is_none());
 }
@@ -55,7 +55,7 @@ fn try_get_initially_waiting() {
 fn try_get_bind_target() {
     let (binding, target) = FloatingBinding::new();
 
-    target.finish_binding(bind(1).into());
+    target.finish_binding(bind(1));
 
     assert!(binding.try_get_binding().unwrap().is_some());
 }
@@ -63,7 +63,7 @@ fn try_get_bind_target() {
 #[test]
 #[cfg(feature="properties")]
 fn try_get_abandon_binding() {
-    let (binding, target) = FloatingBinding::<u32>::new();
+    let (binding, target) = FloatingBinding::<Binding<u32>>::new();
 
     mem::drop(target);
 
@@ -73,7 +73,7 @@ fn try_get_abandon_binding() {
 #[test]
 #[cfg(feature="properties")]
 fn try_get_missing_binding() {
-    let (binding, target) = FloatingBinding::<u32>::new();
+    let (binding, target) = FloatingBinding::<Binding<u32>>::new();
 
     target.missing();
 
@@ -89,7 +89,7 @@ fn notify_on_binding() {
     let _releasable         = binding.when_changed(notify(move || { (*notify_2.lock().unwrap()) = true; }));
 
     assert!(*notify_1.lock().unwrap() == false);
-    target.finish_binding(bind(1).into());
+    target.finish_binding(bind(1));
 
     assert!(*notify_1.lock().unwrap() == true);
 }
@@ -100,7 +100,7 @@ fn notify_on_binding_update() {
     let (binding, target)   = FloatingBinding::new();
     let internal_binding    = bind(1);
 
-    target.finish_binding(internal_binding.clone().into());
+    target.finish_binding(internal_binding.clone());
 
     let notify_1            = Arc::new(Mutex::new(false));
     let notify_2            = Arc::clone(&notify_1);
@@ -123,7 +123,7 @@ fn continue_notifying_after_final_binding() {
     let _releasable         = binding.when_changed(notify(move || { (*notify_2.lock().unwrap()) = true; }));
 
     assert!(*notify_1.lock().unwrap() == false);
-    target.finish_binding(internal_binding.clone().into());
+    target.finish_binding(internal_binding.clone());
 
     assert!(*notify_1.lock().unwrap() == true);
     (*notify_1.lock().unwrap()) = false;
@@ -135,7 +135,7 @@ fn continue_notifying_after_final_binding() {
 #[test]
 #[cfg(feature="properties")]
 fn notify_on_missing() {
-    let (binding, target)   = FloatingBinding::<u32>::new();
+    let (binding, target)   = FloatingBinding::<Binding<u32>>::new();
     let notify_1            = Arc::new(Mutex::new(false));
     let notify_2            = Arc::clone(&notify_1);
     let _releasable         = binding.when_changed(notify(move || { (*notify_2.lock().unwrap()) = true; }));
@@ -149,7 +149,7 @@ fn notify_on_missing() {
 #[test]
 #[cfg(feature="properties")]
 fn notify_on_abandon() {
-    let (binding, target)   = FloatingBinding::<u32>::new();
+    let (binding, target)   = FloatingBinding::<Binding<u32>>::new();
     let notify_1            = Arc::new(Mutex::new(false));
     let notify_2            = Arc::clone(&notify_1);
     let _releasable         = binding.when_changed(notify(move || { (*notify_2.lock().unwrap()) = true; }));
@@ -175,7 +175,7 @@ fn notify_via_context() {
 
     assert!(computed.get() == None);
     assert!(*notify_1.lock().unwrap() == false);
-    target.finish_binding(bind(1).into());
+    target.finish_binding(bind(1));
 
     assert!(computed.get() == Some(1));
     assert!(*notify_1.lock().unwrap() == true);
@@ -193,7 +193,7 @@ fn wait_for_binding_immediate() {
 
     let (binding, target)   = FloatingBinding::new();
 
-    target.finish_binding(bind(1).into());
+    target.finish_binding(bind(1));
 
     let binding = executor::block_on(async {
         let delay   = Delay::new(Duration::from_millis(1_000));
@@ -224,7 +224,7 @@ fn wait_for_binding() {
 
     thread::spawn(move || {
         thread::sleep(Duration::from_millis(50));
-        target.finish_binding(bind(1).into());
+        target.finish_binding(bind(1));
     });
 
     let binding = executor::block_on(async {
