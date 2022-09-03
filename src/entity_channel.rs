@@ -61,12 +61,11 @@ where
     }
 }
 
-impl<'a, TMessage, TResponse> fmt::Debug for BoxedEntityChannel<'a, TMessage, TResponse> 
+impl<'a, TMessage> fmt::Debug for BoxedEntityChannel<'a, TMessage> 
 where
     TMessage:  Send,
-    TResponse: Send,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        fmt.write_fmt(format_args!("BoxedEntityChannel::<{}, {}>( -> {:?})", any::type_name::<TMessage>(), any::type_name::<TResponse>(), self.entity_id()))
+        fmt.write_fmt(format_args!("BoxedEntityChannel::<{}>( -> {:?})", any::type_name::<TMessage>(), self.entity_id()))
     }
 }

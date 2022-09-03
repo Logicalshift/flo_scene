@@ -39,7 +39,7 @@ pub enum LogControlRequest {
     Log(LogRequest),
 
     /// Send all log messages at the specified log level or above to the specified channel
-    Monitor(BoxedEntityChannel<'static, LogRequest, ()>, LogLevel),
+    Monitor(BoxedEntityChannel<'static, LogRequest>, LogLevel),
 }
 
 impl From<LogRequest> for LogControlRequest {
