@@ -126,9 +126,10 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
             let mut channel = properties_channel::<TValue>(PROPERTIES, &context).await?;
 
             // Request that the channel send values to the sink
-            let binding     = channel.send(PropertyRequest::Get(reference)).await?;
+            let (binding, target) = FloatingBinding::new();
+            channel.send(PropertyRequest::Get(reference, target)).await?;
 
-            if let Some(binding) = binding {
+            if let Ok(binding) = binding.wait_for_binding().await {
                 Ok(binding)
             } else {
                 Err(EntityChannelError::NoSuchProperty)
@@ -202,9 +203,10 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
             let mut channel = rope_properties_channel::<TCell, TAttribute>(PROPERTIES, &context).await?;
 
             // Request that the channel send values to the sink
-            let binding     = channel.send(RopePropertyRequest::Get(reference)).await?;
+            let (binding, target) = FloatingBinding::new();
+            channel.send(RopePropertyRequest::Get(reference, target)).await?;
 
-            if let Some(binding) = binding {
+            if let Ok(binding) = binding.wait_for_binding().await {
                 Ok(binding)
             } else {
                 Err(EntityChannelError::NoSuchProperty)

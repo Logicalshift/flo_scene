@@ -270,7 +270,10 @@ fn race_follow_string_property() {
                 println!("Create test entity property");
                 channel.send_without_waiting(PropertyRequest::CreateProperty(PropertyDefinition::from_stream(TEST_ENTITY, "TestString", string_receiver.boxed(), "".into()))).await.unwrap();
                 println!("Follow test entity property");
-                let property_binding = channel.send(PropertyRequest::Get(PropertyReference::new(TEST_ENTITY, "TestString"))).await.unwrap().unwrap();
+
+                let (property_binding, target) = FloatingBinding::new();
+                channel.send(PropertyRequest::Get(PropertyReference::new(TEST_ENTITY, "TestString"), target)).await.unwrap();
+                let property_binding = property_binding.wait_for_binding().await.unwrap();
 
                 // If we send a value to the property, it should show up on the property stream
                 println!("Receive initial empty value");

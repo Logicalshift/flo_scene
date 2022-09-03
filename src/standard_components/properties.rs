@@ -5,6 +5,7 @@ use crate::entity_channel::*;
 use crate::message::*;
 use crate::ergonomics::*;
 
+use super::floating_binding::*;
 use super::entity_registry::*;
 use super::entity_ids::*;
 
@@ -105,8 +106,8 @@ where
     /// Removes the property with the specified name
     DestroyProperty(PropertyReference),
 
-    /// Retrieves the `BindRef<TValue>` containing this property (this shares the data more efficiently than Follow does)
-    Get(PropertyReference),
+    /// Retrieves the `BindRef<TValue>` by sending it to the specified binding target
+    Get(PropertyReference, FloatingBindingTarget<BindRef<TValue>>),
 
     /// Whenever a property with the specified name is created, notify the specified channel
     TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyReference, ()>),
@@ -127,7 +128,7 @@ where
     DestroyProperty(PropertyReference),
 
     /// Retrieves the `BindRef<TValue>` containing this property (this shares the data more efficiently than Follow does)
-    Get(PropertyReference),
+    Get(PropertyReference, FloatingBindingTarget<RopeBinding<TCell, TAttribute>>),
 
     /// Whenever a property with the specified name is created, notify the specified channel
     TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyReference, ()>),
@@ -159,6 +160,7 @@ where
         InternalPropertyRequest::AnyRequest(Box::new(Some(req)))
     }
 }
+
 impl<TCell, TAttribute> From<RopePropertyRequest<TCell, TAttribute>> for InternalPropertyRequest 
 where
     TCell:      'static + Send + Unpin + Clone + PartialEq,
@@ -475,16 +477,22 @@ where
             None
         }
 
-        Get(reference) => {
+        Get(reference, target) => {
             // See if there's a property with the appropriate name
             if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
                 if let Some(property) = property.downcast_mut::<Arc<Property<TValue>>>() {
                     // Return the binding to the caller
-                    Some(property.current_value.clone())
+                    target.finish_binding(property.current_value.clone());
+
+                    None
                 } else {
+                    target.missing();
+
                     None
                 }
             } else {
+                target.missing();
+
                 None
             }
         }
@@ -593,16 +601,22 @@ where
             None
         }
 
-        Get(reference) => {
+        Get(reference, target) => {
             // See if there's a property with the appropriate name
             if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
                 if let Some(property) = property.downcast_mut::<Arc<RopeProperty<TCell, TAttribute>>>() {
                     // Return the binding to the caller
-                    Some(property.current_value.clone())
+                    target.finish_binding(property.current_value.clone());
+
+                    None
                 } else {
+                    target.missing();
+
                     None
                 }
             } else {
+                target.missing();
+
                 None
             }
         }

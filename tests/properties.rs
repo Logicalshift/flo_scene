@@ -77,7 +77,10 @@ fn follow_string_property() {
             // Create a string property
             let (string_sender, string_receiver)    = mpsc::channel(5);
             channel.send_without_waiting(PropertyRequest::CreateProperty(PropertyDefinition::from_stream(TEST_ENTITY, "TestString", string_receiver.boxed(), "".into()))).await.unwrap();
-            let string_binding = channel.send(PropertyRequest::Get(PropertyReference::new(TEST_ENTITY, "TestString"))).await.unwrap().unwrap();
+
+            let (string_binding, target) = FloatingBinding::new();
+            channel.send(PropertyRequest::Get(PropertyReference::new(TEST_ENTITY, "TestString"), target)).await.unwrap();
+            let string_binding = string_binding.wait_for_binding().await.unwrap();
 
             // If we send a value to the property, it should show up on the property stream
             let mut string_stream   = follow(string_binding);
