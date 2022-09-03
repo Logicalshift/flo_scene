@@ -561,7 +561,7 @@ mod test {
 
     #[test]
     fn receive_from_buffer() {
-        let (channel, receiver) = SimpleEntityChannel::<(), ()>::new(EntityId::new(), 10);
+        let (channel, receiver) = SimpleEntityChannel::<()>::new(EntityId::new(), 10);
 
         // Fill with 5 pending requests (first request will be 'sent' straight away)
         let mut channel = channel;
@@ -588,7 +588,7 @@ mod test {
 
     #[test]
     fn overfill_then_drain() {
-        let (channel, receiver) = SimpleEntityChannel::<(), ()>::new(EntityId::new(), 1);
+        let (channel, receiver) = SimpleEntityChannel::<()>::new(EntityId::new(), 1);
 
         // Fill with 5 pending requests (first request will be 'sent' straight away)
         let mut channel = channel;
@@ -615,7 +615,7 @@ mod test {
 
     #[test]
     fn overfilled_ordering() {
-        let (channel, receiver) = SimpleEntityChannel::<usize, ()>::new(EntityId::new(), 2);
+        let (channel, receiver) = SimpleEntityChannel::<usize>::new(EntityId::new(), 2);
 
         // Fill with 5 pending requests (first request will be 'sent' straight away)
         let mut channel = channel;
@@ -629,9 +629,9 @@ mod test {
             let mut receiver = receiver;
             for i in 0..10 {
                 let msg = receiver.next().await.unwrap();
-                println!("Received {} {}", i, *msg);
+                println!("Received {} {}", i, msg);
 
-                assert!(i == *msg);
+                assert!(i == msg);
             }
         };
 
