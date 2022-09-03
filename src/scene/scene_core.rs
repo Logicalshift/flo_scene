@@ -116,7 +116,7 @@ impl SceneCore {
             // Tell the entity registry about the entity that was just created
             if entity_id != ENTITY_REGISTRY {
                 // We usually don't let the entity start until it's definitely associated with the registry
-                scene_context.send::<_, ()>(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>())).await.ok();
+                scene_context.send_without_waiting::<_>(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>())).await.ok();
             } else {
                 // The entity registry itself might have a full queue by the time it gets around to registering itself: avoid blocking here by sending the request in the background
                 let send = scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>()));

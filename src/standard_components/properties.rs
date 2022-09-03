@@ -268,7 +268,7 @@ where
     // (This is most useful at startup when we need the entity tracking to start up before anything else)
     // We don't do this for the properties entity itself (so it has a chance to declare some properties before it becomes 'ready')
     if context.entity() != Some(properties_entity_id) {
-        context.send::<_, ()>(properties_entity_id, InternalPropertyRequest::Ready).await.ok();
+        context.send_without_waiting::<_>(properties_entity_id, InternalPropertyRequest::Ready).await.ok();
     }
 
     // Ensure that the message is converted to an internal request
@@ -304,7 +304,7 @@ where
     // Before returning a channel, wait for the properties entity to become ready
     // (This is most useful at startup when we need the entity tracking to start up before anything else)
     if context.entity() != Some(properties_entity_id) {
-        context.send::<_, ()>(properties_entity_id, InternalPropertyRequest::Ready).await.ok();
+        context.send_without_waiting::<_>(properties_entity_id, InternalPropertyRequest::Ready).await.ok();
     }
 
     // Ensure that the message is converted to an internal request
