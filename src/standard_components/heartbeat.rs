@@ -2,7 +2,6 @@ use crate::context::*;
 use crate::entity_id::*;
 use crate::error::*;
 use crate::entity_channel::*;
-use crate::stream_entity_response_style::*;
 use crate::ergonomics::*;
 
 use super::entity_ids::*;
@@ -74,7 +73,7 @@ impl From<EntityUpdate> for InternalHeartbeatRequest {
 ///
 /// Creates the heartbeat entity in a context
 ///
-pub fn create_heartbeat_entity(context: &Arc<SceneContext>) -> Result<impl EntityChannel<Message=HeartbeatRequest, Response=()>, CreateEntityError> {
+pub fn create_heartbeat_entity(context: &Arc<SceneContext>) -> Result<impl EntityChannel<Message=HeartbeatRequest>, CreateEntityError> {
     // Set up converting the messages that the heartbeat entity can receive
     context.convert_message::<EntityUpdate, InternalHeartbeatRequest>()?;
     context.convert_message::<HeartbeatRequest, InternalHeartbeatRequest>()?;
@@ -83,7 +82,7 @@ pub fn create_heartbeat_entity(context: &Arc<SceneContext>) -> Result<impl Entit
     let mut receivers = HashMap::<EntityId, BoxedEntityChannel<'static, Heartbeat, ()>>::new();
 
     // Create the heartbeat entity itself
-    Ok(context.create_stream_entity(HEARTBEAT, StreamEntityResponseStyle::default(), move |context, mut requests| async move {
+    Ok(context.create_entity(HEARTBEAT, move |context, mut requests| async move {
         // Request details on the entities (we track what gets destroyed so we can stop them receiving heartbeats)
         if let Ok(our_channel) = context.send_to(HEARTBEAT) {
             context.send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(our_channel)).await.ok();
