@@ -8,6 +8,14 @@ use futures_timer::{Delay};
 use std::time::{Duration};
 
 ///
+/// Request to a component: run its tests, and send the results to the specified channel
+///
+pub enum SceneTestRequest {
+    /// Run the tests for this component
+    RunTests(SimpleEntityChannel<SceneTestResult>),
+}
+
+///
 /// Result of a test on an entity in a scene
 ///
 #[derive(Debug, PartialEq, Clone)]
@@ -40,15 +48,17 @@ pub fn test_scene(scene: Scene) {
         .boxed();
 
     // The result future causes the test to actually run
-    let mut channel = scene.send_to::<(), Vec<SceneTestResult>>(TEST_ENTITY).unwrap();
-    let result      = channel.send(())
-        .map(|result| {
-            match result {
-                Ok(result)  => result,
-                Err(err)    => vec![SceneTestResult::ChannelError(err)],
-            }
-        })
-        .boxed();
+    let (results, results_stream)   = SimpleEntityChannel::new(TEST_ENTITY, 1);
+    let mut channel                 = scene.send_to(TEST_ENTITY).unwrap();
+    let result                      = async move { 
+        // Ask the test entity to run the tests
+        channel.send_without_waiting(SceneTestRequest::RunTests(results))
+            .await
+            .unwrap();
+
+        // Collect the results
+        results_stream.collect::<Vec<_>>().await
+    }.boxed();
 
     // Run the scene
     let scene       = scene.run()
