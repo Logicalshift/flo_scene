@@ -13,9 +13,6 @@ pub trait EntityChannel : Send {
     /// The type of message that can be sent to this channel
     type Message: Send;
 
-    /// The type of response that this channel will generate
-    type Response: Send;
-
     ///
     /// Returns the ID of the entity that will receive messages from this channel
     ///
@@ -25,11 +22,6 @@ pub trait EntityChannel : Send {
     /// True if this channel has been closed
     ///
     fn is_closed(&self) -> bool;
-
-    ///
-    /// Sends a message to the channel and waits for a response
-    ///
-    fn send<'a>(&'a mut self, message: Self::Message) -> BoxFuture<'a, Result<Self::Response, EntityChannelError>>;
 
     ///
     /// Sends a message to a channel where we don't want to wait for a response
@@ -45,15 +37,13 @@ pub trait EntityChannel : Send {
 ///
 /// A boxed entity channel is used to hide the real type of an entity channel
 ///
-pub type BoxedEntityChannel<'a, TMessage, TResponse> = Box<dyn 'a + EntityChannel<Message=TMessage, Response=TResponse>>;
+pub type BoxedEntityChannel<'a, TMessage> = Box<dyn 'a + EntityChannel<Message=TMessage>>;
 
-impl<'a, TMessage, TResponse> EntityChannel for BoxedEntityChannel<'a, TMessage, TResponse> 
+impl<'a, TMessage> EntityChannel for BoxedEntityChannel<'a, TMessage> 
 where
     TMessage:  Send,
-    TResponse: Send,
 {
     type Message    = TMessage;
-    type Response   = TResponse;
 
     #[inline]
     fn entity_id(&self) -> EntityId {
@@ -63,11 +53,6 @@ where
     #[inline]
     fn is_closed(&self) -> bool {
         (**self).is_closed()
-    }
-
-    #[inline]
-    fn send<'b>(&'b mut self, message: Self::Message) -> BoxFuture<'b, Result<Self::Response, EntityChannelError>> {
-        (**self).send(message)
     }
 
     #[inline]
