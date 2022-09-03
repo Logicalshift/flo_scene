@@ -2,7 +2,6 @@ use super::entity_core::*;
 use super::entity_receiver::*;
 use super::background_future::*;
 use super::map_from_entity_type::*;
-use super::map_into_entity_type::*;
 
 use crate::error::*;
 use crate::entity_id::*;
