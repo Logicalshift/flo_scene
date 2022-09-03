@@ -2,7 +2,6 @@ use crate::entity_id::*;
 use crate::context::*;
 use crate::error::*;
 use crate::entity_channel::*;
-use crate::message::*;
 use crate::ergonomics::*;
 
 use super::floating_binding::*;
@@ -612,13 +611,11 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         }
 
         while let Some(message) = messages.next().await {
-            let message: Message<InternalPropertyRequest, ()> = message;
-            let (message, responder) = message.take();
+            let message: InternalPropertyRequest = message;
 
             match message {
                 InternalPropertyRequest::Ready => {
                     // This is just used to synchronise requests to the entity
-                    responder.send(()).ok();
                 }
 
                 InternalPropertyRequest::AnyRequest(request) => {
@@ -632,18 +629,13 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                     if let Some(request_processor) = message_processors.get(&request_type) {
                         // Process the request
                         request_processor(request, &mut state, &context);
-
-                        responder.send(()).ok();
                     } else {
                         // No processor available
-                        responder.send(()).ok();
                     }
                 }
 
                 InternalPropertyRequest::CreatedEntity(entity_id) => { 
                     state.properties.insert(entity_id, HashMap::new());
-
-                    responder.send(()).ok();
 
                     // Add the new entity to the start of the entity list
                     state.entities.replace(0..0, vec![entity_id]);
@@ -651,8 +643,6 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
 
                 InternalPropertyRequest::DestroyedEntity(destroyed_entity_id) => {
                     state.properties.remove(&destroyed_entity_id);
-
-                    responder.send(()).ok();
 
                     // Remove the entity from the list
                     state.entities.retain_cells(|entity_id| entity_id != &destroyed_entity_id);

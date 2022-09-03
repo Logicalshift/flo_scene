@@ -4,7 +4,6 @@ use std::time::{Duration};
 #[cfg(feature="timer")] use crate::error::*;
 #[cfg(feature="timer")] use crate::entity_channel::*;
 #[cfg(feature="timer")] use crate::entity_id::*;
-#[cfg(feature="timer")] use crate::stream_entity_response_style::*;
 
 #[cfg(feature="timer")] use futures::prelude::*;
 #[cfg(feature="timer")] use futures_timer::{Delay};
@@ -45,9 +44,8 @@ impl Default for TimerId {
 /// This responds to TimerRequests, 
 ///
 #[cfg(feature="timer")]
-pub fn create_timer_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<impl EntityChannel<Message=TimerRequest, Response=()>, CreateEntityError> {
-    // The timer entity is a 'respond after processing' stream, which is OK as it doesn't send directly to any other channels while processing a request
-    context.create_stream_entity(entity_id, StreamEntityResponseStyle::RespondAfterProcessing, |context, mut timer_messages| async move {
+pub fn create_timer_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<impl EntityChannel<Message=TimerRequest>, CreateEntityError> {
+    context.create_entity(entity_id, |context, mut timer_messages| async move {
         while let Some(message) = timer_messages.next().await {
             use TimerRequest::*;
 
@@ -57,7 +55,7 @@ pub fn create_timer_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> 
                         let mut channel = channel;
 
                         Delay::new(time).await;
-                        channel.send(Timeout(timer_id, time)).await.ok();
+                        channel.send_without_waiting(Timeout(timer_id, time)).await.ok();
                     }).ok();
                 }
 
@@ -90,14 +88,13 @@ pub fn create_timer_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> 
                             next_tick += time;
 
                             // Inform the channel of the timeout
-                            let send_result = channel.send(Timeout(timer_id, last_tick)).await;
+                            let send_result = channel.send_without_waiting(Timeout(timer_id, last_tick)).await;
 
                             match send_result {
-                                Ok(())                              => { /* Target responded */ }
-                                Err(EntityChannelError::NoResponse) => { /* Target dropped the message but is still listening */ }
+                                Ok(())  => { /* Target responded */ }
 
                                 // Other errors stop the timer
-                                Err(_)                              => { break; }
+                                Err(_)  => { break; }
                             }
                         }
                     }).ok();
