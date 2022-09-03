@@ -2,7 +2,6 @@ use super::entity_ids::*;
 
 use crate::error::*;
 use crate::context::*;
-use crate::message::*;
 use crate::entity_id::*;
 use crate::entity_channel::*;
 use crate::ergonomics::*;
@@ -14,12 +13,11 @@ use std::sync::*;
 use std::collections::{HashMap, HashSet};
 
 ///
-/// Describes the message and response for an entity channel
+/// Describes the message for an entity channel
 ///
 #[derive(Clone, Debug, PartialEq)]
 pub struct EntityChannelType {
     pub message_type:   TypeId,
-    pub response_type:  TypeId,
 }
 
 ///
@@ -68,9 +66,9 @@ pub (crate) enum InternalRegistryRequest {
     TrackEntitiesWithType(BoxedEntityChannel<'static, EntityUpdate, ()>, EntityChannelType),
 
     ///
-    /// Sent from the scene core: a new entity was created (with the specified message and response types for its main stream)
+    /// Sent from the scene core: a new entity was created (with the specified message type for its main stream)
     ///
-    CreatedEntity(EntityId, TypeId, TypeId),
+    CreatedEntity(EntityId, TypeId),
 
     ///
     /// Send from the scene 
@@ -81,11 +79,6 @@ pub (crate) enum InternalRegistryRequest {
     /// Indicates that one message type can be converted to another
     ///
     ConvertMessage(TypeId, TypeId),
-
-    ///
-    /// Indicates that one response type can be converted to another
-    ///
-    ConvertResponse(TypeId, TypeId),
 }
 
 impl From<EntityRegistryRequest> for InternalRegistryRequest {
@@ -106,31 +99,26 @@ struct RegistryState {
 
     /// Which messages can be converted to which other types
     convert_message: HashMap<TypeId, HashSet<TypeId>>,
-
-    /// Which responses can be converted to which other types
-    convert_response: HashMap<TypeId, HashSet<TypeId>>,
 }
 
 impl EntityChannelType {
     ///
-    /// Creates a new entity channel type from a pair of type IDs representing the message and the response types
+    /// Creates a new entity channel type from a pair of type IDs representing the message type
     ///
-    pub fn new(message_type: TypeId, response_type: TypeId) -> EntityChannelType {
+    pub fn new(message_type: TypeId) -> EntityChannelType {
         EntityChannelType {
             message_type,
-            response_type
         }
     }
 
     ///
-    /// Creates a new entity channel type from a pair of types
+    /// Creates a new entity channel type from a message type
     ///
-    pub fn of<MessageType, ResponseType>() -> EntityChannelType
+    pub fn of<MessageType>() -> EntityChannelType
     where
         MessageType:    'static,
-        ResponseType:   'static
     {
-        Self::new(TypeId::of::<MessageType>(), TypeId::of::<ResponseType>())
+        Self::new(TypeId::of::<MessageType>())
     }
 }
 
@@ -141,10 +129,8 @@ impl RegistryState {
     fn can_convert_type(&self, channel_type: &EntityChannelType, match_type: &EntityChannelType) -> bool {
         let message_match = channel_type.message_type == match_type.message_type 
             || self.convert_message.get(&match_type.message_type).map(|types| types.contains(&channel_type.message_type)).unwrap_or(false);
-        let response_match = channel_type.response_type == match_type.response_type
-            || self.convert_response.get(&channel_type.response_type).map(|types| types.contains(&match_type.response_type)).unwrap_or(false);
 
-        message_match && response_match
+        message_match 
     }
 }
 
@@ -158,7 +144,6 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
     let mut state = RegistryState {
         entities:           HashMap::new(),
         convert_message:    HashMap::new(),
-        convert_response:   HashMap::new(),
     };
 
     let mut trackers: Vec<Option<BoxedEntityChannel<'static, EntityUpdate, ()>>>                            = vec![];
@@ -170,8 +155,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
         while let Some(request) = requests.next().await {
             use InternalRegistryRequest::*;
 
-            let request: Message<InternalRegistryRequest, ()>   = request;
-            let (request, response)                             = request.take();
+            let request: InternalRegistryRequest = request;
 
             // Remove any trackers that have been closed since the last message
             let mut removed_trackers = false;
@@ -200,13 +184,12 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
 
             // Process the actual request
             match request {
-                CreatedEntity(entity_id, message_type, response_type) => {
+                CreatedEntity(entity_id, message_type) => {
                     let entity_id       = entity_id;
                     let message_type    = message_type;
-                    let response_type   = response_type;
 
                     // Add to the list of entities
-                    state.entities.insert(entity_id, EntityChannelType::new(message_type, response_type));
+                    state.entities.insert(entity_id, EntityChannelType::new(message_type));
 
                     // Inform the trackers
                     let mut futures             = vec![];
@@ -218,7 +201,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                         }
                     }
 
-                    let entity_type = EntityChannelType::new(message_type, response_type);
+                    let entity_type = EntityChannelType::new(message_type);
                     for maybe_tracker in typed_trackers.iter_mut() {
                         if let Some((match_type, tracker)) = maybe_tracker {
                             if state.can_convert_type(&entity_type, match_type) {
@@ -235,16 +218,10 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                             .run_in_background()
                             .ok();
                     }
-
-                    // Once all of the trackers have been informed of the new entity, respond OK
-                    response.send(()).ok();
                 }
 
                 DestroyedEntity(entity_id) => {
                     let entity_id       = entity_id;
-
-                    // We respond OK before the entity finishes being destroyed
-                    response.send(()).ok();
 
                     // Remove the entity from the list we're tracking
                     if let Some(entity_type) = state.entities.remove(&entity_id) {
@@ -280,13 +257,6 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                 ConvertMessage(source_type, target_type) => {
                     // Store that something that accepts 'source_type' can also accept 'target_type'
                     state.convert_message.entry(target_type).or_insert_with(|| HashSet::new()).insert(source_type);
-                    response.send(()).ok();
-                }
-
-                ConvertResponse(source_type, target_type) => {
-                    // Store that something that can respond with 'source_type' can also respond with 'target_type'
-                    state.convert_response.entry(source_type).or_insert_with(|| HashSet::new()).insert(target_type);
-                    response.send(()).ok();
                 }
 
                 TrackEntities(channel)   => {
@@ -304,10 +274,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                             .ok();
                     }
 
-                    // All the entities are being tracked
-                    response.send(()).ok();
-
-                    // Add to the list of trackers
+                    // All the entities are being tracked: add to the list of trackers
                     trackers.push(Some(channel));
                 }
 
@@ -327,8 +294,6 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                             .run_in_background()
                             .ok();
                     }
-
-                    response.send(()).ok();
 
                     // Add to the list of typed trackers
                     typed_trackers.push(Some((channel_type, channel)));
