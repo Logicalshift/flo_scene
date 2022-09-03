@@ -71,7 +71,6 @@ impl AnyEntityChannel {
         AnyEntityChannel {
             entity_id,
             is_closed,
-            send,
             send_without_waiting,
         }
     }
