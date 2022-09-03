@@ -30,14 +30,14 @@ fn send_message_before_wait() {
 
     scene.create_entity(TEST_ENTITY, move |_context, mut messages| async move {
         while let Some(msg) = messages.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(msg) = msg;
 
             let received_string = string_receiver.take().unwrap().next().await;
 
             if received_string == Some("Hello".to_string()) {
-                msg.respond(vec![SceneTestResult::Ok]).unwrap();
+                msg.send_without_waiting(SceneTestResult::Ok).await.unwrap();
             } else {
-                msg.respond(vec![SceneTestResult::FailedWithMessage(format!("Strings retrieved: {:?}", received_string))]).unwrap();
+                msg.send_without_waiting(SceneTestResult::FailedWithMessage(format!("Strings retrieved: {:?}", received_string))).await.unwrap();
             }
         }
     }).unwrap();
