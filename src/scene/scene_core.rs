@@ -293,7 +293,7 @@ impl SceneCore {
         match &self.heartbeat_state {
             HeartbeatState::Tick => {
                 // Request the heartbeat channel
-                if let Ok(mut heartbeat_channel) = self.send_to::<InternalHeartbeatRequest, ()>(HEARTBEAT) {
+                if let Ok(mut heartbeat_channel) = self.send_to::<InternalHeartbeatRequest>(HEARTBEAT) {
                     // The messages resulting from a heartbeat shouldn't generate a heartbeat themselves
                     self.heartbeat_state = HeartbeatState::Tock;
 

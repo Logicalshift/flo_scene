@@ -154,7 +154,7 @@ impl SceneContext {
             core.convert_message::<TOriginalMessage, TNewMessage>();
 
             // Send to the entity registry
-            if let Ok(channel) = core.send_to::<InternalRegistryRequest, ()>(ENTITY_REGISTRY) {
+            if let Ok(channel) = core.send_to::<InternalRegistryRequest>(ENTITY_REGISTRY) {
                 core.send_background_message(channel, InternalRegistryRequest::ConvertMessage(TypeId::of::<TOriginalMessage>(), TypeId::of::<TNewMessage>()));
             }
         });
@@ -198,7 +198,7 @@ impl SceneContext {
         TMessage:   'static + Send,
     {
         // Connect to the entity
-        let mut channel = self.send_to::<TMessage, ()>(entity_id)?;
+        let mut channel = self.send_to::<TMessage>(entity_id)?;
         let mut stream  = stream.boxed();
 
         Ok(async move {
