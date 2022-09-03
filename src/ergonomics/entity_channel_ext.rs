@@ -7,29 +7,17 @@ use crate::convert_entity_channel::*;
 ///
 pub trait EntityChannelExt : Sized + EntityChannel {
     ///
-    /// Applies a mapping function to an entity channel, changing its type and optionally processing the message and response
+    /// Applies a mapping function to an entity channel, changing its type and optionally processing the message
     ///
-    fn map<TMessageFn, TResponseFn, TNewMessage, TNewResponse>(self, message_map: TMessageFn, response_map: TResponseFn) -> MappedEntityChannel<Self, TMessageFn, TResponseFn, TNewMessage>
+    fn map<TMessageFn, TNewMessage>(self, message_map: TMessageFn) -> MappedEntityChannel<Self, TMessageFn, TNewMessage>
     where
         TNewMessage:    Send,
-        TNewResponse:   Send,
-        TMessageFn:     Send + Fn(TNewMessage) -> Self::Message,
-        TResponseFn:    Send + Fn(Self::Response) -> TNewResponse;
+        TMessageFn:     Send + Fn(TNewMessage) -> Self::Message;
 
     ///
     /// Converts this entity channel to another of a compatible type
     ///
-    fn convert<TNewMessage, TNewResponse>(self) -> ConvertEntityChannel<Self, TNewMessage, TNewResponse>
-    where
-        Self::Message:  From<TNewMessage>,
-        Self::Response: Into<TNewResponse>,
-        TNewMessage:    Send,
-        TNewResponse:   Send;
-
-    ///
-    /// Converts this entity channel to another of a compatible type, by changing the message type only
-    ///
-    fn convert_message<TNewMessage>(self) -> ConvertEntityChannel<Self, TNewMessage, Self::Response>
+    fn convert<TNewMessage>(self) -> ConvertEntityChannel<Self, TNewMessage>
     where
         Self::Message:  From<TNewMessage>,
         TNewMessage:    Send;
@@ -37,15 +25,15 @@ pub trait EntityChannelExt : Sized + EntityChannel {
     ///
     /// Converts this entity channel to another of a compatible type, by changing the message type only
     ///
-    fn convert_response<TNewResponse>(self) -> ConvertEntityChannel<Self, Self::Message, TNewResponse>
+    fn convert_message<TNewMessage>(self) -> ConvertEntityChannel<Self, TNewMessage>
     where
-        Self::Response: Into<TNewResponse>,
-        TNewResponse:   Send;
+        Self::Message:  From<TNewMessage>,
+        TNewMessage:    Send;
 
     ///
     /// Puts this channel in a box
     ///
-    fn boxed<'a>(self) -> BoxedEntityChannel<'a, Self::Message, Self::Response>
+    fn boxed<'a>(self) -> BoxedEntityChannel<'a, Self::Message>
     where
         Self: 'a;
 }
@@ -54,26 +42,15 @@ impl<T> EntityChannelExt for T
 where
     T : EntityChannel
 {
-    fn map<TMessageFn, TResponseFn, TNewMessage, TNewResponse>(self, message_map: TMessageFn, response_map: TResponseFn) -> MappedEntityChannel<Self, TMessageFn, TResponseFn, TNewMessage>
+    fn map<TMessageFn, TNewMessage>(self, message_map: TMessageFn) -> MappedEntityChannel<Self, TMessageFn, TNewMessage>
     where
         TNewMessage:    Send,
-        TNewResponse:   Send,
         TMessageFn:     Send + Fn(TNewMessage) -> Self::Message,
-        TResponseFn:    Send + Fn(Self::Response) -> TNewResponse {
-        MappedEntityChannel::new(self, message_map, response_map)
-    }
-
-    fn convert<TNewMessage, TNewResponse>(self) -> ConvertEntityChannel<Self, TNewMessage, TNewResponse>
-    where
-        Self::Message:  From<TNewMessage>,
-        Self::Response: Into<TNewResponse>,
-        TNewMessage:    Send,
-        TNewResponse:   Send,
     {
-        ConvertEntityChannel::new(self)
+        MappedEntityChannel::new(self, message_map)
     }
 
-    fn convert_message<TNewMessage>(self) -> ConvertEntityChannel<Self, TNewMessage, Self::Response>
+    fn convert<TNewMessage>(self) -> ConvertEntityChannel<Self, TNewMessage>
     where
         Self::Message:  From<TNewMessage>,
         TNewMessage:    Send,
@@ -81,14 +58,15 @@ where
         ConvertEntityChannel::new(self)
     }
 
-    fn convert_response<TNewResponse>(self) -> ConvertEntityChannel<Self, Self::Message, TNewResponse>
+    fn convert_message<TNewMessage>(self) -> ConvertEntityChannel<Self, TNewMessage>
     where
-        Self::Response: Into<TNewResponse>,
-        TNewResponse:   Send {
+        Self::Message:  From<TNewMessage>,
+        TNewMessage:    Send,
+    {
         ConvertEntityChannel::new(self)
     }
 
-    fn boxed<'a>(self) -> BoxedEntityChannel<'a, Self::Message, Self::Response> 
+    fn boxed<'a>(self) -> BoxedEntityChannel<'a, Self::Message> 
     where
         Self: 'a
     {
