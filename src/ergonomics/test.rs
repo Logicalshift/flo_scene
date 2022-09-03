@@ -10,10 +10,7 @@ use std::time::{Duration};
 ///
 /// Request to a component: run its tests, and send the results to the specified channel
 ///
-pub enum SceneTestRequest {
-    /// Run the tests for this component
-    RunTests(SimpleEntityChannel<SceneTestResult>),
-}
+pub struct SceneTestRequest(pub SimpleEntityChannel<SceneTestResult>);
 
 ///
 /// Result of a test on an entity in a scene
@@ -52,7 +49,7 @@ pub fn test_scene(scene: Scene) {
     let mut channel                 = scene.send_to(TEST_ENTITY).unwrap();
     let result                      = async move { 
         // Ask the test entity to run the tests
-        channel.send_without_waiting(SceneTestRequest::RunTests(results))
+        channel.send_without_waiting(SceneTestRequest(results))
             .await
             .unwrap();
 
