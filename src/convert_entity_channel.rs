@@ -10,42 +10,35 @@ use std::marker::{PhantomData};
 ///
 /// Converts an entity channel from one type to another
 ///
-pub struct ConvertEntityChannel<TSourceChannel, TNewMessage, TNewResponse> {
+pub struct ConvertEntityChannel<TSourceChannel, TNewMessage> {
     source_channel: TSourceChannel,
     new_message:    PhantomData<TNewMessage>,
-    new_response:   PhantomData<TNewResponse>,
 }
 
-impl<TSourceChannel, TNewMessage, TNewResponse> ConvertEntityChannel<TSourceChannel, TNewMessage, TNewResponse>
+impl<TSourceChannel, TNewMessage> ConvertEntityChannel<TSourceChannel, TNewMessage>
 where
     TSourceChannel:             EntityChannel,
     TSourceChannel::Message:    From<TNewMessage>,
-    TSourceChannel::Response:   Into<TNewResponse>,
     TNewMessage:                Send,
-    TNewResponse:               Send,
 {
     ///
     /// Creates a new convertion entity channel
     ///
-    pub fn new(source_channel: TSourceChannel) -> ConvertEntityChannel<TSourceChannel, TNewMessage, TNewResponse> {
+    pub fn new(source_channel: TSourceChannel) -> ConvertEntityChannel<TSourceChannel, TNewMessage> {
         ConvertEntityChannel {
             source_channel: source_channel,
             new_message:    PhantomData,
-            new_response:   PhantomData,
         }
     }
 }
 
-impl<TSourceChannel, TNewMessage, TNewResponse> EntityChannel for ConvertEntityChannel<TSourceChannel, TNewMessage, TNewResponse>
+impl<TSourceChannel, TNewMessage> EntityChannel for ConvertEntityChannel<TSourceChannel, TNewMessage>
 where
     TSourceChannel:             EntityChannel,
     TSourceChannel::Message:    From<TNewMessage>,
-    TSourceChannel::Response:   Into<TNewResponse>,
     TNewMessage:                Send,
-    TNewResponse:               Send,
 {
     type Message    = TNewMessage;
-    type Response   = TNewResponse;
 
     fn entity_id(&self) -> EntityId {
         self.source_channel.entity_id()
@@ -53,16 +46,6 @@ where
 
     fn is_closed(&self) -> bool {
         self.source_channel.is_closed()
-    }
-
-    fn send<'a>(&'a mut self, message: TNewMessage) -> BoxFuture<'a, Result<Self::Response, EntityChannelError>> {
-        async move {
-            let message     = TSourceChannel::Message::from(message);
-            let response    = self.source_channel.send(message).await?;
-            let response    = response.into();
-
-            Ok(response)
-        }.boxed()
     }
 
     fn send_without_waiting(&mut self, message: Self::Message) -> BoxFuture<'static, Result<(), EntityChannelError>> {
