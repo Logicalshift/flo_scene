@@ -21,16 +21,8 @@ use std::collections::{HashMap};
 
 #[cfg(feature="properties")] 
 lazy_static! {
-    static ref MESSAGE_PROCESSORS: RwLock<HashMap<TypeId, Box<dyn Send + Sync + Fn(Box<dyn Send + Any>, &mut PropertiesState, &Arc<SceneContext>) -> Option<InternalPropertyResponse>>>> = RwLock::new(HashMap::new());
+    static ref MESSAGE_PROCESSORS: RwLock<HashMap<TypeId, Box<dyn Send + Sync + Fn(Box<dyn Send + Any>, &mut PropertiesState, &Arc<SceneContext>) -> ()>>> = RwLock::new(HashMap::new());
 }
-
-// TODO: we can also use BoxedEntityChannel<'static, TValue, ()> as a sink, which might be more consistent, but not sure how to get the proper behaviour
-// for dropping intermediate values reliably.
-
-///
-/// Some property requests can respond with a value (eg: a binding)
-///
-struct InternalPropertyResponse(Box<dyn Send + Any>);
 
 ///
 /// A single value property is defined in a format that's suitable for use with the `flo_binding` library, which is to say the
@@ -260,7 +252,7 @@ impl PropertyReference {
 /// Typically `properties_entity_id` should be `PROPERTIES` here, but it's possible to run multiple sets of properties in a given scene so other values are
 /// possible if `create_properties_entity()` has been called for other entity IDs.
 ///
-pub async fn properties_channel<TValue>(properties_entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>, Option<BindRef<TValue>>>, EntityChannelError>
+pub async fn properties_channel<TValue>(properties_entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, PropertyRequest<TValue>, ()>, EntityChannelError>
 where
     TValue: 'static + PartialEq + Clone + Send + Sized,
 {
@@ -269,16 +261,7 @@ where
         let mut message_processors = MESSAGE_PROCESSORS.write().unwrap();
 
         message_processors.entry(TypeId::of::<Option<PropertyRequest<TValue>>>()).or_insert_with(|| {
-            Box::new(|message, state, context| {
-                let response = process_message::<TValue>(message, state, context);
-                let response = if let Some(response) = response {
-                    Some(InternalPropertyResponse(Box::new(Some(response))))
-                } else {
-                    None
-                };
-
-                response
-            })
+            Box::new(|message, state, context| process_message::<TValue>(message, state, context))
         });
     }
 
@@ -291,20 +274,6 @@ where
 
     // Ensure that the message is converted to an internal request
     context.convert_message::<PropertyRequest<TValue>, InternalPropertyRequest>()?;
-    context.map_response::<Option<InternalPropertyResponse>, Option<BindRef<TValue>>, _>(|internal_response| {
-        if let Some(InternalPropertyResponse(mut any_box)) = internal_response {
-            // The 'Any' inside InternalPropertyResponse is itself an option (so we can extract the value)
-            if let Some(optional_bindref) = any_box.downcast_mut::<Option<BindRef<TValue>>>() {
-                // Take the response to de-any-fy it
-                optional_bindref.take()
-            } else {
-                // Wrong type of response
-                None
-            }
-        } else {
-            None
-        }
-    })?;
 
     // Send messages to the properties entity
     context.send_to(properties_entity_id)
@@ -319,7 +288,7 @@ where
 /// Typically `properties_entity_id` should be `PROPERTIES` here, but it's possible to run multiple sets of properties in a given scene so other values are
 /// possible if `create_properties_entity()` has been called for other entity IDs.
 ///
-pub async fn rope_properties_channel<TCell, TAttribute>(properties_entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, RopePropertyRequest<TCell, TAttribute>, Option<RopeBinding<TCell, TAttribute>>>, EntityChannelError>
+pub async fn rope_properties_channel<TCell, TAttribute>(properties_entity_id: EntityId, context: &Arc<SceneContext>) -> Result<BoxedEntityChannel<'static, RopePropertyRequest<TCell, TAttribute>, ()>, EntityChannelError>
 where
     TCell:      'static + Send + Unpin + Clone + PartialEq,
     TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default,
@@ -329,16 +298,7 @@ where
         let mut message_processors = MESSAGE_PROCESSORS.write().unwrap();
 
         message_processors.entry(TypeId::of::<Option<RopePropertyRequest<TCell, TAttribute>>>()).or_insert_with(|| {
-            Box::new(|message, state, context| {
-                let response = process_rope_message::<TCell, TAttribute>(message, state, context);
-                let response = if let Some(response) = response {
-                    Some(InternalPropertyResponse(Box::new(Some(response))))
-                } else {
-                    None
-                };
-
-                response
-            })
+            Box::new(|message, state, context| process_rope_message::<TCell, TAttribute>(message, state, context))
         });
     }
 
@@ -350,20 +310,6 @@ where
 
     // Ensure that the message is converted to an internal request
     context.convert_message::<RopePropertyRequest<TCell, TAttribute>, InternalPropertyRequest>()?;
-    context.map_response::<Option<InternalPropertyResponse>, Option<RopeBinding<TCell, TAttribute>>, _>(|internal_response| {
-        if let Some(InternalPropertyResponse(mut any_box)) = internal_response {
-            // The 'Any' inside InternalPropertyResponse is itself an option (so we can extract the value)
-            if let Some(optional_ropebinding) = any_box.downcast_mut::<Option<RopeBinding<TCell, TAttribute>>>() {
-                // Take the response to de-any-fy it
-                optional_ropebinding.take()
-            } else {
-                // Wrong type of response
-                None
-            }
-        } else {
-            None
-        }
-    })?;
 
     // Send messages to the properties entity
     context.send_to(properties_entity_id)
@@ -406,14 +352,14 @@ where
 ///
 /// Processes a message, where the message is expected to be of a particular type
 ///
-fn process_message<TValue>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, _context: &Arc<SceneContext>) -> Option<BindRef<TValue>>
+fn process_message<TValue>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, _context: &Arc<SceneContext>)
 where
     TValue: 'static + PartialEq + Clone + Send + Sized,
 {
     // Try to unbox the message. The type is Option<PropertyRequest> so we can take it out of the 'Any' reference
     let mut any_message = any_message;
     let message         = any_message.downcast_mut::<Option<PropertyRequest<TValue>>>().and_then(|msg| msg.take());
-    let message         = if let Some(message) = message { message } else { return None; };
+    let message         = if let Some(message) = message { message } else { return; };
 
     // The action depends on the message content
     use PropertyRequest::*;
@@ -465,16 +411,12 @@ where
             if let Some(entity_properties) = state.properties.get_mut(&owner) {
                 entity_properties.insert(name, Box::new(Arc::clone(&property)));
             }
-
-            None
         }
 
         DestroyProperty(reference) => {
             if let Some(entity_properties) = state.properties.get_mut(&reference.owner) {
                 entity_properties.remove(&reference.name);
             }
-
-            None
         }
 
         Get(reference, target) => {
@@ -483,17 +425,11 @@ where
                 if let Some(property) = property.downcast_mut::<Arc<Property<TValue>>>() {
                     // Return the binding to the caller
                     target.finish_binding(property.current_value.clone());
-
-                    None
                 } else {
                     target.missing();
-
-                    None
                 }
             } else {
                 target.missing();
-
-                None
             }
         }
 
@@ -520,8 +456,6 @@ where
                 .entry(our_type).or_insert_with(|| HashMap::new())
                 .entry(name).or_insert_with(|| vec![])
                 .push(Some(channel));
-
-            None
         }
     }
 }
@@ -529,7 +463,7 @@ where
 ///
 /// Processes a message, where the message is expected to be of a particular type
 ///
-fn process_rope_message<TCell, TAttribute>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, _context: &Arc<SceneContext>) -> Option<RopeBinding<TCell, TAttribute>>
+fn process_rope_message<TCell, TAttribute>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, _context: &Arc<SceneContext>)
 where
     TCell:      'static + Send + Unpin + Clone + PartialEq,
     TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default,
@@ -537,7 +471,7 @@ where
     // Try to unbox the message. The type is Option<PropertyRequest> so we can take it out of the 'Any' reference
     let mut any_message = any_message;
     let message         = any_message.downcast_mut::<Option<RopePropertyRequest<TCell, TAttribute>>>().and_then(|msg| msg.take());
-    let message         = if let Some(message) = message { message } else { return None; };
+    let message         = if let Some(message) = message { message } else { return; };
 
     // The action depends on the message content
     use RopePropertyRequest::*;
@@ -589,16 +523,12 @@ where
             if let Some(entity_properties) = state.properties.get_mut(&owner) {
                 entity_properties.insert(name, Box::new(Arc::clone(&property)));
             }
-
-            None
         }
 
         DestroyProperty(reference) => {
             if let Some(entity_properties) = state.properties.get_mut(&reference.owner) {
                 entity_properties.remove(&reference.name);
             }
-
-            None
         }
 
         Get(reference, target) => {
@@ -607,17 +537,11 @@ where
                 if let Some(property) = property.downcast_mut::<Arc<RopeProperty<TCell, TAttribute>>>() {
                     // Return the binding to the caller
                     target.finish_binding(property.current_value.clone());
-
-                    None
                 } else {
                     target.missing();
-
-                    None
                 }
             } else {
                 target.missing();
-
-                None
             }
         }
 
@@ -644,8 +568,6 @@ where
                 .entry(our_type).or_insert_with(|| HashMap::new())
                 .entry(name).or_insert_with(|| vec![])
                 .push(Some(channel));
-
-            None
         }
     }
 }
@@ -667,7 +589,6 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
     };
 
     context.convert_message::<EntityUpdate, InternalPropertyRequest>().unwrap();
-    context.map_response::<Option<InternalPropertyResponse>, (), _>(|_| ()).unwrap();
 
     // Create the entity itself
     context.create_entity(entity_id, move |context, mut messages| async move {
@@ -691,13 +612,13 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         }
 
         while let Some(message) = messages.next().await {
-            let message: Message<InternalPropertyRequest, Option<InternalPropertyResponse>> = message;
+            let message: Message<InternalPropertyRequest, ()> = message;
             let (message, responder) = message.take();
 
             match message {
                 InternalPropertyRequest::Ready => {
                     // This is just used to synchronise requests to the entity
-                    responder.send(None).ok();
+                    responder.send(()).ok();
                 }
 
                 InternalPropertyRequest::AnyRequest(request) => {
@@ -710,17 +631,19 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                     // Try to retrieve a processor for this type (these are created when properties_channel is called to retrieve properties of this type)
                     if let Some(request_processor) = message_processors.get(&request_type) {
                         // Process the request
-                        responder.send(request_processor(request, &mut state, &context)).ok();
+                        request_processor(request, &mut state, &context);
+
+                        responder.send(()).ok();
                     } else {
                         // No processor available
-                        responder.send(None).ok();
+                        responder.send(()).ok();
                     }
                 }
 
                 InternalPropertyRequest::CreatedEntity(entity_id) => { 
                     state.properties.insert(entity_id, HashMap::new());
 
-                    responder.send(None).ok();
+                    responder.send(()).ok();
 
                     // Add the new entity to the start of the entity list
                     state.entities.replace(0..0, vec![entity_id]);
@@ -729,7 +652,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                 InternalPropertyRequest::DestroyedEntity(destroyed_entity_id) => {
                     state.properties.remove(&destroyed_entity_id);
 
-                    responder.send(None).ok();
+                    responder.send(()).ok();
 
                     // Remove the entity from the list
                     state.entities.retain_cells(|entity_id| entity_id != &destroyed_entity_id);
