@@ -10,10 +10,10 @@ use std::any::{Any, TypeId, type_name};
 /// Stores the data associated with an entity
 ///
 pub (crate) struct EntityCore {
-    /// A conversion channel, which has the same response type but the message type is `Box<dyn Any + Send>`. This is of type `BoxedMessageChannel<TResponse>`
+    /// A conversion channel, which has a message type of `Box<dyn Any + Send>`.
     create_conversion_channel: Box<dyn Send + Fn() -> AnyEntityChannel>,
 
-    /// The channel for sending requests to this entity, stored in an 'Any' box. This is of type `SimpleEntityChannel<TMessage, TResponse>`
+    /// The channel for sending requests to this entity, stored in an 'Any' box. This is of type `SimpleEntityChannel<TMessage>`
     channel: Box<dyn Send + Any>,
 
     /// Given the channel for this entity, causes it to close
@@ -27,27 +27,20 @@ pub (crate) struct EntityCore {
 
     /// The name of the message type for this entity
     message_type_name: &'static str,
-
-    /// The type ID of the response processed 'natively' by this entity
-    response_type_id: TypeId,
-
-    /// The name of the response type for this entity
-    response_type_name: &'static str,
 }
 
 impl EntityCore {
     ///
     /// Creates a new entity that receives messages on the specified channel
     ///
-    pub fn new<TMessage, TResponse>(channel: SimpleEntityChannel<TMessage, TResponse>) -> EntityCore
+    pub fn new<TMessage>(channel: SimpleEntityChannel<TMessage>) -> EntityCore
     where
         TMessage:   'static + Send,
-        TResponse:  'static + Send,
     {
         let conversion_channel          = channel.clone();
         let create_conversion_channel   = move || { AnyEntityChannel::from_channel(conversion_channel.clone()) };
         let close_channel               = move |channel: &mut Box<dyn Send + Any>| {
-            if let Some(channel) = channel.downcast_mut::<SimpleEntityChannel<TMessage, TResponse>>() {
+            if let Some(channel) = channel.downcast_mut::<SimpleEntityChannel<TMessage>>() {
                 channel.close();
             }
         };
@@ -58,9 +51,7 @@ impl EntityCore {
             close_channel:              Box::new(close_channel),
             queue:                      scheduler().create_job_queue(),
             message_type_id:            TypeId::of::<TMessage>(),
-            response_type_id:           TypeId::of::<TResponse>(),
             message_type_name:          type_name::<TMessage>(),
-            response_type_name:         type_name::<TResponse>(),
         }
     }
 
@@ -82,24 +73,10 @@ impl EntityCore {
     }
 
     ///
-    /// Retrieves the response processed 'natively' by this channel
-    ///
-    pub fn response_type_id(&self) -> TypeId {
-        self.response_type_id
-    }
-
-    ///
     /// Retrieves the message processed 'natively' by this channel
     ///
     pub fn message_type_name(&self) -> String {
         self.message_type_name.to_string()
-    }
-
-    ///
-    /// Retrieves the response processed 'natively' by this channel
-    ///
-    pub fn response_type_name(&self) -> String {
-        self.response_type_name.to_string()
     }
 
     ///
@@ -115,20 +92,19 @@ impl EntityCore {
     ///
     /// If this entity has an implementation of a particular channel, returns it
     ///
-    pub fn attach_channel<TMessage, TResponse>(&self) -> Option<SimpleEntityChannel<TMessage, TResponse>> 
+    pub fn attach_channel<TMessage>(&self) -> Option<SimpleEntityChannel<TMessage>> 
     where
         TMessage:   'static + Send,
-        TResponse:  'static + Send,
     {
         // Downcast the channel back to a concrete type
-        let channel = self.channel.downcast_ref::<SimpleEntityChannel<TMessage, TResponse>>()?;
+        let channel = self.channel.downcast_ref::<SimpleEntityChannel<TMessage>>()?;
 
         // Clone it to create the channel for the receiver
         Some(channel.clone())
     }
 
     ///
-    /// Returns the channel with polymorphic messages and responses. The messages here unwrap to `Option<TMessage>` and `Option<TResponse>`
+    /// Returns the channel with polymorphic messages. The messages here unwrap to `Option<TMessage>`
     ///
     pub fn attach_channel_any(&self) -> AnyEntityChannel {
         (self.create_conversion_channel)()
