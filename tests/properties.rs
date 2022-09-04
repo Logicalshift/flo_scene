@@ -193,7 +193,7 @@ fn property_unbinds_when_entity_destroyed() {
     let property_entity = EntityId::new();
     scene.create_entity(property_entity, move |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
-            let msg: StopTestEntity = msg;
+            let _msg: StopTestEntity = msg;
 
             break;
         }
@@ -302,7 +302,7 @@ fn track_string_property_if_created_first() {
     scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let SceneTestRequest(mut msg) = msg;
+            let SceneTestRequest(_msg) = msg;
 
             // Create a string property from a binding
             let binding             = bind("Test".to_string());
@@ -342,7 +342,7 @@ fn track_string_property_if_created_later() {
     scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let SceneTestRequest(mut msg) = msg;
+            let SceneTestRequest(_msg) = msg;
 
             // Request tracking information on the specified property
             let mut property_channel                = properties_channel::<String>(PROPERTIES, &context).await.unwrap();
