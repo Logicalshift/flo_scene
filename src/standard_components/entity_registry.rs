@@ -34,6 +34,14 @@ pub enum EntityRegistryRequest {
     /// As for TrackEntities but only for those that use a particular channel type
     ///
     TrackEntitiesWithType(BoxedEntityChannel<'static, EntityUpdate>, EntityChannelType),
+
+    ///
+    /// Retrieves the list of entities that exist at the time the message is received and then closes the channel
+    ///
+    /// This differs from TrackEntities in that this doesn't keep sending updates for entities that are created in the
+    /// future.
+    ///
+    GetEntities(BoxedEntityChannel<'static, EntityUpdate>),
 }
 
 ///
@@ -66,6 +74,14 @@ pub (crate) enum InternalRegistryRequest {
     TrackEntitiesWithType(BoxedEntityChannel<'static, EntityUpdate>, EntityChannelType),
 
     ///
+    /// Retrieves the list of entities that exist at the time the message is received and then closes the channel
+    ///
+    /// This differs from TrackEntities in that this doesn't keep sending updates for entities that are created in the
+    /// future.
+    ///
+    GetEntities(BoxedEntityChannel<'static, EntityUpdate>),
+
+    ///
     /// Sent from the scene core: a new entity was created (with the specified message type for its main stream)
     ///
     CreatedEntity(EntityId, TypeId),
@@ -84,8 +100,9 @@ pub (crate) enum InternalRegistryRequest {
 impl From<EntityRegistryRequest> for InternalRegistryRequest {
     fn from(req: EntityRegistryRequest) -> InternalRegistryRequest {
         match req {
-            EntityRegistryRequest::TrackEntities(entity_id)                         => InternalRegistryRequest::TrackEntities(entity_id),
-            EntityRegistryRequest::TrackEntitiesWithType(entity_id, channel_type)   => InternalRegistryRequest::TrackEntitiesWithType(entity_id, channel_type),
+            EntityRegistryRequest::GetEntities(channel)                         => InternalRegistryRequest::GetEntities(channel),
+            EntityRegistryRequest::TrackEntities(channel)                       => InternalRegistryRequest::TrackEntities(channel),
+            EntityRegistryRequest::TrackEntitiesWithType(channel, channel_type) => InternalRegistryRequest::TrackEntitiesWithType(channel, channel_type),
         }
     }
 }
@@ -259,7 +276,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     state.convert_message.entry(target_type).or_insert_with(|| HashSet::new()).insert(source_type);
                 }
 
-                TrackEntities(channel)   => {
+                TrackEntities(channel) => {
                     // Send the list of entities to the channel
                     let mut channel = channel;
                     let mut futures = vec![];
@@ -297,6 +314,24 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
 
                     // Add to the list of typed trackers
                     typed_trackers.push(Some((channel_type, channel)));
+                }
+
+                GetEntities(channel) => {
+                    // Send the list of entities to the channel
+                    let mut channel = channel;
+                    let mut futures = vec![];
+                    for existing_entity_id in state.entities.keys().cloned() {
+                        futures.push(channel.send_without_waiting(EntityUpdate::CreatedEntity(existing_entity_id)));
+                    }
+
+                    if !futures.is_empty() {
+                        future::join_all(futures)
+                            .map(|_| ())
+                            .run_in_background()
+                            .ok();
+                    }
+
+                    // Dropping the channel will close it
                 }
             }
         }
