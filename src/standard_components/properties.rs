@@ -129,8 +129,8 @@ where
 /// An internal property request contains an 'Any' request for properties of a given type
 ///
 enum InternalPropertyRequest {
-    /// A PropertyRequest<x> that's wrapped in a Box<Any> for a type that is recognised by the property entity
-    AnyRequest(Box<dyn Send + Any>),
+    /// A PropertyRequest<x> that's wrapped in a Box<Any> for a type that is recognised by the property entity, along with the entity ID it is for
+    AnyRequest(Option<EntityId>, Box<dyn Send + Any>),
 
     /// Pings the properties entity to ensure it's ready for requests
     Ready,
@@ -148,7 +148,7 @@ where
 {
     fn from(req: PropertyRequest<TValue>) -> InternalPropertyRequest {
         // The internal value is Option<PropertyRequest<TValue>>, which allows the caller to take the value out of the box later on
-        InternalPropertyRequest::AnyRequest(Box::new(Some(req)))
+        InternalPropertyRequest::AnyRequest(req.target_entity_id(), Box::new(Some(req)))
     }
 }
 
@@ -159,10 +159,44 @@ where
 {
     fn from(req: RopePropertyRequest<TCell, TAttribute>) -> InternalPropertyRequest {
         // The internal value is Option<PropertyRequest<TValue>>, which allows the caller to take the value out of the box later on
-        InternalPropertyRequest::AnyRequest(Box::new(Some(req)))
+        InternalPropertyRequest::AnyRequest(req.target_entity_id(), Box::new(Some(req)))
     }
 }
 
+impl<TValue> PropertyRequest<TValue>
+where
+    TValue: 'static + PartialEq + Clone + Send + Sized,
+{
+    /// Retrieves the entity ID that 
+    fn target_entity_id(&self) -> Option<EntityId> {
+        use PropertyRequest::*;
+
+        match self {
+            CreateProperty(PropertyDefinition { owner, .. })    => Some(*owner),
+            DestroyProperty(PropertyReference { owner, .. })    => Some(*owner),
+            Get(PropertyReference { owner, .. }, _)             => Some(*owner),
+            TrackPropertiesWithName(_, _)                       => None,
+        }
+    }
+}
+
+impl<TCell, TAttribute> RopePropertyRequest<TCell, TAttribute>
+where
+    TCell:      'static + Send + Unpin + Clone + PartialEq,
+    TAttribute: 'static + Send + Sync + Unpin + Clone + PartialEq + Default
+{
+    /// Retrieves the entity ID that 
+    fn target_entity_id(&self) -> Option<EntityId> {
+        use RopePropertyRequest::*;
+
+        match self {
+            CreateProperty(RopePropertyDefinition { owner, .. })    => Some(*owner),
+            DestroyProperty(PropertyReference { owner, .. })        => Some(*owner),
+            Get(PropertyReference { owner, .. }, _)                 => Some(*owner),
+            TrackPropertiesWithName(_, _)                           => None,
+        }
+    }
+}
 
 impl From<EntityUpdate> for InternalPropertyRequest {
     fn from(req: EntityUpdate) -> InternalPropertyRequest {
@@ -618,7 +652,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                     // This is just used to synchronise requests to the entity
                 }
 
-                InternalPropertyRequest::AnyRequest(request) => {
+                InternalPropertyRequest::AnyRequest(_entity_id, request) => {
                     // Lock the message processors so we can read from them
                     let message_processors = MESSAGE_PROCESSORS.read().unwrap();
 
