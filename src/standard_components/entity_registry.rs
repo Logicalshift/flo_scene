@@ -41,7 +41,7 @@ pub enum EntityRegistryRequest {
     /// This differs from TrackEntities in that this doesn't keep sending updates for entities that are created in the
     /// future.
     ///
-    GetEntities(BoxedEntityChannel<'static, EntityUpdate>),
+    GetEntities(BoxedEntityChannel<'static, EntityId>),
 }
 
 ///
@@ -79,7 +79,7 @@ pub (crate) enum InternalRegistryRequest {
     /// This differs from TrackEntities in that this doesn't keep sending updates for entities that are created in the
     /// future.
     ///
-    GetEntities(BoxedEntityChannel<'static, EntityUpdate>),
+    GetEntities(BoxedEntityChannel<'static, EntityId>),
 
     ///
     /// Sent from the scene core: a new entity was created (with the specified message type for its main stream)
@@ -321,7 +321,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     let mut channel = channel;
                     let mut futures = vec![];
                     for existing_entity_id in state.entities.keys().cloned() {
-                        futures.push(channel.send_without_waiting(EntityUpdate::CreatedEntity(existing_entity_id)));
+                        futures.push(channel.send_without_waiting(existing_entity_id));
                     }
 
                     if !futures.is_empty() {
