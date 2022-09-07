@@ -2,6 +2,7 @@ use crate::entity_id::*;
 use crate::context::*;
 use crate::error::*;
 use crate::entity_channel::*;
+use crate::simple_entity_channel::*;
 use crate::ergonomics::*;
 
 use super::floating_binding::*;
@@ -652,7 +653,23 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                     // This is just used to synchronise requests to the entity
                 }
 
-                InternalPropertyRequest::AnyRequest(_entity_id, request) => {
+                InternalPropertyRequest::AnyRequest(target_entity_id, request) => {
+                    // If the entity ID is not in the state, then read the entities from the entities channel
+                    if let (Some(target_entity_id), Some(mut entity_registry)) = (target_entity_id, context.send_to(ENTITY_REGISTRY).ok()) {
+                        // Have an entity ID and the ability to talk to the entity registry...
+                        if !state.properties.contains_key(&target_entity_id) {
+                            // Ask the entity registry for all the entities that exist
+                            let (all_entities_list_sender, mut all_entities_list) = SimpleEntityChannel::new(entity_id, 10);
+
+                            if entity_registry.send_without_waiting(EntityRegistryRequest::GetEntities(all_entities_list_sender.boxed())).await.is_ok() {
+                                // Make sure they are all in the properties list
+                                while let Some(entity_id) = all_entities_list.next().await {
+                                    state.properties.entry(entity_id).or_insert_with(|| HashMap::new());
+                                }
+                            }
+                        }
+                    }
+
                     // Lock the message processors so we can read from them
                     let message_processors = MESSAGE_PROCESSORS.read().unwrap();
 
