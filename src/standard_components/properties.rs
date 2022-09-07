@@ -654,7 +654,8 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                 }
 
                 InternalPropertyRequest::AnyRequest(target_entity_id, request) => {
-                    // If the entity ID is not in the state, then read the entities from the entities channel
+                    // If the entity ID is not in the state, then read the entities from the entities channel (it is possible for messages about properties
+                    // on an entity to reach us before the entity registry has sent us the CreatedEntity request)
                     if let (Some(target_entity_id), Some(mut entity_registry)) = (target_entity_id, context.send_to(ENTITY_REGISTRY).ok()) {
                         // Have an entity ID and the ability to talk to the entity registry...
                         if !state.properties.contains_key(&target_entity_id) {
@@ -664,6 +665,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                             if entity_registry.send_without_waiting(EntityRegistryRequest::GetEntities(all_entities_list_sender.boxed())).await.is_ok() {
                                 // Make sure they are all in the properties list
                                 while let Some(entity_id) = all_entities_list.next().await {
+                                    // Note the entities rope is not updated here but later on when the 'CreatedEntity' request arrives
                                     state.properties.entry(entity_id).or_insert_with(|| HashMap::new());
                                 }
                             }
@@ -690,7 +692,8 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                     // (Main reason we will already be tracking it is if something tried to create a property on the entity before this request arrived)
                     state.properties.entry(entity_id).or_insert_with(|| HashMap::new());
 
-                    // Add the new entity to the start of the entity list
+                    // Add the new entity to the start of the entity list (note: the other place we add to the properties list is if this request arrived late, but
+                    // we don't add to the entities rope at that point, so it's safe to always add here)
                     state.entities.replace(0..0, vec![entity_id]);
                 }
 
