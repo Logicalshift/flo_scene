@@ -635,7 +635,9 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                 }
 
                 InternalPropertyRequest::CreatedEntity(entity_id) => { 
-                    state.properties.insert(entity_id, HashMap::new());
+                    // Add a new set of properties for this entity, if we're not already tracking it
+                    // (Main reason we will already be tracking it is if something tried to create a property on the entity before this request arrived)
+                    state.properties.entry(entity_id).or_insert_with(|| HashMap::new());
 
                     // Add the new entity to the start of the entity list
                     state.entities.replace(0..0, vec![entity_id]);
