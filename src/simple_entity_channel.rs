@@ -1,5 +1,4 @@
 use crate::error::*;
-use crate::message::*;
 use crate::entity_id::*;
 use crate::entity_channel::*;
 use crate::immediate_entity_channel::*;
@@ -41,7 +40,7 @@ impl TicketId {
 ///
 /// A ticket represents a message that's waiting to be sent
 ///
-struct Ticket<TMessage, TResponse> {
+struct Ticket<TMessage> {
     /// The ID of this ticket
     id: TicketId,
 
@@ -49,13 +48,13 @@ struct Ticket<TMessage, TResponse> {
     waker: Option<task::Waker>,
 
     /// The message that will be sent by this ticket
-    message: Option<Message<TMessage, TResponse>>,
+    message: Option<TMessage>,
 }
 
 ///
 /// Shared state for the simple entity channel
 ///
-struct SimpleEntityChannelCore<TMessage, TResponse> {
+struct SimpleEntityChannelCore<TMessage> {
     /// The maximum number of messages that can be ready at once
     buf_size: usize,
 
@@ -63,10 +62,10 @@ struct SimpleEntityChannelCore<TMessage, TResponse> {
     num_channels: usize,
 
     /// The queue of messages ready for sending to the receiver
-    ready_messages: VecDeque<Message<TMessage, TResponse>>,
+    ready_messages: VecDeque<TMessage>,
 
     /// Messages where the sending has been blocked
-    waiting_tickets: VecDeque<Ticket<TMessage, TResponse>>,
+    waiting_tickets: VecDeque<Ticket<TMessage>>,
 
     /// Set to true if the receiver has been dropped or the channel has been closed some other way
     closed: bool,
@@ -81,12 +80,12 @@ struct SimpleEntityChannelCore<TMessage, TResponse> {
 ///
 /// Future that represents a message waiting for a simple entity channel
 ///
-struct WaitingMessage<TMessage, TResponse> {
+struct WaitingMessage<TMessage> {
     /// The ID of the ticket corresponding to this message
     ticket_id: TicketId,
 
     /// The core that contains the ticket
-    core: Weak<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>,
+    core: Weak<Mutex<SimpleEntityChannelCore<TMessage>>>,
 
     /// Set to true once this message has been completed (the ticket has been sent)
     completed: bool,
@@ -95,19 +94,18 @@ struct WaitingMessage<TMessage, TResponse> {
 ///
 /// Stream that receives messages from a simple entity channel
 ///
-struct SimpleEntityChannelReceiver<TMessage, TResponse> {
-    core: Arc<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>
+struct SimpleEntityChannelReceiver<TMessage> {
+    core: Arc<Mutex<SimpleEntityChannelCore<TMessage>>>
 }
 
-impl<TMessage, TResponse> SimpleEntityChannelCore<TMessage, TResponse> 
+impl<TMessage> SimpleEntityChannelCore<TMessage> 
 where
     TMessage:   'static + Send,
-    TResponse:  'static + Send,
 {
     ///
     /// Creates a new simple entity channel core, set up to have 1 open channel
     ///
-    fn new(buf_size: usize) -> SimpleEntityChannelCore<TMessage, TResponse> {
+    fn new(buf_size: usize) -> SimpleEntityChannelCore<TMessage> {
         SimpleEntityChannelCore {
             buf_size:           buf_size,
             ready_messages:     VecDeque::new(),
@@ -122,7 +120,7 @@ where
     ///
     /// Sends a message to the core in immediate mode
     ///
-    fn send_message_now(_entity_id: EntityId, arc_self: &Arc<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>, message: Message<TMessage, TResponse>) -> Result<(), EntityChannelError> {
+    fn send_message_now(_entity_id: EntityId, arc_self: &Arc<Mutex<SimpleEntityChannelCore<TMessage>>>, message: TMessage) -> Result<(), EntityChannelError> {
         let mut waiting = None;
         let mut err     = None;
 
@@ -192,7 +190,7 @@ where
     ///
     /// Sends a message to the core
     ///
-    fn send_message(_entity_id: EntityId, arc_self: &Arc<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>, message: Message<TMessage, TResponse>) -> impl Future<Output=Result<(), EntityChannelError>> {
+    fn send_message(_entity_id: EntityId, arc_self: &Arc<Mutex<SimpleEntityChannelCore<TMessage>>>, message: TMessage) -> impl Future<Output=Result<(), EntityChannelError>> {
         let mut waiting = None;
         let mut err     = None;
 
@@ -256,7 +254,7 @@ where
     }
 }
 
-impl<TMessage, TResponse> Future for WaitingMessage<TMessage, TResponse> {
+impl<TMessage> Future for WaitingMessage<TMessage> {
     type Output = Result<(), EntityChannelError>;
 
     fn poll(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Result<(), EntityChannelError>> {
@@ -317,7 +315,7 @@ impl<TMessage, TResponse> Future for WaitingMessage<TMessage, TResponse> {
     }
 }
 
-impl<TMessage, TResponse> Drop for WaitingMessage<TMessage, TResponse> {
+impl<TMessage> Drop for WaitingMessage<TMessage> {
     fn drop(&mut self) {
         if let Some(core) = self.core.upgrade() {
             let next_ticket_waker = {
@@ -339,8 +337,8 @@ impl<TMessage, TResponse> Drop for WaitingMessage<TMessage, TResponse> {
     }
 }
 
-impl<TMessage, TResponse> Stream for SimpleEntityChannelReceiver<TMessage, TResponse> {
-    type Item = Message<TMessage, TResponse>;
+impl<TMessage> Stream for SimpleEntityChannelReceiver<TMessage> {
+    type Item = TMessage;
 
     fn poll_next(self: Pin<&mut Self>, context: &mut Context) -> Poll<Option<Self::Item>> {
         // Try to receive the next message (and a waker for the first ticket)
@@ -376,7 +374,7 @@ impl<TMessage, TResponse> Stream for SimpleEntityChannelReceiver<TMessage, TResp
     }
 }
 
-impl<TMessage, TResponse> Drop for SimpleEntityChannelReceiver<TMessage, TResponse> {
+impl<TMessage> Drop for SimpleEntityChannelReceiver<TMessage> {
     fn drop(&mut self) {
         let (wakers, old_tickets) = {
             let mut core = self.core.lock().unwrap();
@@ -416,23 +414,22 @@ impl<TMessage, TResponse> Drop for SimpleEntityChannelReceiver<TMessage, TRespon
 /// `send` or `send_without_waiting` is generated, the order that the message will be delivered in is fixed. This prevents race conditions
 /// from forming where two messages can be delivered in a different order than expected.
 ///
-pub struct SimpleEntityChannel<TMessage, TResponse> {
+pub struct SimpleEntityChannel<TMessage> {
     /// The core, used for sending messages
-    core: Arc<Mutex<SimpleEntityChannelCore<TMessage, TResponse>>>,
+    core: Arc<Mutex<SimpleEntityChannelCore<TMessage>>>,
 
     /// The entity ID that owns this channel
     entity_id: EntityId,
 }
 
-impl<TMessage, TResponse> SimpleEntityChannel<TMessage, TResponse> 
+impl<TMessage> SimpleEntityChannel<TMessage> 
 where
     TMessage:   'static + Send,
-    TResponse:  'static + Send,
 {
     ///
     /// Creates a new entity channel
     ///
-    pub fn new(entity_id: EntityId, buf_size: usize) -> (SimpleEntityChannel<TMessage, TResponse>, impl 'static + Send + Stream<Item=Message<TMessage, TResponse>>) {
+    pub fn new(entity_id: EntityId, buf_size: usize) -> (SimpleEntityChannel<TMessage>, impl 'static + Send + Stream<Item=TMessage>) {
         // Create the core
         let core = SimpleEntityChannelCore::new(buf_size);
         let core = Arc::new(Mutex::new(core));
@@ -482,28 +479,22 @@ where
     }
 }
 
-impl<TMessage, TResponse> ImmediateEntityChannel for SimpleEntityChannel<TMessage, TResponse> 
+impl<TMessage> ImmediateEntityChannel for SimpleEntityChannel<TMessage> 
 where
     TMessage:   'static + Send,
-    TResponse:  'static + Send,
 {
     #[inline]
     fn send_immediate(&mut self, message: Self::Message) -> Result<(), EntityChannelError> {
-        // Wrap the request into a message (no receiver for this type of message)
-        let (message, _receiver) = Message::new(message);
-
         // Send the message immediately
         SimpleEntityChannelCore::send_message_now(self.entity_id, &self.core, message)
     }
 }
 
-impl<TMessage, TResponse> EntityChannel for SimpleEntityChannel<TMessage, TResponse> 
+impl<TMessage> EntityChannel for SimpleEntityChannel<TMessage> 
 where
     TMessage:   'static + Send,
-    TResponse:  'static + Send,
 {
     type Message    = TMessage;
-    type Response   = TResponse;
 
     fn entity_id(&self) -> EntityId {
         self.entity_id
@@ -513,28 +504,7 @@ where
         self.core.lock().unwrap().closed
     }
 
-    fn send<'a>(&'a mut self, message: Self::Message) -> BoxFuture<'a, Result<TResponse, EntityChannelError>> {
-        // Wrap the request into a message
-        let (message, receiver) = Message::new(message);
-
-        // Send the message to the channel
-        let send_message = SimpleEntityChannelCore::send_message(self.entity_id, &self.core, message);
-
-        async move {
-            send_message.await?;
-
-            // Wait for the message to be processed
-            receiver.await.map_err(|_cancelled| EntityChannelError::NoResponse)
-        }.boxed()
-    }
-
     fn send_without_waiting(&mut self, message: Self::Message) -> BoxFuture<'static, Result<(), EntityChannelError>> {
-        // Wrap the request into a message
-        let (message, receiver) = Message::new(message);
-
-        // Don't care about the response
-        mem::drop(receiver);
-
         // Send the message to the channel
         let future = SimpleEntityChannelCore::send_message(self.entity_id, &self.core, message);
 
@@ -546,7 +516,7 @@ where
     }
 }
 
-impl<TMessage, TResponse> Clone for SimpleEntityChannel<TMessage, TResponse> {
+impl<TMessage> Clone for SimpleEntityChannel<TMessage> {
     fn clone(&self) -> Self {
         // Add an extra channel to the core
         self.core.lock().unwrap().num_channels += 1;
@@ -558,7 +528,7 @@ impl<TMessage, TResponse> Clone for SimpleEntityChannel<TMessage, TResponse> {
     }
 }
 
-impl<TMessage, TResponse> Drop for SimpleEntityChannel<TMessage, TResponse> {
+impl<TMessage> Drop for SimpleEntityChannel<TMessage> {
     fn drop(&mut self) {
         // Reduce the channel count
         let waker = {
@@ -591,7 +561,7 @@ mod test {
 
     #[test]
     fn receive_from_buffer() {
-        let (channel, receiver) = SimpleEntityChannel::<(), ()>::new(EntityId::new(), 10);
+        let (channel, receiver) = SimpleEntityChannel::<()>::new(EntityId::new(), 10);
 
         // Fill with 5 pending requests (first request will be 'sent' straight away)
         let mut channel = channel;
@@ -618,7 +588,7 @@ mod test {
 
     #[test]
     fn overfill_then_drain() {
-        let (channel, receiver) = SimpleEntityChannel::<(), ()>::new(EntityId::new(), 1);
+        let (channel, receiver) = SimpleEntityChannel::<()>::new(EntityId::new(), 1);
 
         // Fill with 5 pending requests (first request will be 'sent' straight away)
         let mut channel = channel;
@@ -645,7 +615,7 @@ mod test {
 
     #[test]
     fn overfilled_ordering() {
-        let (channel, receiver) = SimpleEntityChannel::<usize, ()>::new(EntityId::new(), 2);
+        let (channel, receiver) = SimpleEntityChannel::<usize>::new(EntityId::new(), 2);
 
         // Fill with 5 pending requests (first request will be 'sent' straight away)
         let mut channel = channel;
@@ -659,9 +629,9 @@ mod test {
             let mut receiver = receiver;
             for i in 0..10 {
                 let msg = receiver.next().await.unwrap();
-                println!("Received {} {}", i, *msg);
+                println!("Received {} {}", i, msg);
 
-                assert!(i == *msg);
+                assert!(i == msg);
             }
         };
 

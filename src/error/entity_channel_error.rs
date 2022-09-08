@@ -11,9 +11,6 @@ pub enum EntityChannelError {
     /// The requested entity doesn't exist
     NoSuchEntity,
 
-    /// The entity didn't generate a response for the message
-    NoResponse,
-
     /// The entity is no longer listening for these kinds of message
     NoLongerListening,
 
@@ -23,14 +20,8 @@ pub enum EntityChannelError {
     /// A dynamic message has already been processed
     MissingMessage,
 
-    /// A dynamic channel was expecting a response of a particular type. The parameter is the name of the expected type.
-    WrongResponseType(String),
-
-    /// Neither the response nor the message type was valid for a particular entity
-    WrongChannelType(String, String),
-
-    /// A dynamic message has already been processed
-    MissingResponse,
+    /// The message type was invalid for a particular entity
+    WrongChannelType(String),
 
     /// No scene is available to create the channel
     NoCurrentScene,

@@ -16,7 +16,7 @@ Once a scene is set up, it needs to be run in order to do anything:
     executor::block_on(async move { scene.run().await; });
 ```
 
-A scene consists of a set of entities. These can be set up by calling methods on either the scene itself or on the scene context from within an entity. Each entity receives a stream of messages, and can generate an individual response to each message. They're identified by a unique entity ID.
+A scene consists of a set of entities. These can be set up by calling methods on either the scene itself or on the scene context from within an entity. Each entity receives a stream of messages and is identified by a unique entity ID.
 
 ```Rust
     enum MyEntityRequest {
@@ -43,7 +43,7 @@ A scene consists of a set of entities. These can be set up by calling methods on
 Messages can be sent to entities via `EntityChannel` objects: it's necessary to know. These are initially retrieved from the scene context, and are referred to using their entity ID and message type:
 
 ```Rust
-    let channel = context.send_to::<MyEntityRequest, ()>(my_entity).unwrap();
+    let channel = context.send_to::<MyEntityRequest>(my_entity).unwrap();
 
     channel.send(MyEntityRequest::TestRequest).await.ok();
     channel.send_without_waiting(MyEntityRequest::TestRequest).await.unwrap();
@@ -92,5 +92,5 @@ From within the context of an entity, it's possible to create background tasks. 
 It's also possible to re-establish the scene context without passing it around if necessary. This can be useful for tasks like logging where passing around entity channels or contexts can be inconvenient or impossible.
 
 ```Rust
-    let logging_channel = SceneContext::current().send_to::<LogRequest, ()>(LOGGING_ENTITY).unwrap();
+    let logging_channel = SceneContext::current().send_to::<LogRequest>(LOGGING_ENTITY).unwrap();
 ```

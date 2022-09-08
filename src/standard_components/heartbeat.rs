@@ -2,7 +2,7 @@ use crate::context::*;
 use crate::entity_id::*;
 use crate::error::*;
 use crate::entity_channel::*;
-use crate::stream_entity_response_style::*;
+use crate::ergonomics::*;
 
 use super::entity_ids::*;
 use super::entity_registry::*;
@@ -36,7 +36,7 @@ pub (crate) enum InternalHeartbeatRequest {
     EntityUpdate(EntityUpdate),
 
     /// Send Heartbeat messages to the specified entity ID
-    RequestHeartbeat(BoxedEntityChannel<'static, Heartbeat, ()>),
+    RequestHeartbeat(BoxedEntityChannel<'static, Heartbeat>),
 }
 
 ///
@@ -45,7 +45,7 @@ pub (crate) enum InternalHeartbeatRequest {
 #[derive(Debug)]
 pub enum HeartbeatRequest {
     /// Send Heartbeat messages to the specified entity ID
-    RequestHeartbeat(BoxedEntityChannel<'static, Heartbeat, ()>),
+    RequestHeartbeat(BoxedEntityChannel<'static, Heartbeat>),
 }
 
 ///
@@ -73,16 +73,16 @@ impl From<EntityUpdate> for InternalHeartbeatRequest {
 ///
 /// Creates the heartbeat entity in a context
 ///
-pub fn create_heartbeat_entity(context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
+pub fn create_heartbeat_entity(context: &Arc<SceneContext>) -> Result<impl EntityChannel<Message=HeartbeatRequest>, CreateEntityError> {
     // Set up converting the messages that the heartbeat entity can receive
     context.convert_message::<EntityUpdate, InternalHeartbeatRequest>()?;
     context.convert_message::<HeartbeatRequest, InternalHeartbeatRequest>()?;
 
     // Set up the state for the heartbeat entity
-    let mut receivers = HashMap::<EntityId, BoxedEntityChannel<'static, Heartbeat, ()>>::new();
+    let mut receivers = HashMap::<EntityId, BoxedEntityChannel<'static, Heartbeat>>::new();
 
     // Create the heartbeat entity itself
-    context.create_stream_entity(HEARTBEAT, StreamEntityResponseStyle::default(), move |context, mut requests| async move {
+    Ok(context.create_entity(HEARTBEAT, move |context, mut requests| async move {
         // Request details on the entities (we track what gets destroyed so we can stop them receiving heartbeats)
         if let Ok(our_channel) = context.send_to(HEARTBEAT) {
             context.send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(our_channel)).await.ok();
@@ -123,7 +123,5 @@ pub fn create_heartbeat_entity(context: &Arc<SceneContext>) -> Result<(), Create
                 }
             }
         }
-    })?;
-
-    Ok(())
+    })?.convert())
 }

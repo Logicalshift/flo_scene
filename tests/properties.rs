@@ -15,16 +15,16 @@ fn open_channel_i64() {
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             // Try to open the channel to the properties entity and ensure that it's there
             let channel         = properties_channel::<i64>(PROPERTIES, &SceneContext::current()).await;
             let same_channel    = properties_channel::<i64>(PROPERTIES, &SceneContext::current()).await;
 
             if channel.is_ok() && same_channel.is_ok() {
-                msg.respond(vec![SceneTestResult::Ok]).ok();
+                msg.send_without_waiting(SceneTestResult::Ok).await.ok();
             } else {
-                msg.respond(vec![SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))]).ok();
+                msg.send_without_waiting(SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))).await.ok();
             }
         }
     }).unwrap();
@@ -42,16 +42,16 @@ fn open_channel_string() {
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             // Try to open the channel to the properties entity and ensure that it's there
             let channel         = properties_channel::<String>(PROPERTIES, &SceneContext::current()).await;
             let same_channel    = properties_channel::<String>(PROPERTIES, &SceneContext::current()).await;
 
             if channel.is_ok() && same_channel.is_ok() {
-                msg.respond(vec![SceneTestResult::Ok]).ok();
+                msg.send_without_waiting(SceneTestResult::Ok).await.ok();
             } else {
-                msg.respond(vec![SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))]).ok();
+                msg.send_without_waiting(SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))).await.ok();
             }
         }
     }).unwrap();
@@ -69,7 +69,7 @@ fn follow_string_property() {
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             // Create a channel to the properties object
             let mut channel         = properties_channel::<String>(PROPERTIES, &SceneContext::current()).await.unwrap();
@@ -77,7 +77,10 @@ fn follow_string_property() {
             // Create a string property
             let (string_sender, string_receiver)    = mpsc::channel(5);
             channel.send_without_waiting(PropertyRequest::CreateProperty(PropertyDefinition::from_stream(TEST_ENTITY, "TestString", string_receiver.boxed(), "".into()))).await.unwrap();
-            let string_binding = channel.send(PropertyRequest::Get(PropertyReference::new(TEST_ENTITY, "TestString"))).await.unwrap().unwrap();
+
+            let (string_binding, target) = FloatingBinding::new();
+            channel.send_without_waiting(PropertyRequest::Get(PropertyReference::new(TEST_ENTITY, "TestString"), target)).await.unwrap();
+            let string_binding = string_binding.wait_for_binding().await.unwrap();
 
             // If we send a value to the property, it should show up on the property stream
             let mut string_stream   = follow(string_binding);
@@ -88,9 +91,9 @@ fn follow_string_property() {
 
             let set_value           = string_stream.next().await;
 
-            msg.respond(vec![
+            msg.send_without_waiting(
                 (set_value == Some("Test".to_string())).into()
-            ]).ok();
+            ).await.ok();
         }
     }).unwrap();
 
@@ -107,7 +110,7 @@ fn bind_string_property() {
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             // Create a string property from a binding
             let binding             = bind("Test".to_string());
@@ -130,12 +133,10 @@ fn bind_string_property() {
             // Retrieve the updated value via the binding
             let another_value       = value.get();
 
-            msg.respond(vec![
-                (initial_value == "Test".to_string()).into(),
-                (initial_value_again == Some("Test".to_string())).into(),
-                (next_value == Some("AnotherTest".to_string())).into(),
-                (another_value == "AnotherTest".to_string()).into(),
-            ]).ok();
+            msg.send_without_waiting((initial_value == "Test".to_string()).into()).await.ok();
+            msg.send_without_waiting((initial_value_again == Some("Test".to_string())).into()).await.ok();
+            msg.send_without_waiting((next_value == Some("AnotherTest".to_string())).into()).await.ok();
+            msg.send_without_waiting((another_value == "AnotherTest".to_string()).into()).await.ok();
         }
     }).unwrap();
 
@@ -152,7 +153,7 @@ fn bind_char_rope() {
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             // Create a string property from a binding
             let binding             = RopeBindingMut::<char, ()>::new();
@@ -174,10 +175,8 @@ fn bind_char_rope() {
             // Retrieve the updated value via the binding
             let another_value       = value.read_cells(0..value.len()).collect::<Vec<_>>();
 
-            msg.respond(vec![
-                (initial_value == vec![]).into(),
-                (another_value == vec!['T', 'e', 's', 't']).into(),
-            ]).ok();
+            msg.send_without_waiting((initial_value == vec![]).into()).await.ok();
+            msg.send_without_waiting((another_value == vec!['T', 'e', 's', 't']).into()).await.ok();
         }
     }).unwrap();
 
@@ -194,9 +193,8 @@ fn property_unbinds_when_entity_destroyed() {
     let property_entity = EntityId::new();
     scene.create_entity(property_entity, move |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
-            let msg: Message<StopTestEntity, ()> = msg;
+            let _msg: StopTestEntity = msg;
 
-            msg.respond(()).ok();
             break;
         }
     }).unwrap();
@@ -205,7 +203,7 @@ fn property_unbinds_when_entity_destroyed() {
     scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             // Create a string property from a binding
             let binding             = bind("Test".to_string());
@@ -230,14 +228,14 @@ fn property_unbinds_when_entity_destroyed() {
 
             // Watch for entities stopping
             let (stopped_entities, mut stop_receiver) = SimpleEntityChannel::new(TEST_ENTITY, 5);
-            context.send::<_, ()>(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(stopped_entities.boxed())).await.unwrap();
+            context.send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(stopped_entities.boxed())).await.unwrap();
 
             // Stop the property entity
-            context.send::<_, ()>(property_entity, StopTestEntity).await.unwrap();
+            context.send_without_waiting(property_entity, StopTestEntity).await.unwrap();
 
             // Wait for it to stop
             while let Some(msg) = stop_receiver.next().await {
-                if *msg == EntityUpdate::DestroyedEntity(property_entity) {
+                if msg == EntityUpdate::DestroyedEntity(property_entity) {
                     break;
                 }
             }
@@ -245,13 +243,11 @@ fn property_unbinds_when_entity_destroyed() {
             // Property should no longer exist in the properties object
             let error_value = property_bind::<String>(property_entity, "TestProperty").await;
 
-            msg.respond(vec![
-                (initial_value == "Test".to_string()).into(),
-                (initial_value_again == Some("Test".to_string())).into(),
-                (next_value == Some("AnotherTest".to_string())).into(),
-                (another_value == "AnotherTest".to_string()).into(),
-                (error_value.is_err()).into(),
-            ]).ok();
+            msg.send_without_waiting((initial_value == "Test".to_string()).into()).await.ok();
+            msg.send_without_waiting((initial_value_again == Some("Test".to_string())).into()).await.ok();
+            msg.send_without_waiting((next_value == Some("AnotherTest".to_string())).into()).await.ok();
+            msg.send_without_waiting((another_value == "AnotherTest".to_string()).into()).await.ok();
+            msg.send_without_waiting((error_value.is_err()).into()).await.ok();
         }
     }).unwrap();
 
@@ -267,13 +263,13 @@ fn entities_property() {
     let sample_entity = EntityId::new();
     scene.create_entity(sample_entity, |_ctxt, mut messages| async move {
         while let Some(msg) = messages.next().await {
-            let _msg: Message<(), ()> = msg;
+            let _msg: () = msg;
         }
     }).unwrap();
 
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             let entities            = rope_bind::<EntityId, ()>(PROPERTIES, "Entities").await.unwrap();
             let mut entity_stream   = entities.follow_changes();
@@ -288,7 +284,7 @@ fn entities_property() {
                 entity_stream.next().await;
             }
 
-            msg.respond(vec![SceneTestResult::Ok]).ok();
+            msg.send_without_waiting(SceneTestResult::Ok).await.ok();
         }
     }).unwrap();
 
@@ -306,7 +302,7 @@ fn track_string_property_if_created_first() {
     scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(_msg) = msg;
 
             // Create a string property from a binding
             let binding             = bind("Test".to_string());
@@ -319,7 +315,7 @@ fn track_string_property_if_created_first() {
             let mut property_channel                = properties_channel::<String>(PROPERTIES, &context).await.unwrap();
             let (tracker_channel, track_strings)    = SimpleEntityChannel::new(TEST_ENTITY, 5);
 
-            property_channel.send(PropertyRequest::TrackPropertiesWithName("TestProperty".into(), tracker_channel.boxed())).await.unwrap();
+            property_channel.send_without_waiting(PropertyRequest::TrackPropertiesWithName("TestProperty".into(), tracker_channel.boxed())).await.unwrap();
 
             // Should read the 'TestProperty' we just created
             let mut track_strings = track_strings;
@@ -328,9 +324,6 @@ fn track_string_property_if_created_first() {
                     break;
                 }
             }
-
-            msg.respond(vec![
-            ]).ok();
         }
     }).unwrap();
 
@@ -349,13 +342,13 @@ fn track_string_property_if_created_later() {
     scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(_msg) = msg;
 
             // Request tracking information on the specified property
             let mut property_channel                = properties_channel::<String>(PROPERTIES, &context).await.unwrap();
             let (tracker_channel, track_strings)    = SimpleEntityChannel::new(TEST_ENTITY, 5);
 
-            property_channel.send(PropertyRequest::TrackPropertiesWithName("TestProperty".into(), tracker_channel.boxed())).await.unwrap();
+            property_channel.send_without_waiting(PropertyRequest::TrackPropertiesWithName("TestProperty".into(), tracker_channel.boxed())).await.unwrap();
 
             // Create a string property from a binding
             let binding             = bind("Test".to_string());
@@ -371,9 +364,6 @@ fn track_string_property_if_created_later() {
                     break;
                 }
             }
-
-            msg.respond(vec![
-            ]).ok();
         }
     }).unwrap();
 

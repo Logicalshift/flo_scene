@@ -22,9 +22,7 @@ fn say_hello_in_background() {
 
         // Messages don't really matter here
         while let Some(msg) = msg.next().await {
-            let msg: Message<String, String> = msg;
-
-            msg.respond("???".to_string()).ok();
+            let _msg: String = msg;
         }
     }).unwrap();
 
@@ -32,7 +30,7 @@ fn say_hello_in_background() {
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             // Send a message to the background future
             string_sender.send("Hello".to_string()).await.ok();
@@ -41,9 +39,9 @@ fn say_hello_in_background() {
             let received = relay_receiver.next().await;
 
             // Wait for the response, and succeed if the result is 'world'
-            msg.respond(vec![
+            msg.send_without_waiting(
                 (received == Some("Hello".to_string())).into()
-            ]).unwrap();
+            ).await.unwrap();
         }
     }).unwrap();
 
@@ -68,9 +66,7 @@ fn say_hello_in_background_using_context() {
 
         // Messages don't really matter here
         while let Some(msg) = msg.next().await {
-            let msg: Message<String, String> = msg;
-
-            msg.respond("???".to_string()).ok();
+            let _msg: String = msg;
         }
     }).unwrap();
 
@@ -78,7 +74,7 @@ fn say_hello_in_background_using_context() {
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             // Send a message to the background future
             string_sender.send("Hello".to_string()).await.ok();
@@ -87,9 +83,9 @@ fn say_hello_in_background_using_context() {
             let received = relay_receiver.next().await;
 
             // Wait for the response, and succeed if the result is 'world'
-            msg.respond(vec![
+            msg.send_without_waiting(
                 (received == Some("Hello".to_string())).into()
-            ]).unwrap();
+            ).await.unwrap();
         }
     }).unwrap();
 
@@ -118,9 +114,7 @@ fn say_hello_in_background_when_sealed() {
 
         // Messages don't really matter here
         while let Some(msg) = msg.next().await {
-            let msg: Message<String, String> = msg;
-
-            msg.respond("???".to_string()).ok();
+            let _msg: String = msg;
         }
     }).unwrap();
 
@@ -128,7 +122,7 @@ fn say_hello_in_background_when_sealed() {
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             // Send a message to the background future
             string_sender.send("Hello".to_string()).await.ok();
@@ -138,9 +132,9 @@ fn say_hello_in_background_when_sealed() {
             println!("Received: {:?}", received);
 
             // Wait for the response, and succeed if the result is 'world'
-            msg.respond(vec![
+            msg.send_without_waiting(
                 (received == Some("Hello".to_string())).into()
-            ]).unwrap();
+            ).await.unwrap();
         }
     }).unwrap();
 
@@ -156,7 +150,7 @@ fn background_has_current_scene() {
     scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             let (sender, receiver) = oneshot::channel();
             context.run_in_background(async move {
@@ -166,9 +160,9 @@ fn background_has_current_scene() {
             let is_ok = receiver.await.unwrap();
 
             // Wait for the response, and succeed if the result is 'world'
-            msg.respond(vec![
+            msg.send_without_waiting(
                 is_ok.into()
-            ]).unwrap();
+            ).await.unwrap();
         }
     }).unwrap();
 

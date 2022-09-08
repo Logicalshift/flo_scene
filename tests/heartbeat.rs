@@ -13,15 +13,15 @@ fn open_heartbeat_channel() {
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             // Try to open the channel to the heartbeat entity and ensure that it's there
-            let channel = scene_send_to::<HeartbeatRequest, ()>(HEARTBEAT);
+            let channel = scene_send_to::<HeartbeatRequest>(HEARTBEAT);
 
             if channel.is_ok() {
-                msg.respond(vec![SceneTestResult::Ok]).ok();
+                msg.send_without_waiting(SceneTestResult::Ok).await.ok();
             } else {
-                msg.respond(vec![SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))]).ok();
+                msg.send_without_waiting(SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))).await.ok();
             }
         }
     }).unwrap();
@@ -57,10 +57,9 @@ fn receive_heartbeat_after_message() {
         let mut sender = sender;
 
         while let Some(msg) = msg.next().await {
-            let msg: Message<TestRequest, ()> = msg;
+            let msg: TestRequest = msg;
 
-            sender.send(*msg).await.ok();
-            msg.respond(()).ok();
+            sender.send(msg).await.ok();
         }
     }).unwrap();
 
@@ -73,18 +72,18 @@ fn receive_heartbeat_after_message() {
 
         // Ask the heartbeat entity to send heartbeats to our test entity
         let receive_heartbeat_channel = scene_send_to(receive_heartbeat).unwrap();
-        scene_send::<_, ()>(HEARTBEAT, HeartbeatRequest::RequestHeartbeat(receive_heartbeat_channel)).await.unwrap();
+        scene_send_without_waiting(HEARTBEAT, HeartbeatRequest::RequestHeartbeat(receive_heartbeat_channel)).await.unwrap();
 
         println!("Heartbeat requested");
 
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
-            let msg: Message<(), Vec<SceneTestResult>> = msg;
+            let SceneTestRequest(mut msg) = msg;
 
             println!("Test message received");
 
             // Send a message to the test request
-            scene_send::<_, ()>(receive_heartbeat, TestRequest::Message).await.unwrap();
+            scene_send_without_waiting(receive_heartbeat, TestRequest::Message).await.unwrap();
 
             println!("Sent message");
 
@@ -99,7 +98,7 @@ fn receive_heartbeat_after_message() {
                     if test_request == TestRequest::Message {
                         received_message = true;
                     } else if test_request == TestRequest::Heartbeat && received_message {
-                        msg.respond(vec![SceneTestResult::Ok]).ok();
+                        msg.send_without_waiting(SceneTestResult::Ok).await.ok();
                         return;
                     }
                 }

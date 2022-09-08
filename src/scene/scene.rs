@@ -3,11 +3,9 @@ use super::scene_waker::*;
 use crate::entity_id::*;
 use crate::context::*;
 use crate::error::*;
-use crate::message::*;
 use crate::entity_channel::*;
 use crate::standard_components::*;
 use crate::simple_entity_channel::*;
-use crate::stream_entity_response_style::*;
 
 use futures::prelude::*;
 use futures::future;
@@ -74,10 +72,9 @@ impl Scene {
     ///
     /// Creates a channel to send messages in this context
     ///
-    pub fn send_to<TMessage, TResponse>(&self, entity_id: EntityId) -> Result<impl EntityChannel<Message=TMessage, Response=TResponse>, EntityChannelError>
+    pub fn send_to<TMessage>(&self, entity_id: EntityId) -> Result<impl EntityChannel<Message=TMessage>, EntityChannelError>
     where
         TMessage:   'static + Send,
-        TResponse:  'static + Send, 
     {
         SceneContext::with_no_entity(&self.core).send_to(entity_id)
     }
@@ -85,26 +82,13 @@ impl Scene {
     ///
     /// Creates an entity that processes a particular kind of message
     ///
-    pub fn create_entity<TMessage, TResponse, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, TResponse>, CreateEntityError>
-    where
-        TMessage:   'static + Send,
-        TResponse:  'static + Send,
-        TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, Message<TMessage, TResponse>>) -> TFnFuture,
-        TFnFuture:  'static + Send + Future<Output = ()>,
-    {
-        SceneContext::with_no_entity(&self.core).create_entity(entity_id, runtime)
-    }
-
-    ///
-    /// Creates an entity that processes a stream of messages which receive empty responses
-    ///
-    pub fn create_stream_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, response_style: StreamEntityResponseStyle, runtime: TFn) -> Result<SimpleEntityChannel<TMessage, ()>, CreateEntityError>
+    pub fn create_entity<TMessage, TFn, TFnFuture>(&self, entity_id: EntityId, runtime: TFn) -> Result<SimpleEntityChannel<TMessage>, CreateEntityError>
     where
         TMessage:   'static + Send,
         TFn:        'static + Send + FnOnce(Arc<SceneContext>, BoxStream<'static, TMessage>) -> TFnFuture,
         TFnFuture:  'static + Send + Future<Output = ()>,
     {
-        SceneContext::with_no_entity(&self.core).create_stream_entity(entity_id, response_style, runtime)
+        SceneContext::with_no_entity(&self.core).create_entity(entity_id, runtime)
     }
 
     ///
@@ -119,20 +103,6 @@ impl Scene {
         TNewMessage:        'static + Send + From<TOriginalMessage>,
     {
         SceneContext::with_no_entity(&self.core).convert_message::<TOriginalMessage, TNewMessage>()
-    }
-
-    ///
-    /// Specify that entities that can return responses of type `TOriginalResponse` can also return messages of type `TNewResponse`
-    ///
-    /// That is, if an entity can be addressed using `EntityChannel<Response=TOriginalResponse>` it will automatically convert from `TNewResponse`
-    /// so that `EntityChannel<Response=TNewResponse>` also works.
-    ///
-    pub fn convert_response<TOriginalResponse, TNewResponse>(&self) -> Result<(), SceneContextError> 
-    where
-        TOriginalResponse:  'static + Send + Into<TNewResponse>,
-        TNewResponse:       'static + Send,
-    {
-        SceneContext::with_no_entity(&self.core).convert_response::<TOriginalResponse, TNewResponse>()
     }
 
     ///
