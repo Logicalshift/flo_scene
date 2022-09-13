@@ -472,7 +472,26 @@ where
         }
 
         Follow(reference, target) => {
-            unimplemented!()
+            if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
+                if let Some(property) = property.downcast_mut::<Arc<Property<TValue>>>() {
+                    // Follow the property values in a stream
+                    // TODO: if the property or entity is destroyed in this entity, stop following it (this version will keep following so long as anything has a reference to it)
+                    let mut property_values = follow(property.current_value.clone());
+
+                    // Run a background task to pass the values on to the target
+                    context.run_in_background(async move {
+                        let mut target = target;
+
+                        while let Some(next_value) = property_values.next().await {
+                            // Send to the target
+                            if target.send_without_waiting(next_value).await.is_err() {
+                                // Stop if the target is no longer listening for changes
+                                break;
+                            }
+                        }
+                    }).ok();
+                }
+            }
         }
 
         TrackPropertiesWithName(name, channel) => {
