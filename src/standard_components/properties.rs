@@ -101,6 +101,9 @@ where
     /// Retrieves the `BindRef<TValue>` by sending it to the specified binding target
     Get(PropertyReference, FloatingBindingTarget<BindRef<TValue>>),
 
+    /// Sends the values for a property to a channel
+    Follow(PropertyReference, BoxedEntityChannel<'static, TValue>),
+
     /// Whenever a property with the specified name is created, notify the specified channel
     TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyReference>),
 }
@@ -176,6 +179,7 @@ where
             CreateProperty(PropertyDefinition { owner, .. })    => Some(*owner),
             DestroyProperty(PropertyReference { owner, .. })    => Some(*owner),
             Get(PropertyReference { owner, .. }, _)             => Some(*owner),
+            Follow(PropertyReference { owner, .. }, _)          => Some(*owner),
             TrackPropertiesWithName(_, _)                       => None,
         }
     }
@@ -386,7 +390,7 @@ where
 ///
 /// Processes a message, where the message is expected to be of a particular type
 ///
-fn process_message<TValue>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, _context: &Arc<SceneContext>)
+fn process_message<TValue>(any_message: Box<dyn Send + Any>, state: &mut PropertiesState, context: &Arc<SceneContext>)
 where
     TValue: 'static + PartialEq + Clone + Send + Sized,
 {
@@ -465,6 +469,10 @@ where
             } else {
                 target.missing();
             }
+        }
+
+        Follow(reference, target) => {
+            unimplemented!()
         }
 
         TrackPropertiesWithName(name, channel) => {
