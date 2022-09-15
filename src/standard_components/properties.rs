@@ -104,6 +104,11 @@ where
     Get(PropertyReference, FloatingBindingTarget<BindRef<TValue>>),
 
     /// Sends the values for a property to a channel
+    ///
+    /// 'Follow' is less efficient than using 'Get' and then following the resulting property but differs
+    /// from that result in that the stream will end when the property or entity is destroyed in the property
+    /// bindings rather than when the underlying binding is dropped. It also sends directly to an entity
+    /// channel, which makes it easy to use a property as a source of messages for another entity.
     Follow(PropertyReference, BoxedEntityChannel<'static, TValue>),
 
     /// Whenever a property with the specified name is created, notify the specified channel
