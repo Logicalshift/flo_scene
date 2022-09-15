@@ -14,6 +14,8 @@ use flo_binding::*;
 
 use futures::prelude::*;
 use futures::future;
+use futures::future::{Either};
+use futures::channel::oneshot;
 
 use std::any::{TypeId, Any};
 use std::sync::*;
@@ -279,6 +281,20 @@ impl PropertyReference {
     }
 }
 
+impl<TValue> Drop for Property<TValue> {
+    fn drop(&mut self) {
+        use std::mem;
+
+        // Take the list of channels to send to when this property is dropped
+        let mut when_dropped = vec![];
+        mem::swap(&mut *self.when_dropped.lock().unwrap(), &mut when_dropped);
+
+        // Notify them all that the property has been dropped
+        when_dropped.into_iter()
+            .for_each(|(_id, sender)| { sender.send(()).ok(); });
+    }
+}
+
 ///
 /// Retrieves an entity channel to talk to the properties entity about properties of type `TValue`. This is the same as calling `context.send_to()`
 /// except this will ensure a suitable conversion for communicating with the properties entity is set up. That is `send_to()` won't work until this
@@ -357,6 +373,9 @@ where
 /// Used to represent the state of the properties entity at any given time
 ///
 struct PropertiesState {
+    /// ID used to identify resources
+    next_id: usize,
+
     /// The properties for each entity in the scene. The value is an `Arc<Mutex<Property<TValue>>>` in an any box
     properties: HashMap<EntityId, HashMap<Arc<String>, Box<dyn Send + Any>>>,
 
@@ -373,6 +392,9 @@ struct PropertiesState {
 struct Property<TValue> {
     /// The current value, if known
     current_value: BindRef<TValue>,
+
+    /// What to notify when this property is dropped
+    when_dropped: Mutex<Vec<(usize, oneshot::Sender<()>)>>,
 }
 
 ///
@@ -410,6 +432,7 @@ where
             // Create the property
             let property    = Property::<TValue> {
                 current_value:  values,
+                when_dropped:   Mutex::new(vec![]),
             };
             let property    = Arc::new(property);
 
@@ -474,20 +497,37 @@ where
         Follow(reference, target) => {
             if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
                 if let Some(property) = property.downcast_mut::<Arc<Property<TValue>>>() {
+                    // Create channel to detect when this property is released
+                    let follow_id = state.next_id;
+                    state.next_id += 1;
+
+                    let (property_dropped_sender, property_dropped) = oneshot::channel();
+                    property.when_dropped.lock().unwrap().push((follow_id, property_dropped_sender));
+
                     // Follow the property values in a stream
-                    // TODO: if the property or entity is destroyed in this entity, stop following it (this version will keep following so long as anything has a reference to it)
                     let mut property_values = follow(property.current_value.clone());
+
+                    // We'll need a reference to the property when the stream shuts down
+                    let weak_property = Arc::downgrade(&property);
 
                     // Run a background task to pass the values on to the target
                     context.run_in_background(async move {
-                        let mut target = target;
+                        let mut target              = target;
+                        let mut property_dropped    = property_dropped;
 
-                        while let Some(next_value) = property_values.next().await {
+                        while let Either::Left((Some(next_value), prop_dropped)) = future::select(property_values.next(), property_dropped).await {
+                            property_dropped = prop_dropped;
+
                             // Send to the target
                             if target.send_without_waiting(next_value).await.is_err() {
                                 // Stop if the target is no longer listening for changes
                                 break;
                             }
+                        }
+
+                        // Remove from the when_dropped list
+                        if let Some(property) = weak_property.upgrade() {
+                            property.when_dropped.lock().unwrap().retain(|(id, _)| *id != follow_id);
                         }
                     }).ok();
                 }
@@ -644,6 +684,7 @@ where
 pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> Result<(), CreateEntityError> {
     // Create the state for the properties entity
     let mut state   = PropertiesState {
+        next_id:    0,
         properties: HashMap::new(),
         entities:   RopeBindingMut::new(),
         trackers:   HashMap::new(),
