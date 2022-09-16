@@ -319,7 +319,7 @@ fn track_string_property_if_created_first() {
 
             // Should read the 'TestProperty' we just created
             let mut track_strings = track_strings;
-            while let Some(property_reference) = track_strings.next().await {
+            while let Some(PropertyUpdate::Created(property_reference)) = track_strings.next().await {
                 if property_reference.name == Arc::new("TestProperty".into()) {
                     break;
                 }
@@ -359,7 +359,7 @@ fn track_string_property_if_created_later() {
 
             // Should read the 'TestProperty' we just created
             let mut track_strings = track_strings;
-            while let Some(property_reference) = track_strings.next().await {
+            while let Some(PropertyUpdate::Created(property_reference)) = track_strings.next().await {
                 if property_reference.name == Arc::new("TestProperty".into()) {
                     break;
                 }
