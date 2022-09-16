@@ -370,3 +370,50 @@ fn track_string_property_if_created_later() {
     // Test the scene we just set up
     test_scene(scene);
 }
+
+#[test]
+#[cfg(feature="properties")]
+fn follow_property_updates() {
+    let scene = Scene::default();
+
+    // Create a test for this scene
+    scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
+        // Whenever a test is requested...
+        while let Some(msg) = msg.next().await {
+            let SceneTestRequest(_msg) = msg;
+
+            // Request tracking information on the specified property
+            let mut property_channel = properties_channel::<String>(PROPERTIES, &context).await.unwrap();
+
+            // Create a string property from a binding
+            let binding = bind("Test".to_string());
+            property_create("TestProperty", binding.clone()).await.unwrap();
+
+            // Follow updates to that property
+            let (tracker_channel, track_updates) = SimpleEntityChannel::new(TEST_ENTITY, 1);
+            property_channel.send_without_waiting(PropertyRequest::Follow(PropertyReference::new(TEST_ENTITY, "TestProperty"), tracker_channel.boxed())).await.unwrap();
+
+            // Should immediately update with the value on the property
+            let mut track_updates   = track_updates;
+            let initial_value       = track_updates.next().await.unwrap();
+            assert!(initial_value == "Test".to_string());
+
+            // Send an update
+            binding.set("Another value".to_string());
+
+            // Should update with the next value
+            let another_value       = track_updates.next().await.unwrap();
+            assert!(another_value == "Another value".to_string());
+
+            // Destroy the property
+            property_channel.send_without_waiting(PropertyRequest::DestroyProperty(PropertyReference::new(TEST_ENTITY, "TestProperty"))).await.unwrap();
+
+            // Should close the channel
+            let close_channel       = track_updates.next().await;
+            assert!(close_channel.is_none());
+        }
+    }).unwrap();
+
+    // Test the scene we just set up
+    test_scene(scene);
+}
