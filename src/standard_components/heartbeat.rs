@@ -85,7 +85,7 @@ pub fn create_heartbeat_entity(context: &Arc<SceneContext>) -> Result<impl Entit
     Ok(context.create_entity(HEARTBEAT, move |context, mut requests| async move {
         // Request details on the entities (we track what gets destroyed so we can stop them receiving heartbeats)
         if let Ok(our_channel) = context.send_to(HEARTBEAT) {
-            context.send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(our_channel)).await.ok();
+            context.send(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(our_channel)).await.ok();
         }
 
         // Main message loop for the heartbeat entity
@@ -97,7 +97,7 @@ pub fn create_heartbeat_entity(context: &Arc<SceneContext>) -> Result<impl Entit
 
                     for (entity_id, channel) in receivers.iter_mut() {
                         // Try to send to the channel
-                        if channel.send_without_waiting(Heartbeat).await.is_err() {
+                        if channel.send(Heartbeat).await.is_err() {
                             // Any error adds to the stopped list
                             stopped.push(*entity_id);
                         }

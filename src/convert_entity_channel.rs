@@ -48,9 +48,9 @@ where
         self.source_channel.is_closed()
     }
 
-    fn send_without_waiting(&mut self, message: Self::Message) -> BoxFuture<'static, Result<(), EntityChannelError>> {
+    fn send(&mut self, message: Self::Message) -> BoxFuture<'static, Result<(), EntityChannelError>> {
         let message = TSourceChannel::Message::from(message);
-        let future  = self.source_channel.send_without_waiting(message);
+        let future  = self.source_channel.send(message);
 
         async move {
             future.await?;

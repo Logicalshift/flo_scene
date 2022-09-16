@@ -78,7 +78,7 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
                 let mut channel = properties_channel::<TValue>(PROPERTIES, &context).await?;
 
                 // Create the property
-                channel.send_without_waiting(PropertyRequest::CreateProperty(property_definition)).await?;
+                channel.send(PropertyRequest::CreateProperty(property_definition)).await?;
 
                 Ok(())
             } else {
@@ -103,7 +103,7 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
             let mut channel = properties_channel::<TValue>(PROPERTIES, &context).await?;
 
             // Create the property
-            channel.send_without_waiting(PropertyRequest::CreateProperty(property_definition)).await?;
+            channel.send(PropertyRequest::CreateProperty(property_definition)).await?;
 
             Ok(())
         }.boxed()
@@ -127,7 +127,7 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
 
             // Request that the channel send values to the sink
             let (binding, target) = FloatingBinding::new();
-            channel.send_without_waiting(PropertyRequest::Get(reference, target)).await?;
+            channel.send(PropertyRequest::Get(reference, target)).await?;
 
             if let Ok(binding) = binding.wait_for_binding().await {
                 Ok(binding)
@@ -155,7 +155,7 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
                 let mut channel = rope_properties_channel::<TCell, TAttribute>(PROPERTIES, &context).await?;
 
                 // Create the property
-                channel.send_without_waiting(RopePropertyRequest::CreateProperty(property_definition)).await?;
+                channel.send(RopePropertyRequest::CreateProperty(property_definition)).await?;
 
                 Ok(())
             } else {
@@ -181,7 +181,7 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
             let mut channel = rope_properties_channel::<TCell, TAttribute>(PROPERTIES, &context).await?;
 
             // Create the property
-            channel.send_without_waiting(RopePropertyRequest::CreateProperty(property_definition)).await?;
+            channel.send(RopePropertyRequest::CreateProperty(property_definition)).await?;
 
             Ok(())
         }.boxed()
@@ -204,7 +204,7 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
 
             // Request that the channel send values to the sink
             let (binding, target) = FloatingBinding::new();
-            channel.send_without_waiting(RopePropertyRequest::Get(reference, target)).await?;
+            channel.send(RopePropertyRequest::Get(reference, target)).await?;
 
             if let Ok(binding) = binding.wait_for_binding().await {
                 Ok(binding)

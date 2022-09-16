@@ -22,9 +22,9 @@ fn open_channel_i64() {
             let same_channel    = properties_channel::<i64>(PROPERTIES, &SceneContext::current()).await;
 
             if channel.is_ok() && same_channel.is_ok() {
-                msg.send_without_waiting(SceneTestResult::Ok).await.ok();
+                msg.send(SceneTestResult::Ok).await.ok();
             } else {
-                msg.send_without_waiting(SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))).await.ok();
+                msg.send(SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))).await.ok();
             }
         }
     }).unwrap();
@@ -49,9 +49,9 @@ fn open_channel_string() {
             let same_channel    = properties_channel::<String>(PROPERTIES, &SceneContext::current()).await;
 
             if channel.is_ok() && same_channel.is_ok() {
-                msg.send_without_waiting(SceneTestResult::Ok).await.ok();
+                msg.send(SceneTestResult::Ok).await.ok();
             } else {
-                msg.send_without_waiting(SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))).await.ok();
+                msg.send(SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))).await.ok();
             }
         }
     }).unwrap();
@@ -76,10 +76,10 @@ fn follow_string_property() {
 
             // Create a string property
             let (string_sender, string_receiver)    = mpsc::channel(5);
-            channel.send_without_waiting(PropertyRequest::CreateProperty(PropertyDefinition::from_stream(TEST_ENTITY, "TestString", string_receiver.boxed(), "".into()))).await.unwrap();
+            channel.send(PropertyRequest::CreateProperty(PropertyDefinition::from_stream(TEST_ENTITY, "TestString", string_receiver.boxed(), "".into()))).await.unwrap();
 
             let (string_binding, target) = FloatingBinding::new();
-            channel.send_without_waiting(PropertyRequest::Get(PropertyReference::new(TEST_ENTITY, "TestString"), target)).await.unwrap();
+            channel.send(PropertyRequest::Get(PropertyReference::new(TEST_ENTITY, "TestString"), target)).await.unwrap();
             let string_binding = string_binding.wait_for_binding().await.unwrap();
 
             // If we send a value to the property, it should show up on the property stream
@@ -91,7 +91,7 @@ fn follow_string_property() {
 
             let set_value           = string_stream.next().await;
 
-            msg.send_without_waiting(
+            msg.send(
                 (set_value == Some("Test".to_string())).into()
             ).await.ok();
         }
@@ -133,10 +133,10 @@ fn bind_string_property() {
             // Retrieve the updated value via the binding
             let another_value       = value.get();
 
-            msg.send_without_waiting((initial_value == "Test".to_string()).into()).await.ok();
-            msg.send_without_waiting((initial_value_again == Some("Test".to_string())).into()).await.ok();
-            msg.send_without_waiting((next_value == Some("AnotherTest".to_string())).into()).await.ok();
-            msg.send_without_waiting((another_value == "AnotherTest".to_string()).into()).await.ok();
+            msg.send((initial_value == "Test".to_string()).into()).await.ok();
+            msg.send((initial_value_again == Some("Test".to_string())).into()).await.ok();
+            msg.send((next_value == Some("AnotherTest".to_string())).into()).await.ok();
+            msg.send((another_value == "AnotherTest".to_string()).into()).await.ok();
         }
     }).unwrap();
 
@@ -175,8 +175,8 @@ fn bind_char_rope() {
             // Retrieve the updated value via the binding
             let another_value       = value.read_cells(0..value.len()).collect::<Vec<_>>();
 
-            msg.send_without_waiting((initial_value == vec![]).into()).await.ok();
-            msg.send_without_waiting((another_value == vec!['T', 'e', 's', 't']).into()).await.ok();
+            msg.send((initial_value == vec![]).into()).await.ok();
+            msg.send((another_value == vec!['T', 'e', 's', 't']).into()).await.ok();
         }
     }).unwrap();
 
@@ -228,10 +228,10 @@ fn property_unbinds_when_entity_destroyed() {
 
             // Watch for entities stopping
             let (stopped_entities, mut stop_receiver) = SimpleEntityChannel::new(TEST_ENTITY, 5);
-            context.send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(stopped_entities.boxed())).await.unwrap();
+            context.send(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(stopped_entities.boxed())).await.unwrap();
 
             // Stop the property entity
-            context.send_without_waiting(property_entity, StopTestEntity).await.unwrap();
+            context.send(property_entity, StopTestEntity).await.unwrap();
 
             // Wait for it to stop
             while let Some(msg) = stop_receiver.next().await {
@@ -243,11 +243,11 @@ fn property_unbinds_when_entity_destroyed() {
             // Property should no longer exist in the properties object
             let error_value = property_bind::<String>(property_entity, "TestProperty").await;
 
-            msg.send_without_waiting((initial_value == "Test".to_string()).into()).await.ok();
-            msg.send_without_waiting((initial_value_again == Some("Test".to_string())).into()).await.ok();
-            msg.send_without_waiting((next_value == Some("AnotherTest".to_string())).into()).await.ok();
-            msg.send_without_waiting((another_value == "AnotherTest".to_string()).into()).await.ok();
-            msg.send_without_waiting((error_value.is_err()).into()).await.ok();
+            msg.send((initial_value == "Test".to_string()).into()).await.ok();
+            msg.send((initial_value_again == Some("Test".to_string())).into()).await.ok();
+            msg.send((next_value == Some("AnotherTest".to_string())).into()).await.ok();
+            msg.send((another_value == "AnotherTest".to_string()).into()).await.ok();
+            msg.send((error_value.is_err()).into()).await.ok();
         }
     }).unwrap();
 
@@ -284,7 +284,7 @@ fn entities_property() {
                 entity_stream.next().await;
             }
 
-            msg.send_without_waiting(SceneTestResult::Ok).await.ok();
+            msg.send(SceneTestResult::Ok).await.ok();
         }
     }).unwrap();
 
@@ -315,7 +315,7 @@ fn track_string_property_if_created_first() {
             let mut property_channel                = properties_channel::<String>(PROPERTIES, &context).await.unwrap();
             let (tracker_channel, track_strings)    = SimpleEntityChannel::new(TEST_ENTITY, 5);
 
-            property_channel.send_without_waiting(PropertyRequest::TrackPropertiesWithName("TestProperty".into(), tracker_channel.boxed())).await.unwrap();
+            property_channel.send(PropertyRequest::TrackPropertiesWithName("TestProperty".into(), tracker_channel.boxed())).await.unwrap();
 
             // Should read the 'TestProperty' we just created
             let mut track_strings = track_strings;
@@ -348,7 +348,7 @@ fn track_string_property_if_created_later() {
             let mut property_channel                = properties_channel::<String>(PROPERTIES, &context).await.unwrap();
             let (tracker_channel, track_strings)    = SimpleEntityChannel::new(TEST_ENTITY, 5);
 
-            property_channel.send_without_waiting(PropertyRequest::TrackPropertiesWithName("TestProperty".into(), tracker_channel.boxed())).await.unwrap();
+            property_channel.send(PropertyRequest::TrackPropertiesWithName("TestProperty".into(), tracker_channel.boxed())).await.unwrap();
 
             // Create a string property from a binding
             let binding             = bind("Test".to_string());
@@ -391,7 +391,7 @@ fn follow_property_updates() {
 
             // Follow updates to that property
             let (tracker_channel, track_updates) = SimpleEntityChannel::new(TEST_ENTITY, 1);
-            property_channel.send_without_waiting(PropertyRequest::Follow(PropertyReference::new(TEST_ENTITY, "TestProperty"), tracker_channel.boxed())).await.unwrap();
+            property_channel.send(PropertyRequest::Follow(PropertyReference::new(TEST_ENTITY, "TestProperty"), tracker_channel.boxed())).await.unwrap();
 
             // Should immediately update with the value on the property
             let mut track_updates   = track_updates;
@@ -406,7 +406,7 @@ fn follow_property_updates() {
             assert!(another_value == "Another value".to_string());
 
             // Destroy the property
-            property_channel.send_without_waiting(PropertyRequest::DestroyProperty(PropertyReference::new(TEST_ENTITY, "TestProperty"))).await.unwrap();
+            property_channel.send(PropertyRequest::DestroyProperty(PropertyReference::new(TEST_ENTITY, "TestProperty"))).await.unwrap();
 
             // Should close the channel
             let close_channel       = track_updates.next().await;

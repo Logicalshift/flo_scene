@@ -55,7 +55,7 @@ pub fn create_timer_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> 
                         let mut channel = channel;
 
                         Delay::new(time).await;
-                        channel.send_without_waiting(Timeout(timer_id, time)).await.ok();
+                        channel.send(Timeout(timer_id, time)).await.ok();
                     }).ok();
                 }
 
@@ -88,7 +88,7 @@ pub fn create_timer_entity(entity_id: EntityId, context: &Arc<SceneContext>) -> 
                             next_tick += time;
 
                             // Inform the channel of the timeout
-                            let send_result = channel.send_without_waiting(Timeout(timer_id, last_tick)).await;
+                            let send_result = channel.send(Timeout(timer_id, last_tick)).await;
 
                             match send_result {
                                 Ok(())  => { /* Target responded */ }

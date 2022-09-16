@@ -328,7 +328,7 @@ where
     // (This is most useful at startup when we need the entity tracking to start up before anything else)
     // We don't do this for the properties entity itself (so it has a chance to declare some properties before it becomes 'ready')
     if context.entity() != Some(properties_entity_id) {
-        context.send_without_waiting::<_>(properties_entity_id, InternalPropertyRequest::Ready).await.ok();
+        context.send::<_>(properties_entity_id, InternalPropertyRequest::Ready).await.ok();
     }
 
     // Ensure that the message is converted to an internal request
@@ -364,7 +364,7 @@ where
     // Before returning a channel, wait for the properties entity to become ready
     // (This is most useful at startup when we need the entity tracking to start up before anything else)
     if context.entity() != Some(properties_entity_id) {
-        context.send_without_waiting::<_>(properties_entity_id, InternalPropertyRequest::Ready).await.ok();
+        context.send::<_>(properties_entity_id, InternalPropertyRequest::Ready).await.ok();
     }
 
     // Ensure that the message is converted to an internal request
@@ -458,7 +458,7 @@ where
                             *maybe_tracker = None;
                         } else {
                             // Send to this tracker
-                            let send_future = tracker.send_without_waiting(new_reference.clone()).map(|_maybe_err| ());
+                            let send_future = tracker.send(new_reference.clone()).map(|_maybe_err| ());
                             pending_messages.push(send_future);
                         }
                     }
@@ -524,7 +524,7 @@ where
                             property_dropped = prop_dropped;
 
                             // Send to the target
-                            if target.send_without_waiting(next_value).await.is_err() {
+                            if target.send(next_value).await.is_err() {
                                 // Stop if the target is no longer listening for changes
                                 break;
                             }
@@ -549,7 +549,7 @@ where
             for (entity_id, properties) in state.properties.iter() {
                 if let Some(property) = properties.get(&name) {
                     if (**property).type_id() == our_type {
-                        let send_future = channel.send_without_waiting(PropertyReference::new(*entity_id, &name)).map(|_maybe_err| ());
+                        let send_future = channel.send(PropertyReference::new(*entity_id, &name)).map(|_maybe_err| ());
                         pending_messages.push(send_future);
                     }
                 }
@@ -610,7 +610,7 @@ where
                             *maybe_tracker = None;
                         } else {
                             // Send to this tracker
-                            let send_future = tracker.send_without_waiting(new_reference.clone()).map(|_maybe_err| ());
+                            let send_future = tracker.send(new_reference.clone()).map(|_maybe_err| ());
                             pending_messages.push(send_future);
                         }
                     }
@@ -661,7 +661,7 @@ where
             for (entity_id, properties) in state.properties.iter() {
                 if let Some(property) = properties.get(&name) {
                     if (**property).type_id() == our_type {
-                        let send_future = channel.send_without_waiting(PropertyReference::new(*entity_id, &name)).map(|_maybe_err| ());
+                        let send_future = channel.send(PropertyReference::new(*entity_id, &name)).map(|_maybe_err| ());
                         pending_messages.push(send_future);
                     }
                 }
@@ -704,7 +704,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         let properties      = if let Ok(properties) = properties { properties } else { return; };
 
         if let Some(mut entity_registry) = context.send_to(ENTITY_REGISTRY).ok() {
-            entity_registry.send_without_waiting(EntityRegistryRequest::TrackEntities(properties)).await.ok();
+            entity_registry.send(EntityRegistryRequest::TrackEntities(properties)).await.ok();
         }
 
         // Bind the properties for the properties entity itself
@@ -712,7 +712,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
         if let Some(mut entities_channel) = entities_channel {
             // Possible to fail if the scene is shut down very quickly
             entities_channel
-                .send_without_waiting(RopePropertyRequest::CreateProperty(RopePropertyDefinition::from_binding(entity_id, "Entities", &state.entities)))
+                .send(RopePropertyRequest::CreateProperty(RopePropertyDefinition::from_binding(entity_id, "Entities", &state.entities)))
                 .map(|maybe_err| { maybe_err.ok(); })
                 .run_in_background()
                 .ok();
@@ -735,7 +735,7 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                             // Ask the entity registry for all the entities that exist
                             let (all_entities_list_sender, mut all_entities_list) = SimpleEntityChannel::new(entity_id, 10);
 
-                            if entity_registry.send_without_waiting(EntityRegistryRequest::GetEntities(all_entities_list_sender.boxed())).await.is_ok() {
+                            if entity_registry.send(EntityRegistryRequest::GetEntities(all_entities_list_sender.boxed())).await.is_ok() {
                                 // Make sure they are all in the properties list
                                 while let Some(entity_id) = all_entities_list.next().await {
                                     // Note the entities rope is not updated here but later on when the 'CreatedEntity' request arrives

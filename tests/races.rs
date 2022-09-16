@@ -44,11 +44,11 @@ fn race_stream_completion() {
                 let SceneTestRequest(mut msg) = msg;
 
                 // Send a 'Hello' message in response
-                scene_send_without_waiting(hello_entity, "Hello".to_string()).await.unwrap();
+                scene_send(hello_entity, "Hello".to_string()).await.unwrap();
                 let world = hello_receiver.next().await.unwrap();
 
                 // Wait for the response, and succeed if the result is 'world'
-                msg.send_without_waiting((world == "World".to_string()).into()).await.unwrap();
+                msg.send((world == "World".to_string()).into()).await.unwrap();
             }
         }).unwrap();
 
@@ -129,7 +129,7 @@ fn race_retrieve_existing_entities() {
                 // Ask the entity registry to monitor the entities in the scene
                 println!("  Request tracking...");
                 let entity_monitor_channel = scene_send_to(entity_monitor).unwrap();
-                scene_send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(entity_monitor_channel)).await.unwrap();
+                scene_send(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(entity_monitor_channel)).await.unwrap();
                 println!("  Tracking requested...");
 
                 // The 'hello_entity' ID should get sent back to us (pre-existing at the time tracking started)
@@ -147,7 +147,7 @@ fn race_retrieve_existing_entities() {
 
                     if received == expected {
                         // Success when we get both entities back again
-                        msg.send_without_waiting(SceneTestResult::Ok).await.unwrap();
+                        msg.send(SceneTestResult::Ok).await.unwrap();
                         break;
                     }
                 }
@@ -198,7 +198,7 @@ fn race_close_entity() {
 
                 // Request registry updates
                 let (update_registry, registry_updates) = SimpleEntityChannel::new(TEST_ENTITY, 1000);
-                scene_send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(update_registry.boxed())).await.unwrap();
+                scene_send(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(update_registry.boxed())).await.unwrap();
 
                 // Open a channel to the entity
                 println!("  Opening channel");
@@ -211,7 +211,7 @@ fn race_close_entity() {
                 // Should no longer be able to send to the main channel
                 println!("  Sending test message");
                 let (world_sender, world) = oneshot::channel();
-                let send_err    = hello_channel.send_without_waiting(("Hello".to_string(), world_sender)).await;
+                let send_err    = hello_channel.send(("Hello".to_string(), world_sender)).await;
                 let world       = world.await;
 
                 // 'is_shutdown' should signal
@@ -232,8 +232,8 @@ fn race_close_entity() {
                 // Wait for the response, and succeed if the result is 'world'
                 println!("Checking response ({:?})", world);
 
-                msg.send_without_waiting(send_err.is_err().into()).await.unwrap();
-                msg.send_without_waiting(world.is_err().into()).await.unwrap();
+                msg.send(send_err.is_err().into()).await.unwrap();
+                msg.send(world.is_err().into()).await.unwrap();
 
                 println!("Test finished");
             }
@@ -271,11 +271,11 @@ fn race_follow_string_property() {
                 let (string_sender, string_receiver)    = mpsc::channel(5);
 
                 println!("Create test entity property");
-                channel.send_without_waiting(PropertyRequest::CreateProperty(PropertyDefinition::from_stream(TEST_ENTITY, "TestString", string_receiver.boxed(), "".into()))).await.unwrap();
+                channel.send(PropertyRequest::CreateProperty(PropertyDefinition::from_stream(TEST_ENTITY, "TestString", string_receiver.boxed(), "".into()))).await.unwrap();
                 println!("Follow test entity property");
 
                 let (property_binding, target) = FloatingBinding::new();
-                channel.send_without_waiting(PropertyRequest::Get(PropertyReference::new(TEST_ENTITY, "TestString"), target)).await.unwrap();
+                channel.send(PropertyRequest::Get(PropertyReference::new(TEST_ENTITY, "TestString"), target)).await.unwrap();
                 let property_binding = property_binding.wait_for_binding().await.unwrap();
 
                 // If we send a value to the property, it should show up on the property stream
@@ -290,7 +290,7 @@ fn race_follow_string_property() {
                 let set_value           = string_stream.next().await;
                 println!("  Received {:?}", set_value);
 
-                msg.send_without_waiting((set_value == Some("Test".to_string())).into()).await.ok();
+                msg.send((set_value == Some("Test".to_string())).into()).await.ok();
             }
         }).unwrap();
 

@@ -81,7 +81,7 @@ impl SceneCore {
         TChannel::Message:  'static + Send,
     {
         scheduler().future_desync(&self.message_queue, move || async move {
-            sender.send_without_waiting(message).await.ok()
+            sender.send(message).await.ok()
         }).detach();
     }
 
@@ -115,10 +115,10 @@ impl SceneCore {
             // Tell the entity registry about the entity that was just created
             if entity_id != ENTITY_REGISTRY {
                 // We usually don't let the entity start until it's definitely associated with the registry
-                scene_context.send_without_waiting::<_>(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>())).await.ok();
+                scene_context.send::<_>(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>())).await.ok();
             } else {
                 // The entity registry itself might have a full queue by the time it gets around to registering itself: avoid blocking here by sending the request in the background
-                let send = scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>()));
+                let send = scene_context.send(ENTITY_REGISTRY, InternalRegistryRequest::CreatedEntity(entity_id, TypeId::of::<TMessage>()));
                 scene_context.run_in_background(async move {
                     send.await.ok();
                 }).ok();
@@ -129,7 +129,7 @@ impl SceneCore {
             runtime_future.await;
 
             // Notify the registry that the entity no longer exists
-            scene_context.send_without_waiting(ENTITY_REGISTRY, InternalRegistryRequest::DestroyedEntity(entity_id)).await.ok();
+            scene_context.send(ENTITY_REGISTRY, InternalRegistryRequest::DestroyedEntity(entity_id)).await.ok();
 
             // Finish_entity calls back into the core to remove the entity from the list (note this calls stop() so this must be done last in the entity future)
             scene_context.finish_entity::<TMessage>(entity_id);
@@ -297,7 +297,7 @@ impl SceneCore {
                     self.heartbeat_state = HeartbeatState::Tock;
 
                     // Send a heartbeat request
-                    if heartbeat_channel.send_without_waiting(InternalHeartbeatRequest::GenerateHeartbeat).await.is_err() {
+                    if heartbeat_channel.send(InternalHeartbeatRequest::GenerateHeartbeat).await.is_err() {
                         // Failed to actually generate the heartbeat
                         self.heartbeat_state = HeartbeatState::Tick;
                     }

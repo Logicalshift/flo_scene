@@ -31,7 +31,7 @@ pub trait EntityChannel : Send {
     /// in the event that the message triggers a callback to the original entity. This also doesn't generate an error
     /// in the event the channel drops the message without responding to it.
     ///
-    fn send_without_waiting(&mut self, message: Self::Message) -> BoxFuture<'static, Result<(), EntityChannelError>>;
+    fn send(&mut self, message: Self::Message) -> BoxFuture<'static, Result<(), EntityChannelError>>;
 }
 
 ///
@@ -56,8 +56,8 @@ where
     }
 
     #[inline]
-    fn send_without_waiting(&mut self, message: Self::Message) -> BoxFuture<'static, Result<(), EntityChannelError>> {
-        (**self).send_without_waiting(message)
+    fn send(&mut self, message: Self::Message) -> BoxFuture<'static, Result<(), EntityChannelError>> {
+        (**self).send(message)
     }
 }
 

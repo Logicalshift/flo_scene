@@ -174,14 +174,14 @@ impl SceneContext {
     ///
     /// Sends a message without waiting for the channel to finish processing it
     ///
-    pub fn send_without_waiting<TMessage>(&self, entity_id: EntityId, message: TMessage) -> impl 'static + Future<Output=Result<(), EntityChannelError>>
+    pub fn send<TMessage>(&self, entity_id: EntityId, message: TMessage) -> impl 'static + Future<Output=Result<(), EntityChannelError>>
     where
         TMessage:   'static + Send,
     {
         let channel = self.send_to::<TMessage>(entity_id);
         async move {
             let mut channel = channel?;
-            channel.send_without_waiting(message).await
+            channel.send(message).await
         }
     }
 
@@ -202,7 +202,7 @@ impl SceneContext {
             // Future reads from the stream until it's done
             while let Some(message) = stream.next().await {
                 // Send to the channel
-                let response = channel.send_without_waiting(message).await;
+                let response = channel.send(message).await;
 
                 // Break if the channel responds with an error
                 if response.is_err() {
@@ -353,11 +353,11 @@ where
 ///
 /// Sends a single message to an entity
 ///
-pub async fn scene_send_without_waiting<TMessage>(entity_id: EntityId, message: TMessage) -> Result<(), EntityChannelError>
+pub async fn scene_send<TMessage>(entity_id: EntityId, message: TMessage) -> Result<(), EntityChannelError>
 where
     TMessage:   'static + Send,
 {
-    SceneContext::current().send_without_waiting(entity_id, message).await
+    SceneContext::current().send(entity_id, message).await
 }
 
 ///

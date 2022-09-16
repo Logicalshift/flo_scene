@@ -411,7 +411,7 @@ impl<TMessage> Drop for SimpleEntityChannelReceiver<TMessage> {
 /// A simple entity channel just relays messages directly to a target channel
 ///
 /// This provides an additional guarantee over what `mpsc::channel()` can provide for sending messages: at the point the future for
-/// `send` or `send_without_waiting` is generated, the order that the message will be delivered in is fixed. This prevents race conditions
+/// `send` or `send` is generated, the order that the message will be delivered in is fixed. This prevents race conditions
 /// from forming where two messages can be delivered in a different order than expected.
 ///
 pub struct SimpleEntityChannel<TMessage> {
@@ -504,7 +504,7 @@ where
         self.core.lock().unwrap().closed
     }
 
-    fn send_without_waiting(&mut self, message: Self::Message) -> BoxFuture<'static, Result<(), EntityChannelError>> {
+    fn send(&mut self, message: Self::Message) -> BoxFuture<'static, Result<(), EntityChannelError>> {
         // Send the message to the channel
         let future = SimpleEntityChannelCore::send_message(self.entity_id, &self.core, message);
 
@@ -566,7 +566,7 @@ mod test {
         // Fill with 5 pending requests (first request will be 'sent' straight away)
         let mut channel = channel;
         let requests    = (0..6).into_iter().map(|_| {
-            let msg = channel.send_without_waiting(());
+            let msg = channel.send(());
             async move {
                 msg.await.unwrap();
             }.boxed()
@@ -593,7 +593,7 @@ mod test {
         // Fill with 5 pending requests (first request will be 'sent' straight away)
         let mut channel = channel;
         let requests    = (0..6).into_iter().map(|_| {
-            let msg = channel.send_without_waiting(());
+            let msg = channel.send(());
             async move {
                 msg.await.unwrap();
             }.boxed()
@@ -620,7 +620,7 @@ mod test {
         // Fill with 5 pending requests (first request will be 'sent' straight away)
         let mut channel = channel;
         let requests    = (0..10).into_iter().map(|i| {
-            let msg = channel.send_without_waiting(i);
+            let msg = channel.send(i);
             async move {
                 msg.await.unwrap();
             }.boxed()

@@ -21,9 +21,9 @@ fn open_channel() {
             let channel = scene_send_to::<TimerRequest>(TIMER);
 
             if channel.is_ok() {
-                msg.send_without_waiting(SceneTestResult::Ok).await.ok();
+                msg.send(SceneTestResult::Ok).await.ok();
             } else {
-                msg.send_without_waiting(SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))).await.ok();
+                msg.send(SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))).await.ok();
             }
         }
     }).unwrap();
@@ -46,16 +46,16 @@ fn oneshot() {
             // Ask for timer events to be sent to a new channel
             let mut channel                 = scene_send_to::<TimerRequest>(TIMER).unwrap();
             let (target_channel, receiver)  = SimpleEntityChannel::new(TEST_ENTITY, 5);
-            channel.send_without_waiting(TimerRequest::OneShot(TimerId(42), Duration::from_millis(10), target_channel.boxed())).await.unwrap();
+            channel.send(TimerRequest::OneShot(TimerId(42), Duration::from_millis(10), target_channel.boxed())).await.unwrap();
 
             // Should receive a request 10ms later
             let mut receiver                = receiver;
             let Timeout(timer_id, when)     = receiver.next().await.unwrap();
 
             if timer_id == TimerId(42) && when == Duration::from_millis(10) {
-                msg.send_without_waiting(SceneTestResult::Ok).await.ok();
+                msg.send(SceneTestResult::Ok).await.ok();
             } else {
-                msg.send_without_waiting(SceneTestResult::Failed).await.ok();
+                msg.send(SceneTestResult::Failed).await.ok();
             }
         }
     }).unwrap();
@@ -79,7 +79,7 @@ fn repeating() {
             // Ask for timer events to be sent to a new channel
             let mut channel                 = scene_send_to::<TimerRequest>(TIMER).unwrap();
             let (target_channel, receiver)  = SimpleEntityChannel::new(TEST_ENTITY, 1);
-            channel.send_without_waiting(TimerRequest::Repeating(TimerId(42), Duration::from_millis(10), target_channel.boxed())).await.unwrap();
+            channel.send(TimerRequest::Repeating(TimerId(42), Duration::from_millis(10), target_channel.boxed())).await.unwrap();
             let start_time                  = Instant::now();
 
             // Should receive a series of requests at 10ms intervals
@@ -91,15 +91,15 @@ fn repeating() {
 
             mem::drop(receiver);
 
-            msg.send_without_waiting((timer_id_1 == TimerId(42)).into()).await.ok();
-            msg.send_without_waiting((timer_id_2 == TimerId(42)).into()).await.ok();
-            msg.send_without_waiting((timer_id_3 == TimerId(42)).into()).await.ok();
+            msg.send((timer_id_1 == TimerId(42)).into()).await.ok();
+            msg.send((timer_id_2 == TimerId(42)).into()).await.ok();
+            msg.send((timer_id_3 == TimerId(42)).into()).await.ok();
 
-            msg.send_without_waiting((when_1 == Duration::from_millis(10)).into()).await.ok();
-            msg.send_without_waiting((when_2 == Duration::from_millis(20)).into()).await.ok();
-            msg.send_without_waiting((when_3 == Duration::from_millis(30)).into()).await.ok();
+            msg.send((when_1 == Duration::from_millis(10)).into()).await.ok();
+            msg.send((when_2 == Duration::from_millis(20)).into()).await.ok();
+            msg.send((when_3 == Duration::from_millis(30)).into()).await.ok();
 
-            msg.send_without_waiting((((end_time.as_millis() as i64) - 30).abs() <= 5).into()).await.ok();
+            msg.send((((end_time.as_millis() as i64) - 30).abs() <= 5).into()).await.ok();
         }
     }).unwrap();
 

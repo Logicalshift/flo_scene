@@ -39,7 +39,7 @@ fn say_hello_in_background() {
             let received = relay_receiver.next().await;
 
             // Wait for the response, and succeed if the result is 'world'
-            msg.send_without_waiting(
+            msg.send(
                 (received == Some("Hello".to_string())).into()
             ).await.unwrap();
         }
@@ -83,7 +83,7 @@ fn say_hello_in_background_using_context() {
             let received = relay_receiver.next().await;
 
             // Wait for the response, and succeed if the result is 'world'
-            msg.send_without_waiting(
+            msg.send(
                 (received == Some("Hello".to_string())).into()
             ).await.unwrap();
         }
@@ -132,7 +132,7 @@ fn say_hello_in_background_when_sealed() {
             println!("Received: {:?}", received);
 
             // Wait for the response, and succeed if the result is 'world'
-            msg.send_without_waiting(
+            msg.send(
                 (received == Some("Hello".to_string())).into()
             ).await.unwrap();
         }
@@ -160,7 +160,7 @@ fn background_has_current_scene() {
             let is_ok = receiver.await.unwrap();
 
             // Wait for the response, and succeed if the result is 'world'
-            msg.send_without_waiting(
+            msg.send(
                 is_ok.into()
             ).await.unwrap();
         }

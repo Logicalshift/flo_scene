@@ -44,12 +44,12 @@ fn seal_entity() {
             let sealed_channel_err  = sealed_channel.is_err();
 
             // Should still be able to send to the main channel
-            hello_channel.send_without_waiting("Hello".to_string()).await.unwrap();
+            hello_channel.send("Hello".to_string()).await.unwrap();
             let world = hello_receiver.next().await.unwrap();
 
             // Wait for the response, and succeed if the result is 'world'
-            msg.send_without_waiting((world == "World".to_string()).into()).await.unwrap();
-            msg.send_without_waiting(sealed_channel_err.into()).await.unwrap();
+            msg.send((world == "World".to_string()).into()).await.unwrap();
+            msg.send(sealed_channel_err.into()).await.unwrap();
         }
     }).unwrap();
 
@@ -93,7 +93,7 @@ fn close_entity() {
 
             // Request registry updates
             let (update_registry, registry_updates) = SimpleEntityChannel::new(TEST_ENTITY, 1000);
-            scene_send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(update_registry.boxed())).await.unwrap();
+            scene_send(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(update_registry.boxed())).await.unwrap();
 
             // Open a channel to the entity
             let mut hello_channel = scene_send_to::<String>(hello_entity).unwrap();
@@ -102,7 +102,7 @@ fn close_entity() {
             SceneContext::current().close_entity(hello_entity).unwrap();
 
             // Should no longer be able to send to the main channel
-            let world = hello_channel.send_without_waiting("Hello".to_string()).await;
+            let world = hello_channel.send("Hello".to_string()).await;
 
             // 'is_shutdown' should signal
             is_shutdown.next().await;
@@ -116,7 +116,7 @@ fn close_entity() {
             }
 
             // Wait for the response, and succeed if the result is 'world'
-            msg.send_without_waiting(world.is_err().into()).await.unwrap();
+            msg.send(world.is_err().into()).await.unwrap();
         }
     }).unwrap();
 

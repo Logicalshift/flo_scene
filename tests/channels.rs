@@ -16,7 +16,7 @@ fn send_message_before_wait() {
         let mut string_sender = string_sender;
 
         // Send a message to the entity before it starts
-        scene_send_without_waiting(stream_entity, "Hello".to_string()).await.ok();
+        scene_send(stream_entity, "Hello".to_string()).await.ok();
 
         // Should read the message we sent
         while let Some(string) = strings.next().await {
@@ -35,9 +35,9 @@ fn send_message_before_wait() {
             let received_string = string_receiver.take().unwrap().next().await;
 
             if received_string == Some("Hello".to_string()) {
-                msg.send_without_waiting(SceneTestResult::Ok).await.unwrap();
+                msg.send(SceneTestResult::Ok).await.unwrap();
             } else {
-                msg.send_without_waiting(SceneTestResult::FailedWithMessage(format!("Strings retrieved: {:?}", received_string))).await.unwrap();
+                msg.send(SceneTestResult::FailedWithMessage(format!("Strings retrieved: {:?}", received_string))).await.unwrap();
             }
         }
     }).unwrap();

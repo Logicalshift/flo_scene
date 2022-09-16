@@ -67,11 +67,11 @@ fn convert_message_from_string() {
             let SceneTestRequest(mut msg) = msg;
 
             // Send 'Hello' as a string to the entity we just created (this is possible because of the call to scene.convert_message())
-            scene_send_without_waiting(entity_id, "Hello".to_string()).await.unwrap();
+            scene_send(entity_id, "Hello".to_string()).await.unwrap();
             let response = string_recv.next().await;
 
             // Wait for the response
-            msg.send_without_waiting(
+            msg.send(
                 (response == Some("Hello".to_string())).into()
             ).await.unwrap();
         }
@@ -114,11 +114,11 @@ fn convert_message_from_number() {
             let SceneTestRequest(mut msg) = msg;
 
             // Send 'Hello' as a string to the entity we just created (this is possible because of the call to scene.convert_message())
-            scene_send_without_waiting(entity_id, 42u64).await.unwrap();
+            scene_send(entity_id, 42u64).await.unwrap();
             let response = string_recv.next().await;
 
             // Wait for the response
-            msg.send_without_waiting(
+            msg.send(
                 (response == Some("42".to_string())).into()
             ).await.unwrap();
         }

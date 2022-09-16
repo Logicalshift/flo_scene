@@ -37,11 +37,11 @@ fn say_hello() {
             let SceneTestRequest(mut msg) = msg;
 
             // Send a 'Hello' message in response
-            scene_send_without_waiting(hello_entity, "Hello".to_string()).await.unwrap();
+            scene_send(hello_entity, "Hello".to_string()).await.unwrap();
             let world = hello_receiver.next().await.unwrap();
 
             // Wait for the response, and succeed if the result is 'world'
-            msg.send_without_waiting((world == "World".to_string()).into()).await.unwrap();
+            msg.send((world == "World".to_string()).into()).await.unwrap();
         }
     }).unwrap();
 
@@ -84,9 +84,9 @@ fn stream_hello() {
             let strings: Vec<String> = streamed_strings.lock().unwrap().clone();
 
             if strings == vec!["Hello".to_string(), "World".to_string()] {
-                msg.send_without_waiting(SceneTestResult::Ok).await.unwrap();
+                msg.send(SceneTestResult::Ok).await.unwrap();
             } else {
-                msg.send_without_waiting(SceneTestResult::FailedWithMessage(format!("Strings retrieved: {:?}", strings))).await.unwrap();
+                msg.send(SceneTestResult::FailedWithMessage(format!("Strings retrieved: {:?}", strings))).await.unwrap();
             }
         }
     }).unwrap();

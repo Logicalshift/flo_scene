@@ -22,7 +22,7 @@ pub struct AnyEntityChannel {
     is_closed: Box<dyn Send + Fn() -> bool>,
 
     /// The dynamic send function for this channel
-    send_without_waiting: Box<dyn Send + Fn(Box<dyn Send + Any>) -> BoxFuture<'static, Result<(), EntityChannelError>>>,
+    send: Box<dyn Send + Fn(Box<dyn Send + Any>) -> BoxFuture<'static, Result<(), EntityChannelError>>>,
 }
 
 impl AnyEntityChannel {
@@ -41,7 +41,7 @@ impl AnyEntityChannel {
             closed_channel.is_closed()
         });
 
-        let send_without_waiting = Box::new(move |boxed_message: Box<dyn Send + Any>| {
+        let send = Box::new(move |boxed_message: Box<dyn Send + Any>| {
             let mut channel = channel.clone();
 
             // Extract the message components
@@ -51,7 +51,7 @@ impl AnyEntityChannel {
             let send_future = if let Some(message) = message.downcast_mut::<Option<TChannel::Message>>() {
                 if let Some(message) = message.take() {
                     // Create the future to send the message
-                    Ok(channel.send_without_waiting(message))
+                    Ok(channel.send(message))
                 } else {
                     // The message was missing
                     Err(EntityChannelError::MissingMessage)
@@ -71,7 +71,7 @@ impl AnyEntityChannel {
         AnyEntityChannel {
             entity_id,
             is_closed,
-            send_without_waiting,
+            send,
         }
     }
 }
@@ -90,7 +90,7 @@ impl EntityChannel for AnyEntityChannel {
     }
 
     #[inline]
-    fn send_without_waiting(&mut self, message: Box<dyn Send + Any>) -> BoxFuture<'static, Result<(), EntityChannelError>> {
-        (self.send_without_waiting)(message)
+    fn send(&mut self, message: Box<dyn Send + Any>) -> BoxFuture<'static, Result<(), EntityChannelError>> {
+        (self.send)(message)
     }
 }

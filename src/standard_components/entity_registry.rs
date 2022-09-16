@@ -214,7 +214,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     for maybe_tracker in trackers.iter_mut() {
                         if let Some(tracker) = maybe_tracker {
                             // Send that a new entity has been created to the tracker
-                            futures.push(tracker.send_without_waiting(EntityUpdate::CreatedEntity(entity_id)));
+                            futures.push(tracker.send(EntityUpdate::CreatedEntity(entity_id)));
                         }
                     }
 
@@ -223,7 +223,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                         if let Some((match_type, tracker)) = maybe_tracker {
                             if state.can_convert_type(&entity_type, match_type) {
                                 // Send that a new entity has been created to the tracker
-                                futures.push(tracker.send_without_waiting(EntityUpdate::CreatedEntity(entity_id)));
+                                futures.push(tracker.send(EntityUpdate::CreatedEntity(entity_id)));
                             }
                         }
                     }
@@ -248,7 +248,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                         for maybe_tracker in trackers.iter_mut() {
                             if let Some(tracker) = maybe_tracker {
                                 // Send that a new entity has been destroyed to the tracker
-                                futures.push(tracker.send_without_waiting(EntityUpdate::DestroyedEntity(entity_id)));
+                                futures.push(tracker.send(EntityUpdate::DestroyedEntity(entity_id)));
                             }
                         }
 
@@ -256,7 +256,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                             if let Some((match_type, tracker)) = maybe_tracker {
                                 if state.can_convert_type(&entity_type, match_type) {
                                     // Send that a new entity has been destroyed to the tracker
-                                    futures.push(tracker.send_without_waiting(EntityUpdate::DestroyedEntity(entity_id)));
+                                    futures.push(tracker.send(EntityUpdate::DestroyedEntity(entity_id)));
                                 }
                             }
                         }
@@ -281,7 +281,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     let mut channel = channel;
                     let mut futures = vec![];
                     for existing_entity_id in state.entities.keys().cloned() {
-                        futures.push(channel.send_without_waiting(EntityUpdate::CreatedEntity(existing_entity_id)));
+                        futures.push(channel.send(EntityUpdate::CreatedEntity(existing_entity_id)));
                     }
 
                     if !futures.is_empty() {
@@ -301,7 +301,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     let mut futures = vec![];
                     for (existing_entity_id, existing_type) in state.entities.iter() {
                         if state.can_convert_type(existing_type, &channel_type) {
-                            futures.push(channel.send_without_waiting(EntityUpdate::CreatedEntity(*existing_entity_id)));
+                            futures.push(channel.send(EntityUpdate::CreatedEntity(*existing_entity_id)));
                         }
                     }
 
@@ -321,7 +321,7 @@ pub fn create_entity_registry_entity(context: &Arc<SceneContext>) -> Result<(), 
                     let mut channel = channel;
                     let mut futures = vec![];
                     for existing_entity_id in state.entities.keys().cloned() {
-                        futures.push(channel.send_without_waiting(existing_entity_id));
+                        futures.push(channel.send(existing_entity_id));
                     }
 
                     if !futures.is_empty() {

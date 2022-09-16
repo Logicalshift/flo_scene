@@ -49,7 +49,7 @@ pub fn test_scene(scene: Scene) {
     let mut channel                 = scene.send_to(TEST_ENTITY).unwrap();
     let result                      = async move { 
         // Ask the test entity to run the tests
-        channel.send_without_waiting(SceneTestRequest(results))
+        channel.send(SceneTestRequest(results))
             .await
             .unwrap();
 

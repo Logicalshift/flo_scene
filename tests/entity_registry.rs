@@ -20,9 +20,9 @@ fn open_entity_registry_channel() {
             let channel = scene_send_to::<EntityRegistryRequest>(ENTITY_REGISTRY);
 
             if channel.is_ok() {
-                msg.send_without_waiting(SceneTestResult::Ok).await.ok();
+                msg.send(SceneTestResult::Ok).await.ok();
             } else {
-                msg.send_without_waiting(SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))).await.ok();
+                msg.send(SceneTestResult::FailedWithMessage(format!("{:?}", channel.err()))).await.ok();
             }
         }
     }).unwrap();
@@ -79,7 +79,7 @@ fn retrieve_existing_entities() {
             // never getting to processing the CreatedEntity message (which is a deadlock as the registry is stuck trying to send
             // messages and the receiver of those messages is waiting for a response to its CreatedEntity request)
             let entity_monitor_channel = scene_send_to(entity_monitor).unwrap();
-            scene_send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(entity_monitor_channel)).await.unwrap();
+            scene_send(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntities(entity_monitor_channel)).await.unwrap();
 
             // The 'hello_entity' ID should get sent back to us (pre-existing at the time tracking started)
             let mut receiver    = receiver;
@@ -93,7 +93,7 @@ fn retrieve_existing_entities() {
 
                 if received == expected {
                     // Success when we get both entities back again
-                    msg.send_without_waiting(SceneTestResult::Ok).await.unwrap();
+                    msg.send(SceneTestResult::Ok).await.unwrap();
                     break;
                 }
             }
@@ -146,7 +146,7 @@ fn retrieve_existing_entities_with_type() {
 
             // Ask the entity registry to monitor the entities in the scene
             let entity_monitor_channel = scene_send_to(entity_monitor).unwrap();
-            scene_send_without_waiting(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntitiesWithType(entity_monitor_channel, EntityChannelType::of::<u64>())).await.unwrap();
+            scene_send(ENTITY_REGISTRY, EntityRegistryRequest::TrackEntitiesWithType(entity_monitor_channel, EntityChannelType::of::<u64>())).await.unwrap();
 
             // The 'hello_entity' ID should get sent back to us (pre-existing at the time tracking started)
             let mut receiver = receiver;
@@ -154,13 +154,13 @@ fn retrieve_existing_entities_with_type() {
             while let Some(entity_id) = receiver.next().await {
                 if entity_id != add_one_entity {
                     // Failed if we get any entity other than the add one entity (assuming there's no u64 built-in entity)
-                    msg.send_without_waiting(SceneTestResult::Failed).await.unwrap();
+                    msg.send(SceneTestResult::Failed).await.unwrap();
                     break;
                 }
 
                 if entity_id == add_one_entity {
                     // Success when we get the entity back again
-                    msg.send_without_waiting(SceneTestResult::Ok).await.unwrap();
+                    msg.send(SceneTestResult::Ok).await.unwrap();
                     break;
                 }
             }
