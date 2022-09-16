@@ -88,6 +88,18 @@ pub struct PropertyReference {
 }
 
 ///
+/// A message about an update to a property
+///
+#[derive(Clone, PartialEq, Hash, Debug)]
+pub enum PropertyUpdate {
+    /// A property has been created
+    Created(PropertyReference),
+
+    /// A property has been destroyed
+    Destroyed(PropertyReference),
+}
+
+///
 /// Requests that can be made of a property entity
 ///
 pub enum PropertyRequest<TValue> 
@@ -111,8 +123,8 @@ where
     /// channel, which makes it easy to use a property as a source of messages for another entity.
     Follow(PropertyReference, BoxedEntityChannel<'static, TValue>),
 
-    /// Whenever a property with the specified name is created, notify the specified channel
-    TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyReference>),
+    /// Whenever a property with the specified name is created or destroyed, notify the specified channel
+    TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyUpdate>),
 }
 
 ///
@@ -133,7 +145,7 @@ where
     Get(PropertyReference, FloatingBindingTarget<RopeBinding<TCell, TAttribute>>),
 
     /// Whenever a property with the specified name is created, notify the specified channel
-    TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyReference>),
+    TrackPropertiesWithName(String, BoxedEntityChannel<'static, PropertyUpdate>),
 }
 
 ///
@@ -388,7 +400,7 @@ struct PropertiesState {
     entities: RopeBindingMut<EntityId, ()>,
 
     /// Trackers for properties of particular types (type -> names -> channels)
-    trackers: HashMap<TypeId, HashMap<String, Vec<Option<BoxedEntityChannel<'static, PropertyReference>>>>>,
+    trackers: HashMap<TypeId, HashMap<String, Vec<Option<BoxedEntityChannel<'static, PropertyUpdate>>>>>,
 }
 
 ///
@@ -458,7 +470,7 @@ where
                             *maybe_tracker = None;
                         } else {
                             // Send to this tracker
-                            let send_future = tracker.send(new_reference.clone()).map(|_maybe_err| ());
+                            let send_future = tracker.send(PropertyUpdate::Created(new_reference.clone())).map(|_maybe_err| ());
                             pending_messages.push(send_future);
                         }
                     }
@@ -549,7 +561,7 @@ where
             for (entity_id, properties) in state.properties.iter() {
                 if let Some(property) = properties.get(&name) {
                     if (**property).type_id() == our_type {
-                        let send_future = channel.send(PropertyReference::new(*entity_id, &name)).map(|_maybe_err| ());
+                        let send_future = channel.send(PropertyUpdate::Created(PropertyReference::new(*entity_id, &name))).map(|_maybe_err| ());
                         pending_messages.push(send_future);
                     }
                 }
@@ -610,7 +622,7 @@ where
                             *maybe_tracker = None;
                         } else {
                             // Send to this tracker
-                            let send_future = tracker.send(new_reference.clone()).map(|_maybe_err| ());
+                            let send_future = tracker.send(PropertyUpdate::Created(new_reference.clone())).map(|_maybe_err| ());
                             pending_messages.push(send_future);
                         }
                     }
@@ -661,7 +673,7 @@ where
             for (entity_id, properties) in state.properties.iter() {
                 if let Some(property) = properties.get(&name) {
                     if (**property).type_id() == our_type {
-                        let send_future = channel.send(PropertyReference::new(*entity_id, &name)).map(|_maybe_err| ());
+                        let send_future = channel.send(PropertyUpdate::Created(PropertyReference::new(*entity_id, &name))).map(|_maybe_err| ());
                         pending_messages.push(send_future);
                     }
                 }
