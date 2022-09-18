@@ -394,12 +394,12 @@ struct PropertiesState {
     next_id: usize,
 
     /// The properties for each entity in the scene. The value is an `Arc<Mutex<Property<TValue>>>` in an any box
-    properties: HashMap<EntityId, HashMap<Arc<String>, Box<dyn Send + Any>>>,
+    properties: HashMap<EntityId, HashMap<Arc<String>, AnyProperty>>,
 
     /// Binding containing the list of registered entities
     entities: RopeBindingMut<EntityId, ()>,
 
-    /// Trackers for properties of particular types (type -> names -> channels)
+    /// Trackers for properties of particular types and names (type -> names -> channels)
     trackers: HashMap<TypeId, HashMap<String, Vec<Option<BoxedEntityChannel<'static, PropertyUpdate>>>>>,
 }
 
@@ -424,6 +424,17 @@ where
 {
     /// The current value, if known
     current_value: RopeBinding<TCell, TAttribute>,
+}
+
+///
+/// A property stripped of its type data
+///
+struct AnyProperty {
+    /// An `Arc<Mutex<Property<TValue>>>` or an `Arc<Mutex<RopeProperty<TCell, TAttribute>>>` in an any box
+    any_property: Box<dyn Send + Any>,
+
+    /// The type of the property (`TypeId::of::<Arc<Property<TValue>>>` or `TypeId::of::<Arc<RopeProperty<TCell, TAttribute>>>`)
+    type_id: TypeId,
 }
 
 ///
@@ -487,7 +498,9 @@ where
 
             // Store a copy of the property in the state (we use the entity registry to know which entities exist)
             if let Some(entity_properties) = state.properties.get_mut(&owner) {
-                entity_properties.insert(name, Box::new(Arc::clone(&property)));
+                let any_property = AnyProperty { any_property: Box::new(Arc::clone(&property)), type_id: TypeId::of::<Arc<Property<TValue>>>() };
+
+                entity_properties.insert(name, any_property);
             }
         }
 
@@ -532,7 +545,7 @@ where
         Get(reference, target) => {
             // See if there's a property with the appropriate name
             if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
-                if let Some(property) = property.downcast_mut::<Arc<Property<TValue>>>() {
+                if let Some(property) = property.any_property.downcast_mut::<Arc<Property<TValue>>>() {
                     // Return the binding to the caller
                     target.finish_binding(property.current_value.clone());
                 } else {
@@ -545,7 +558,7 @@ where
 
         Follow(reference, target) => {
             if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
-                if let Some(property) = property.downcast_mut::<Arc<Property<TValue>>>() {
+                if let Some(property) = property.any_property.downcast_mut::<Arc<Property<TValue>>>() {
                     // Create channel to detect when this property is released
                     let follow_id = state.next_id;
                     state.next_id += 1;
@@ -592,7 +605,7 @@ where
 
             for (entity_id, properties) in state.properties.iter() {
                 if let Some(property) = properties.get(&name) {
-                    if (**property).type_id() == our_type {
+                    if property.type_id == our_type {
                         let send_future = channel.send(PropertyUpdate::Created(PropertyReference::new(*entity_id, &name))).map(|_maybe_err| ());
                         pending_messages.push(send_future);
                     }
@@ -671,7 +684,9 @@ where
 
             // Store a copy of the property in the state (we use the entity registry to know which entities exist)
             if let Some(entity_properties) = state.properties.get_mut(&owner) {
-                entity_properties.insert(name, Box::new(Arc::clone(&property)));
+                let any_property = AnyProperty { any_property: Box::new(Arc::clone(&property)), type_id: TypeId::of::<Arc<RopeProperty<TCell, TAttribute>>>() };
+
+                entity_properties.insert(name, any_property);
             }
         }
 
@@ -716,7 +731,7 @@ where
         Get(reference, target) => {
             // See if there's a property with the appropriate name
             if let Some(property) = state.properties.get_mut(&reference.owner).and_then(|entity| entity.get_mut(&reference.name)) {
-                if let Some(property) = property.downcast_mut::<Arc<RopeProperty<TCell, TAttribute>>>() {
+                if let Some(property) = property.any_property.downcast_mut::<Arc<RopeProperty<TCell, TAttribute>>>() {
                     // Return the binding to the caller
                     target.finish_binding(property.current_value.clone());
                 } else {
@@ -736,7 +751,7 @@ where
 
             for (entity_id, properties) in state.properties.iter() {
                 if let Some(property) = properties.get(&name) {
-                    if (**property).type_id() == our_type {
+                    if property.type_id == our_type {
                         let send_future = channel.send(PropertyUpdate::Created(PropertyReference::new(*entity_id, &name))).map(|_maybe_err| ());
                         pending_messages.push(send_future);
                     }
