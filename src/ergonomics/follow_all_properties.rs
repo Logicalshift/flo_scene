@@ -8,6 +8,7 @@ use crate::entity_channel::*;
 use crate::standard_components::*;
 use crate::simple_entity_channel::*;
 
+use futures::stream;
 use futures::prelude::*;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
@@ -33,12 +34,10 @@ pub enum FollowAll<TValue> {
     Error(EntityChannelError),
 }
 
-/*
 enum FollowAllEvent<TValue> {
     PropertyUpdate(PropertyUpdate),
-
+    NewValue(EntityId, TValue)
 }
-*/
 
 ///
 /// Follows the values set for all properties of a particular name and type across an entire scene
@@ -75,31 +74,45 @@ where
         if let Err(err) = send_ok { yield_value(FollowAll::Error(err)); return; };
 
         // Now we can track when properties are actually created and destroyed, and follow their values too
-        let mut receiver        = receiver;
+        let follow_values       = follow_values.map(|(owner, value)| FollowAllEvent::NewValue(owner, value));
+        let receiver            = receiver.map(|update| FollowAllEvent::PropertyUpdate(update));
+        let mut receiver        = stream::select(follow_values, receiver);
         let mut follow_streams  = follow_streams;
         let mut when_destroyed  = HashMap::new();
 
         while let Some(update) = receiver.next().await {
+            use PropertyUpdate::*;
+
             match update {
-                PropertyUpdate::Created(PropertyReference { owner, .. })    => {
+                FollowAllEvent::PropertyUpdate(Created(PropertyReference { owner, .. }))    => {
                     // Attempt to fetch the property
                     if let Ok(property) = context.property_bind::<TValue>(owner, &property_name).await {
                         let (signal_finished, on_finished)  = oneshot::channel::<()>();
-                        let value_stream                    = follow(property);
+                        let value_stream                    = follow(property).map(move |value| (owner, value));
                         let value_stream                    = value_stream.take_until(on_finished);
 
                         // Send the value stream to follow_streams so that it generates events
-                        follow_streams.send(value_stream).await;
+                        follow_streams.send(value_stream).await.ok();
 
                         // Stop the events for this property when it is destroyed
                         when_destroyed.insert(owner, signal_finished);
                     }
                 }
 
-                PropertyUpdate::Destroyed(PropertyReference { owner, .. })  => {
+                FollowAllEvent::PropertyUpdate(Destroyed(PropertyReference { owner, .. }))  => {
                     // Finish the value stream
                     if let Some(on_finished) = when_destroyed.remove(&owner) {
-                        on_finished.send(());
+                        on_finished.send(()).ok();
+
+                        // Signal that this property was destroyed
+                        yield_value(FollowAll::Destroyed(owner));
+                    }
+                }
+
+                FollowAllEvent::NewValue(owner, value) => {
+                    // In case we get extra events, the 'when_destroyed' value must not be signalled for this owner
+                    if when_destroyed.contains_key(&owner) {
+                        yield_value(FollowAll::NewValue(owner, value));
                     }
                 }
             }
