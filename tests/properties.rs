@@ -484,6 +484,80 @@ fn track_string_property_when_entity_destroyed() {
 
 #[test]
 #[cfg(feature="properties")]
+fn follow_all_string_properties() {
+    use std::sync::*;
+
+    let scene = Scene::default();
+
+    // Create a test for this scene
+    scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
+        // Whenever a test is requested...
+        while let Some(msg) = msg.next().await {
+            let SceneTestRequest(mut msg) = msg;
+
+            // Create a couple of entities
+            let first_entity_id     = EntityId::new();
+            let second_entity_id    = EntityId::new();
+            let mut first_entity    = empty_entity(first_entity_id, &context).unwrap();
+            let mut second_entity   = empty_entity(second_entity_id, &context).unwrap();
+
+            // Attach properties to both of them
+            let binding_1           = bind("Test 1".to_string());
+            let binding_2           = bind("Test 2".to_string());
+            property_create_on_entity(first_entity_id, "TestProperty", binding_1.clone()).await.unwrap();
+            property_create_on_entity(second_entity_id, "TestProperty", binding_2.clone()).await.unwrap();
+
+            // Follow all TestProperties
+            let mut follow_all      = properties_follow_all::<String>(&context, "TestProperty");
+
+            // Should get two messages with the initial values (ordering doesn't matter)
+            let initial_1 = follow_all.next().await.unwrap();
+
+            if let FollowAll::NewValue(owner, value) = initial_1 {
+                if owner == first_entity_id {
+                    msg.send((value == "Test 1".to_string()).into()).await.ok();
+                } else if owner == second_entity_id  {
+                    msg.send((value == "Test 2".to_string()).into()).await.ok();
+                } else {
+                    msg.send(SceneTestResult::FailedWithMessage("Was expecting a value for one of our two entities".to_string())).await.ok();
+                    return;
+                }
+            } else {
+                msg.send(SceneTestResult::FailedWithMessage("Was expecting a new value".to_string())).await.ok();
+                return;
+            }
+
+            let initial_2 = follow_all.next().await.unwrap();
+
+            if let FollowAll::NewValue(owner, value) = initial_2 {
+                if owner == first_entity_id {
+                    msg.send((value == "Test 1".to_string()).into()).await.ok();
+                } else if owner == second_entity_id  {
+                    msg.send((value == "Test 2".to_string()).into()).await.ok();
+                } else {
+                    msg.send(SceneTestResult::FailedWithMessage("Was expecting a value for one of our two entities".to_string())).await.ok();
+                    return;
+                }
+            } else {
+                msg.send(SceneTestResult::FailedWithMessage("Was expecting a new value".to_string())).await.ok();
+                return;
+            }
+
+            // TODO: should get responses if the properties are updated
+
+            // TODO: should get responses if the entities are destroyed
+
+            // Finished all the tests
+            msg.send(SceneTestResult::Ok).await.ok();
+        }
+    }).unwrap();
+
+    // Test the scene we just set up
+    test_scene(scene);
+}
+
+#[test]
+#[cfg(feature="properties")]
 fn follow_property_updates() {
     let scene = Scene::default();
 
