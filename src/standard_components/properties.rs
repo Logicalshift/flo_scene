@@ -865,7 +865,32 @@ pub fn create_properties_entity(entity_id: EntityId, context: &Arc<SceneContext>
                     // Remove the properties from the state
                     let removed_properties = state.properties.remove(&destroyed_entity_id);
 
-                    // TODO: send messages for all of the properties that were destroyed (and have trackers)
+                    // Send messages for all of the properties that were destroyed and have trackers
+                    let mut pending_messages = vec![];
+
+                    for (name, any_property) in removed_properties.into_iter().flatten() {
+                        let reference       = PropertyReference { owner: destroyed_entity_id, name: Arc::clone(&name) };
+                        let mut trackers    = state.trackers
+                            .get_mut(&any_property.type_id)
+                            .and_then(|trackers| trackers.get_mut(&*reference.name));
+
+                        for maybe_tracker in trackers.iter_mut().flat_map(|trackers| trackers.iter_mut()) {
+                            if let Some(tracker) = maybe_tracker {
+                                if tracker.is_closed() {
+                                    // Mark for later cleanup
+                                    *maybe_tracker = None;
+                                } else {
+                                    // Send to this tracker
+                                    let send_future = tracker.send(PropertyUpdate::Destroyed(reference.clone())).map(|_maybe_err| ());
+                                    pending_messages.push(send_future);
+                                }
+                            }
+                        }
+                    }
+
+                    if !pending_messages.is_empty() {
+                        future::join_all(pending_messages).map(|_| ()).run_in_background().ok();
+                    }
 
                     // Remove the entity from the list
                     state.entities.retain_cells(|entity_id| entity_id != &destroyed_entity_id);
