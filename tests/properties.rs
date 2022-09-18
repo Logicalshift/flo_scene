@@ -485,8 +485,6 @@ fn track_string_property_when_entity_destroyed() {
 #[test]
 #[cfg(feature="properties")]
 fn follow_all_string_properties() {
-    use std::sync::*;
-
     let scene = Scene::default();
 
     // Create a test for this scene
@@ -543,9 +541,31 @@ fn follow_all_string_properties() {
                 return;
             }
 
-            // TODO: should get responses if the properties are updated
+            // Should get responses if the properties are updated
+            binding_1.set("New value 1".to_string());
+            let new_value_1 = follow_all.next().await.unwrap();
+            msg.send((new_value_1 == FollowAll::NewValue(first_entity_id, "New value 1".to_string())).into()).await.ok();
 
-            // TODO: should get responses if the entities are destroyed
+            binding_2.set("New value 2".to_string());
+            let new_value_2 = follow_all.next().await.unwrap();
+            msg.send((new_value_2 == FollowAll::NewValue(second_entity_id, "New value 2".to_string())).into()).await.ok();
+
+            // Should get responses if the entities are destroyed
+            second_entity.send(EmptyRequest::Stop).await.ok();
+            let second_entity_stopped = follow_all.next().await.unwrap();
+            msg.send((second_entity_stopped == FollowAll::Destroyed(second_entity_id)).into()).await.ok();
+
+            // Only the first binding should update now
+            binding_2.set("New value 3".to_string());
+            binding_1.set("New value 4".to_string());
+
+            let new_value_3 = follow_all.next().await.unwrap();
+            msg.send((new_value_3 == FollowAll::NewValue(first_entity_id, "New value 4".to_string())).into()).await.ok();
+
+            // Destroy the other entity (ensures there isn't a delayed effect from setting the binding)
+            first_entity.send(EmptyRequest::Stop).await.ok();
+            let first_entity_stopped = follow_all.next().await.unwrap();
+            msg.send((first_entity_stopped == FollowAll::Destroyed(first_entity_id)).into()).await.ok();
 
             // Finished all the tests
             msg.send(SceneTestResult::Ok).await.ok();
