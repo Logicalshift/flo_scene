@@ -42,11 +42,12 @@ enum FollowAllEvent<TValue> {
 ///
 /// Follows the values set for all properties of a particular name and type across an entire scene
 ///
-pub fn properties_follow_all<TValue>(context: &Arc<SceneContext>, property_name: String) -> impl Stream<Item=FollowAll<TValue>> 
+pub fn properties_follow_all<TValue>(context: &Arc<SceneContext>, property_name: &str) -> impl Stream<Item=FollowAll<TValue>> 
 where
     TValue: 'static + PartialEq + Clone + Send + Sized,
 {
     // Set up the state
+    let property_name   = property_name.to_string();
     let context         = Arc::clone(context);
     let current_entity  = context.entity().unwrap_or(PROPERTIES);
 
