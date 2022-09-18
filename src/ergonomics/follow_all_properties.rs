@@ -58,7 +58,7 @@ where
         let mut channel = match channel {
             Ok(channel)     => channel,
             Err(err)        => { 
-                yield_value(FollowAll::Error(err));
+                yield_value(FollowAll::Error(err)).await;
                 return;
             }
         };
@@ -72,7 +72,7 @@ where
         let follow_values                   = follow_values.flatten_unordered(None);
 
         // Stop on error
-        if let Err(err) = send_ok { yield_value(FollowAll::Error(err)); return; };
+        if let Err(err) = send_ok { yield_value(FollowAll::Error(err)).await; return; };
 
         // Now we can track when properties are actually created and destroyed, and follow their values too
         let follow_values       = follow_values.map(|(owner, value)| FollowAllEvent::NewValue(owner, value));
@@ -106,14 +106,14 @@ where
                         on_finished.send(()).ok();
 
                         // Signal that this property was destroyed
-                        yield_value(FollowAll::Destroyed(owner));
+                        yield_value(FollowAll::Destroyed(owner)).await;
                     }
                 }
 
                 FollowAllEvent::NewValue(owner, value) => {
                     // In case we get extra events, the 'when_destroyed' value must not be signalled for this owner
                     if when_destroyed.contains_key(&owner) {
-                        yield_value(FollowAll::NewValue(owner, value));
+                        yield_value(FollowAll::NewValue(owner, value)).await;
                     }
                 }
             }
