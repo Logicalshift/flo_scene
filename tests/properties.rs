@@ -373,6 +373,113 @@ fn track_string_property_if_created_later() {
 
 #[test]
 #[cfg(feature="properties")]
+fn track_string_property_when_destroyed() {
+    use std::sync::*;
+
+    let scene = Scene::default();
+
+    // Create a test for this scene
+    scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
+        // Whenever a test is requested...
+        while let Some(msg) = msg.next().await {
+            let SceneTestRequest(_msg) = msg;
+
+            // Request tracking information on the specified property
+            let mut property_channel                = properties_channel::<String>(PROPERTIES, &context).await.unwrap();
+            let (tracker_channel, track_strings)    = SimpleEntityChannel::new(TEST_ENTITY, 5);
+
+            property_channel.send(PropertyRequest::TrackPropertiesWithName("TestProperty".into(), tracker_channel.boxed())).await.unwrap();
+
+            // Create a string property from a binding
+            let binding             = bind("Test".to_string());
+            property_create("TestProperty", binding.clone()).await.unwrap();
+
+            // Retrieve the binding for the property we just created
+            let _value              = property_bind::<String>(TEST_ENTITY, "TestProperty").await.unwrap();
+
+            // Should read the 'TestProperty' we just created
+            let mut track_strings = track_strings;
+            while let Some(PropertyUpdate::Created(property_reference)) = track_strings.next().await {
+                if property_reference.name == Arc::new("TestProperty".into()) {
+                    break;
+                }
+            }
+
+            // Destroy the property
+            property_channel.send(PropertyRequest::DestroyProperty(PropertyReference::new(TEST_ENTITY, "TestProperty"))).await.unwrap();
+
+            // This should generate a destroyed event for this property
+            while let Some(PropertyUpdate::Destroyed(property_reference)) = track_strings.next().await {
+                if property_reference.name == Arc::new("TestProperty".into()) {
+                    break;
+                }
+            }
+
+        }
+    }).unwrap();
+
+    // Test the scene we just set up
+    test_scene(scene);
+}
+
+#[test]
+#[cfg(feature="properties")]
+fn track_string_property_when_entity_destroyed() {
+    use std::sync::*;
+
+    let scene = Scene::default();
+
+    // Create a test for this scene
+    scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
+        // Whenever a test is requested...
+        while let Some(msg) = msg.next().await {
+            let SceneTestRequest(_msg) = msg;
+
+            // Create an entity to attach the properties to
+            let entity_id           = EntityId::new();
+            let mut empty_entity    = empty_entity(entity_id, &context).unwrap();
+
+            // Request tracking information on the specified property
+            let mut property_channel                = properties_channel::<String>(PROPERTIES, &context).await.unwrap();
+            let (tracker_channel, track_strings)    = SimpleEntityChannel::new(entity_id, 5);
+
+            property_channel.send(PropertyRequest::TrackPropertiesWithName("TestProperty".into(), tracker_channel.boxed())).await.unwrap();
+
+            // Create a string property from a binding
+            let binding             = bind("Test".to_string());
+            property_create("TestProperty", binding.clone()).await.unwrap();
+
+            // Retrieve the binding for the property we just created
+            let _value              = property_bind::<String>(entity_id, "TestProperty").await.unwrap();
+
+            // Should read the 'TestProperty' we just created
+            let mut track_strings = track_strings;
+            while let Some(PropertyUpdate::Created(property_reference)) = track_strings.next().await {
+                if property_reference.name == Arc::new("TestProperty".into()) {
+                    assert!(property_reference.owner == entity_id);
+                    break;
+                }
+            }
+
+            // Destroy the entity that owns the property
+            empty_entity.send(EmptyRequest::Stop).await.ok();
+
+            // This should generate a destroyed event for this property
+            while let Some(PropertyUpdate::Destroyed(property_reference)) = track_strings.next().await {
+                if property_reference.name == Arc::new("TestProperty".into()) {
+                    break;
+                }
+            }
+
+        }
+    }).unwrap();
+
+    // Test the scene we just set up
+    test_scene(scene);
+}
+
+#[test]
+#[cfg(feature="properties")]
 fn follow_property_updates() {
     let scene = Scene::default();
 
