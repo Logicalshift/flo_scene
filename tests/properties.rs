@@ -409,12 +409,14 @@ fn track_string_property_when_destroyed() {
             property_channel.send(PropertyRequest::DestroyProperty(PropertyReference::new(TEST_ENTITY, "TestProperty"))).await.unwrap();
 
             // This should generate a destroyed event for this property
+            let mut destroyed = false;
             while let Some(PropertyUpdate::Destroyed(property_reference)) = track_strings.next().await {
                 if property_reference.name == Arc::new("TestProperty".into()) {
+                    destroyed = true;
                     break;
                 }
             }
-
+            assert!(destroyed);
         }
     }).unwrap();
 
@@ -447,7 +449,7 @@ fn track_string_property_when_entity_destroyed() {
 
             // Create a string property from a binding
             let binding             = bind("Test".to_string());
-            property_create("TestProperty", binding.clone()).await.unwrap();
+            property_create_on_entity(entity_id, "TestProperty", binding.clone()).await.unwrap();
 
             // Retrieve the binding for the property we just created
             let _value              = property_bind::<String>(entity_id, "TestProperty").await.unwrap();
@@ -465,12 +467,14 @@ fn track_string_property_when_entity_destroyed() {
             empty_entity.send(EmptyRequest::Stop).await.ok();
 
             // This should generate a destroyed event for this property
+            let mut destroyed = false;
             while let Some(PropertyUpdate::Destroyed(property_reference)) = track_strings.next().await {
                 if property_reference.name == Arc::new("TestProperty".into()) {
+                    destroyed = true;
                     break;
                 }
             }
-
+            assert!(destroyed);
         }
     }).unwrap();
 
