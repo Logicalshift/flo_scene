@@ -426,6 +426,72 @@ fn track_string_property_when_destroyed() {
 
 #[test]
 #[cfg(feature="properties")]
+fn track_string_property_when_destroyed_by_overwriting() {
+    use std::sync::*;
+
+    let scene = Scene::default();
+
+    // Create a test for this scene
+    scene.create_entity(TEST_ENTITY, move |context, mut msg| async move {
+        // Whenever a test is requested...
+        while let Some(msg) = msg.next().await {
+            let SceneTestRequest(_msg) = msg;
+
+            // Request tracking information on the specified property
+            let mut property_channel                = properties_channel::<String>(PROPERTIES, &context).await.unwrap();
+            let (tracker_channel, track_strings)    = SimpleEntityChannel::new(TEST_ENTITY, 5);
+
+            property_channel.send(PropertyRequest::TrackPropertiesWithName("TestProperty".into(), tracker_channel.boxed())).await.unwrap();
+
+            // Create a string property from a binding
+            let binding             = bind("Test".to_string());
+            property_create("TestProperty", binding.clone()).await.unwrap();
+
+            // Retrieve the binding for the property we just created
+            let _value              = property_bind::<String>(TEST_ENTITY, "TestProperty").await.unwrap();
+
+            // Should read the 'TestProperty' we just created
+            let mut track_strings = track_strings;
+            let mut created = false;
+            while let Some(PropertyUpdate::Created(property_reference)) = track_strings.next().await {
+                if property_reference.name == Arc::new("TestProperty".into()) {
+                    created = true;
+                    break;
+                }
+            }
+            assert!(created);
+
+            // Destroy the property by replacing it with another
+            property_create("TestProperty", bind("Also test")).await.unwrap();
+
+            // This should generate a destroyed event for this property
+            let mut destroyed = false;
+            while let Some(PropertyUpdate::Destroyed(property_reference)) = track_strings.next().await {
+                if property_reference.name == Arc::new("TestProperty".into()) {
+                    destroyed = true;
+                    break;
+                }
+            }
+            assert!(destroyed);
+
+            // The destroyed event should be followed by another 'created' event
+            let mut created = false;
+            while let Some(PropertyUpdate::Created(property_reference)) = track_strings.next().await {
+                if property_reference.name == Arc::new("TestProperty".into()) {
+                    created = true;
+                    break;
+                }
+            }
+            assert!(created);
+        }
+    }).unwrap();
+
+    // Test the scene we just set up
+    test_scene(scene);
+}
+
+#[test]
+#[cfg(feature="properties")]
 fn track_string_property_when_entity_destroyed() {
     use std::sync::*;
 
