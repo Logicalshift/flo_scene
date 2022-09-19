@@ -22,6 +22,7 @@ pub enum SceneTestResult {
     Timeout,
     SceneStopped,
     ChannelError(EntityChannelError),
+    Panicked,
     Ok,
 }
 
@@ -46,6 +47,7 @@ pub fn test_scene(scene: Scene) {
 
     // The result future causes the test to actually run
     let (results, results_stream)   = SimpleEntityChannel::new(TEST_ENTITY, 1);
+    let (results, results_stream)   = PanicEntityChannel::new(results, results_stream, SceneTestResult::Panicked);
     let mut channel                 = scene.send_to(TEST_ENTITY).unwrap();
     let result                      = async move { 
         // Ask the test entity to run the tests
