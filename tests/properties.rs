@@ -462,7 +462,7 @@ fn track_string_property_when_destroyed_by_overwriting() {
             assert!(created);
 
             // Destroy the property by replacing it with another
-            property_create("TestProperty", bind("Also test")).await.unwrap();
+            property_create("TestProperty", bind("Also test".to_string())).await.unwrap();
 
             // This should generate a destroyed event for this property
             let mut destroyed = false;
