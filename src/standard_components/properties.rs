@@ -464,6 +464,11 @@ where
             };
             let property    = Arc::new(property);
 
+            // If replacing an existing property, then notify of a deletion/recreation
+            let replacing_property = state.properties.get(&owner)
+                .and_then(|entity_properties| entity_properties.get(&name))
+                .is_some();
+
             // If there are any trackers for this property type in the state, then notify them than this property was created
             let trackers = state.trackers
                 .get_mut(&TypeId::of::<Arc<Property<TValue>>>())
@@ -480,9 +485,19 @@ where
                             // Mark for later cleanup
                             *maybe_tracker = None;
                         } else {
-                            // Send to this tracker
-                            let send_future = tracker.send(PropertyUpdate::Created(new_reference.clone())).map(|_maybe_err| ());
-                            pending_messages.push(send_future);
+                            // Send a 'destroyed' message if the property was destroyed
+                            let send_destroyed = if replacing_property {
+                                Some(tracker.send(PropertyUpdate::Destroyed(new_reference.clone())).map(|_maybe_err| ()))
+                            } else {
+                                None
+                            };
+
+                            // Send the 'created' message to this tracker
+                            let send_created = tracker.send(PropertyUpdate::Created(new_reference.clone())).map(|_maybe_err| ());
+                            pending_messages.push(async move {
+                                if let Some(send_destroyed) = send_destroyed { send_destroyed.await }
+                                send_created.await;
+                            });
                         }
                     }
                 }
