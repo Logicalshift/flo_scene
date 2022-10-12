@@ -11,6 +11,9 @@ use futures::future::{BoxFuture};
 
 use std::sync::*;
 
+#[cfg(any(feature="timer", feature="test-scene"))] use futures_timer::{Delay};
+#[cfg(any(feature="timer", feature="test-scene"))] use std::time::{Duration};
+
 ///
 /// A recipe is used to describe a set of actions sent to one or more entities in a scene, in order.
 ///
@@ -27,7 +30,7 @@ pub struct Recipe {
     entity_id: EntityId,
 
     /// Each step is a boxed function returning a future
-    steps: Vec<Arc<dyn Send + Fn(Arc<SceneContext>) -> BoxFuture<'static, Result<(), RecipeError>>>>
+    steps: Vec<Arc<dyn Send + Fn(Arc<SceneContext>) -> BoxFuture<'static, Result<(), RecipeError>>>>,
 }
 
 ///
@@ -73,6 +76,36 @@ impl Recipe {
         Ok(())
     }
 
+    ///
+    /// Runs this recipe with a timeout
+    ///
+    /// Requires the `timer` feature.
+    ///
+    #[cfg(any(feature="timer", feature="test-scene"))] 
+    pub async fn run_with_timeout(&self, context: Arc<SceneContext>, timeout: Duration) -> Result<(), RecipeError> {
+        // The timeout future is used to abort the test if it takes too long
+        let timeout     = Delay::new(Duration::from_secs(10))
+            .map(|_| Err(RecipeError::Timeout));
+
+        // Create a future to run the steps
+        let steps       = self.steps.clone();
+        let run_steps   = async move {
+            for step in steps.into_iter() {
+                step(Arc::clone(&context)).await?;
+            }
+
+            Ok(())
+        };
+
+        // Pick whichever of the two futures finishes first
+        let run_steps       = run_steps.boxed_local();
+        let timeout         = timeout.boxed_local();
+        let result          = future::select_all(vec![run_steps, timeout]);
+        let (result, _, _)  = result.await;
+
+        result
+    }
+    
     ///
     /// Adds a new step to the recipe that sends a set of fixed messages to an entity
     ///
