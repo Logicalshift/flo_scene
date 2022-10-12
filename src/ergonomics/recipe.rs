@@ -1,4 +1,5 @@
 use crate::context::*;
+use crate::entity_channel::*;
 use crate::entity_id::*;
 use crate::error::*;
 
@@ -21,6 +22,17 @@ use std::sync::*;
 pub struct Recipe {
     /// Each step is a boxed function returning a future
     steps: Vec<Arc<dyn Send + Fn(Arc<SceneContext>) -> BoxFuture<'static, Result<(), RecipeError>>>>
+}
+
+///
+/// An intermediate build stage for a recipe step that expects a particular response to be sent to a channel
+///
+pub struct ExpectingRecipe<TExpectedChannel> {
+    /// The recipe that the 'expect' step will be appended to
+    recipe: Recipe,
+
+    /// Factory method to generate the expected response channel and a future for when the channel has generated all of its expected responses
+    responses: Box<dyn Send + Fn(Arc<SceneContext>) -> TExpectedChannel>,
 }
 
 impl Default for Recipe {
@@ -115,5 +127,29 @@ impl Recipe {
         steps.push(new_step);
 
         Recipe { steps }
+    }
+
+    ///
+    /// Starts to define a step that expects a specific set of responses to be sent to channel
+    ///
+    /// A channel that will process the responses is supplied to a factory method
+    ///
+    pub fn expect<TResponse>(self, responses: impl IntoIterator<Item=TResponse>) -> ExpectingRecipe<TResponse>
+    where
+        TResponse: 'static + Send
+    {
+        unimplemented!()
+    }
+}
+
+impl<TExpectedChannel> ExpectingRecipe<TExpectedChannel>
+where
+    TExpectedChannel: 'static + Send,
+{
+    ///
+    /// Sends the messages that expect this response
+    ///
+    pub fn send_messages<TMessageIterator>(self, entity_id: EntityId, generate_messages: impl 'static + Send + Fn(TExpectedChannel) -> TMessageIterator) -> Recipe {
+        unimplemented!()
     }
 }
