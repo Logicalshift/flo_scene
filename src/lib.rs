@@ -17,6 +17,7 @@ mod simple_entity_channel;
 mod any_entity_channel;
 mod mapped_entity_channel;
 mod convert_entity_channel;
+mod expected_entity_channel;
 mod context;
 mod standard_components;
 mod panic_entity_channel;
@@ -32,6 +33,7 @@ pub use self::mapped_entity_channel::*;
 pub use self::convert_entity_channel::*;
 pub use self::panic_entity_channel::*;
 pub use self::any_entity_channel::*;
+pub use self::expected_entity_channel::*;
 pub use self::context::*;
 pub use self::standard_components::*;
 
