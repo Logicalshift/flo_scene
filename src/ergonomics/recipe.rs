@@ -11,6 +11,7 @@ use futures::prelude::*;
 use futures::future::{BoxFuture};
 
 use std::sync::*;
+use std::collections::{HashSet};
 
 #[cfg(any(feature="timer", feature="test-scene"))] use futures_timer::{Delay};
 #[cfg(any(feature="timer", feature="test-scene"))] use std::time::{Duration};
@@ -289,6 +290,57 @@ impl Recipe {
     }
 
     ///
+    /// Creates the 'expecting' function for matching a channel against a set of responses that we need to wait for (matching them in any order)
+    ///
+    fn wait_for_unordered_channel<TResponse>(our_entity_id: EntityId, responses: Vec<TResponse>) -> impl Send + Sync + Fn(Arc<SceneContext>) -> (BoxedEntityChannel<'static, TResponse>, BoxFuture<'static, Result<(), RecipeError>>)
+    where
+        TResponse: 'static + Send + Sync + PartialEq,
+    {
+        let responses = Arc::new(responses);
+
+        move |_| {
+            // Take our own copy of the responses
+            let responses = Arc::clone(&responses);
+
+            // Create a simple entity channel that we'll receive the messages from
+            let (channel, receiver) = SimpleEntityChannel::new(our_entity_id, 1);
+
+            // The future reads from the channel until all of the responses are received
+            let future = async move {
+                // Match immediately if there's no sequence to wait for
+                if responses.len() == 0 {
+                    return Ok(());
+                }
+
+                // Start waiting for the sequence at position 0
+                let mut matches     = HashSet::new();
+                let mut receiver    = receiver;
+
+                while let Some(msg) = receiver.next().await {
+                    for pos in 0..responses.len() {
+                        if !matches.contains(&pos) && &msg == &responses[pos] {
+                            // Matched a response we haven't seen before
+                            matches.insert(pos);
+
+                            if matches.len() >= responses.len() {
+                                // Matched the whole set of responses
+                                return Ok(());
+                            }
+
+                            break;
+                        }
+                    }
+                }
+
+                // Channel closed before we received all of the responses
+                Err(RecipeError::ExpectedMoreResponses)
+            };
+
+            (channel.boxed(), future.boxed())
+        }
+    }
+
+    ///
     /// Similar to `expect()`, this will wait for the supplied set of responses to be returned in order, but will ignore responses that
     /// don't match what was expected rather than erroring out (ie, will wait until the full response sequence is seen)
     ///
@@ -301,6 +353,23 @@ impl Recipe {
         ExpectingRecipe {
             recipe:     self,
             responses:  Box::new(Self::wait_for_channel(entity_id, responses.into_iter().collect()))
+        }
+    }
+
+    ///
+    /// Similar to `expect()`, this will wait for the supplied set of responses to be returned, in any order, before passing.
+    ///
+    /// Supplying a response more than once will cause it to be matched for that many times
+    ///
+    pub fn wait_for_unordered<TResponse>(self, responses: impl IntoIterator<Item=TResponse>) -> ExpectingRecipe<BoxedEntityChannel<'static, TResponse>>
+    where
+        TResponse: 'static + Send + Sync + PartialEq,
+    {
+        let entity_id = self.entity_id;
+
+        ExpectingRecipe {
+            recipe:     self,
+            responses:  Box::new(Self::wait_for_unordered_channel(entity_id, responses.into_iter().collect()))
         }
     }
 

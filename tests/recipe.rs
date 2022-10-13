@@ -126,6 +126,31 @@ pub fn wait_for() {
 }
 
 #[test]
+pub fn wait_for_unordered() {
+    let scene = echo_scene();
+
+    test_scene_with_recipe(scene, Recipe::new()
+        .wait_for_unordered(vec![
+            "Four".to_string(),
+            "Three".to_string(),
+        ])
+        .after_sending_messages(ECHO_ENTITY,
+            |response_channel| {
+                vec![
+                    EchoRequest::Receive(response_channel),
+                    EchoRequest::Send("One".to_string()),
+                    EchoRequest::Send("Two".to_string()),
+                    EchoRequest::Send("Three".to_string()),
+                    EchoRequest::Send("Four".to_string()),
+                    EchoRequest::Send("Five".to_string()),
+                    EchoRequest::Done,
+                ]
+            }
+        )
+    );
+}
+
+#[test]
 pub fn send_alongside() {
     let scene = echo_scene();
 
