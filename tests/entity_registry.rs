@@ -53,7 +53,7 @@ fn retrieve_existing_entities() {
 
     // Create a test for this scene
     test_scene_with_recipe(scene, Recipe::new()
-        .wait_for(vec![EntityUpdate::CreatedEntity(hello_entity)])
+        .wait_for_unordered(vec![EntityUpdate::CreatedEntity(hello_entity), EntityUpdate::CreatedEntity(add_one_entity)])
         .after_sending_messages(ENTITY_REGISTRY, |channel| vec![EntityRegistryRequest::TrackEntities(channel)])
     );
 
