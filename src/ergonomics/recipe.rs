@@ -199,6 +199,10 @@ impl Recipe {
             })
         }
     }
+
+    // TODO: a '.alongside_messages()' and a '.alongside_generated_messages()' function for sending to multiple entities in parallel
+    // TODO: also an '.alongside_expect()' function for expecting on another channel in parallel with another entity
+    // TODO: a way to add extra channels to an 'expect' request
 }
 
 impl<TExpectedChannel> ExpectingRecipe<TExpectedChannel>
