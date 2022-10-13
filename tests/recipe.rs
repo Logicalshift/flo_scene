@@ -15,6 +15,7 @@ pub const ECHO_ENTITY: EntityId = EntityId::well_known(uuid!["D8E25F3A-37C4-431B
 pub enum EchoRequest {
     Send(String),
     Receive(BoxedEntityChannel<'static, String>),
+    Done,
 }
 
 ///
@@ -39,6 +40,11 @@ fn echo_scene() -> Scene {
                         channel.send(message.clone()).await.ok();
                     }
                 }
+
+                EchoRequest::Done => {
+                    // Clear all the receivers
+                    receivers = vec![];
+                }
             }
         }
     }).unwrap();
@@ -61,6 +67,7 @@ pub fn complete_recipe() {
                     EchoRequest::Receive(response_channel),
                     EchoRequest::Send("Hello".to_string()),
                     EchoRequest::Send("World".to_string()),
+                    EchoRequest::Done,
                 ]
             }
         )
@@ -81,6 +88,7 @@ pub fn fail_recipe() {
                     EchoRequest::Receive(response_channel),
                     EchoRequest::Send("Something".to_string()),
                     EchoRequest::Send("Else".to_string()),
+                    EchoRequest::Done,
                 ]
             }
         );
@@ -98,4 +106,37 @@ pub fn fail_recipe() {
 
     assert!(test_result.is_err());
     assert!(test_result.unwrap_err() == RecipeError::UnexpectedResponse);
+}
+
+#[test]
+pub fn fail_recipe_short() {
+    let scene           = echo_scene();
+    let failing_recipe  = Recipe::new()
+        .expect(vec![
+            "Hello".to_string(),
+            "World".to_string(),
+        ])
+        .after_sending_messages(ECHO_ENTITY,
+            |response_channel| {
+                vec![
+                    EchoRequest::Receive(response_channel),
+                    EchoRequest::Send("Hello".to_string()),
+                    EchoRequest::Done,
+                ]
+            }
+        );
+
+    let context = scene.context();
+    let result  = async move {
+        failing_recipe.run_with_timeout(context, Duration::from_secs(10)).await
+    }.boxed_local();
+
+    // Run the scene alongside the recipe
+    let scene               = scene.run().map(|_| Err(RecipeError::SceneStopped)).boxed();
+
+    let test_result         = future::select_all(vec![result, scene]);
+    let (test_result, _ ,_) = executor::block_on(test_result);
+
+    assert!(test_result.is_err());
+    assert!(test_result.unwrap_err() == RecipeError::ExpectedMoreResponses);
 }
