@@ -377,6 +377,42 @@ pub fn fail_wait_for() {
 }
 
 #[test]
+pub fn fail_wait_for_unordered() {
+    let scene           = echo_scene();
+    let failing_recipe  = Recipe::new()
+        .wait_for_unordered(vec![
+            "Four".to_string(),
+            "Three".to_string(),
+        ])
+        .after_sending_messages(ECHO_ENTITY,
+            |response_channel| {
+                vec![
+                    EchoRequest::Receive(response_channel),
+                    EchoRequest::Send("One".to_string()),
+                    EchoRequest::Send("Two".to_string()),
+                    EchoRequest::Send("Four".to_string()),
+                    EchoRequest::Send("Five".to_string()),
+                    EchoRequest::Done,
+                ]
+            }
+        );
+
+    let context = scene.context();
+    let result  = async move {
+        failing_recipe.run_with_timeout(context, Duration::from_secs(10)).await
+    }.boxed_local();
+
+    // Run the scene alongside the recipe
+    let scene               = scene.run().map(|_| Err(RecipeError::SceneStopped)).boxed();
+
+    let test_result         = future::select_all(vec![result, scene]);
+    let (test_result, _ ,_) = executor::block_on(test_result);
+
+    assert!(test_result.is_err());
+    assert!(test_result.unwrap_err() == RecipeError::ExpectedMoreResponses);
+}
+
+#[test]
 pub fn four_fails() {
     let scene           = echo_scene();
     let failing_recipe  = Recipe::new()
