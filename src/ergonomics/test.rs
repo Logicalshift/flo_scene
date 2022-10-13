@@ -89,5 +89,5 @@ pub fn test_scene_with_recipe(scene: Scene, recipe: Recipe) {
     let test_result         = future::select_all(vec![result, scene]);
     let (test_result, _ ,_) = executor::block_on(test_result);
 
-    assert!(test_result.is_ok(), "Scene test failed: {:?}", test_result.unwrap_err());
+    assert!(test_result.is_ok(), "Test recipe failed: {:?}", test_result.unwrap_err());
 }
