@@ -202,7 +202,6 @@ impl Recipe {
 
     // TODO: a '.alongside_messages()' and a '.alongside_generated_messages()' function for sending to multiple entities in parallel
     // TODO: also an '.alongside_expect()' function for expecting on another channel in parallel with another entity
-    // TODO: a way to add extra channels to an 'expect' request
     // TODO: some way to describe which part of the recipe failed in the error
 }
 
@@ -280,16 +279,8 @@ where
 
                 let future = async move {
                     let all_responses = future::join_all(vec![other_future, our_future.boxed()]).await;
-
-                    if all_responses.iter().all(|result| result.is_ok()) {
-                        Ok(())
-                    } else if all_responses[0].is_err() && all_responses[1].is_ok() {
-                        all_responses[0].clone()
-                    } else if all_responses[0].is_ok() && all_responses[1].is_err() {
-                        all_responses[1].clone()
-                    } else {
-                        Err(RecipeError::ManyErrors(vec![all_responses[0].clone().unwrap_err(), all_responses[1].clone().unwrap_err()]))
-                    }
+                    all_responses.into_iter()
+                        .fold(Ok(()), |a, b| a.or(b))
                 };
 
                 ((other_channel, our_channel.boxed()), future.boxed())
@@ -323,23 +314,55 @@ where
                 let ((other_channel1, other_channel2), other_future) = other_responses(context);
 
                 // Create the this channel
-                let (our_channel, our_future)       = ExpectedEntityChannel::new(entity_id, Arc::clone(&responses));
+                let (our_channel, our_future) = ExpectedEntityChannel::new(entity_id, Arc::clone(&responses));
 
                 let future = async move {
                     let all_responses = future::join_all(vec![other_future, our_future.boxed()]).await;
-
-                    if all_responses.iter().all(|result| result.is_ok()) {
-                        Ok(())
-                    } else if all_responses[0].is_err() && all_responses[1].is_ok() {
-                        all_responses[0].clone()
-                    } else if all_responses[0].is_ok() && all_responses[1].is_err() {
-                        all_responses[1].clone()
-                    } else {
-                        Err(RecipeError::ManyErrors(vec![all_responses[0].clone().unwrap_err(), all_responses[1].clone().unwrap_err()]))
-                    }
+                    all_responses.into_iter()
+                        .fold(Ok(()), |a, b| a.or(b))
                 };
 
                 ((other_channel1, other_channel2, our_channel.boxed()), future.boxed())
+            })
+        }
+    }
+}
+
+impl<TResponse1, TResponse2, TResponse3> ExpectingRecipe<(BoxedEntityChannel<'static, TResponse1>, BoxedEntityChannel<'static, TResponse2>, BoxedEntityChannel<'static, TResponse3>)> 
+where
+    TResponse1: 'static + Send + Sync + PartialEq,
+    TResponse2: 'static + Send + Sync + PartialEq,
+    TResponse3: 'static + Send + Sync + PartialEq,
+{
+    ///
+    /// As for `Recipe::expect`, except this will extend the number of channels with expectations to 2 
+    ///
+    pub fn expect<TResponse4>(self, responses: impl IntoIterator<Item=TResponse4>) -> ExpectingRecipe<(BoxedEntityChannel<'static, TResponse1>, BoxedEntityChannel<'static, TResponse2>, BoxedEntityChannel<'static, TResponse3>, BoxedEntityChannel<'static, TResponse4>)>
+    where
+        TResponse4: 'static + Send + Sync + PartialEq,
+    {
+        let recipe              = self.recipe;
+        let entity_id           = recipe.entity_id;
+        let other_responses     = self.responses;
+        let responses           = responses.into_iter().collect::<Vec<_>>();
+        let responses           = Arc::new(responses);
+
+        ExpectingRecipe {
+            recipe:     recipe,
+            responses:  Box::new(move |context| {
+                // Request the other channel
+                let ((other_channel1, other_channel2, other_channel3), other_future) = other_responses(context);
+
+                // Create the this channel
+                let (our_channel, our_future) = ExpectedEntityChannel::new(entity_id, Arc::clone(&responses));
+
+                let future = async move {
+                    let all_responses = future::join_all(vec![other_future, our_future.boxed()]).await;
+                    all_responses.into_iter()
+                        .fold(Ok(()), |a, b| a.or(b))
+                };
+
+                ((other_channel1, other_channel2, other_channel3, our_channel.boxed()), future.boxed())
             })
         }
     }

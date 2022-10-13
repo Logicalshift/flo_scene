@@ -138,6 +138,47 @@ pub fn three_expects() {
 }
 
 #[test]
+pub fn four_expects() {
+    let scene = echo_scene();
+
+    test_scene_with_recipe(scene, Recipe::new()
+        .expect(vec![
+            "One".to_string(),
+            "Two".to_string(),
+            "Three".to_string(),
+            "Four".to_string(),
+        ])
+        .expect(vec![
+            "Two".to_string(),
+            "Three".to_string(),
+            "Four".to_string(),
+        ])
+        .expect(vec![
+            "Three".to_string(),
+            "Four".to_string(),
+        ])
+        .expect(vec![
+            "Four".to_string(),
+        ])
+        .after_sending_messages(ECHO_ENTITY,
+            |(channel1, channel2, channel3, channel4)| {
+                vec![
+                    EchoRequest::Receive(channel1),
+                    EchoRequest::Send("One".to_string()),
+                    EchoRequest::Receive(channel2),
+                    EchoRequest::Send("Two".to_string()),
+                    EchoRequest::Receive(channel3),
+                    EchoRequest::Send("Three".to_string()),
+                    EchoRequest::Receive(channel4),
+                    EchoRequest::Send("Four".to_string()),
+                    EchoRequest::Done,
+                ]
+            }
+        )
+    );
+}
+
+#[test]
 pub fn fail_recipe() {
     let scene           = echo_scene();
     let failing_recipe  = Recipe::new()
