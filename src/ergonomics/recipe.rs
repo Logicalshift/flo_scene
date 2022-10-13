@@ -203,6 +203,7 @@ impl Recipe {
     // TODO: a '.alongside_messages()' and a '.alongside_generated_messages()' function for sending to multiple entities in parallel
     // TODO: also an '.alongside_expect()' function for expecting on another channel in parallel with another entity
     // TODO: a way to add extra channels to an 'expect' request
+    // TODO: some way to describe which part of the recipe failed in the error
 }
 
 impl<TExpectedChannel> ExpectingRecipe<TExpectedChannel>
@@ -247,6 +248,52 @@ where
         Recipe {
             entity_id:  our_entity_id, 
             steps:      steps 
+        }
+    }
+}
+
+impl<TResponse1> ExpectingRecipe<BoxedEntityChannel<'static, TResponse1>> 
+where
+    TResponse1: 'static + Send + Sync + PartialEq,
+{
+    ///
+    /// As for `Recipe::expect`, except this will extend the number of channels with expectations to 2 
+    ///
+    pub fn expect<TResponse2>(self, responses: impl IntoIterator<Item=TResponse2>) -> ExpectingRecipe<(BoxedEntityChannel<'static, TResponse1>, BoxedEntityChannel<'static, TResponse2>)>
+    where
+        TResponse2: 'static + Send + Sync + PartialEq,
+    {
+        let recipe              = self.recipe;
+        let entity_id           = recipe.entity_id;
+        let other_responses     = self.responses;
+        let responses           = responses.into_iter().collect::<Vec<_>>();
+        let responses           = Arc::new(responses);
+
+        ExpectingRecipe {
+            recipe:     recipe,
+            responses:  Box::new(move |context| {
+                // Request the other channel
+                let (other_channel, other_future)   = other_responses(context);
+
+                // Create the this channel
+                let (our_channel, our_future)       = ExpectedEntityChannel::new(entity_id, Arc::clone(&responses));
+
+                let future = async move {
+                    let all_responses = future::join_all(vec![other_future, our_future.boxed()]).await;
+
+                    if all_responses.iter().all(|result| result.is_ok()) {
+                        Ok(())
+                    } else if all_responses[0].is_err() && all_responses[1].is_ok() {
+                        all_responses[0].clone()
+                    } else if all_responses[0].is_ok() && all_responses[1].is_err() {
+                        all_responses[1].clone()
+                    } else {
+                        Err(RecipeError::ManyErrors(vec![all_responses[0].clone().unwrap_err(), all_responses[1].clone().unwrap_err()]))
+                    }
+                };
+
+                ((other_channel.boxed(), our_channel.boxed()), future.boxed())
+            })
         }
     }
 }

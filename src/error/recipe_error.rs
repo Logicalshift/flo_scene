@@ -19,6 +19,9 @@ pub enum RecipeError {
 
     /// Scene stopped before the recipe could be completed
     SceneStopped,
+
+    /// Several things failed simultaneously
+    ManyErrors(Vec<RecipeError>),
 }
 
 impl From<EntityChannelError> for RecipeError {

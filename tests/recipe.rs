@@ -75,6 +75,32 @@ pub fn complete_recipe() {
 }
 
 #[test]
+pub fn two_expects() {
+    let scene = echo_scene();
+
+    test_scene_with_recipe(scene, Recipe::new()
+        .expect(vec![
+            "Hello".to_string(),
+            "World".to_string(),
+        ])
+        .expect(vec![
+            "World".to_string(),
+        ])
+        .after_sending_messages(ECHO_ENTITY,
+            |(channel1, channel2)| {
+                vec![
+                    EchoRequest::Receive(channel1),
+                    EchoRequest::Send("Hello".to_string()),
+                    EchoRequest::Receive(channel2),
+                    EchoRequest::Send("World".to_string()),
+                    EchoRequest::Done,
+                ]
+            }
+        )
+    );
+}
+
+#[test]
 pub fn fail_recipe() {
     let scene           = echo_scene();
     let failing_recipe  = Recipe::new()
