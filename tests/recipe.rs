@@ -7,7 +7,8 @@ use uuid::*;
 
 use std::time::{Duration};
 
-pub const ECHO_ENTITY: EntityId = EntityId::well_known(uuid!["D8E25F3A-37C4-431B-B2AB-BFB3C449ECE2"]);
+pub const ECHO_ENTITY:  EntityId = EntityId::well_known(uuid!["D8E25F3A-37C4-431B-B2AB-BFB3C449ECE2"]);
+pub const ECHO_ENTITY2: EntityId = EntityId::well_known(uuid!["956030EA-2B51-4A28-98E8-646FA7A04192"]);
 
 ///
 /// Request for the ECHO_ENTITY
@@ -25,6 +26,31 @@ fn echo_scene() -> Scene {
     let scene = Scene::default();
 
     scene.create_entity(ECHO_ENTITY, |_context, mut msg| async move {
+        let mut receivers = vec![];
+
+        while let Some(msg) = msg.next().await {
+            match msg {
+                EchoRequest::Receive(channel) => {
+                    // Add a new receiver for the echo messages
+                    receivers.push(channel);
+                }
+
+                EchoRequest::Send(message) => {
+                    // Send to all channels (test entity, so we don't care about closed channels)
+                    for channel in receivers.iter_mut() {
+                        channel.send(message.clone()).await.ok();
+                    }
+                }
+
+                EchoRequest::Done => {
+                    // Clear all the receivers
+                    receivers = vec![];
+                }
+            }
+        }
+    }).unwrap();
+
+    scene.create_entity(ECHO_ENTITY2, |_context, mut msg| async move {
         let mut receivers = vec![];
 
         while let Some(msg) = msg.next().await {
@@ -71,6 +97,24 @@ pub fn complete_recipe() {
                 ]
             }
         )
+    );
+}
+
+#[test]
+pub fn send_alongside() {
+    let scene = echo_scene();
+
+    test_scene_with_recipe(scene, Recipe::new()
+        .send_generated_messages(ECHO_ENTITY, || vec![
+            EchoRequest::Send("Hello".to_string()),
+            EchoRequest::Send("World".to_string()),
+            EchoRequest::Done,
+        ])
+        .alongside_generated_messages(ECHO_ENTITY2, || vec![
+            EchoRequest::Send("Hello".to_string()),
+            EchoRequest::Send("World".to_string()),
+            EchoRequest::Done,
+        ])
     );
 }
 
