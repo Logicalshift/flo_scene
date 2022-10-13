@@ -3,6 +3,7 @@ use crate::entity_channel::*;
 use crate::entity_id::*;
 use crate::error::*;
 use crate::expected_entity_channel::*;
+use crate::simple_entity_channel::*;
 
 use super::entity_channel_ext::*;
 
@@ -240,10 +241,72 @@ impl Recipe {
         }
     }
 
+    ///
+    /// Creates the 'expecting' function for matching a channel against a set of responses that we need to wait for
+    ///
+    fn wait_for_channel<TResponse>(our_entity_id: EntityId, responses: Vec<TResponse>) -> impl Send + Sync + Fn(Arc<SceneContext>) -> (BoxedEntityChannel<'static, TResponse>, BoxFuture<'static, Result<(), RecipeError>>)
+    where
+        TResponse: 'static + Send + Sync + PartialEq,
+    {
+        let responses = Arc::new(responses);
+
+        move |_| {
+            // Take our own copy of the responses
+            let responses = Arc::clone(&responses);
+
+            // Create a simple entity channel that we'll receive the messages from
+            let (channel, receiver) = SimpleEntityChannel::new(our_entity_id, 1);
+
+            // The future reads from the channel until all of the responses are received
+            let future = async move {
+                // Match immediately if there's no sequence to wait for
+                if responses.len() == 0 {
+                    return Ok(());
+                }
+
+                // Start waiting for the sequence at position 0
+                let mut pos         = 0;
+                let mut receiver    = receiver;
+
+                while let Some(msg) = receiver.next().await {
+                    if &msg == &responses[pos] {
+                        // Matched the next expected response
+                        pos += 1;
+
+                        if pos >= responses.len() {
+                            // Matched the whole set of responses
+                            return Ok(());
+                        }
+                    }
+                }
+
+                // Channel closed before we received all of the responses
+                Err(RecipeError::ExpectedMoreResponses)
+            };
+
+            (channel.boxed(), future.boxed())
+        }
+    }
+
+    ///
+    /// Similar to `expect()`, this will wait for the supplied set of responses to be returned in order, but will ignore responses that
+    /// don't match what was expected rather than erroring out (ie, will wait until the full response sequence is seen)
+    ///
+    pub fn wait_for<TResponse>(self, responses: impl IntoIterator<Item=TResponse>) -> ExpectingRecipe<BoxedEntityChannel<'static, TResponse>>
+    where
+        TResponse: 'static + Send + Sync + PartialEq,
+    {
+        let entity_id = self.entity_id;
+
+        ExpectingRecipe {
+            recipe:     self,
+            responses:  Box::new(Self::wait_for_channel(entity_id, responses.into_iter().collect()))
+        }
+    }
+
     // TODO: add an '.alongside_expect()' function for expecting on another channel in parallel with another entity
     // TODO: some way to describe which part of the recipe failed in the error
-    // TODO: a 'wait_for()' function to wait until a particular set of messages has been sent (ignoring other messages)
-    // TODO: a way of waiting for expected messages asynchronously
+    // TODO: a way of waiting for expected messages asynchronously with the following steps in the recipe
 }
 
 ///

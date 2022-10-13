@@ -101,6 +101,31 @@ pub fn complete_recipe() {
 }
 
 #[test]
+pub fn wait_for() {
+    let scene = echo_scene();
+
+    test_scene_with_recipe(scene, Recipe::new()
+        .wait_for(vec![
+            "Three".to_string(),
+            "Four".to_string(),
+        ])
+        .after_sending_messages(ECHO_ENTITY,
+            |response_channel| {
+                vec![
+                    EchoRequest::Receive(response_channel),
+                    EchoRequest::Send("One".to_string()),
+                    EchoRequest::Send("Two".to_string()),
+                    EchoRequest::Send("Three".to_string()),
+                    EchoRequest::Send("Four".to_string()),
+                    EchoRequest::Send("Five".to_string()),
+                    EchoRequest::Done,
+                ]
+            }
+        )
+    );
+}
+
+#[test]
 pub fn send_alongside() {
     let scene = echo_scene();
 
@@ -269,6 +294,43 @@ pub fn fail_recipe_short() {
                 vec![
                     EchoRequest::Receive(response_channel),
                     EchoRequest::Send("Hello".to_string()),
+                    EchoRequest::Done,
+                ]
+            }
+        );
+
+    let context = scene.context();
+    let result  = async move {
+        failing_recipe.run_with_timeout(context, Duration::from_secs(10)).await
+    }.boxed_local();
+
+    // Run the scene alongside the recipe
+    let scene               = scene.run().map(|_| Err(RecipeError::SceneStopped)).boxed();
+
+    let test_result         = future::select_all(vec![result, scene]);
+    let (test_result, _ ,_) = executor::block_on(test_result);
+
+    assert!(test_result.is_err());
+    assert!(test_result.unwrap_err() == RecipeError::ExpectedMoreResponses);
+}
+
+#[test]
+pub fn fail_wait_for() {
+    let scene           = echo_scene();
+    let failing_recipe  = Recipe::new()
+        .wait_for(vec![
+            "Four".to_string(),
+            "Three".to_string(),
+        ])
+        .after_sending_messages(ECHO_ENTITY,
+            |response_channel| {
+                vec![
+                    EchoRequest::Receive(response_channel),
+                    EchoRequest::Send("One".to_string()),
+                    EchoRequest::Send("Two".to_string()),
+                    EchoRequest::Send("Three".to_string()),
+                    EchoRequest::Send("Four".to_string()),
+                    EchoRequest::Send("Five".to_string()),
                     EchoRequest::Done,
                 ]
             }
