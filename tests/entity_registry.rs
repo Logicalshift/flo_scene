@@ -52,6 +52,12 @@ fn retrieve_existing_entities() {
     }).unwrap();
 
     // Create a test for this scene
+    test_scene_with_recipe(scene, Recipe::new()
+        .wait_for(vec![EntityUpdate::CreatedEntity(hello_entity)])
+        .after_sending_messages(ENTITY_REGISTRY, |channel| vec![EntityRegistryRequest::TrackEntities(channel)])
+    );
+
+    /*
     scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
         // Whenever a test is requested...
         while let Some(msg) = msg.next().await {
@@ -102,6 +108,7 @@ fn retrieve_existing_entities() {
 
     // Test the scene we just set up
     test_scene(scene);
+    */
 }
 
 #[test]
