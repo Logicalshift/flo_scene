@@ -113,31 +113,8 @@ impl Recipe {
     where
         TMessage: 'static + Clone + Send,
     {
-        let our_entity_id   = self.entity_id;
-        let mut steps       = self.steps;
-        let messages        = messages.into_iter().collect::<Vec<_>>();
-        let new_step        = Arc::new(move |context: Arc<SceneContext>| {
-            let messages = messages.clone();
-
-            async move {
-                // Send to the entity
-                let mut channel = context.send_to(target_entity_id)?;
-
-                // Copy the messages one at a time
-                for msg in messages.into_iter() {
-                    channel.send(msg).await?;
-                }
-
-                Ok(())
-            }.boxed()
-        });
-
-        steps.push(new_step);
-
-        Recipe {
-            entity_id:  our_entity_id, 
-            steps:      steps 
-        }
+        let messages = messages.into_iter().collect::<Vec<_>>();
+        self.send_generated_messages(target_entity_id, move || messages.clone())
     }
 
     ///
