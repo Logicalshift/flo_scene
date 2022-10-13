@@ -84,7 +84,7 @@ impl Recipe {
     #[cfg(any(feature="timer", feature="test-scene"))] 
     pub async fn run_with_timeout(&self, context: Arc<SceneContext>, timeout: Duration) -> Result<(), RecipeError> {
         // The timeout future is used to abort the test if it takes too long
-        let timeout     = Delay::new(Duration::from_secs(10))
+        let timeout     = Delay::new(timeout)
             .map(|_| Err(RecipeError::Timeout));
 
         // Create a future to run the steps
