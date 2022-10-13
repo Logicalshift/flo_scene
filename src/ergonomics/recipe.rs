@@ -208,7 +208,7 @@ where
     ///
     /// Sends the messages that expect this response
     ///
-    pub fn send_messages<TMessageIterator>(self, target_entity_id: EntityId, generate_messages: impl 'static + Send + Fn(TExpectedChannel) -> TMessageIterator) -> Recipe 
+    pub fn after_sending_messages<TMessageIterator>(self, target_entity_id: EntityId, generate_messages: impl 'static + Send + Fn(TExpectedChannel) -> TMessageIterator) -> Recipe 
     where
         TMessageIterator:           'static + IntoIterator,
         TMessageIterator::IntoIter: 'static + Send,
