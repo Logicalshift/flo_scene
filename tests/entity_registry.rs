@@ -77,7 +77,7 @@ fn retrieve_existing_entities_with_type() {
 
     // Create a test for this scene
     test_scene_with_recipe(scene, Recipe::new()
-        .wait_for(vec![EntityUpdate::CreatedEntity(add_one_entity)])
+        .expect(vec![EntityUpdate::CreatedEntity(add_one_entity)])
         .after_sending_messages(ENTITY_REGISTRY, |channel| vec![EntityRegistryRequest::TrackEntitiesWithType(channel, EntityChannelType::of::<u64>())])
     );
 }
