@@ -70,3 +70,24 @@ pub fn test_scene(scene: Scene) {
 
     assert!(test_result.iter().all(|result| result == &SceneTestResult::Ok), "Scene test failed: {:?}", test_result);
 }
+
+///
+/// Tests a scene by running a recipe
+///
+/// Usually the recipe will use the `expect()` function to specify an expected response for the test
+///
+pub fn test_scene_with_recipe(scene: Scene, recipe: Recipe) {
+    // Fetch the context and create a future to run the recipe
+    let context = scene.context();
+    let result  = async move {
+        recipe.run_with_timeout(context, Duration::from_secs(10)).await
+    }.boxed_local();
+
+    // Run the scene alongside the recipe
+    let scene               = scene.run().map(|_| Err(RecipeError::SceneStopped)).boxed();
+
+    let test_result         = future::select_all(vec![result, scene]);
+    let (test_result, _ ,_) = executor::block_on(test_result);
+
+    assert!(test_result.is_ok(), "Scene test failed: {:?}", test_result.unwrap_err());
+}

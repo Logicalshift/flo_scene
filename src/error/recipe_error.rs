@@ -16,6 +16,9 @@ pub enum RecipeError {
 
     /// A recipe timed out before it could be completed
     Timeout,
+
+    /// Scene stopped before the recipe could be completed
+    SceneStopped,
 }
 
 impl From<EntityChannelError> for RecipeError {
