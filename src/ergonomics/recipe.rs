@@ -205,6 +205,36 @@ impl Recipe {
     // TODO: some way to describe which part of the recipe failed in the error
 }
 
+///
+/// Combines two reuslts into a single error
+///
+fn fold_recipe_error(a: Result<(), RecipeError>, b: Result<(), RecipeError>) -> Result<(), RecipeError> {
+    match (a, b) {
+        (Ok(()), Ok(()))    => Ok(()),
+        (Err(err), Ok(()))  => Err(err),
+        (Ok(()), Err(err))  => Err(err),
+
+        (Err(RecipeError::ManyErrors(mut a)), Err(RecipeError::ManyErrors(b)))  => {
+            a.extend(b);
+            Err(RecipeError::ManyErrors(a))
+        }
+
+        (Err(RecipeError::ManyErrors(mut a)), Err(b)) => {
+            a.push(b);
+            Err(RecipeError::ManyErrors(a))
+        }
+
+        (Err(a), Err(RecipeError::ManyErrors(mut b))) => {
+            b.insert(0, a);
+            Err(RecipeError::ManyErrors(b))
+        }
+
+        (Err(a), Err(b)) => {
+            Err(RecipeError::ManyErrors(vec![a, b]))
+        }
+    }
+}
+
 impl<TExpectedChannel> ExpectingRecipe<TExpectedChannel>
 where
     TExpectedChannel: 'static + Send,
@@ -280,7 +310,7 @@ where
                 let future = async move {
                     let all_responses = future::join_all(vec![other_future, our_future.boxed()]).await;
                     all_responses.into_iter()
-                        .fold(Ok(()), |a, b| a.or(b))
+                        .fold(Ok(()), fold_recipe_error)
                 };
 
                 ((other_channel, our_channel.boxed()), future.boxed())
@@ -319,7 +349,7 @@ where
                 let future = async move {
                     let all_responses = future::join_all(vec![other_future, our_future.boxed()]).await;
                     all_responses.into_iter()
-                        .fold(Ok(()), |a, b| a.or(b))
+                        .fold(Ok(()), fold_recipe_error)
                 };
 
                 ((other_channel1, other_channel2, our_channel.boxed()), future.boxed())
@@ -359,7 +389,7 @@ where
                 let future = async move {
                     let all_responses = future::join_all(vec![other_future, our_future.boxed()]).await;
                     all_responses.into_iter()
-                        .fold(Ok(()), |a, b| a.or(b))
+                        .fold(Ok(()), fold_recipe_error)
                 };
 
                 ((other_channel1, other_channel2, other_channel3, our_channel.boxed()), future.boxed())

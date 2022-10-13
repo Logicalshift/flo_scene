@@ -244,3 +244,56 @@ pub fn fail_recipe_short() {
     assert!(test_result.is_err());
     assert!(test_result.unwrap_err() == RecipeError::ExpectedMoreResponses);
 }
+
+#[test]
+pub fn four_fails() {
+    let scene           = echo_scene();
+    let failing_recipe  = Recipe::new()
+        .expect(vec![
+            "One".to_string(),
+            "Two".to_string(),
+            "Three".to_string(),
+            "Four".to_string(),
+        ])
+        .expect(vec![
+            "Two".to_string(),
+            "Three".to_string(),
+            "Four".to_string(),
+        ])
+        .expect(vec![
+            "Three".to_string(),
+            "Four".to_string(),
+        ])
+        .expect(vec![
+            "Four".to_string(),
+        ])
+        .after_sending_messages(ECHO_ENTITY,
+            |(channel1, channel2, channel3, channel4)| {
+                vec![
+                    EchoRequest::Receive(channel1),
+                    EchoRequest::Send("Five".to_string()),
+                    EchoRequest::Receive(channel2),
+                    EchoRequest::Send("Five".to_string()),
+                    EchoRequest::Receive(channel3),
+                    EchoRequest::Send("Five".to_string()),
+                    EchoRequest::Receive(channel4),
+                    EchoRequest::Send("Five".to_string()),
+                    EchoRequest::Done,
+                ]
+            }
+        );
+
+    let context = scene.context();
+    let result  = async move {
+        failing_recipe.run_with_timeout(context, Duration::from_secs(10)).await
+    }.boxed_local();
+
+    // Run the scene alongside the recipe
+    let scene               = scene.run().map(|_| Err(RecipeError::SceneStopped)).boxed();
+
+    let test_result         = future::select_all(vec![result, scene]);
+    let (test_result, _ ,_) = executor::block_on(test_result);
+
+    assert!(test_result.is_err());
+    assert!(test_result.unwrap_err() == RecipeError::ManyErrors(vec![RecipeError::UnexpectedResponse, RecipeError::UnexpectedResponse, RecipeError::UnexpectedResponse, RecipeError::UnexpectedResponse]));
+}
