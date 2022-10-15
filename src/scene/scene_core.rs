@@ -100,10 +100,21 @@ impl SceneCore {
         // The entity must not already exist
         if self.entities.contains_key(&entity_id) { return Err(CreateEntityError::AlreadyExists); }
 
-        // Create the channel and the eneity
+        // Create a future that informs the scene context when the entity is ready
+        let (ready, waiting)    = oneshot::channel();
+        let ready_context       = Arc::clone(&scene_context);
+        let signal_when_ready   = async move {
+            // Wait for the channel to become ready (or to timeout)
+            waiting.await.ok();
+
+            // Tell the scene context that the entity is ready
+            ready_context.ready_entity(entity_id);
+        };
+
+        // Create the channel and the entity
         let entity_future       = BackgroundFuture::new(Arc::clone(&scene_context));
         let (channel, receiver) = SimpleEntityChannel::new(entity_id, 5);
-        let receiver            = EntityReceiver::new(receiver, &self.active_entity_count);
+        let receiver            = EntityReceiver::new(receiver, &self.active_entity_count, Some(ready));
         let entity              = EntityCore::new(channel.clone());
         let queue               = entity.queue();
 
@@ -112,6 +123,9 @@ impl SceneCore {
 
         // Start the future running
         let future              = async move {
+            // Signal when the entity is ready
+            scene_context.run_in_background(signal_when_ready).ok();
+
             // Tell the entity registry about the entity that was just created
             if entity_id != ENTITY_REGISTRY {
                 // We usually don't let the entity start until it's definitely associated with the registry
@@ -217,6 +231,16 @@ impl SceneCore {
             Ok(())
         } else {
             Err(EntityFutureError::NoSuchEntity)
+        }
+    }
+
+    ///
+    /// Signals that an entity is ready
+    ///
+    pub (crate) fn ready_entity(&mut self, entity_id: EntityId) {
+        if let Some(entity) = self.entities.get_mut(&entity_id) {
+            // Signal that the entity is ready
+            entity.signal_ready();
         }
     }
 

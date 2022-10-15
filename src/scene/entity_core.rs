@@ -3,6 +3,8 @@ use crate::simple_entity_channel::*;
 
 use ::desync::scheduler::*;
 
+use futures::channel::oneshot;
+
 use std::sync::*;
 use std::any::{Any, TypeId, type_name};
 
@@ -18,6 +20,9 @@ pub (crate) struct EntityCore {
 
     /// Given the channel for this entity, causes it to close
     close_channel: Box<dyn Send + Fn(&mut Box<dyn Send + Any>) -> ()>,
+
+    /// Everything to signal when this entity becomes ready to accept messages (None if the entity is already ready)
+    when_ready: Option<Vec<oneshot::Sender<()>>>,
 
     /// The queue used for running the entity (this runs the entities main future)
     queue: Arc<JobQueue>,
@@ -49,6 +54,7 @@ impl EntityCore {
             create_conversion_channel:  Box::new(create_conversion_channel),
             channel:                    Box::new(channel),
             close_channel:              Box::new(close_channel),
+            when_ready:                 Some(vec![]),
             queue:                      scheduler().create_job_queue(),
             message_type_id:            TypeId::of::<TMessage>(),
             message_type_name:          type_name::<TMessage>(),
@@ -108,6 +114,17 @@ impl EntityCore {
     ///
     pub fn attach_channel_any(&self) -> AnyEntityChannel {
         (self.create_conversion_channel)()
+    }
+
+    ///
+    /// Signals that this entity core is ready (waiting to accept messages)
+    ///
+    pub fn signal_ready(&mut self) {
+        if let Some(when_ready) = self.when_ready.take() {
+            for signal_ready in when_ready.into_iter() {
+                signal_ready.send(()).ok();
+            }
+        }
     }
 
     ///

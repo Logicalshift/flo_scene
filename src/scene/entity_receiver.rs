@@ -33,13 +33,13 @@ where
     TStream:    Unpin + Stream
 {
     /// Creates a new entity receiver
-    pub fn new(stream: TStream, active_entity_count: &Arc<AtomicIsize>) -> EntityReceiver<TStream> {
+    pub fn new(stream: TStream, active_entity_count: &Arc<AtomicIsize>, ready_signal: Option<oneshot::Sender<()>>) -> EntityReceiver<TStream> {
         // The stream starts awake
         active_entity_count.fetch_add(1, Ordering::Relaxed);
 
         EntityReceiver {
             stream:         stream,
-            ready_signal:   None,
+            ready_signal:   ready_signal,
             state:          Arc::new(Mutex::new(EntityReceiverState {
                 activation_count:       1,
                 active_entity_count:    Arc::clone(active_entity_count),

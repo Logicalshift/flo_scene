@@ -394,6 +394,15 @@ impl SceneContext {
     }
 
     ///
+    /// Called when an entity in this context is awaiting its first message
+    ///
+    pub (crate) fn ready_entity(&self, entity_id: EntityId) {
+        if let Ok(scene_core) = self.scene_core() {
+            scene_core.desync(move |core| core.ready_entity(entity_id));
+        }
+    }
+
+    ///
     /// Called when an entity in this context has finished
     ///
     pub (crate) fn finish_entity<TMessage>(&self, entity_id: EntityId)
