@@ -8,6 +8,54 @@ use futures::future::{BoxFuture};
 use futures::channel::oneshot;
 
 use std::thread;
+use std::cell::{RefCell};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::panic;
+
+thread_local! {
+    ///
+    /// The last panic message captured by the hook
+    ///
+    static LAST_PANIC_MESSAGE: RefCell<Option<String>> = RefCell::new(None);
+}
+
+///
+/// Set to true once we've installed a panic hook
+///
+static PANIC_HOOK_INSTALLED: AtomicBool = AtomicBool::new(false);
+
+///
+/// Installs the panic hook if it's not already installed (to retain a copy of the last panic message to return to callers)
+///
+fn install_panic_hook() {
+    if !PANIC_HOOK_INSTALLED.swap(true, Ordering::Acquire) {
+        // Run the old behaviour after the new behaviour
+        let old_hook = panic::take_hook();
+
+        // Set a new panic hook to set the LAST_PANIC_MESSAGE
+        panic::set_hook(Box::new(move |info| {
+            LAST_PANIC_MESSAGE.try_with(|last_panic_message| {
+                let last_panic_message = last_panic_message.try_borrow_mut();
+
+                if let Ok(mut last_panic_message) = last_panic_message {
+                    // Retrieve the payload as a string, if possible, and store in the last panic message
+                    let payload = info.payload();
+
+                    if let Some(str_value) = payload.downcast_ref::<&str>() {
+                        *last_panic_message = Some(str_value.to_string());
+                    } else if let Some(string_value) = payload.downcast_ref::<String>() {
+                        *last_panic_message = Some(string_value.clone());
+                    } else {
+                        // There is a message but we don't know how to convert it to string
+                        *last_panic_message = None;
+                    }
+                }
+            }).ok();
+
+            old_hook(info);
+        }));
+    }
+}
 
 ///
 /// Entity channel that sends a message on a stream if it is dropped by a panicking thread
@@ -35,7 +83,10 @@ where
     /// Creates a new panic entity channel. The supplied stream is modified to receive the panic message, should it occur
     ///
     pub fn new(source_channel: TChannel, stream: impl 'static + Send + Stream<Item=TChannel::Message>, panic_message: impl 'static + Send + FnOnce(String) -> TChannel::Message) -> (PanicEntityChannel<TChannel>, impl 'static + Send + Stream<Item=TChannel::Message>) {
-        // Create a oneshot receiver for the panic message, and 
+        // Ensure that this panic hook is installed (so that LAST_PANIC_MESSAGE is updated)
+        install_panic_hook();
+
+        // Create a oneshot receiver for the panic message
         let (sender, receiver)  = oneshot::channel();
         let receiver            = receiver.map(|maybe_result| {
             match maybe_result {
@@ -87,7 +138,10 @@ where
     fn drop(&mut self) {
         if thread::panicking() {
             if let (Some(send_panic), Some(panic_message)) = (self.send_panic.take(), self.panic_message.take()) {
-                send_panic.send(panic_message("Message capture not implemented yet".to_string())).ok();
+                let last_panic_string = LAST_PANIC_MESSAGE.try_with(|msg| msg.borrow_mut().take()).unwrap_or(None);
+                let last_panic_string = last_panic_string.unwrap_or_else(|| "<NO PANIC MESSAGE AVAILABLE>".to_string());
+
+                send_panic.send(panic_message(last_panic_string)).ok();
             }
         }
     }
