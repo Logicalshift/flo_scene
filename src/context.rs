@@ -7,6 +7,8 @@ use crate::simple_entity_channel::*;
 
 use ::desync::*;
 use futures::prelude::*;
+use futures::future;
+use futures::task::{Poll};
 use futures::stream::{BoxStream};
 
 use std::mem;
@@ -81,6 +83,23 @@ struct DropContext {
 /// SceneContext::with_context(&new_context, || {
 ///     // SceneContext::current() == new_context   
 /// }).unwrap();
+/// ```
+///
+/// Replace the context for a future with another context:
+///
+/// ```
+/// # use flo_scene::*;
+/// # use futures::executor;
+/// # let scene = Scene::default();
+/// # let new_context = scene.context();
+/// # executor::block_on(async move {
+/// SceneContext::with_context_async(&new_context, async {
+///     SceneContext::current().send_to(EXAMPLE).unwrap()
+///         .send(ExampleRequest::Example)
+///         .await
+///         .unwrap();
+/// }).await.unwrap();
+/// # });
 /// ```
 ///
 pub struct SceneContext {
@@ -181,6 +200,51 @@ impl SceneContext {
         mem::drop(last_context);
 
         Ok(result)
+    }
+
+    ///
+    /// Evaluates a future within a particular scene context
+    ///
+    /// This is typically done automatically when running the runtimes for entities, but this can be used if if's ever necessary to
+    /// artificially change contexts (eg: if an entity spawns its own thread, or in an independent runtime)
+    ///
+    #[inline]
+    pub fn with_context_async<'a, TFuture>(new_context: &Arc<SceneContext>, future: TFuture) -> impl 'a + Send + Future<Output=Result<TFuture::Output, SceneContextError>>
+    where
+        TFuture: 'a + Future + Send
+    {
+        let new_context = Arc::clone(new_context);
+        let mut future  = future.boxed();
+
+        async move {
+            let result = future::poll_fn(move |context| {
+                // When the function returns, reset the context
+                let previous_context = match CURRENT_CONTEXT.try_with(|ctxt| ctxt.borrow().clone()) {
+                    Ok(context) => context,
+                    Err(err)    => { return Poll::Ready(Err(err.into())); }
+                };
+                let last_context = DropContext { previous_context };
+
+                // Set the updated context
+                match CURRENT_CONTEXT.try_with(|ctxt| { *(ctxt.borrow_mut()) = Some(Arc::clone(&new_context)); }) {
+                    Ok(())      => { },
+                    Err(err)    => { return Poll::Ready(Err(err.into())); }
+                }
+
+                // Call the function with the new context
+                let poll_result = future.poll_unpin(context);
+
+                // Restore the context
+                mem::drop(last_context);
+
+                match poll_result {
+                    Poll::Ready(val)    => Poll::Ready(Ok(val)),
+                    Poll::Pending       => Poll::Pending
+                }
+            }).await;
+
+            result
+        }
     }
 
     ///
