@@ -65,6 +65,24 @@ struct DropContext {
 /// }).unwrap();
 /// ```
 ///
+/// Add automatic conversions between entity message types:
+///
+/// ```
+/// # use flo_scene::*;
+/// # let scene = Scene::default();
+/// # let context = scene.context();
+/// enum MyRequest { SomeRequest };
+///
+/// assert!(context.send_to::<MyRequest>(EXAMPLE).is_err());
+/// 
+/// impl Into<ExampleRequest> for MyRequest {
+///     fn into(self) -> ExampleRequest { ExampleRequest::Example }
+/// }
+///
+/// context.convert_message::<MyRequest, ExampleRequest>().unwrap();
+/// let channel = context.send_to::<MyRequest>(EXAMPLE).unwrap();
+/// ``` 
+///
 /// Run a background process in an entity:
 ///
 /// ```
