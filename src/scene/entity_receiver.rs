@@ -1,6 +1,7 @@
 use crate::context::*;
 
 use futures::prelude::*;
+use futures::channel::oneshot;
 use futures::task;
 use futures::task::{Poll, Context, Waker, ArcWake};
 
@@ -12,8 +13,9 @@ use std::sync::atomic::*;
 /// Stream that keeps track of the total number of active entities for a scene
 ///
 pub struct EntityReceiver<TStream> {
-    stream:                 TStream,
-    state:                  Arc<Mutex<EntityReceiverState>>,
+    stream:         TStream,
+    state:          Arc<Mutex<EntityReceiverState>>,
+    ready_signal:   Option<oneshot::Sender<()>>,
 }
 
 struct EntityReceiverState {
@@ -36,8 +38,9 @@ where
         active_entity_count.fetch_add(1, Ordering::Relaxed);
 
         EntityReceiver {
-            stream: stream,
-            state:  Arc::new(Mutex::new(EntityReceiverState {
+            stream:         stream,
+            ready_signal:   None,
+            state:          Arc::new(Mutex::new(EntityReceiverState {
                 activation_count:       1,
                 active_entity_count:    Arc::clone(active_entity_count),
                 future_waker:           None,
@@ -61,6 +64,13 @@ where
     type Item = TStream::Item;
 
     fn poll_next(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Option<Self::Item>> {
+        // As soon as this stream is polled for the first time, signal readiness
+        if self.ready_signal.is_some() {
+            if let Some(signal) = self.ready_signal.take() {
+                signal.send(()).ok();
+            }
+        }
+
         // Create a new context and load it into the state. Retrieve the number of activations that occurred before the state was created
         let initial_activation_count = {
             // We read the initial activation count before polling in case we're woken up before this function returns
@@ -88,7 +98,7 @@ where
                 };
 
                 if send_heartbeat {
-                    // Generate a heartbeat
+                    // Generate a heartbeat once there are no more messages waiting
                     SceneContext::current().send_heartbeat();
                 }
 
