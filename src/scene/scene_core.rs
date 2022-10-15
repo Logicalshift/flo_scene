@@ -153,8 +153,8 @@ impl SceneCore {
     ///
     pub (crate) fn convert_message<TOriginalMessage, TNewMessage>(&mut self)
     where
-        TOriginalMessage:   'static + Send,
-        TNewMessage:        'static + Send + From<TOriginalMessage>,
+        TOriginalMessage:   'static + Send + Into<TNewMessage>,
+        TNewMessage:        'static + Send,
     {
         // Create a converter from TOriginalMessage to TNewMessage
         let converter       = MapFromEntityType::new::<TOriginalMessage, TNewMessage>();

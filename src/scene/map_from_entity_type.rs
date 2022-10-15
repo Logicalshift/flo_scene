@@ -15,11 +15,14 @@ impl MapFromEntityType {
     ///
     pub fn new<TSource, TTarget>() -> MapFromEntityType 
     where
-        TSource: 'static + Send,
-        TTarget: 'static + Send + From<TSource>,
+        TSource: 'static + Send + Into<TTarget>,
+        TTarget: 'static + Send,
     {
         // Box a function to convert from source to target
-        let map_fn: Arc<dyn Sync + Send + Fn(TSource) -> Box<dyn Send + Any>> = Arc::new(|src: TSource| Box::new(Some(TTarget::from(src))));
+        let map_fn: Arc<dyn Sync + Send + Fn(TSource) -> Box<dyn Send + Any>> = Arc::new(|src: TSource| {
+            let tgt: TTarget = src.into();
+            Box::new(Some(tgt))
+        });
 
         // Box again to create the 'any' version of the function
         MapFromEntityType {

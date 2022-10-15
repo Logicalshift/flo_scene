@@ -285,8 +285,8 @@ impl SceneContext {
     ///
     pub fn convert_message<TOriginalMessage, TNewMessage>(&self) -> Result<(), SceneContextError> 
     where
-        TOriginalMessage:   'static + Send,
-        TNewMessage:        'static + Send + From<TOriginalMessage>,
+        TOriginalMessage:   'static + Send + Into<TNewMessage>,
+        TNewMessage:        'static + Send,
     {
         self.scene_core()?.sync(move |core| {
             // Register that one type can be converted to another
