@@ -65,6 +65,29 @@ struct DropContext {
 /// }).unwrap();
 /// ```
 ///
+/// Run a background process in an entity:
+///
+/// ```
+/// # use flo_scene::*;
+/// # use futures::prelude::*;
+/// # use futures::future;
+/// # let scene = Scene::empty();
+/// # let scene_context = scene.context();
+/// scene_context.create_entity(EXAMPLE, move |entity_context, mut requests| {
+///     async move {
+///         entity_context.run_in_background(async {
+///             future::pending::<()>().await;
+///         }).unwrap();
+///
+///         while let Some(request) = requests.next().await {
+///             match request {
+///                 ExampleRequest::Example => { println!("Example!"); }
+///             }
+///         }
+///     }
+/// }).unwrap();
+/// ```
+///
 /// Shut down a running entity:
 ///
 /// ```
