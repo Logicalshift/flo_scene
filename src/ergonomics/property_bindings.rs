@@ -122,6 +122,9 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
         let reference   = PropertyReference::new(entity_id, property_name);
 
         async move {
+            // Entity must be started before this binding can complete (TODO: actually only necessary if wait_for_binding fails the first time)
+            context.wait_for_entity_to_start(entity_id).await;
+
             // Retrieve the properties channel
             let mut channel = properties_channel::<TValue>(PROPERTIES, &context).await?;
 
@@ -199,6 +202,9 @@ impl SceneContextPropertiesExt for Arc<SceneContext> {
         let reference   = PropertyReference::new(entity_id, property_name);
 
         async move {
+            // Entity must be started before this binding can complete (TODO: actually only necessary if wait_for_binding fails the first time)
+            context.wait_for_entity_to_start(entity_id).await;
+
             // Retrieve the properties channel
             let mut channel = rope_properties_channel::<TCell, TAttribute>(PROPERTIES, &context).await?;
 
