@@ -17,7 +17,7 @@ use std::any::{TypeId};
 use std::cell::{RefCell};
 
 thread_local! {
-    pub static CURRENT_CONTEXT: RefCell<Option<Arc<SceneContext>>> = RefCell::new(None);
+    static CURRENT_CONTEXT: RefCell<Option<Arc<SceneContext>>> = RefCell::new(None);
 }
 
 ///
