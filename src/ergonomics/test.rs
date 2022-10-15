@@ -22,7 +22,7 @@ pub enum SceneTestResult {
     Timeout,
     SceneStopped,
     ChannelError(EntityChannelError),
-    Panicked(String),
+    Panicked(String, Option<String>),
     Ok,
 }
 

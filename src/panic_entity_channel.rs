@@ -17,6 +17,11 @@ thread_local! {
     /// The last panic message captured by the hook
     ///
     static LAST_PANIC_MESSAGE: RefCell<Option<String>> = RefCell::new(None);
+
+    ///
+    /// The last panic location captured by the hook
+    ///
+    static LAST_PANIC_LOCATION: RefCell<Option<String>> = RefCell::new(None);
 }
 
 ///
@@ -52,6 +57,16 @@ fn install_panic_hook() {
                 }
             }).ok();
 
+            LAST_PANIC_LOCATION.try_with(|last_panic_location| {
+                if let Ok(mut last_panic_location) = last_panic_location.try_borrow_mut() {
+                    if let Some(location) = info.location() {
+                        *last_panic_location = Some(format!("{}: {}:{}", location.file(), location.line(), location.column()));
+                    } else {
+                        *last_panic_location = None;
+                    }
+                }
+            }).ok();
+
             old_hook(info);
         }));
     }
@@ -71,7 +86,7 @@ where
     send_panic: Option<oneshot::Sender<TChannel::Message>>,
 
     /// The message to send when the channel panics (if it has not been sent yet)
-    panic_message: Option<Box<dyn Send + FnOnce(String) -> TChannel::Message>>,
+    panic_message: Option<Box<dyn Send + FnOnce(String, Option<String>) -> TChannel::Message>>,
 }
 
 impl<TChannel> PanicEntityChannel<TChannel> 
@@ -82,7 +97,7 @@ where
     ///
     /// Creates a new panic entity channel. The supplied stream is modified to receive the panic message, should it occur
     ///
-    pub fn new(source_channel: TChannel, stream: impl 'static + Send + Stream<Item=TChannel::Message>, panic_message: impl 'static + Send + FnOnce(String) -> TChannel::Message) -> (PanicEntityChannel<TChannel>, impl 'static + Send + Stream<Item=TChannel::Message>) {
+    pub fn new(source_channel: TChannel, stream: impl 'static + Send + Stream<Item=TChannel::Message>, panic_message: impl 'static + Send + FnOnce(String, Option<String>) -> TChannel::Message) -> (PanicEntityChannel<TChannel>, impl 'static + Send + Stream<Item=TChannel::Message>) {
         // Ensure that this panic hook is installed (so that LAST_PANIC_MESSAGE is updated)
         install_panic_hook();
 
@@ -138,10 +153,11 @@ where
     fn drop(&mut self) {
         if thread::panicking() {
             if let (Some(send_panic), Some(panic_message)) = (self.send_panic.take(), self.panic_message.take()) {
-                let last_panic_string = LAST_PANIC_MESSAGE.try_with(|msg| msg.borrow_mut().take()).unwrap_or(None);
-                let last_panic_string = last_panic_string.unwrap_or_else(|| "<NO PANIC MESSAGE AVAILABLE>".to_string());
+                let last_panic_location = LAST_PANIC_LOCATION.try_with(|loc| loc.borrow_mut().take()).unwrap_or(None);
+                let last_panic_string   = LAST_PANIC_MESSAGE.try_with(|msg| msg.borrow_mut().take()).unwrap_or(None);
+                let last_panic_string   = last_panic_string.unwrap_or_else(|| "<NO PANIC MESSAGE AVAILABLE>".to_string());
 
-                send_panic.send(panic_message(last_panic_string)).ok();
+                send_panic.send(panic_message(last_panic_string, last_panic_location)).ok();
             }
         }
     }
