@@ -300,3 +300,45 @@ fn race_follow_string_property() {
         println!("*** FOLLOW_STRING_PROPERTY FINISH ITER {}", i);
     }
 }
+
+#[test]
+#[cfg(feature="properties")]
+fn race_entities_property() {
+    for i in 1..1000 {
+        println!("*** ENTITIES_PROPERTY ITER {}", i);
+
+        let scene = Scene::default();
+
+        let sample_entity = EntityId::new();
+        scene.create_entity(sample_entity, |_ctxt, mut messages| async move {
+            while let Some(msg) = messages.next().await {
+                let _msg: () = msg;
+            }
+        }).unwrap();
+
+        scene.create_entity(TEST_ENTITY, move |_context, mut msg| async move {
+            while let Some(msg) = msg.next().await {
+                let SceneTestRequest(mut msg) = msg;
+
+                let entities            = rope_bind::<EntityId, ()>(PROPERTIES, "Entities").await.unwrap();
+                let mut entity_stream   = entities.follow_changes();
+
+                loop {
+                    // Check for the test entity in the list (test fails if it's never found/this times out)
+                    if entities.read_cells(0..entities.len()).any(|entity_id| entity_id == sample_entity) {
+                        break;
+                    }
+
+                    // Wait for the entities to update
+                    entity_stream.next().await;
+                }
+
+                msg.send(SceneTestResult::Ok).await.ok();
+            }
+        }).unwrap();
+
+        test_scene(scene);
+
+        println!("*** ENTITIES_PROPERTY FINISH ITER {}", i);
+    }
+}
