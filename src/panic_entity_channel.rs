@@ -23,7 +23,7 @@ where
     send_panic: Option<oneshot::Sender<TChannel::Message>>,
 
     /// The message to send when the channel panics (if it has not been sent yet)
-    panic_message: Option<TChannel::Message>,
+    panic_message: Option<Box<dyn Send + FnOnce(String) -> TChannel::Message>>,
 }
 
 impl<TChannel> PanicEntityChannel<TChannel> 
@@ -34,7 +34,7 @@ where
     ///
     /// Creates a new panic entity channel. The supplied stream is modified to receive the panic message, should it occur
     ///
-    pub fn new(source_channel: TChannel, stream: impl 'static + Send + Stream<Item=TChannel::Message>, panic_message: TChannel::Message) -> (PanicEntityChannel<TChannel>, impl 'static + Send + Stream<Item=TChannel::Message>) {
+    pub fn new(source_channel: TChannel, stream: impl 'static + Send + Stream<Item=TChannel::Message>, panic_message: impl 'static + Send + FnOnce(String) -> TChannel::Message) -> (PanicEntityChannel<TChannel>, impl 'static + Send + Stream<Item=TChannel::Message>) {
         // Create a oneshot receiver for the panic message, and 
         let (sender, receiver)  = oneshot::channel();
         let receiver            = receiver.map(|maybe_result| {
@@ -51,7 +51,7 @@ where
         let entity_channel = PanicEntityChannel {
             channel:        source_channel,
             send_panic:     Some(sender),
-            panic_message:  Some(panic_message),
+            panic_message:  Some(Box::new(panic_message)),
         };
 
         (entity_channel, stream)
@@ -87,7 +87,7 @@ where
     fn drop(&mut self) {
         if thread::panicking() {
             if let (Some(send_panic), Some(panic_message)) = (self.send_panic.take(), self.panic_message.take()) {
-                send_panic.send(panic_message).ok();
+                send_panic.send(panic_message("Message capture not implemented yet".to_string())).ok();
             }
         }
     }
