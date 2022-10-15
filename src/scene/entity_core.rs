@@ -120,7 +120,7 @@ impl EntityCore {
     ///
     /// Signals that this entity core is ready (waiting to accept messages)
     ///
-    pub fn signal_ready(&mut self) {
+    pub fn signal_start(&mut self) {
         if let Some(when_ready) = self.when_ready.take() {
             for signal_ready in when_ready.into_iter() {
                 signal_ready.send(()).ok();
@@ -131,7 +131,7 @@ impl EntityCore {
     ///
     /// Returns a future that completes when this entity is ready (or is destroyed)
     ///
-    pub fn wait_for_ready(&mut self) -> impl Send + Future<Output=()> {
+    pub fn wait_for_start(&mut self) -> impl Send + Future<Output=()> {
         let wait_for_ready = if let Some(when_ready) = &mut self.when_ready {
             // Create a channel to signal once this entity becomes ready
             let (sender, receiver) = oneshot::channel();

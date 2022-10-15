@@ -108,7 +108,7 @@ impl SceneCore {
             waiting.await.ok();
 
             // Tell the scene context that the entity is ready
-            ready_context.ready_entity(entity_id);
+            ready_context.entity_has_started(entity_id);
         };
 
         // Create the channel and the entity
@@ -237,10 +237,29 @@ impl SceneCore {
     ///
     /// Signals that an entity is ready
     ///
-    pub (crate) fn ready_entity(&mut self, entity_id: EntityId) {
+    pub (crate) fn entity_has_started(&mut self, entity_id: EntityId) {
         if let Some(entity) = self.entities.get_mut(&entity_id) {
             // Signal that the entity is ready
-            entity.signal_ready();
+            entity.signal_start();
+        }
+    }
+
+    ///
+    /// Returns a future that will complete once the specified entity is ready
+    ///
+    pub (crate) fn wait_for_entity_to_start(&mut self, entity_id: EntityId) -> impl Send + Future<Output=()> {
+        // Attach to the list of futures waiting for a particular entity to start (provided that the entity actually exists at the time of this call)
+        let when_ready = if let Some(entity) = self.entities.get_mut(&entity_id) {
+            Some(entity.wait_for_start())
+        } else {
+            None
+        };
+
+        // Create a new future that waits for the entity
+        async move {
+            if let Some(when_ready) = when_ready {
+                when_ready.await;
+            }
         }
     }
 

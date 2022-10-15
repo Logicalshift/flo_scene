@@ -394,11 +394,27 @@ impl SceneContext {
     }
 
     ///
+    /// Returns a future that indicates when the entity has started up (is awaiting its first message)
+    ///
+    /// Normally this isn't necessary but sometimes (for example when retrieving a property), it can be useful to wait for
+    /// an entity to finish initializing before requesting information about it.
+    ///
+    pub fn wait_for_entity_to_start(&self, entity_id: EntityId) -> impl Send + Future<Output=()> {
+        let scene_core = self.scene_core();
+
+        async move {
+            if let Ok(scene_core) = scene_core {
+                scene_core.sync(|core| core.wait_for_entity_to_start(entity_id)).await;
+            }
+        }
+    }
+
+    ///
     /// Called when an entity in this context is awaiting its first message
     ///
-    pub (crate) fn ready_entity(&self, entity_id: EntityId) {
+    pub (crate) fn entity_has_started(&self, entity_id: EntityId) {
         if let Ok(scene_core) = self.scene_core() {
-            scene_core.desync(move |core| core.ready_entity(entity_id));
+            scene_core.desync(move |core| core.entity_has_started(entity_id));
         }
     }
 
