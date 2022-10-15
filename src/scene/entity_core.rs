@@ -3,6 +3,7 @@ use crate::simple_entity_channel::*;
 
 use ::desync::scheduler::*;
 
+use futures::prelude::*;
 use futures::channel::oneshot;
 
 use std::sync::*;
@@ -123,6 +124,32 @@ impl EntityCore {
         if let Some(when_ready) = self.when_ready.take() {
             for signal_ready in when_ready.into_iter() {
                 signal_ready.send(()).ok();
+            }
+        }
+    }
+
+    ///
+    /// Returns a future that completes when this entity is ready (or is destroyed)
+    ///
+    pub fn wait_for_ready(&mut self) -> impl Send + Future<Output=()> {
+        let wait_for_ready = if let Some(when_ready) = &mut self.when_ready {
+            // Create a channel to signal once this entity becomes ready
+            let (sender, receiver) = oneshot::channel();
+
+            // Add it to the list of things to signal when signal_ready() is called
+            when_ready.push(sender);
+
+            Some(receiver)
+        } else {
+            // The entity is already ready
+            None
+        };
+
+        // Result is a future that waits for readiness
+        async move {
+            if let Some(wait_for_ready) = wait_for_ready {
+                // Entity was not ready yet: wait for it to signal that it's active
+                wait_for_ready.await.ok();
             }
         }
     }
