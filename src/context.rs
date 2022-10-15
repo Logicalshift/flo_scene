@@ -26,7 +26,62 @@ struct DropContext {
 }
 
 ///
-/// The context allows for communication with the current scene
+/// The scene context allows for communication with a scene, either while it's being set up or while it's running.
+///
+/// Retrieve the context for the currently running thread (set automatically by the running scene):
+///
+/// ```
+/// # use flo_scene::*;
+/// let context = SceneContext::current();
+/// ```
+///
+/// Send messages to an entity within a context:
+///
+/// ```
+/// # use flo_scene::*;
+/// # let scene = Scene::default();
+/// # let context = scene.context();
+/// let mut channel = context.send_to::<ExampleRequest>(EXAMPLE).unwrap();
+/// // channel.send_immediate(ExampleRequest::Example); (TODO: synchronous messages)
+/// ```
+///
+/// Create a new entity to run in the scene:
+///
+/// ```
+/// # use flo_scene::*;
+/// # use futures::prelude::*;
+/// # let scene = Scene::empty();
+/// # let context = scene.context();
+/// context.create_entity(EXAMPLE, move |_context, mut requests| {
+///     async move {
+///         while let Some(request) = requests.next().await {
+///             match request {
+///                 ExampleRequest::Example => { println!("Example!"); }
+///             }
+///         }
+///     }
+/// }).unwrap();
+/// ```
+///
+/// Shut down a running entity:
+///
+/// ```
+/// # use flo_scene::*;
+/// # let scene = Scene::default();
+/// # let context = scene.context();
+/// context.close_entity(EXAMPLE).unwrap();
+/// ```
+///
+/// Replace the context for the current thread with another context:
+///
+/// ```
+/// # use flo_scene::*;
+/// # let scene = Scene::default();
+/// # let new_context = scene.context();
+/// SceneContext::with_context(&new_context, || {
+///     // SceneContext::current() == new_context   
+/// }).unwrap();
+/// ```
 ///
 pub struct SceneContext {
     /// The entity that's executing code on the current thread, or none for things like default actions

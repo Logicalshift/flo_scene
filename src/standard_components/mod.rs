@@ -10,6 +10,7 @@
 // TODO: named pipe entity (+ entity to introduce the contents of a named pipe as entities)
 
 mod entity_ids;
+mod example;
 mod entity_registry;
 mod heartbeat;
 mod scene_control;
@@ -21,6 +22,7 @@ mod logging;
 #[cfg(feature="properties")] mod floating_binding;
 
 pub use self::entity_ids::*;
+pub use self::example::*;
 pub use self::entity_registry::*;
 pub use self::heartbeat::*;
 pub use self::scene_control::*;

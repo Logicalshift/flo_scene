@@ -5,7 +5,12 @@ use uuid::*;
 ///
 /// Entity created to run unit tests
 ///
-pub const TEST_ENTITY: EntityId = EntityId::well_known(uuid!["5B93BD5F-39F5-4B57-ABE9-DF593F331E86"]);
+pub const TEST_ENTITY: EntityId     = EntityId::well_known(uuid!["5B93BD5F-39F5-4B57-ABE9-DF593F331E86"]);
+
+///
+/// Entity used for illustrative examples
+///
+pub const EXAMPLE: EntityId  = EntityId::well_known(uuid!["078D0DCA-972A-40AC-AC79-F50EA16C1837"]);
 
 ///
 /// UUID of the entity registry entity.
