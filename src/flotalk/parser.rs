@@ -27,9 +27,29 @@ pub struct ParserResult<TResult> {
     pub matched: Arc<String>,
 }
 
+impl<TStream> PushBackStream<TStream>
+where
+    TStream: Unpin + Send + Stream<Item=char>
+{
+    ///
+    /// Matches and returns the next expression on this stream
+    ///
+    async fn match_expression(&mut self) -> Option<Result<ParserResult<TalkExpression>, ParserResult<TalkParseError>>> {
+        None
+    }
+}
+
 ///
 /// Parses a flotalk expression stream
 ///
 pub fn parse_flotalk_expression<'a>(input_stream: impl 'a + Unpin + Send + Stream<Item=char>) -> impl 'a + Send + Stream<Item=Result<ParserResult<TalkExpression>, ParserResult<TalkParseError>>> {
-    stream::empty()
+    let input_stream = PushBackStream::new(input_stream);
+
+    generator_stream(move |yield_value| async move {
+        let mut input_stream = input_stream;
+
+        while let Some(expression) = input_stream.match_expression().await {
+            yield_value(expression).await;
+        }
+    })
 }
