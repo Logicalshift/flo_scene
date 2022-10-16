@@ -32,6 +32,27 @@ impl Default for TalkLocation {
 
 impl TalkLocation {
     ///
+    /// Creates a location representing the range from this location to another one
+    ///
+    pub fn to(self, other_location: TalkLocation) -> TalkLocation {
+        if self.offset <= other_location.offset {
+            TalkLocation {
+                offset:     self.offset,
+                length:     other_location.offset - self.offset,
+                line:       self.line,
+                column:     self.column
+            }
+        } else {
+            TalkLocation {
+                offset:     other_location.offset,
+                length:     self.offset - other_location.offset,
+                line:       other_location.line,
+                column:     other_location.column
+            }
+        }
+    }
+
+    ///
     /// Updates a location after receiving a character
     ///
     pub fn after_character(mut self, c: char) -> Self {
