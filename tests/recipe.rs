@@ -293,7 +293,7 @@ pub fn fail_recipe() {
 
     let context = scene.context();
     let result  = async move {
-        failing_recipe.run_with_timeout(context, Duration::from_secs(10)).await
+        failing_recipe.run_with_timeout(&context, Duration::from_secs(10)).await
     }.boxed_local();
 
     // Run the scene alongside the recipe
@@ -326,7 +326,7 @@ pub fn fail_recipe_short() {
 
     let context = scene.context();
     let result  = async move {
-        failing_recipe.run_with_timeout(context, Duration::from_secs(10)).await
+        failing_recipe.run_with_timeout(&context, Duration::from_secs(10)).await
     }.boxed_local();
 
     // Run the scene alongside the recipe
@@ -363,7 +363,7 @@ pub fn fail_wait_for() {
 
     let context = scene.context();
     let result  = async move {
-        failing_recipe.run_with_timeout(context, Duration::from_secs(10)).await
+        failing_recipe.run_with_timeout(&context, Duration::from_secs(10)).await
     }.boxed_local();
 
     // Run the scene alongside the recipe
@@ -399,7 +399,7 @@ pub fn fail_wait_for_unordered() {
 
     let context = scene.context();
     let result  = async move {
-        failing_recipe.run_with_timeout(context, Duration::from_secs(10)).await
+        failing_recipe.run_with_timeout(&context, Duration::from_secs(10)).await
     }.boxed_local();
 
     // Run the scene alongside the recipe
@@ -452,7 +452,7 @@ pub fn four_fails() {
 
     let context = scene.context();
     let result  = async move {
-        failing_recipe.run_with_timeout(context, Duration::from_secs(10)).await
+        failing_recipe.run_with_timeout(&context, Duration::from_secs(10)).await
     }.boxed_local();
 
     // Run the scene alongside the recipe

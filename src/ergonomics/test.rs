@@ -80,7 +80,7 @@ pub fn test_scene_with_recipe(scene: Scene, recipe: Recipe) {
     // Fetch the context and create a future to run the recipe
     let context = scene.context();
     let result  = async move {
-        recipe.run_with_timeout(context, Duration::from_secs(10)).await
+        recipe.run_with_timeout(&context, Duration::from_secs(10)).await
     }.boxed_local();
 
     // Run the scene alongside the recipe
