@@ -37,6 +37,7 @@ use std::collections::{HashSet};
 /// # thread::spawn(move || executor::block_on(scene.run()));
 /// let recipe = Recipe::new()
 ///     .send_generated_messages(EXAMPLE, || vec![ExampleRequest::Example]);
+///
 /// executor::block_on(async { recipe.run(&scene_context).await.unwrap(); });
 /// ```
 ///
@@ -53,6 +54,7 @@ use std::collections::{HashSet};
 ///     .expect(vec![Heartbeat])
 ///     .after_sending_messages(HEARTBEAT, |heartbeat_channel| vec![HeartbeatRequest::RequestHeartbeat(heartbeat_channel)])
 ///     .alongside_generated_messages(EXAMPLE, || vec![ExampleRequest::Example]);
+///
 /// executor::block_on(async { recipe.run(&scene_context).await.unwrap(); });
 /// ```
 ///
