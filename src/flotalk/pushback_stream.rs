@@ -1,7 +1,6 @@
 use super::location::*;
 
 use futures::prelude::*;
-use futures::stream;
 use futures::task::{Poll, Context};
 
 use std::pin::*;
