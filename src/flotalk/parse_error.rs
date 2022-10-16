@@ -5,4 +5,7 @@
 pub enum TalkParseError {
     /// A fallback error for when we don't have a specific cause of the issue
     GenericError,
+
+    /// A '"' comment had no closing '"'
+    UnclosedDoubleQuoteComment,
 }
