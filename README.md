@@ -9,18 +9,12 @@ as entities that communicate by exchanging messages.
 Create the default scene (which is set up to have the standard set of components):
 
 ```Rust
-# use flo_scene::*;
 let scene = Scene::default();
 ```
 
 Run all of the components in a scene:
 
 ```Rust
-# use flo_scene::*;
-# let scene = Scene::default();
-# scene.create_entity::<(), _, _>(EntityId::new(), |context, _| async move {
-#   context.send_to(SCENE_CONTROL).unwrap().send(SceneControlRequest::StopScene).await.unwrap();
-# }).unwrap();
 use futures::executor;
 executor::block_on(async move { scene.run().await });
 ```
@@ -28,9 +22,6 @@ executor::block_on(async move { scene.run().await });
 Create a new entity in a scene:
 
 ```Rust
-# use flo_scene::*;
-# use futures::prelude::*;
-# let scene = Scene::empty();
 let context = scene.context();
 
 context.create_entity(EXAMPLE, move |_context, mut requests| {
@@ -47,10 +38,6 @@ context.create_entity(EXAMPLE, move |_context, mut requests| {
 Send messages to an entity within a scene:
 
 ```Rust
-# use flo_scene::*;
-# use futures::executor;
-# let scene = Scene::default();
-# let context = scene.context();
 let mut channel = context.send_to::<ExampleRequest>(EXAMPLE).unwrap();
 executor::block_on(async { 
   channel.send(ExampleRequest::Example).await.unwrap();
@@ -60,12 +47,6 @@ executor::block_on(async {
 Use a recipe to execute a pre-set sequence of requests (with expected responses):
 
 ```Rust
-# use flo_scene::*;
-# use futures::executor;
-# use std::thread;
-# let scene = Scene::default();
-# let scene_context = scene.context();
-# thread::spawn(move || executor::block_on(scene.run()));
 let recipe = Recipe::new()
     .expect(vec![Heartbeat])
     .after_sending_messages(HEARTBEAT, |heartbeat_channel| vec![HeartbeatRequest::RequestHeartbeat(heartbeat_channel)])
