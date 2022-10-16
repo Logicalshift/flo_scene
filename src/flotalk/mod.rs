@@ -6,6 +6,10 @@
 
 mod instruction;
 mod program;
+mod parser;
+mod location;
+mod parse_error;
 
 pub use self::instruction::*;
 pub use self::program::*;
+pub use self::parser::*;
