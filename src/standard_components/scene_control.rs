@@ -34,7 +34,7 @@ pub fn create_scene_control_entity(entity_id: EntityId, scene_context: &Arc<Scen
 
             while let Some(msg) = messages.next().await {
                 match msg {
-                    SceneControlRequest::StopScene                  => { }
+                    SceneControlRequest::StopScene                  => { context.stop_scene().ok(); }
                     SceneControlRequest::CloseEntity(target_entity) => { context.close_entity(target_entity).ok(); }
                     SceneControlRequest::KillEntity(target_entity)  => { context.kill_entity(target_entity).ok(); }
                     SceneControlRequest::SealEntity(target_entity)  => { context.seal_entity(target_entity).ok(); }

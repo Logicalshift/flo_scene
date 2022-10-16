@@ -173,16 +173,25 @@ impl Scene {
             loop {
                 // Drain the waiting futures from the core, and load them into our scheduler
                 let waiting_futures     = self.core.sync(|core| {
-                    let waiting_futures = mem::take(&mut core.waiting_futures);
+                    if core.is_stopped {
+                        // Core is stopped, so abort this future
+                        None
+                    } else {
+                        // Core is still running
+                        let waiting_futures = mem::take(&mut core.waiting_futures);
 
-                    if !waiting_futures.is_empty() || core.wake_scene.is_none() {
-                        let (sender, receiver)  = oneshot::channel();
-                        core.wake_scene         = Some(sender);
-                        wake_receiver           = receiver;
+                        if !waiting_futures.is_empty() || core.wake_scene.is_none() {
+                            let (sender, receiver)  = oneshot::channel();
+                            core.wake_scene         = Some(sender);
+                            wake_receiver           = receiver;
+                        }
+
+                        Some(waiting_futures)
                     }
-
-                    waiting_futures
                 });
+
+                // Stop running if the scene core is stopped
+                let waiting_futures = if let Some(waiting_futures) = waiting_futures { waiting_futures } else { return Poll::Ready(()); };
 
                 // Each future gets its own waker
                 let waiting_futures = waiting_futures.into_iter()

@@ -52,6 +52,9 @@ pub struct SceneCore {
     /// The current state for the heartbeat of this scene
     heartbeat_state: HeartbeatState,
 
+    /// Set to true if this scene should be stopped
+    pub (crate) is_stopped: bool,
+
     /// Scheduler queue used for dispatching background messages
     pub (crate) message_queue: Arc<JobQueue>,
 }
@@ -66,6 +69,7 @@ impl Default for SceneCore {
             active_entity_count:        Arc::new(AtomicIsize::new(0)),
             map_for_message:            HashMap::new(),
             heartbeat_state:            HeartbeatState::Tick,
+            is_stopped:                 false,
             message_queue:              scheduler().create_job_queue(),
         }
     }
@@ -325,6 +329,19 @@ impl SceneCore {
 
         if let Some(entity) = self.entities.remove(&entity_id) {
             entity.stop();
+        }
+    }
+
+    ///
+    /// Stops the running scene
+    ///
+    pub (crate) fn stop_scene(&mut self) {
+        // Mark the scene as stopped
+        self.is_stopped = true;
+
+        // Wake up the scene so it can schedule this future
+        if let Some(wake_scene) = self.wake_scene.take() {
+            wake_scene.send(()).ok();
         }
     }
 

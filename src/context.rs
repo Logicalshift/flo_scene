@@ -499,6 +499,15 @@ impl SceneContext {
 
         Ok(())
     }
+
+    ///
+    /// Stops the running scene
+    ///
+    pub (crate) fn stop_scene(&self) -> Result<(), EntityChannelError> {
+        self.scene_core()?.sync(|core| core.stop_scene());
+
+        Ok(())
+    }
 }
 
 impl Drop for DropContext {
