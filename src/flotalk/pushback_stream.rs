@@ -32,6 +32,7 @@ where
     ///
     pub fn pushback(&mut self, c: char) {
         self.pushback_stack.push(c);
+        self.location = self.location.pushback();
     }
 
     ///
@@ -50,7 +51,7 @@ where
         if let Some(next_char) = next_char {
             self.pushback(next_char);
         }
-        
+
         next_char
     }
 }
@@ -63,21 +64,29 @@ where
 
     fn poll_next(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Option<Self::Item>> {
         if let Some(pushed_back) = self.pushback_stack.pop() {
+
             // Some characters have been pushed back
+            self.location = self.location.after_character(pushed_back);
             Poll::Ready(Some(pushed_back))
+
         } else if let Some(source_stream) = &mut self.source_stream {
+
             // Source stream is still alive, and there are no pushed back characters
             let next_result = source_stream.poll_next_unpin(context);
             
-            if let Poll::Ready(None) = &next_result {
-                // Source stream is exhausted
-                self.source_stream = None;
+            match &next_result {
+                Poll::Pending                   => { }                              // Waiting for the next character
+                Poll::Ready(None)               => { self.source_stream = None; }   // Source stream is exhausted
+                Poll::Ready(Some(next_char))    => { self.location = self.location.after_character(*next_char); }
             }
 
             next_result
+
         } else {
+
             // Source stream is dead, and there are no more characters
             Poll::Ready(None)
+
         }
     }
 }
