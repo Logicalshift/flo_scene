@@ -133,3 +133,4 @@ pub use self::standard_components::*;
 #[cfg(feature="test-scene")] pub use self::ergonomics::test;
 #[cfg(feature="properties")] pub use flo_binding as binding;
 #[cfg(feature="properties")] pub use flo_rope as rope;
+#[cfg(feature="flotalk")] pub mod flotalk;
