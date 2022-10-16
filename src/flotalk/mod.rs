@@ -9,6 +9,7 @@ mod program;
 mod parser;
 mod location;
 mod parse_error;
+mod pushback_stream;
 
 pub use self::instruction::*;
 pub use self::program::*;
