@@ -9,7 +9,7 @@ use std::pin::*;
 ///
 /// Stream that keeps track of locations, and also allows characters to be pushed back
 ///
-struct PushBackStream<TStream> 
+pub struct PushBackStream<TStream> 
 where
     TStream: Stream<Item=char>
 {
@@ -27,6 +27,14 @@ impl<TStream> PushBackStream<TStream>
 where
     TStream: Unpin + Stream<Item=char>
 {
+    pub fn new(stream: TStream) -> PushBackStream<TStream> {
+        PushBackStream {
+            source_stream:  Some(stream),
+            pushback_stack: vec![],
+            location:       TalkLocation::default(),
+        }
+    }
+
     ///
     /// Pushes a character back onto the stream so that it will be returned by the next poll
     ///
