@@ -85,6 +85,7 @@ impl Default for Scene {
 
         // Add the standard components
         create_entity_registry_entity(&context).unwrap();
+        create_scene_control_entity(SCENE_CONTROL, &context).unwrap();
         create_heartbeat_entity(&context).unwrap();
         create_example_entity(EXAMPLE, &context).unwrap();
 
