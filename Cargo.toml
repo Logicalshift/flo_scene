@@ -16,7 +16,7 @@ test-scene      = [ "futures-timer" ]
 timer           = [ "futures-timer" ]
 logging         = [ "log" ]
 properties      = [ "flo_binding", "flo_rope", "flo_stream", "lazy_static" ]
-flotalk         = [ ]
+flotalk         = [ "flo_stream" ]
 
 [dependencies]
 futures         = "0.3"
