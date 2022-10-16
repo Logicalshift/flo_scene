@@ -1,3 +1,5 @@
+use super::location::*;
+
 use std::sync::*;
 
 ///
@@ -41,6 +43,12 @@ pub struct TalkArgument {
 ///
 #[derive(Clone, PartialEq, Debug)]
 pub enum TalkExpression {
+    /// An expression that was parsed at a specific location (same as the boxed expression but the location can be used to highlight where any errors occurred)
+    AtLocation(TalkLocation, Box<TalkExpression>),
+
+    /// An expression that is preceded by a comment (`"The number 5" 5`), useful for documentation purposes
+    WithComment(Arc<String>, Box<TalkExpression>),
+
     /// A literal
     Literal(TalkLiteral),
 
