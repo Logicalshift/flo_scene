@@ -50,8 +50,8 @@ pub enum TalkExpression {
     /// Set a variable to the result of a program (`a := 42`)
     Assignment(String, Box<TalkExpression>),
 
-    /// Send a message with arguments
-    SendMessage(Box<TalkExpression>, Arc<String>, Vec<TalkArgument>),
+    /// Send one or more messages with arguments
+    SendMessages(Box<TalkExpression>, Vec<(Arc<String>, Vec<TalkArgument>)>),
 }
 
 ///
