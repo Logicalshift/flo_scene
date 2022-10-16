@@ -1,7 +1,7 @@
 ///
 /// A location in a flotalk stream
 ///
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct TalkLocation {
     /// Offset in characters from the start of the file
     pub offset: usize,
