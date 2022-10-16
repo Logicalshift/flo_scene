@@ -16,6 +16,7 @@ Run all of the components in a scene:
 
 ```Rust
 use futures::executor;
+
 executor::block_on(async move { scene.run().await });
 ```
 
@@ -39,8 +40,9 @@ Send messages to an entity within a scene:
 
 ```Rust
 let mut channel = context.send_to::<ExampleRequest>(EXAMPLE).unwrap();
+
 executor::block_on(async { 
-  channel.send(ExampleRequest::Example).await.unwrap();
+    channel.send(ExampleRequest::Example).await.unwrap();
 });
 ```
 
