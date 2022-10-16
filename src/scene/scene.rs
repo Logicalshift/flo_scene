@@ -19,7 +19,55 @@ use std::mem;
 use std::sync::*;
 
 ///
-/// A scene encapsulates a set of entities and provides a runtime for them
+/// A `Scene` is a container for a set of entities. It provides a way to connect a set of small components into a larger program 
+/// or system. Software can be designed around a single scene containing everything, but multiple and even nested scenes are
+/// supported (so software could be designed around scene per user, per document or per session as needed)
+///
+/// Create the default scene (which is set up to have the standard set of components):
+///
+/// ```
+/// # use flo_scene::*;
+/// let scene = Scene::default();
+/// ```
+///
+/// Create an empty scene (with no components, even the entity registry):
+///
+/// ```
+/// # use flo_scene::*;
+/// let scene = Scene::empty();
+/// ```
+///
+/// Run all of the components in a scene:
+///
+/// ```
+/// # use flo_scene::*;
+/// # let scene = Scene::default();
+/// # scene.create_entity::<(), _, _>(EntityId::new(), |context, _| async move {
+/// #   context.send_to(SCENE_CONTROL).unwrap().send(SceneControlRequest::StopScene).await.unwrap();
+/// # }).unwrap();
+/// use futures::executor;
+/// executor::block_on(async move { scene.run().await });
+/// ```
+///
+/// Retrieve the base scene context, which can be used for setting up more components and interacting with the scene
+/// (though note that the scene is paused until the `run()` function is called):
+///
+/// ```
+/// # use flo_scene::*;
+/// # use futures::prelude::*;
+/// # let scene = Scene::empty();
+/// let context = scene.context();
+///
+/// context.create_entity(EXAMPLE, move |_context, mut requests| {
+///     async move {
+///         while let Some(request) = requests.next().await {
+///             match request {
+///                 ExampleRequest::Example => { println!("Example!"); }
+///             }
+///         }
+///     }
+/// }).unwrap();
+/// ```
 ///
 pub struct Scene {
     /// The shared state for all entities in this scene
