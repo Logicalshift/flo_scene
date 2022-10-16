@@ -12,7 +12,7 @@ Create the default scene (which is set up to have the standard set of components
 let scene = Scene::default();
 ```
 
-Run all of the components in a scene:
+Run all of the entities in a scene:
 
 ```Rust
 use futures::executor;

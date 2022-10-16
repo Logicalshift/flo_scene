@@ -13,7 +13,7 @@
 //! let scene = Scene::default();
 //! ```
 //!
-//! Run all of the components in a scene:
+//! Run all of the entities in a scene:
 //!
 //! ```
 //! # use flo_scene::*;
