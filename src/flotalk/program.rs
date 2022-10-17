@@ -55,6 +55,9 @@ pub enum TalkExpression {
     /// A literal
     Literal(TalkLiteral),
 
+    /// An identifier
+    Identifier(Arc<String>),
+
     /// A variable declaration (`| a b foo |`) 
     VariableDeclaration(Vec<Arc<String>>),
 

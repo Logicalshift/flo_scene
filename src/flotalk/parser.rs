@@ -335,8 +335,12 @@ where
             // Return statement
             todo!("Return statement")
         } else if is_letter(chr) {
-            // Identifier?
-            todo!("Identifier")
+
+            // Identifier
+            let identifier = self.match_identifier().await;
+
+            ParserResult { value: TalkExpression::Identifier(identifier.value), location: start_location, matched: identifier.matched }
+
         } else {
             // Should be a literal
             let literal = self.match_literal().await;
