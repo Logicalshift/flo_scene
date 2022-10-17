@@ -99,26 +99,49 @@ where
 
         // Match the literal basedon the first character
         if chr == '[' {
+
             // Block
             todo!("Block")
+
         } else if chr == '$' {
+
             // Character
-            todo!("Character")
+            let chr = self.next().await.unwrap();
+            debug_assert!(chr == '$');
+            matched.push(chr);
+
+            let chr = self.next().await;
+            if let Some(chr) = chr {
+                Ok(ParserResult { value: TalkLiteral::Character(chr), location: start_location.to(self.location()), matched: Arc::new(matched) })
+            } else {
+                Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) })
+            }
+
         } else if chr == '\'' {
+
             // String
             todo!("String")
+
         } else if chr == '#' {
+
             // Array if #( or symbol if #' or #<alphanum>
             todo!("Array_or_symbol")
+
         } else if is_number(chr) {
+
             // Number
             todo!("Numbers")
+
         } else if chr == '-' {
+
             // Might be number, depends on next character
             todo!("Negative numbers")
+
         } else {
+
             // Unexpected character
             Err(ParserResult { value: TalkParseError::UnexpectedCharacter(chr), location: start_location, matched: Arc::new(matched) })
+
         }
     }
 
@@ -172,6 +195,9 @@ where
         } else if chr == '|' {
             // Variable declaration
             todo!("Variable declaration")
+        } else if chr == '^' {
+            // Return statement
+            todo!("Return statement")
         } else {
             // Should be a literal
             let literal = self.match_literal().await;
