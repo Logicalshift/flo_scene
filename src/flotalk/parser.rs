@@ -83,6 +83,47 @@ where
     }
 
     ///
+    /// With the stream pointing to a "'" character, matches the following string
+    ///
+    async fn match_string(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
+        let start_location      = self.location();
+        let mut matched         = String::new();
+        let mut string          = String::new();
+
+        // Skip past the first "'"
+        let first_quote = self.next().await;
+        if first_quote != Some('\'') {
+            return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location, matched: Arc::new(matched) }); 
+        }
+
+        matched.push('\'');
+
+        // Match the remaining characters in the string
+        while let Some(next_chr) = self.next().await {
+            // Add to the matched characters
+            matched.push(next_chr);
+
+            if next_chr == '\'' {
+                // Either '' (ie, a quote within the string), or the end of the string
+                if self.peek().await == Some('\'') {
+                    // Quote character
+                    string.push(next_chr);
+                    self.next().await;
+                } else {
+                    // End of string
+                    return Ok(ParserResult { value: TalkLiteral::String(Arc::new(string)), location: start_location, matched: Arc::new(matched) });
+                }
+            } else {
+                // Part of the string
+                string.push(next_chr);
+            }
+        }
+
+        // Ran out of characters
+        Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) })
+    }
+
+    ///
     /// With the stream at the first character in a literal, matches and consumes that literal
     ///
     async fn match_literal(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
@@ -120,7 +161,7 @@ where
         } else if chr == '\'' {
 
             // String
-            todo!("String")
+            self.match_string().await
 
         } else if chr == '#' {
 

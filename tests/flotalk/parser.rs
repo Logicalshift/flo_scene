@@ -25,3 +25,13 @@ fn string_literal() {
     let expr            = parse_result.value;
     assert!(expr == TalkExpression::Literal(TalkLiteral::String(Arc::new("string".to_string()))));
 }
+
+#[test]
+fn string_literal_with_quote() {
+    let test_source     = "'string''quote'";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::Literal(TalkLiteral::String(Arc::new("string'quote".to_string()))));
+}
