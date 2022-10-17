@@ -438,14 +438,14 @@ where
             // Identifier
             let identifier = self.match_identifier().await;
 
-            ParserResult { value: TalkExpression::Identifier(identifier.value), location: start_location, matched: identifier.matched }
+            ParserResult { value: TalkExpression::Identifier(identifier.value), location: start_location.to(self.location()), matched: identifier.matched }
 
         } else {
 
             // Should be a literal
             let literal = self.match_literal().await;
             match literal {
-                Ok(literal) => ParserResult { value: TalkExpression::Literal(literal.value), location: start_location, matched: literal.matched },
+                Ok(literal) => ParserResult { value: TalkExpression::Literal(literal.value), location: start_location.to(self.location()), matched: literal.matched },
                 Err(err)    => { return Some(Err(err)); }
             }
         };
