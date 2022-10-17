@@ -15,6 +15,9 @@ pub enum TalkParseError {
     /// A '"' comment had no closing '"'
     UnclosedDoubleQuoteComment,
 
+    /// A '#' was not followed by a valid character for declaring an array or a symbol
+    NotAnArrayOrSymbol,
+
     /// Unexpected end of stream
     ExpectedMoreCharacters,
 }

@@ -36,6 +36,12 @@ fn is_number(c: char) -> bool {
     c.is_numeric()
 }
 
+/// True if the specified character is a letter that can be used in an identifier
+#[inline]
+fn is_letter(c: char) -> bool {
+    c.is_alphabetic()
+}
+
 impl<TStream> PushBackStream<TStream>
 where
     TStream: Unpin + Send + Stream<Item=char>
@@ -124,6 +130,55 @@ where
     }
 
     ///
+    /// After matching '#' and looking ahead to '(', finish matching the rest of the array
+    ///
+    async fn match_array(&mut self, start_location: TalkLocation, matched: String) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
+        todo!("Array")
+    }
+
+    ///
+    /// With the lookahead on the stream being a '#', match the following array or symbol
+    ///
+    async fn match_array_or_symbol(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
+        let start_location      = self.location();
+        let mut matched         = String::new();
+
+        // Skip past the first "#"
+        let hash = self.next().await;
+        if hash != Some('#') {
+            return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location, matched: Arc::new(matched) }); 
+        }
+
+        matched.push('#');
+
+        // Decide what to do based on the next character
+        let next_chr = self.peek().await;
+        let next_chr = if let Some(chr) = next_chr { chr } else { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) }); };
+
+        if next_chr == '(' {
+            // Is an array
+            self.match_array(start_location, matched).await
+        } else if next_chr == '\'' {
+            // Is a hashed string
+            let string          = self.match_string().await?;
+            let string_value    = match string.value {
+                TalkLiteral::String(value)  => Arc::clone(&value),
+                _                           => Arc::new(String::new()),
+            };
+
+            matched.push_str(&*string.matched);
+
+            Ok(ParserResult { value: TalkLiteral::Symbol(string_value), location: start_location, matched: Arc::new(matched) })
+        } else if is_letter(next_chr) {
+            // Is a quotedSelector
+            todo!("Identifiers & keywords")
+        } else {
+            // Not a valid '#' sequence
+            Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) })
+        }
+    }
+
+    ///
     /// With the stream at the first character in a literal, matches and consumes that literal
     ///
     async fn match_literal(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
@@ -138,7 +193,7 @@ where
             return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) }); 
         };
 
-        // Match the literal basedon the first character
+        // Match the literal based on the first character
         if chr == '[' {
 
             // Block
@@ -166,7 +221,7 @@ where
         } else if chr == '#' {
 
             // Array if #( or symbol if #' or #<alphanum>
-            todo!("Array_or_symbol")
+            self.match_array_or_symbol().await
 
         } else if is_number(chr) {
 
@@ -239,6 +294,9 @@ where
         } else if chr == '^' {
             // Return statement
             todo!("Return statement")
+        } else if is_letter(chr) {
+            // Identifier?
+            todo!("Identifier")
         } else {
             // Should be a literal
             let literal = self.match_literal().await;
