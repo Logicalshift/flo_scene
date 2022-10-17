@@ -428,11 +428,6 @@ where
             // Variable declaration
             todo!("Variable declaration")
 
-        } else if chr == '^' {
-
-            // Return statement
-            todo!("Return statement")
-
         } else if is_letter(chr) {
 
             // Identifier
