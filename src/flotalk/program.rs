@@ -24,9 +24,6 @@ pub enum TalkLiteral {
 
     /// An array (`#(1 2 3 4)`)
     Array(Vec<TalkLiteral>),
-
-    /// A block of expressions
-    Block(Vec<TalkExpression>),
 }
 
 ///
@@ -54,6 +51,9 @@ pub enum TalkExpression {
 
     /// A literal
     Literal(TalkLiteral),
+
+    /// A block of expressions
+    Block(Vec<TalkExpression>),
 
     /// An identifier
     Identifier(Arc<String>),

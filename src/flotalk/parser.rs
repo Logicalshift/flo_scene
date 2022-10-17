@@ -312,12 +312,7 @@ where
         };
 
         // Match the literal based on the first character
-        if chr == '[' {
-
-            // Block
-            todo!("Block")
-
-        } else if chr == '$' {
+        if chr == '$' {
 
             // Character
             let chr = self.next().await.unwrap();
@@ -412,19 +407,32 @@ where
         let chr = self.peek().await;
         let chr = if let Some(chr) = chr { chr } else { return None; };
 
-        let expr = if chr == '.' {
+        let primary = if chr == '.' {
+
             // End of expression/empty expression
             self.next().await;
             todo!("Empty expression")
+
         } else if chr == '(' {
+
             // Nested expression
             todo!("Brackets")
+
+        } else if chr == '[' {
+
+            // Block
+            todo!("Block")
+
         } else if chr == '|' {
+
             // Variable declaration
             todo!("Variable declaration")
+
         } else if chr == '^' {
+
             // Return statement
             todo!("Return statement")
+
         } else if is_letter(chr) {
 
             // Identifier
@@ -433,6 +441,7 @@ where
             ParserResult { value: TalkExpression::Identifier(identifier.value), location: start_location, matched: identifier.matched }
 
         } else {
+
             // Should be a literal
             let literal = self.match_literal().await;
             match literal {
@@ -441,7 +450,7 @@ where
             }
         };
 
-        Some(Ok(expr))
+        Some(Ok(primary))
     }
 }
 
