@@ -53,10 +53,13 @@ where
     /// Returns the next character without removing it from the stream
     ///
     pub async fn peek(&mut self) -> Option<char> {
-        let next_char = self.next().await;
+        // Although pushback() does update the location, it can't deal with newlines, so for peek() we store the location before pushing the character back
+        let old_location    = self.location;
+        let next_char       = self.next().await;
 
         if let Some(next_char) = next_char {
             self.pushback(next_char);
+            self.location = old_location;
         }
 
         next_char
