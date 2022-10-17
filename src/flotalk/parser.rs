@@ -407,13 +407,7 @@ where
         let chr = self.peek().await;
         let chr = if let Some(chr) = chr { chr } else { return None; };
 
-        let primary = if chr == '.' {
-
-            // End of expression/empty expression
-            self.next().await;
-            todo!("Empty expression")
-
-        } else if chr == '(' {
+        let primary = if chr == '(' {
 
             // Nested expression
             todo!("Brackets")
