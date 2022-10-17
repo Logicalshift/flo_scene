@@ -89,6 +89,34 @@ where
     }
 
     ///
+    /// Consumes any ignorable data, adding to the 'matched' string
+    ///
+    async fn consume(&mut self, matched: &mut String) -> Result<(), TalkParseError> {
+        while let Some(c) = self.peek().await {
+            if is_whitespace(c) {
+                // Just consume whitespace
+                matched.push(c);
+                self.next().await;
+            } else if c == '"' {
+                // Consume comments, and check for errors
+                let comment = self.consume_comment().await;
+                
+                if let Some(Err(err)) = comment {
+                    return Err(err.value);
+                }
+
+                if let Some(Ok(comment)) = comment {
+                    matched.push_str(&*comment.matched);
+                }
+            } else {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    ///
     /// With the stream pointing to a "'" character, matches the following string
     ///
     async fn match_string(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
