@@ -185,7 +185,7 @@ where
         let chr = self.peek().await;
         let chr = if let Some(chr) = chr { chr } else { return None; };
 
-        let lhs = if chr == '.' {
+        let expr = if chr == '.' {
             // End of expression/empty expression
             self.next().await;
             todo!("Empty expression")
@@ -202,12 +202,12 @@ where
             // Should be a literal
             let literal = self.match_literal().await;
             match literal {
-                Ok(literal) => TalkExpression::Literal(literal.value),
+                Ok(literal) => ParserResult { value: TalkExpression::Literal(literal.value), location: start_location, matched: literal.matched },
                 Err(err)    => { return Some(Err(err)); }
             }
         };
 
-        todo!()
+        Some(Ok(expr))
     }
 }
 
