@@ -161,6 +161,84 @@ where
     }
 
     ///
+    /// Matches a number at the current position (can match 0 characters)
+    ///
+    async fn match_number(&mut self) -> ParserResult<Arc<String>> {
+        let start_location = self.location();
+        let mut number = String::new();
+
+        // First part of the number
+        while let Some(chr) = self.peek().await {
+            // Stop if the peeked character isn't part of a number
+            if !is_number(chr) {
+                break;
+            }
+
+            // Consume this character
+            number.push(chr);
+            self.next().await;
+        }
+
+        // Might be a float or a radix integer
+        let follow_chr = self.peek().await;
+
+        if follow_chr == Some('.') {
+            // Floating point number
+            number.push('.');
+            self.next().await;
+
+            while let Some(chr) = self.peek().await {
+                // Stop if the peeked character isn't part of a number
+                if !is_number(chr) {
+                    break;
+                }
+
+                // Consume this character
+                number.push(chr);
+                self.next().await;
+            }
+
+            if self.peek().await == Some('e') {
+                // Exponent
+                number.push('e');
+                self.next().await;
+
+                while let Some(chr) = self.peek().await {
+                    // Stop if the peeked character isn't part of a number
+                    if !is_number(chr) {
+                        break;
+                    }
+
+                    // Consume this character
+                    number.push(chr);
+                    self.next().await;
+                }
+            }
+
+        } else if follow_chr == Some('r') {
+            // Radix number
+            number.push('r');
+            self.next().await;
+
+            while let Some(chr) = self.peek().await {
+                // Stop if the peeked character isn't part of a radix number
+                if !is_number(chr) && !is_letter(chr) {
+                    break;
+                }
+
+                // Consume this character
+                number.push(chr);
+                self.next().await;
+            }
+
+        }
+
+        // Whatever we matched is the number
+        let number = Arc::new(number);
+        ParserResult { value: Arc::clone(&number), matched: Arc::clone(&number), location: start_location }
+    }
+
+    ///
     /// With the lookahead on the stream being a '#', match the following array or symbol
     ///
     async fn match_array_or_symbol(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
@@ -266,12 +344,25 @@ where
         } else if is_number(chr) {
 
             // Number
-            todo!("Numbers")
+            let number = self.match_number().await;
+            Ok(ParserResult { value: TalkLiteral::Number(number.value), location: start_location.to(self.location()), matched: number.matched })
 
         } else if chr == '-' {
 
             // Might be number, depends on next character
-            todo!("Negative numbers")
+            self.next().await;
+            matched.push('-');
+
+            if is_number(self.peek().await.unwrap_or(' ')) {
+                let mut number = self.match_number().await;
+
+                Arc::make_mut(&mut number.value).insert(0, '-');
+                Arc::make_mut(&mut number.matched).insert(0, '-');
+
+                Ok(ParserResult { value: TalkLiteral::Number(number.value), location: start_location.to(self.location()), matched: number.matched })
+            } else {
+                Err(ParserResult { value: TalkParseError::UnexpectedCharacter('-'), location: start_location, matched: Arc::new(matched) })
+            }
 
         } else {
 

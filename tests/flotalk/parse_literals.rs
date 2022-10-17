@@ -65,3 +65,63 @@ fn selector_literal_keyword() {
     let expr            = parse_result.value;
     assert!(expr == TalkExpression::Literal(TalkLiteral::Selector(Arc::new("selector:".to_string()))));
 }
+
+#[test]
+fn number_integer() {
+    let test_source     = "42";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("42".to_string()))));
+}
+
+#[test]
+fn number_negative_integer() {
+    let test_source     = "-42";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("-42".to_string()))));
+}
+
+#[test]
+fn number_float() {
+    let test_source     = "0.42";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("0.42".to_string()))));
+}
+
+#[test]
+fn number_negative_float() {
+    let test_source     = "-0.42e10";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("-0.42e10".to_string()))));
+}
+
+#[test]
+fn number_float_exponent() {
+    let test_source     = "0.42e10";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("0.42e10".to_string()))));
+}
+
+#[test]
+fn number_radix() {
+    let test_source     = "16rF00D";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("16rF00D".to_string()))));
+}
