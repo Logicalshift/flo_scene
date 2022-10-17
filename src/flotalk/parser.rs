@@ -137,6 +137,30 @@ where
     }
 
     ///
+    /// Matches an identifier at the current position (can match 0 characters)
+    ///
+    async fn match_identifier(&mut self) -> ParserResult<Arc<String>> {
+        let start_location = self.location();
+        let mut identifier = String::new();
+
+        // While there are characters to peek...
+        while let Some(chr) = self.peek().await {
+            // Stop if the peeked character isn't part of an identifier
+            if !is_letter(chr) && !is_number(chr) {
+                break;
+            }
+
+            // Consume this character
+            identifier.push(chr);
+            self.next().await;
+        }
+
+        // Whatever we matched is the identifier
+        let identifier = Arc::new(identifier);
+        ParserResult { value: Arc::clone(&identifier), matched: Arc::clone(&identifier), location: start_location }
+    }
+
+    ///
     /// With the lookahead on the stream being a '#', match the following array or symbol
     ///
     async fn match_array_or_symbol(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
@@ -156,9 +180,12 @@ where
         let next_chr = if let Some(chr) = next_chr { chr } else { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) }); };
 
         if next_chr == '(' {
+            
             // Is an array
             self.match_array(start_location, matched).await
+        
         } else if next_chr == '\'' {
+            
             // Is a hashed string
             let string          = self.match_string().await?;
             let string_value    = match string.value {
@@ -169,10 +196,23 @@ where
             matched.push_str(&*string.matched);
 
             Ok(ParserResult { value: TalkLiteral::Symbol(string_value), location: start_location, matched: Arc::new(matched) })
+
         } else if is_letter(next_chr) {
-            // Is a quotedSelector
-            todo!("Identifiers & keywords")
+            
+            // Is a selector
+            let mut identifier = self.match_identifier().await.value;
+            if self.peek().await == Some(':') {
+                // Keyword selector
+                Arc::make_mut(&mut identifier).push(':');
+                self.next().await;
+            }
+
+            matched.push_str(&*identifier);
+
+            Ok(ParserResult { value: TalkLiteral::Selector(identifier), location: start_location, matched: Arc::new(matched) })
+
         } else {
+
             // Not a valid '#' sequence
             Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) })
         }
