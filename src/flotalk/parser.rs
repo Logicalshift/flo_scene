@@ -6,6 +6,7 @@ use super::pushback_stream::*;
 use flo_stream::*;
 
 use futures::prelude::*;
+use futures::future::{BoxFuture};
 
 use std::sync::*;
 
@@ -397,77 +398,101 @@ where
 
     ///
     /// Matches and returns the next expression on this stream (skipping whitespace and comments). Returns None if there are no more
-    /// expressions.
+    /// expressions (end of stream).
     ///
-    async fn match_expression(&mut self) -> Option<Result<ParserResult<TalkExpression>, ParserResult<TalkParseError>>> {
-        // Eat up as much whitespace as possible
-        self.consume_whitespace().await;
+    fn match_expression<'a>(&'a mut self) -> BoxFuture<'a, Option<Result<ParserResult<TalkExpression>, ParserResult<TalkParseError>>>> {
+        async move {
+            // Eat up as much whitespace as possible
+            self.consume_whitespace().await;
 
-        // This point counts as the start of the expression
-        let start_location      = self.location();
-        let mut initial_comment = None;
+            // This point counts as the start of the expression
+            let start_location      = self.location();
+            let mut initial_comment = None;
 
-        loop {
-            if let Some(new_comment) = self.consume_comment().await {
-                let new_comment = match new_comment {
-                    Ok(comment) => comment,
-                    Err(err)    => return Some(Err(err))
+            loop {
+                if let Some(new_comment) = self.consume_comment().await {
+                    let new_comment = match new_comment {
+                        Ok(comment) => comment,
+                        Err(err)    => return Some(Err(err))
+                    };
+
+                    // Amend the initial comment
+                    initial_comment = match initial_comment {
+                        None                    => Some(new_comment.matched),
+                        Some(mut old_comment)   => {
+                            Arc::make_mut(&mut old_comment).push_str(&*new_comment.matched);
+                            Some(old_comment)
+                        }
+                    };
+
+                    // Consume whitespace following the comment
+                    self.consume_whitespace().await;
+                } else {
+                    // No longer at a comment
+                    break;
+                }
+            }
+
+            // Decide what type of expression is following
+            let chr = self.peek().await;
+            let chr = if let Some(chr) = chr { chr } else { return None; };
+
+            let primary = if chr == '(' {
+
+                // Nested expression
+                self.next().await;
+                let expr = self.match_expression().await;
+
+                let mut expr = match expr {
+                    Some(Ok(expr))  => expr,
+                    Some(Err(_))    => { return expr; }
+                    None            => { return Some(Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()), matched: Arc::new("(".to_string()) })); }
                 };
+                Arc::make_mut(&mut expr.matched).insert(0, '(');
 
-                // Amend the initial comment
-                initial_comment = match initial_comment {
-                    None                    => Some(new_comment.matched),
-                    Some(mut old_comment)   => {
-                        Arc::make_mut(&mut old_comment).push_str(&*new_comment.matched);
-                        Some(old_comment)
-                    }
-                };
+                // Closing bracket
+                self.consume(Arc::make_mut(&mut expr.matched)).await;
+                let closing_bracket = self.next().await;
 
-                // Consume whitespace following the comment
-                self.consume_whitespace().await;
+                if let Some(closing_bracket) = closing_bracket {
+                    Arc::make_mut(&mut expr.matched).push(closing_bracket);
+                }
+
+                if closing_bracket != Some(')') {
+                    return Some(Err(ParserResult { value: TalkParseError::MissingCloseBracket, location: start_location.to(self.location()), matched: expr.matched }));
+                }
+
+                expr
+
+            } else if chr == '[' {
+
+                // Block
+                todo!("Block")
+
+            } else if chr == '|' {
+
+                // Variable declaration
+                todo!("Variable declaration")
+
+            } else if is_letter(chr) {
+
+                // Identifier
+                let identifier = self.match_identifier().await;
+
+                ParserResult { value: TalkExpression::Identifier(identifier.value), location: start_location.to(self.location()), matched: identifier.matched }
+
             } else {
-                // No longer at a comment
-                break;
-            }
-        }
 
-        // Decide what type of expression is following
-        let chr = self.peek().await;
-        let chr = if let Some(chr) = chr { chr } else { return None; };
+                // Should be a literal
+                let literal = self.match_literal().await;
+                match literal {
+                    Ok(literal) => ParserResult { value: TalkExpression::Literal(literal.value), location: start_location.to(self.location()), matched: literal.matched },
+                    Err(err)    => { return Some(Err(err)); }
+                }
+            };
 
-        let primary = if chr == '(' {
-
-            // Nested expression
-            todo!("Brackets")
-
-        } else if chr == '[' {
-
-            // Block
-            todo!("Block")
-
-        } else if chr == '|' {
-
-            // Variable declaration
-            todo!("Variable declaration")
-
-        } else if is_letter(chr) {
-
-            // Identifier
-            let identifier = self.match_identifier().await;
-
-            ParserResult { value: TalkExpression::Identifier(identifier.value), location: start_location.to(self.location()), matched: identifier.matched }
-
-        } else {
-
-            // Should be a literal
-            let literal = self.match_literal().await;
-            match literal {
-                Ok(literal) => ParserResult { value: TalkExpression::Literal(literal.value), location: start_location.to(self.location()), matched: literal.matched },
-                Err(err)    => { return Some(Err(err)); }
-            }
-        };
-
-        Some(Ok(primary))
+            Some(Ok(primary))
+        }.boxed()
     }
 }
 

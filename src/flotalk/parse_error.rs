@@ -18,6 +18,9 @@ pub enum TalkParseError {
     /// A '#' was not followed by a valid character for declaring an array or a symbol
     NotAnArrayOrSymbol,
 
+    /// A ')' was not found for an bracketed expression
+    MissingCloseBracket,
+
     /// Unexpected end of stream
     ExpectedMoreCharacters,
 }
