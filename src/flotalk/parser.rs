@@ -417,7 +417,83 @@ where
             return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location });
         }
 
-        todo!("Block")
+        // An initial comment can become the documentation for this block
+        let mut initial_comment = None;
+        self.consume_whitespace().await;
+
+        if let Some(comment) = self.consume_comment().await {
+            initial_comment = Some(Arc::new(comment?.value));
+        }
+
+        // Parameters are next, of the form `... :a :b | ...`
+        self.consume().await?;
+
+        let mut arguments = vec![];
+        if self.peek().await == Some(':') {
+            loop {
+                let next_chr = self.next().await;
+                let next_chr = if let Some(next_chr) = next_chr { next_chr } else { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) }); };
+
+                // Pipe character ends the parameters
+                if next_chr == '|' {
+                    break;
+                }
+
+                // ':' is the expected character to start a parameter
+                if next_chr != ':' {
+                    return Err(ParserResult { value: TalkParseError::UnexpectedCharacter(next_chr), location: start_location.to(self.location()) });
+                }
+
+                // Should be followed by an identiifer
+                let identifier = self.match_identifier().await.value;
+                if identifier.len() == 0 {
+                    let bad_chr = self.peek().await.unwrap_or(' ');
+                    return Err(ParserResult { value: TalkParseError::UnexpectedCharacter(bad_chr), location: start_location.to(self.location()) });
+                }
+
+                // Add to the arguments
+                arguments.push(identifier);
+
+                // Eat up any comments/whitespace/etc between identifiers
+                self.consume().await?;
+            }
+
+            // We treat the place after the '|' as another opportunity for a block comment
+            if initial_comment.is_none() {
+                self.consume_whitespace().await;
+
+                if let Some(comment) = self.consume_comment().await {
+                    initial_comment = Some(Arc::new(comment?.value));
+                }
+
+                self.consume().await?;
+            }
+        }
+
+        // Rest of the block is expressions until we hit the ']'
+        let mut expressions = vec![];
+        loop {
+            // Eat up whitespace, comments, etc
+            self.consume().await?;
+
+            // Peek at the next character
+            let next_chr = self.peek().await;
+            let next_chr = if let Some(next_chr) = next_chr { next_chr } else { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) }); };
+
+            if next_chr == ']' {
+                // Block finished
+                self.next().await;
+
+                return Ok(ParserResult { value: (arguments, expressions), location: start_location.to(self.location()) });
+            }
+
+            // Read the next expression
+            let expression = self.match_expression().await;
+            let expression = if let Some(expression) = expression { expression? } else { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) }); };
+
+            // Add to the expressions making up this block
+            expressions.push(expression.value);
+        }
     }
 
     ///

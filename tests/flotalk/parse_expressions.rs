@@ -70,3 +70,33 @@ fn variable_declaration() {
         Arc::new("foo".to_string()),
     ]));
 }
+
+#[test]
+fn empty_block() {
+    let test_source     = "[ ]";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::Block(vec![], vec![]));
+}
+
+#[test]
+fn identifier_block() {
+    let test_source     = "[ identifier ]";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::Block(vec![], vec![TalkExpression::Identifier(Arc::new("identifier".to_string()))]));
+}
+
+#[test]
+fn arguments_block() {
+    let test_source     = "[ :foo :bar | identifier ]";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::Block(vec![Arc::new("foo".to_string()), Arc::new("bar".to_string())], vec![TalkExpression::Identifier(Arc::new("identifier".to_string()))]));
+}
