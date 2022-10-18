@@ -43,6 +43,9 @@ pub struct TalkArgument {
 ///
 #[derive(Clone, PartialEq, Debug)]
 pub enum TalkExpression {
+    /// The empty expression `.`
+    Empty,
+
     /// An expression that was parsed at a specific location (same as the boxed expression but the location can be used to highlight where any errors occurred)
     AtLocation(TalkLocation, Box<TalkExpression>),
 
@@ -63,6 +66,9 @@ pub enum TalkExpression {
 
     /// Set a variable to the result of a program (`a := 42`)
     Assignment(String, Box<TalkExpression>),
+
+    /// A return expresson (expression starting with `^`)
+    Return(Box<TalkExpression>),
 
     /// Send one or more messages with arguments
     SendMessages(Box<TalkExpression>, Vec<(Arc<String>, Vec<TalkArgument>)>),

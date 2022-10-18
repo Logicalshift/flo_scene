@@ -473,8 +473,23 @@ where
             }
 
             // Decide what type of expression is following
-            let chr = self.peek().await;
-            let chr = if let Some(chr) = chr { chr } else { return None; };
+            let chr             = self.peek().await;
+            let mut chr         = if let Some(chr) = chr { chr } else { return None; };
+            let mut is_return   = false;
+
+            // '.' is used to end expressions, if it's here by itself, return an empty expression
+            if chr == '.' {
+                self.next().await;
+                return Some(Ok(ParserResult { value: TalkExpression::Empty, location: start_location.to(self.location()), matched: Arc::new(".".to_string()) }));
+            }
+
+            // Expressions starting '^' are return values (traditionally only allowed at the end of blocks)
+            if chr == '^' {
+                is_return = true;
+
+                self.next().await;
+                chr = if let Some(chr) = self.peek().await { chr } else { return None };
+            }
 
             let primary = if chr == '(' {
 
@@ -511,6 +526,7 @@ where
             } else if chr == '|' {
 
                 // Variable declaration
+                // (In SmallTalk-80, these are only allowed at the start of blocks, but we allow them anywhere and treat them as expressions)
                 let variables = self.match_variable_declaration().await;
 
                 // Can't send messages to this, so return here
@@ -536,6 +552,9 @@ where
                 }
             };
 
+            // TODO: Following values indicate any messages to send
+
+            // Return the result
             Some(Ok(primary))
         }.boxed()
     }

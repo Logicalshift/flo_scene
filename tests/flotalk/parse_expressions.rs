@@ -47,6 +47,16 @@ fn bracketed_identifier_expression() {
 }
 
 #[test]
+fn empty_expression() {
+    let test_source     = ".";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::Empty);
+}
+
+#[test]
 fn variable_declaration() {
     let test_source     = "| a b c foo |";
     let test_source     = stream::iter(test_source.chars());
