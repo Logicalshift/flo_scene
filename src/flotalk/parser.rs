@@ -20,9 +20,6 @@ pub struct ParserResult<TResult> {
 
     /// The location where this result was generated from
     pub location: TalkLocation,
-
-    /// The text that was matched for this result
-    pub matched: Arc<String>,
 }
 
 /// True if the specified character is a whitespace character
@@ -63,7 +60,7 @@ where
     ///
     /// Consumes a comment, if one exists at the present location, returning as an empty parser result
     ///
-    async fn consume_comment(&mut self) -> Option<Result<ParserResult<()>, ParserResult<TalkParseError>>> {
+    async fn consume_comment(&mut self) -> Option<Result<ParserResult<String>, ParserResult<TalkParseError>>> {
         // In Smalltalk, comments start with a double-quote character '"'
         if self.peek().await != Some('"') { return None; }
 
@@ -82,21 +79,20 @@ where
 
             if chr == '"' {
                 // End of comment
-                return Some(Ok(ParserResult { value: (), location: comment_start.to(self.location()), matched: Arc::new(matched) }));
+                return Some(Ok(ParserResult { value: matched, location: comment_start.to(self.location()) }));
             }
         }
 
-        Some(Err(ParserResult { value: TalkParseError::UnclosedDoubleQuoteComment, location: comment_start.to(self.location()), matched: Arc::new(matched) }))
+        Some(Err(ParserResult { value: TalkParseError::UnclosedDoubleQuoteComment, location: comment_start.to(self.location()) }))
     }
 
     ///
-    /// Consumes any ignorable data, adding to the 'matched' string
+    /// Consumes any ignorable data
     ///
-    async fn consume(&mut self, matched: &mut String) -> Result<(), ParserResult<TalkParseError>> {
+    async fn consume(&mut self) -> Result<(), ParserResult<TalkParseError>> {
         while let Some(c) = self.peek().await {
             if is_whitespace(c) {
                 // Just consume whitespace
-                matched.push(c);
                 self.next().await;
             } else if c == '"' {
                 // Consume comments, and check for errors
@@ -104,10 +100,6 @@ where
                 
                 if let Some(Err(err)) = comment {
                     return Err(err);
-                }
-
-                if let Some(Ok(comment)) = comment {
-                    matched.push_str(&*comment.matched);
                 }
             } else {
                 break;
@@ -122,22 +114,16 @@ where
     ///
     async fn match_string(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
         let start_location      = self.location();
-        let mut matched         = String::new();
         let mut string          = String::new();
 
         // Skip past the first "'"
         let first_quote = self.next().await;
         if first_quote != Some('\'') {
-            return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location, matched: Arc::new(matched) }); 
+            return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location }); 
         }
-
-        matched.push('\'');
 
         // Match the remaining characters in the string
         while let Some(next_chr) = self.next().await {
-            // Add to the matched characters
-            matched.push(next_chr);
-
             if next_chr == '\'' {
                 // Either '' (ie, a quote within the string), or the end of the string
                 if self.peek().await == Some('\'') {
@@ -146,7 +132,7 @@ where
                     self.next().await;
                 } else {
                     // End of string
-                    return Ok(ParserResult { value: TalkLiteral::String(Arc::new(string)), location: start_location, matched: Arc::new(matched) });
+                    return Ok(ParserResult { value: TalkLiteral::String(Arc::new(string)), location: start_location });
                 }
             } else {
                 // Part of the string
@@ -155,13 +141,13 @@ where
         }
 
         // Ran out of characters
-        Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) })
+        Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location })
     }
 
     ///
     /// After matching '#' and looking ahead to '(', finish matching the rest of the array
     ///
-    async fn match_array(&mut self, start_location: TalkLocation, matched: String) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
+    async fn match_array(&mut self, start_location: TalkLocation) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
         todo!("Array")
     }
 
@@ -186,7 +172,7 @@ where
 
         // Whatever we matched is the identifier
         let identifier = Arc::new(identifier);
-        ParserResult { value: Arc::clone(&identifier), matched: Arc::clone(&identifier), location: start_location }
+        ParserResult { value: identifier, location: start_location }
     }
 
     ///
@@ -264,7 +250,7 @@ where
 
         // Whatever we matched is the number
         let number = Arc::new(number);
-        ParserResult { value: Arc::clone(&number), matched: Arc::clone(&number), location: start_location }
+        ParserResult { value: number, location: start_location }
     }
 
     ///
@@ -272,24 +258,21 @@ where
     ///
     async fn match_array_or_symbol(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
         let start_location      = self.location();
-        let mut matched         = String::new();
 
         // Skip past the first "#"
         let hash = self.next().await;
         if hash != Some('#') {
-            return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location, matched: Arc::new(matched) }); 
+            return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location }); 
         }
-
-        matched.push('#');
 
         // Decide what to do based on the next character
         let next_chr = self.peek().await;
-        let next_chr = if let Some(chr) = next_chr { chr } else { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) }); };
+        let next_chr = if let Some(chr) = next_chr { chr } else { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location }); };
 
         if next_chr == '(' {
             
             // Is an array
-            self.match_array(start_location, matched).await
+            self.match_array(start_location).await
         
         } else if next_chr == '\'' {
             
@@ -300,9 +283,7 @@ where
                 _                           => Arc::new(String::new()),
             };
 
-            matched.push_str(&*string.matched);
-
-            Ok(ParserResult { value: TalkLiteral::Symbol(string_value), location: start_location, matched: Arc::new(matched) })
+            Ok(ParserResult { value: TalkLiteral::Symbol(string_value), location: start_location })
 
         } else if is_letter(next_chr) {
             
@@ -314,14 +295,12 @@ where
                 self.next().await;
             }
 
-            matched.push_str(&*identifier);
-
-            Ok(ParserResult { value: TalkLiteral::Selector(identifier), location: start_location, matched: Arc::new(matched) })
+            Ok(ParserResult { value: TalkLiteral::Selector(identifier), location: start_location })
 
         } else {
 
             // Not a valid '#' sequence
-            Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) })
+            Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location })
         }
     }
 
@@ -330,29 +309,27 @@ where
     ///
     async fn match_literal(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
         let start_location      = self.location();
-        let mut matched         = String::new();
 
         // Read the first character of the literal (error if we're at the end of the file)
         let chr = self.peek().await;
         let chr = if let Some(chr) = chr { 
             chr
         } else { 
-            return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) }); 
+            return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location }); 
         };
 
         // Match the literal based on the first character
         if chr == '$' {
 
             // Character
-            let chr = self.next().await.unwrap();
-            debug_assert!(chr == '$');
-            matched.push(chr);
+            let _chr = self.next().await.unwrap();
+            debug_assert!(_chr == '$');
 
             let chr = self.next().await;
             if let Some(chr) = chr {
-                Ok(ParserResult { value: TalkLiteral::Character(chr), location: start_location.to(self.location()), matched: Arc::new(matched) })
+                Ok(ParserResult { value: TalkLiteral::Character(chr), location: start_location.to(self.location()) })
             } else {
-                Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location, matched: Arc::new(matched) })
+                Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location })
             }
 
         } else if chr == '\'' {
@@ -369,29 +346,27 @@ where
 
             // Number
             let number = self.match_number().await;
-            Ok(ParserResult { value: TalkLiteral::Number(number.value), location: start_location.to(self.location()), matched: number.matched })
+            Ok(ParserResult { value: TalkLiteral::Number(number.value), location: start_location.to(self.location()) })
 
         } else if chr == '-' {
 
             // Might be number, depends on next character
             self.next().await;
-            matched.push('-');
 
             if is_number(self.peek().await.unwrap_or(' ')) {
                 let mut number = self.match_number().await;
 
                 Arc::make_mut(&mut number.value).insert(0, '-');
-                Arc::make_mut(&mut number.matched).insert(0, '-');
 
-                Ok(ParserResult { value: TalkLiteral::Number(number.value), location: start_location.to(self.location()), matched: number.matched })
+                Ok(ParserResult { value: TalkLiteral::Number(number.value), location: start_location.to(self.location()) })
             } else {
-                Err(ParserResult { value: TalkParseError::UnexpectedCharacter('-'), location: start_location, matched: Arc::new(matched) })
+                Err(ParserResult { value: TalkParseError::UnexpectedCharacter('-'), location: start_location })
             }
 
         } else {
 
             // Unexpected character
-            Err(ParserResult { value: TalkParseError::UnexpectedCharacter(chr), location: start_location, matched: Arc::new(matched) })
+            Err(ParserResult { value: TalkParseError::UnexpectedCharacter(chr), location: start_location })
 
         }
     }
@@ -401,36 +376,31 @@ where
     ///
     async fn match_variable_declaration(&mut self) -> Result<ParserResult<Vec<Arc<String>>>, ParserResult<TalkParseError>> {
         let start_location  = self.location();
-        let mut matched     = String::new();
         let mut variables   = vec![];
 
         // Opening '|' and whitespace
         let initial_pipe = self.next().await;
-        if initial_pipe != Some('|') { return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location, matched: Arc::new(matched) }); }
-        matched.push('|');
+        if initial_pipe != Some('|') { return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location }); }
 
-        self.consume(&mut matched).await?;
+        self.consume().await?;
 
         // Variables are identiifers
         loop {
             let next_chr = self.peek().await;
-            let next_chr = if let Some(next_chr) = next_chr { next_chr } else { return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location.to(self.location()), matched: Arc::new(matched) }); };
-
-            matched.push(next_chr);
+            let next_chr = if let Some(next_chr) = next_chr { next_chr } else { return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location.to(self.location()) }); };
 
             if is_letter(next_chr) {
                 // Identifier
                 let identifier = self.match_identifier().await;
-                matched.push_str(&*identifier.matched);
                 variables.push(identifier.value);
 
-                self.consume(&mut matched).await?;
+                self.consume().await?;
             } else if next_chr == '|' {
                 // End of variable list
-                return Ok(ParserResult { value: variables, location: start_location.to(self.location()), matched: Arc::new(matched) });
+                return Ok(ParserResult { value: variables, location: start_location.to(self.location()) });
             } else {
                 // Unexpected character
-                return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location.to(self.location()), matched: Arc::new(matched) });
+                return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location.to(self.location()) });
             }
         }
     }
@@ -440,12 +410,11 @@ where
     ///
     async fn match_block(&mut self) -> Result<ParserResult<(Vec<Arc<String>>, Vec<TalkExpression>)>, ParserResult<TalkParseError>> {
         let start_location  = self.location();
-        let mut matched     = String::new();
 
         // Consume the '['
         let opening_bracket = self.next().await;
         if opening_bracket != Some('[') {
-            return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location, matched: Arc::new(String::new()) });
+            return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location });
         }
 
         todo!("Block")
@@ -473,9 +442,9 @@ where
 
                     // Amend the initial comment
                     initial_comment = match initial_comment {
-                        None                    => Some(new_comment.matched),
+                        None                    => Some(Arc::new(new_comment.value)),
                         Some(mut old_comment)   => {
-                            Arc::make_mut(&mut old_comment).push_str(&*new_comment.matched);
+                            Arc::make_mut(&mut old_comment).push_str(&new_comment.value);
                             Some(old_comment)
                         }
                     };
@@ -496,7 +465,7 @@ where
             // '.' is used to end expressions, if it's here by itself, return an empty expression
             if chr == '.' {
                 self.next().await;
-                return Some(Ok(ParserResult { value: TalkExpression::Empty, location: start_location.to(self.location()), matched: Arc::new(".".to_string()) }));
+                return Some(Ok(ParserResult { value: TalkExpression::Empty, location: start_location.to(self.location()) }));
             }
 
             // Expressions starting '^' are return values (traditionally only allowed at the end of blocks)
@@ -516,20 +485,15 @@ where
                 let mut expr = match expr {
                     Some(Ok(expr))  => expr,
                     Some(Err(_))    => { return expr; }
-                    None            => { return Some(Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()), matched: Arc::new("(".to_string()) })); }
+                    None            => { return Some(Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) })); }
                 };
-                Arc::make_mut(&mut expr.matched).insert(0, '(');
 
                 // Closing bracket
-                self.consume(Arc::make_mut(&mut expr.matched)).await;
+                self.consume().await;
                 let closing_bracket = self.next().await;
 
-                if let Some(closing_bracket) = closing_bracket {
-                    Arc::make_mut(&mut expr.matched).push(closing_bracket);
-                }
-
                 if closing_bracket != Some(')') {
-                    return Some(Err(ParserResult { value: TalkParseError::MissingCloseBracket, location: start_location.to(self.location()), matched: expr.matched }));
+                    return Some(Err(ParserResult { value: TalkParseError::MissingCloseBracket, location: start_location.to(self.location()) }));
                 }
 
                 expr
@@ -540,8 +504,8 @@ where
                 let block = self.match_block().await;
 
                 match block {
-                    Err(err)                                                          => return Some(Err(err)),
-                    Ok(ParserResult { value: (arguments, expressions), matched, .. }) => ParserResult { value: TalkExpression::Block(arguments, expressions), location: start_location.to(self.location()), matched: matched }
+                    Err(err)                                                 => return Some(Err(err)),
+                    Ok(ParserResult { value: (arguments, expressions), .. }) => ParserResult { value: TalkExpression::Block(arguments, expressions), location: start_location.to(self.location()) }
                 }
 
             } else if chr == '|' {
@@ -553,7 +517,7 @@ where
                 // Can't send messages to this, so return here
                 match variables {
                     Err(err)        => { return Some(Err(err)); },
-                    Ok(variables)   => { return Some(Ok(ParserResult { value: TalkExpression::VariableDeclaration(variables.value), location: start_location.to(self.location()), matched: variables.matched })); }
+                    Ok(variables)   => { return Some(Ok(ParserResult { value: TalkExpression::VariableDeclaration(variables.value), location: start_location.to(self.location()) })); }
                 }
 
             } else if is_letter(chr) {
@@ -561,14 +525,14 @@ where
                 // Identifier
                 let identifier = self.match_identifier().await;
 
-                ParserResult { value: TalkExpression::Identifier(identifier.value), location: start_location.to(self.location()), matched: identifier.matched }
+                ParserResult { value: TalkExpression::Identifier(identifier.value), location: start_location.to(self.location()) }
 
             } else {
 
                 // Should be a literal
                 let literal = self.match_literal().await;
                 match literal {
-                    Ok(literal) => ParserResult { value: TalkExpression::Literal(literal.value), location: start_location.to(self.location()), matched: literal.matched },
+                    Ok(literal) => ParserResult { value: TalkExpression::Literal(literal.value), location: start_location.to(self.location()) },
                     Err(err)    => { return Some(Err(err)); }
                 }
             };
