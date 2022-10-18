@@ -55,8 +55,8 @@ pub enum TalkExpression {
     /// A literal
     Literal(TalkLiteral),
 
-    /// A block of expressions
-    Block(Vec<TalkExpression>),
+    /// A code block (list of arguments and expressions)
+    Block(Vec<Arc<String>>, Vec<TalkExpression>),
 
     /// An identifier
     Identifier(Arc<String>),

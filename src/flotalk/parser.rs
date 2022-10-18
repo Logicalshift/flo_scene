@@ -436,6 +436,22 @@ where
     }
 
     ///
+    /// When the next character is the opening '[' of a block, matches the block's contents
+    ///
+    async fn match_block(&mut self) -> Result<ParserResult<(Vec<Arc<String>>, Vec<TalkExpression>)>, ParserResult<TalkParseError>> {
+        let start_location  = self.location();
+        let mut matched     = String::new();
+
+        // Consume the '['
+        let opening_bracket = self.next().await;
+        if opening_bracket != Some('[') {
+            return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location, matched: Arc::new(String::new()) });
+        }
+
+        todo!("Block")
+    }
+
+    ///
     /// Matches and returns the next expression on this stream (skipping whitespace and comments). Returns None if there are no more
     /// expressions (end of stream).
     ///
@@ -521,7 +537,12 @@ where
             } else if chr == '[' {
 
                 // Block
-                todo!("Block")
+                let block = self.match_block().await;
+
+                match block {
+                    Err(err)                                                          => return Some(Err(err)),
+                    Ok(ParserResult { value: (arguments, expressions), matched, .. }) => ParserResult { value: TalkExpression::Block(arguments, expressions), location: start_location.to(self.location()), matched: matched }
+                }
 
             } else if chr == '|' {
 
