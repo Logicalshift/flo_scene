@@ -92,7 +92,7 @@ where
     ///
     /// Consumes any ignorable data, adding to the 'matched' string
     ///
-    async fn consume(&mut self, matched: &mut String) -> Result<(), TalkParseError> {
+    async fn consume(&mut self, matched: &mut String) -> Result<(), ParserResult<TalkParseError>> {
         while let Some(c) = self.peek().await {
             if is_whitespace(c) {
                 // Just consume whitespace
@@ -103,7 +103,7 @@ where
                 let comment = self.consume_comment().await;
                 
                 if let Some(Err(err)) = comment {
-                    return Err(err.value);
+                    return Err(err);
                 }
 
                 if let Some(Ok(comment)) = comment {
@@ -397,6 +397,45 @@ where
     }
 
     ///
+    /// Matches a variable declaration (when the next character on the stream is the initial '|'
+    ///
+    async fn match_variable_declaration(&mut self) -> Result<ParserResult<Vec<Arc<String>>>, ParserResult<TalkParseError>> {
+        let start_location  = self.location();
+        let mut matched     = String::new();
+        let mut variables   = vec![];
+
+        // Opening '|' and whitespace
+        let initial_pipe = self.next().await;
+        if initial_pipe != Some('|') { return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location, matched: Arc::new(matched) }); }
+        matched.push('|');
+
+        self.consume(&mut matched).await?;
+
+        // Variables are identiifers
+        loop {
+            let next_chr = self.peek().await;
+            let next_chr = if let Some(next_chr) = next_chr { next_chr } else { return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location.to(self.location()), matched: Arc::new(matched) }); };
+
+            matched.push(next_chr);
+
+            if is_letter(next_chr) {
+                // Identifier
+                let identifier = self.match_identifier().await;
+                matched.push_str(&*identifier.matched);
+                variables.push(identifier.value);
+
+                self.consume(&mut matched).await?;
+            } else if next_chr == '|' {
+                // End of variable list
+                return Ok(ParserResult { value: variables, location: start_location.to(self.location()), matched: Arc::new(matched) });
+            } else {
+                // Unexpected character
+                return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location.to(self.location()), matched: Arc::new(matched) });
+            }
+        }
+    }
+
+    ///
     /// Matches and returns the next expression on this stream (skipping whitespace and comments). Returns None if there are no more
     /// expressions (end of stream).
     ///
@@ -472,7 +511,13 @@ where
             } else if chr == '|' {
 
                 // Variable declaration
-                todo!("Variable declaration")
+                let variables = self.match_variable_declaration().await;
+
+                // Can't send messages to this, so return here
+                match variables {
+                    Err(err)        => { return Some(Err(err)); },
+                    Ok(variables)   => { return Some(Ok(ParserResult { value: TalkExpression::VariableDeclaration(variables.value), location: start_location.to(self.location()), matched: variables.matched })); }
+                }
 
             } else if is_letter(chr) {
 

@@ -58,7 +58,7 @@ pub enum TalkExpression {
     /// An identifier
     Identifier(Arc<String>),
 
-    /// A variable declaration (`| a b foo |`) 
+    /// A variable declaration (`| a b foo | <expr>`) 
     VariableDeclaration(Vec<Arc<String>>),
 
     /// Set a variable to the result of a program (`a := 42`)
