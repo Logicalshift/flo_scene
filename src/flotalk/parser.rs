@@ -611,7 +611,10 @@ where
             let primary = self.match_primary().await?;
             let primary = if let Some(primary) = primary { primary } else { return Ok(None) };
 
-            // TODO: variable declaration is an expression by itself, can't send messages to it
+            // Variable declaration is an expression by itself, can't send messages to it
+            if let TalkExpression::VariableDeclaration(_) = primary.value {
+                return Ok(Some(primary));
+            }
 
             // TODO: `identifier ::=` is an assignment
 
