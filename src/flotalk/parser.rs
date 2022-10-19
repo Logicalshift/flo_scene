@@ -493,6 +493,76 @@ where
     }
 
     ///
+    /// Matches a 'primary' at the current position (None if the current position is not a primary)
+    ///
+    async fn match_primary(&mut self) -> Result<Option<ParserResult<TalkExpression>>, ParserResult<TalkParseError>> {
+        let start_location      = self.location();
+
+        let chr             = self.peek().await;
+        let mut chr         = if let Some(chr) = chr { chr } else { return Ok(None); };
+
+        if chr == '(' {
+
+            // Nested expression
+            self.next().await;
+            let mut expr = self.match_expression().await?;
+
+            let mut expr = match expr {
+                Some(expr)  => expr,
+                None        => { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) }); }
+            };
+
+            // Closing bracket
+            self.consume().await;
+            let closing_bracket = self.next().await;
+
+            if closing_bracket != Some(')') {
+                Err(ParserResult { value: TalkParseError::MissingCloseBracket, location: start_location.to(self.location()) })
+            } else {
+                Ok(Some(expr))
+            }
+
+        } else if chr == '[' {
+
+            // Block
+            let block = self.match_block().await;
+
+            match block {
+                Err(err)                                                 => Err(err),
+                Ok(ParserResult { value: (arguments, expressions), .. }) => Ok(Some(ParserResult { value: TalkExpression::Block(arguments, expressions), location: start_location.to(self.location()) }))
+            }
+
+        } else if chr == '|' {
+
+            // Variable declaration
+            // (In SmallTalk-80, these are only allowed at the start of blocks, but we allow them anywhere and treat them as expressions)
+            let variables = self.match_variable_declaration().await;
+
+            // Can't send messages to this, so return here
+            match variables {
+                Err(err)        => Err(err),
+                Ok(variables)   => Ok(Some(ParserResult { value: TalkExpression::VariableDeclaration(variables.value), location: start_location.to(self.location()) }))
+            }
+
+        } else if is_letter(chr) {
+
+            // Identifier
+            let identifier = self.match_identifier().await;
+
+            Ok(Some(ParserResult { value: TalkExpression::Identifier(identifier.value), location: start_location.to(self.location()) }))
+
+        } else {
+
+            // Should be a literal
+            let literal = self.match_literal().await?;
+            match literal {
+                Some(literal)   => Ok(Some(ParserResult { value: TalkExpression::Literal(literal.value), location: start_location.to(self.location()) })),
+                None            => Ok(None),
+            }
+        }
+    }
+
+    ///
     /// Matches and returns the next expression on this stream (skipping whitespace and comments). Returns None if there are no more
     /// expressions (end of stream).
     ///
@@ -543,65 +613,13 @@ where
                 chr = if let Some(chr) = self.peek().await { chr } else { return Ok(None) };
             }
 
-            let primary = if chr == '(' {
+            // Fetch the 'primary' part of the expression
+            let primary = self.match_primary().await?;
+            let primary = if let Some(primary) = primary { primary } else { return Ok(None) };
 
-                // Nested expression
-                self.next().await;
-                let mut expr = self.match_expression().await?;
+            // TODO: variable declaration is an expression by itself, can't send messages to it
 
-                let mut expr = match expr {
-                    Some(expr)  => expr,
-                    None        => { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) }); }
-                };
-
-                // Closing bracket
-                self.consume().await;
-                let closing_bracket = self.next().await;
-
-                if closing_bracket != Some(')') {
-                    return Err(ParserResult { value: TalkParseError::MissingCloseBracket, location: start_location.to(self.location()) });
-                }
-
-                expr
-
-            } else if chr == '[' {
-
-                // Block
-                let block = self.match_block().await;
-
-                match block {
-                    Err(err)                                                 => return Err(err),
-                    Ok(ParserResult { value: (arguments, expressions), .. }) => ParserResult { value: TalkExpression::Block(arguments, expressions), location: start_location.to(self.location()) }
-                }
-
-            } else if chr == '|' {
-
-                // Variable declaration
-                // (In SmallTalk-80, these are only allowed at the start of blocks, but we allow them anywhere and treat them as expressions)
-                let variables = self.match_variable_declaration().await;
-
-                // Can't send messages to this, so return here
-                match variables {
-                    Err(err)        => { return Err(err); },
-                    Ok(variables)   => { return Ok(Some(ParserResult { value: TalkExpression::VariableDeclaration(variables.value), location: start_location.to(self.location()) })); }
-                }
-
-            } else if is_letter(chr) {
-
-                // Identifier
-                let identifier = self.match_identifier().await;
-
-                ParserResult { value: TalkExpression::Identifier(identifier.value), location: start_location.to(self.location()) }
-
-            } else {
-
-                // Should be a literal
-                let literal = self.match_literal().await?;
-                match literal {
-                    Some(literal)   => ParserResult { value: TalkExpression::Literal(literal.value), location: start_location.to(self.location()) },
-                    None            => { return Ok(None); }
-                }
-            };
+            // TODO: `identifier ::=` is an assignment
 
             // TODO: Following values indicate any messages to send
 
