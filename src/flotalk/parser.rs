@@ -303,7 +303,7 @@ where
     ///
     /// With the stream at the first character in a literal, matches and consumes that literal
     ///
-    async fn match_literal(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
+    async fn match_literal(&mut self) -> Result<Option<ParserResult<TalkLiteral>>, ParserResult<TalkParseError>> {
         let start_location      = self.location();
 
         // Read the first character of the literal (error if we're at the end of the file)
@@ -323,7 +323,7 @@ where
 
             let chr = self.next().await;
             if let Some(chr) = chr {
-                Ok(ParserResult { value: TalkLiteral::Character(chr), location: start_location.to(self.location()) })
+                Ok(Some(ParserResult { value: TalkLiteral::Character(chr), location: start_location.to(self.location()) }))
             } else {
                 Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location })
             }
@@ -331,18 +331,18 @@ where
         } else if chr == '\'' {
 
             // String
-            self.match_string().await
+            Ok(Some(self.match_string().await?))
 
         } else if chr == '#' {
 
             // Array if #( or symbol if #' or #<alphanum>
-            self.match_array_or_symbol().await
+            Ok(Some(self.match_array_or_symbol().await?))
 
         } else if is_number(chr) {
 
             // Number
             let number = self.match_number().await;
-            Ok(ParserResult { value: TalkLiteral::Number(number.value), location: start_location.to(self.location()) })
+            Ok(Some(ParserResult { value: TalkLiteral::Number(number.value), location: start_location.to(self.location()) }))
 
         } else if chr == '-' {
 
@@ -354,15 +354,15 @@ where
 
                 Arc::make_mut(&mut number.value).insert(0, '-');
 
-                Ok(ParserResult { value: TalkLiteral::Number(number.value), location: start_location.to(self.location()) })
+                Ok(Some(ParserResult { value: TalkLiteral::Number(number.value), location: start_location.to(self.location()) }))
             } else {
                 Err(ParserResult { value: TalkParseError::UnexpectedCharacter('-'), location: start_location })
             }
 
         } else {
 
-            // Unexpected character
-            Err(ParserResult { value: TalkParseError::UnexpectedCharacter(chr), location: start_location })
+            // Unexpected character (ie, this is not a literal)
+            return Ok(None);
 
         }
     }
@@ -596,10 +596,10 @@ where
             } else {
 
                 // Should be a literal
-                let literal = self.match_literal().await;
+                let literal = self.match_literal().await?;
                 match literal {
-                    Ok(literal) => ParserResult { value: TalkExpression::Literal(literal.value), location: start_location.to(self.location()) },
-                    Err(err)    => { return Err(err); }
+                    Some(literal)   => ParserResult { value: TalkExpression::Literal(literal.value), location: start_location.to(self.location()) },
+                    None            => { return Ok(None); }
                 }
             };
 
