@@ -637,7 +637,28 @@ where
                 return Ok(Some(primary));
             }
 
-            // TODO: `identifier ::=` is an assignment
+            // `identifier ::=` is an assignment
+            if let TalkExpression::Identifier(identifier) = &primary.value {
+                let identifier = Arc::clone(identifier);
+
+                // We only allow whitespace between the identifier and the '::=' and not comments, to allow for documentation comments elsewhere
+                self.consume_whitespace().await;
+
+                if self.peek().await == Some(':') {
+                    // Look for the rest of the '::='
+                    self.next().await;
+                    if self.next().await == Some(':') && self.next().await == Some('=') {
+                        // Is an assignment
+                        let assignment_expr = self.match_expression().await?.unwrap_or(ParserResult { value: TalkExpression::Empty, location: self.location() });
+
+                        // Can't send any more messages to an assignment
+                        return Ok(Some(ParserResult { value: TalkExpression::Assignment(identifier, Box::new(assignment_expr.value)), location: start_location.to(self.location()) }));
+                    } else {
+                        // Looked like an assignment but turned out to be something else
+                        return Err(ParserResult { value: TalkParseError::UnexpectedCharacter(self.peek().await.unwrap_or(' ')), location: self.location() });
+                    }
+                }
+            }
 
             // TODO: Following values indicate any messages to send
 

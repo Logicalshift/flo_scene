@@ -77,7 +77,7 @@ pub enum TalkExpression {
     VariableDeclaration(Vec<Arc<String>>),
 
     /// Set a variable to the result of a program (`a := 42`)
-    Assignment(String, Box<TalkExpression>),
+    Assignment(Arc<String>, Box<TalkExpression>),
 
     /// A return expresson (expression starting with `^`)
     Return(Box<TalkExpression>),
