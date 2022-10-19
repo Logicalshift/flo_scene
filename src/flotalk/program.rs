@@ -3,6 +3,18 @@ use super::location::*;
 use std::sync::*;
 
 ///
+/// An identifier is something like `foo` but a keyword is an identifier followed by a ':', as in `foo:`.
+///
+#[derive(Clone, PartialEq, Debug)]
+pub enum TalkIdentifierOrKeyword {
+    /// Matched an identifier
+    Identifier(Arc<String>),
+
+    /// Matched a keyword
+    Keyword(Arc<String>),
+}
+
+///
 /// A literal from a flotalk program
 ///
 #[derive(Clone, PartialEq, Debug)]

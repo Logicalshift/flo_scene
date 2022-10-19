@@ -150,7 +150,7 @@ where
     ///
     /// Matches an identifier at the current position (can match 0 characters)
     ///
-    async fn match_identifier(&mut self) -> ParserResult<Arc<String>> {
+    async fn match_identifier_or_keyword(&mut self) -> ParserResult<TalkIdentifierOrKeyword> {
         let start_location = self.location();
         let mut identifier = String::new();
 
@@ -166,9 +166,30 @@ where
             self.next().await;
         }
 
-        // Whatever we matched is the identifier
-        let identifier = Arc::new(identifier);
-        ParserResult { value: identifier, location: start_location }
+        if self.peek().await == Some(':') {
+            // Matched `foo:`, ie, a keyword
+            self.next().await;
+            identifier.push(':');
+
+            let keyword = Arc::new(identifier);
+            ParserResult { value: TalkIdentifierOrKeyword::Keyword(keyword), location: start_location.to(self.location()) }
+        } else {
+            // Whatever we matched is the identifier
+            let identifier = Arc::new(identifier);
+            ParserResult { value: TalkIdentifierOrKeyword::Identifier(identifier), location: start_location.to(self.location()) }
+        }
+    }
+
+    ///
+    /// Matches an identifier or returns an error if the value is a keyword
+    ///
+    async fn match_identifier(&mut self) -> Result<ParserResult<Arc<String>>, ParserResult<TalkParseError>> {
+        let maybe_identifier = self.match_identifier_or_keyword().await;
+
+        match maybe_identifier.value {
+            TalkIdentifierOrKeyword::Identifier(identifier) => Ok(ParserResult { value: identifier, location: maybe_identifier.location }),
+            TalkIdentifierOrKeyword::Keyword(_)             => Err(ParserResult { value: TalkParseError::KeywordNotValidHere, location: maybe_identifier.location }),
+        }
     }
 
     ///
@@ -284,7 +305,7 @@ where
         } else if is_letter(next_chr) {
             
             // Is a selector
-            let mut identifier = self.match_identifier().await.value;
+            let mut identifier = self.match_identifier().await?.value;
             if self.peek().await == Some(':') {
                 // Keyword selector
                 Arc::make_mut(&mut identifier).push(':');
@@ -387,7 +408,7 @@ where
 
             if is_letter(next_chr) {
                 // Identifier
-                let identifier = self.match_identifier().await;
+                let identifier = self.match_identifier().await?;
                 variables.push(identifier.value);
 
                 self.consume().await?;
@@ -441,7 +462,7 @@ where
                 }
 
                 // Should be followed by an identiifer
-                let identifier = self.match_identifier().await.value;
+                let identifier = self.match_identifier().await?.value;
                 if identifier.len() == 0 {
                     let bad_chr = self.peek().await.unwrap_or(' ');
                     return Err(ParserResult { value: TalkParseError::UnexpectedCharacter(bad_chr), location: start_location.to(self.location()) });
@@ -541,7 +562,7 @@ where
         } else if is_letter(chr) {
 
             // Identifier
-            let identifier = self.match_identifier().await;
+            let identifier = self.match_identifier().await?;
 
             Ok(Some(ParserResult { value: TalkExpression::Identifier(identifier.value), location: start_location.to(self.location()) }))
 

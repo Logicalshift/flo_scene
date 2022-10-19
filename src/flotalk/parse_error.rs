@@ -23,4 +23,7 @@ pub enum TalkParseError {
 
     /// Unexpected end of stream
     ExpectedMoreCharacters,
+
+    /// A keyword (`foo:`) was used where an identifier (`foo`) was expected
+    KeywordNotValidHere,
 }
