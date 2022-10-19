@@ -484,8 +484,8 @@ where
             }
 
             // Read the next expression
-            let expression = self.match_expression().await;
-            let expression = if let Some(expression) = expression { expression? } else { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) }); };
+            let expression = self.match_expression().await?;
+            let expression = if let Some(expression) = expression { expression } else { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) }); };
 
             // Add to the expressions making up this block
             expressions.push(expression.value);
@@ -496,7 +496,7 @@ where
     /// Matches and returns the next expression on this stream (skipping whitespace and comments). Returns None if there are no more
     /// expressions (end of stream).
     ///
-    fn match_expression<'a>(&'a mut self) -> BoxFuture<'a, Option<Result<ParserResult<TalkExpression>, ParserResult<TalkParseError>>>> {
+    fn match_expression<'a>(&'a mut self) -> BoxFuture<'a, Result<Option<ParserResult<TalkExpression>>, ParserResult<TalkParseError>>> {
         async move {
             // Eat up as much whitespace as possible
             self.consume_whitespace().await;
@@ -526,13 +526,13 @@ where
 
             // Decide what type of expression is following
             let chr             = self.peek().await;
-            let mut chr         = if let Some(chr) = chr { chr } else { return None; };
+            let mut chr         = if let Some(chr) = chr { chr } else { return Ok(None); };
             let mut is_return   = false;
 
             // '.' is used to end expressions, if it's here by itself, return an empty expression
             if chr == '.' {
                 self.next().await;
-                return Some(Ok(ParserResult { value: TalkExpression::Empty, location: start_location.to(self.location()) }));
+                return Ok(Some(ParserResult { value: TalkExpression::Empty, location: start_location.to(self.location()) }));
             }
 
             // Expressions starting '^' are return values (traditionally only allowed at the end of blocks)
@@ -540,19 +540,18 @@ where
                 is_return = true;
 
                 self.next().await;
-                chr = if let Some(chr) = self.peek().await { chr } else { return None };
+                chr = if let Some(chr) = self.peek().await { chr } else { return Ok(None) };
             }
 
             let primary = if chr == '(' {
 
                 // Nested expression
                 self.next().await;
-                let expr = self.match_expression().await;
+                let mut expr = self.match_expression().await?;
 
                 let mut expr = match expr {
-                    Some(Ok(expr))  => expr,
-                    Some(Err(_))    => { return expr; }
-                    None            => { return Some(Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) })); }
+                    Some(expr)  => expr,
+                    None        => { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) }); }
                 };
 
                 // Closing bracket
@@ -560,7 +559,7 @@ where
                 let closing_bracket = self.next().await;
 
                 if closing_bracket != Some(')') {
-                    return Some(Err(ParserResult { value: TalkParseError::MissingCloseBracket, location: start_location.to(self.location()) }));
+                    return Err(ParserResult { value: TalkParseError::MissingCloseBracket, location: start_location.to(self.location()) });
                 }
 
                 expr
@@ -571,7 +570,7 @@ where
                 let block = self.match_block().await;
 
                 match block {
-                    Err(err)                                                 => return Some(Err(err)),
+                    Err(err)                                                 => return Err(err),
                     Ok(ParserResult { value: (arguments, expressions), .. }) => ParserResult { value: TalkExpression::Block(arguments, expressions), location: start_location.to(self.location()) }
                 }
 
@@ -583,8 +582,8 @@ where
 
                 // Can't send messages to this, so return here
                 match variables {
-                    Err(err)        => { return Some(Err(err)); },
-                    Ok(variables)   => { return Some(Ok(ParserResult { value: TalkExpression::VariableDeclaration(variables.value), location: start_location.to(self.location()) })); }
+                    Err(err)        => { return Err(err); },
+                    Ok(variables)   => { return Ok(Some(ParserResult { value: TalkExpression::VariableDeclaration(variables.value), location: start_location.to(self.location()) })); }
                 }
 
             } else if is_letter(chr) {
@@ -600,14 +599,14 @@ where
                 let literal = self.match_literal().await;
                 match literal {
                     Ok(literal) => ParserResult { value: TalkExpression::Literal(literal.value), location: start_location.to(self.location()) },
-                    Err(err)    => { return Some(Err(err)); }
+                    Err(err)    => { return Err(err); }
                 }
             };
 
             // TODO: Following values indicate any messages to send
 
             // Return the result
-            Some(Ok(primary))
+            Ok(Some(primary))
         }.boxed()
     }
 }
@@ -623,8 +622,24 @@ pub fn parse_flotalk_expression<'a>(input_stream: impl 'a + Unpin + Send + Strea
         let mut input_stream = input_stream;
 
         // Match as many expressions as possible
-        while let Some(expression) = input_stream.match_expression().await {
-            yield_value(expression).await;
+        loop {
+            let expression = input_stream.match_expression().await;
+
+            match expression {
+                Err(err)        => yield_value(Err(err)).await,
+                Ok(Some(expr))  => yield_value(Ok(expr)).await,
+                Ok(None)        => {
+                    if let Some(err_char) = input_stream.peek().await {
+                        // Unexpected character
+                        let location = input_stream.location();
+                        yield_value(Err(ParserResult { value: TalkParseError::UnexpectedCharacter(err_char), location: location })).await;
+                        break;
+                    } else {
+                        // End of stream
+                        break;
+                    }
+                }
+            }
         }
     })
 }
