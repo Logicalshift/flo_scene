@@ -305,12 +305,11 @@ where
         } else if is_letter(next_chr) {
             
             // Is a selector
-            let mut identifier = self.match_identifier().await?.value;
-            if self.peek().await == Some(':') {
-                // Keyword selector
-                Arc::make_mut(&mut identifier).push(':');
-                self.next().await;
-            }
+            let identifier = self.match_identifier_or_keyword().await.value;
+            let identifier = match identifier {
+                TalkIdentifierOrKeyword::Identifier(identifier) => identifier,
+                TalkIdentifierOrKeyword::Keyword(keyword)       => keyword,
+            };
 
             Ok(ParserResult { value: TalkLiteral::Selector(identifier), location: start_location })
 
