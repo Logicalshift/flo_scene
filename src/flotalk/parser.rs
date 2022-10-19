@@ -60,9 +60,9 @@ where
     ///
     /// Consumes a comment, if one exists at the present location, returning as an empty parser result
     ///
-    async fn consume_comment(&mut self) -> Option<Result<ParserResult<String>, ParserResult<TalkParseError>>> {
+    async fn consume_comment(&mut self) -> Result<Option<ParserResult<String>>, ParserResult<TalkParseError>> {
         // In Smalltalk, comments start with a double-quote character '"'
-        if self.peek().await != Some('"') { return None; }
+        if self.peek().await != Some('"') { return Ok(None); }
 
         // Remember where the comment starts
         let comment_start   = self.location();
@@ -79,11 +79,11 @@ where
 
             if chr == '"' {
                 // End of comment
-                return Some(Ok(ParserResult { value: matched, location: comment_start.to(self.location()) }));
+                return Ok(Some(ParserResult { value: matched, location: comment_start.to(self.location()) }));
             }
         }
 
-        Some(Err(ParserResult { value: TalkParseError::UnclosedDoubleQuoteComment, location: comment_start.to(self.location()) }))
+        Err(ParserResult { value: TalkParseError::UnclosedDoubleQuoteComment, location: comment_start.to(self.location()) })
     }
 
     ///
@@ -96,11 +96,7 @@ where
                 self.next().await;
             } else if c == '"' {
                 // Consume comments, and check for errors
-                let comment = self.consume_comment().await;
-                
-                if let Some(Err(err)) = comment {
-                    return Err(err);
-                }
+                self.consume_comment().await?;
             } else {
                 break;
             }
@@ -421,8 +417,8 @@ where
         let mut initial_comment = None;
         self.consume_whitespace().await;
 
-        if let Some(comment) = self.consume_comment().await {
-            initial_comment = Some(Arc::new(comment?.value));
+        if let Some(comment) = self.consume_comment().await? {
+            initial_comment = Some(Arc::new(comment.value));
         }
 
         // Parameters are next, of the form `... :a :b | ...`
@@ -462,8 +458,8 @@ where
             if initial_comment.is_none() {
                 self.consume_whitespace().await;
 
-                if let Some(comment) = self.consume_comment().await {
-                    initial_comment = Some(Arc::new(comment?.value));
+                if let Some(comment) = self.consume_comment().await? {
+                    initial_comment = Some(Arc::new(comment.value));
                 }
 
                 self.consume().await?;
@@ -510,12 +506,7 @@ where
             let mut initial_comment = None;
 
             loop {
-                if let Some(new_comment) = self.consume_comment().await {
-                    let new_comment = match new_comment {
-                        Ok(comment) => comment,
-                        Err(err)    => return Some(Err(err))
-                    };
-
+                if let Some(new_comment) = self.consume_comment().await? {
                     // Amend the initial comment
                     initial_comment = match initial_comment {
                         None                    => Some(Arc::new(new_comment.value)),
