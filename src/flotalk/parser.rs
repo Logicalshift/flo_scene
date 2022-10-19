@@ -513,7 +513,7 @@ where
             };
 
             // Closing bracket
-            self.consume().await;
+            self.consume().await?;
             let closing_bracket = self.next().await;
 
             if closing_bracket != Some(')') {
@@ -525,24 +525,18 @@ where
         } else if chr == '[' {
 
             // Block
-            let block = self.match_block().await;
+            let block                       = self.match_block().await?;
+            let (arguments, expressions)    = block.value;
 
-            match block {
-                Err(err)                                                 => Err(err),
-                Ok(ParserResult { value: (arguments, expressions), .. }) => Ok(Some(ParserResult { value: TalkExpression::Block(arguments, expressions), location: start_location.to(self.location()) }))
-            }
+            Ok(Some(ParserResult { value: TalkExpression::Block(arguments, expressions), location: start_location.to(self.location()) }))
 
         } else if chr == '|' {
 
             // Variable declaration
             // (In SmallTalk-80, these are only allowed at the start of blocks, but we allow them anywhere and treat them as expressions)
-            let variables = self.match_variable_declaration().await;
+            let variables = self.match_variable_declaration().await?;
 
-            // Can't send messages to this, so return here
-            match variables {
-                Err(err)        => Err(err),
-                Ok(variables)   => Ok(Some(ParserResult { value: TalkExpression::VariableDeclaration(variables.value), location: start_location.to(self.location()) }))
-            }
+            Ok(Some(ParserResult { value: TalkExpression::VariableDeclaration(variables.value), location: start_location.to(self.location()) }))
 
         } else if is_letter(chr) {
 
