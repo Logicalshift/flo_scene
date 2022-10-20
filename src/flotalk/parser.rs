@@ -47,6 +47,8 @@ where
     ///
     /// Consumes as much whitespace as possible
     ///
+    /// `<whitespace> ::= <whitespace_character>*`
+    ///
     async fn consume_whitespace(&mut self) {
         // Read characters until we receive a non-whitespace character, then push it back
         while let Some(c) = self.next().await {
@@ -59,6 +61,8 @@ where
 
     ///
     /// Consumes a comment, if one exists at the present location, returning as an empty parser result
+    ///
+    /// `<comment> ::= '"' <anything-but-double-quote>* '"'`
     ///
     async fn consume_comment(&mut self) -> Result<Option<ParserResult<String>>, ParserResult<TalkParseError>> {
         // In Smalltalk, comments start with a double-quote character '"'
@@ -89,6 +93,8 @@ where
     ///
     /// Consumes any ignorable data
     ///
+    /// `<consume> ::= [ <comment> | <whitespace> ]*`
+    ///
     async fn consume(&mut self) -> Result<(), ParserResult<TalkParseError>> {
         while let Some(c) = self.peek().await {
             if is_whitespace(c) {
@@ -107,6 +113,8 @@ where
 
     ///
     /// With the stream pointing to a "'" character, matches the following string
+    ///
+    /// `<string> ::= '\'' <anything-but-single-quote>* '\''`
     ///
     async fn match_string(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
         let start_location      = self.location();
@@ -143,12 +151,17 @@ where
     ///
     /// After matching '#' and looking ahead to '(', finish matching the rest of the array
     ///
+    /// `<array-definition> ::= ...`
+    ///
     async fn match_array(&mut self, start_location: TalkLocation) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
         todo!("Array")
     }
 
     ///
     /// Matches an identifier at the current position (can match 0 characters)
+    ///
+    /// `<identifier> ::= <letter> [ <letter> | <numeric> ]*`
+    /// `<keyword> ::= <identifier> ':'`
     ///
     async fn match_identifier_or_keyword(&mut self) -> ParserResult<TalkIdentifierOrKeyword> {
         let start_location = self.location();
@@ -194,6 +207,11 @@ where
 
     ///
     /// Matches a number at the current position (can match 0 characters)
+    ///
+    /// `<number> ::= <numeric>*`
+    /// `<number> ::= <numeric>* 'r' [ <numeric> | <letter> ]*`
+    /// `<number> ::= <numeric>* '.' <numeric>*`
+    /// `<number> ::= <numeric>* '.' <numeric>* 'e' <numeric>*`
     ///
     async fn match_number(&mut self) -> ParserResult<Arc<String>> {
         let start_location = self.location();
@@ -273,6 +291,11 @@ where
     ///
     /// With the lookahead on the stream being a '#', match the following array or symbol
     ///
+    /// `<symbol> ::= '#' <identifier>`
+    /// `<symbol> ::= '#' <keyword>`
+    /// `<symbol> ::= '#' <string>`
+    /// `<array> ::= '#' '(' <array-definition>`
+    ///
     async fn match_array_or_symbol(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
         let start_location      = self.location();
 
@@ -321,7 +344,10 @@ where
     }
 
     ///
-    /// With the stream at the first character in a literal, matches and consumes that literal
+    /// With the stream at the first character in a literal, matches and consumes that literal, returning None if the stream is not at a literal
+    ///
+    /// `<literal> ::= <character> | <string> | <array> | <symbol> | <number> | '-' <number>`
+    /// `<character> ::= '$' <any>`
     ///
     async fn match_literal(&mut self) -> Result<Option<ParserResult<TalkLiteral>>, ParserResult<TalkParseError>> {
         let start_location      = self.location();
@@ -390,6 +416,8 @@ where
     ///
     /// Matches a variable declaration (when the next character on the stream is the initial '|'
     ///
+    /// `<variable-declaration> ::= '|' <identifier>* '|'`
+    ///
     async fn match_variable_declaration(&mut self) -> Result<ParserResult<Vec<Arc<String>>>, ParserResult<TalkParseError>> {
         let start_location  = self.location();
         let mut variables   = vec![];
@@ -423,6 +451,9 @@ where
 
     ///
     /// When the next character is the opening '[' of a block, matches the block's contents
+    ///
+    /// `<block> ::= '[' <expression>* ']'`
+    /// `<block> ::= '[' [ ':' <identifier> ]* '|' <expression>* ']'`
     ///
     async fn match_block(&mut self) -> Result<ParserResult<(Vec<Arc<String>>, Vec<TalkExpression>)>, ParserResult<TalkParseError>> {
         let start_location  = self.location();
@@ -512,8 +543,19 @@ where
         }
     }
 
+    /*
+    ///
+    /// Matches the 'messages' portion of an expression
+    ///
+    async fn matches_messages(&mut self) -> Result<Option<ParserResult<()>>, ParserResult<TalkParseError>> {
+
+    }
+    */
+
     ///
     /// Matches a 'primary' at the current position (None if the current position is not a primary)
+    ///
+    /// `<primary> ::= '(' <expression> `)` | <block> | <variable-declaration> | <identifier> | <literal>`
     ///
     async fn match_primary(&mut self) -> Result<Option<ParserResult<TalkExpression>>, ParserResult<TalkParseError>> {
         let start_location      = self.location();
