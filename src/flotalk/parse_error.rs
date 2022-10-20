@@ -26,4 +26,7 @@ pub enum TalkParseError {
 
     /// A keyword (`foo:`) was used where an identifier (`foo`) was expected
     KeywordNotValidHere,
+
+    /// The RHS of a binary expression does not seem to be valid
+    MissingRValue,
 }

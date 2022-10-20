@@ -40,6 +40,15 @@ fn is_letter(c: char) -> bool {
     c.is_alphabetic()
 }
 
+/// True if the specified character can be part of a binary selector
+#[inline]
+fn is_binary_character(c: char) -> bool {
+    match c {
+        '+' | '-' | '/' | '*' | '!' | '%' | '&' | ','| '<' | '=' | '>' | '?' | '@' | '\\' | '~' | '|' => true,
+        _ => false,
+    }
+}
+
 impl<TStream> PushBackStream<TStream>
 where
     TStream: Unpin + Send + Stream<Item=char>
@@ -543,14 +552,102 @@ where
         }
     }
 
-    /*
     ///
-    /// Matches the 'messages' portion of an expression
+    /// Matches a unary message, if one is at the current position in the stream
+    ///
+    /// `<unary-message> ::= <identifier>`
+    ///
+    async fn match_unary_message(&mut self) -> Option<Arc<String>> {
+        let chr = self.peek().await?;
+        
+        if is_letter(chr) {
+            // Either an identifier or a keyword
+            let identifier_or_keyword = self.match_identifier_or_keyword().await;
+
+            match identifier_or_keyword.value {
+                TalkIdentifierOrKeyword::Keyword(keyword) => {
+                    // Push the entire keyword back
+                    for chr in keyword.chars().rev() {
+                        self.pushback(chr)
+                    }
+
+                    // Not a unary message
+                    None
+                }
+
+                TalkIdentifierOrKeyword::Identifier(identifier) => {
+                    Some(identifier)
+                }
+            }
+        } else {
+            // Not an identifier
+            None
+        }
+    }
+
+    ///
+    /// Matches a binary message, if one is next on the stream
+    ///
+    /// `<binary-message> ::= <binary-selector> <binary-argument>`
+    /// `<binary-argument> ::= <primary> <unary-message>*`
+    ///
+    async fn match_binary_message(&mut self) -> Result<Option<(Arc<String>, TalkExpression, Vec<Arc<String>>)>, ParserResult<TalkParseError>> {
+        let start_location = self.location();
+
+        let chr = self.peek().await;
+        let chr = if let Some(chr) = chr { chr } else { return Ok(None); };
+
+        // The binary selector is one or more binary characters
+        if !is_binary_character(chr) { return Ok(None); }
+
+        self.next().await;
+        let mut binary_selector = String::new();
+        binary_selector.push(chr);
+
+        while let Some(chr) = self.peek().await {
+            if !is_binary_character(chr) { break; }
+
+            self.next().await;
+            binary_selector.push(chr);
+        }
+
+        // Can be whitespace between the binary selector and the arguments
+        self.consume().await?;
+
+        // Argument must be a primary, followed by any number of unary messages
+        let primary = self.match_primary().await?;
+        let primary = if let Some(primary) = primary { primary } else { return Err(ParserResult { value: TalkParseError::MissingRValue, location: start_location.to(self.location()) }); };
+
+        // After the primary comes a list of 0 or more unary messages
+        self.consume().await?;
+
+        let mut unary_messages = vec![];
+        while let Some(unary_message) = self.match_unary_message().await {
+            unary_messages.push(unary_message);
+
+            self.consume().await;
+        }
+
+        Ok(Some((Arc::new(binary_selector), primary.value, unary_messages)))
+    }
+
+    ///
+    /// Matches the 'messages' portion of an expression (or None if there are no messages)
+    ///
+    /// `<messages> ::= <unary-message>+ <binary-message>*`
+    /// `<messages> ::= <unary-message>+ <binary-message>* <keyword-message>`
+    /// `<messages> ::= <binary-message>+`
+    /// `<messages> ::= <binary-message>+ <keyword-message>`
+    /// `<messages> ::= <keyword-message>`
+    /// `<unary-message> ::= <identifier>`
+    /// `<binary-message> ::= <binary-selector> <binary-argument>`
+    /// `<binary-argument> ::= <primary> <unary-message>*`
+    /// `<keyword-message> ::= ( <keyword> <keyword-argument> )+`
+    /// `<keyword-argument> ::= <primary> <unary-message>* <binary-message>*`
     ///
     async fn matches_messages(&mut self) -> Result<Option<ParserResult<()>>, ParserResult<TalkParseError>> {
-
+        todo!()
     }
-    */
 
     ///
     /// Matches a 'primary' at the current position (None if the current position is not a primary)
@@ -621,6 +718,12 @@ where
     ///
     /// Matches and returns the next expression on this stream (skipping whitespace and comments). Returns None if there are no more
     /// expressions (end of stream).
+    ///
+    /// `<expression> ::= '.'`
+    /// `<expression> ::= <primary> '.'?`
+    /// `<expression> ::= <primary> <messages> '.'?`
+    /// `<expression> ::= `^` <expression> '.'?`
+    /// `<expression> ::= <identifier> ':' ':' '=' <expression> '.'?`
     ///
     fn match_expression<'a>(&'a mut self) -> BoxFuture<'a, Result<Option<ParserResult<TalkExpression>>, ParserResult<TalkParseError>>> {
         async move {
