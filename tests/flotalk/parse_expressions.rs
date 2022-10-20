@@ -103,7 +103,7 @@ fn arguments_block() {
 
 #[test]
 fn assignment() {
-    let test_source     = "foo ::= 1";
+    let test_source     = "foo := 1";
     let test_source     = stream::iter(test_source.chars());
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 

@@ -791,7 +791,7 @@ where
                 if self.peek().await == Some(':') {
                     // Look for the rest of the '::='
                     self.next().await;
-                    if self.next().await == Some(':') && self.next().await == Some('=') {
+                    if self.next().await == Some('=') {
                         // Is an assignment
                         let assignment_expr = self.match_expression().await?.unwrap_or(ParserResult { value: TalkExpression::Empty, location: self.location() });
 
