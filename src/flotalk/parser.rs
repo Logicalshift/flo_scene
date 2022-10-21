@@ -634,7 +634,7 @@ where
         if unary_messages.len() > 0 {
             // Messages apply to the previous result
             for unary_message in unary_messages.into_iter() {
-                message = TalkExpression::SendMessages(Box::new(message), vec![unary_message]);
+                message = TalkExpression::SendMessage(Box::new(message), vec![unary_message]);
             }
         }
 
@@ -695,13 +695,13 @@ where
         if unary_messages.len() > 0 {
             // Messages apply to the previous result
             for unary_message in unary_messages.into_iter() {
-                message = TalkExpression::SendMessages(Box::new(message), vec![unary_message]);
+                message = TalkExpression::SendMessage(Box::new(message), vec![unary_message]);
             }
         }
 
         if binary_messages.len() > 0 {
             for binary_argument in binary_messages {
-                message = TalkExpression::SendMessages(Box::new(message), vec![binary_argument]);
+                message = TalkExpression::SendMessage(Box::new(message), vec![binary_argument]);
             }
         }
 
@@ -765,18 +765,18 @@ where
         if unary_messages.len() > 0 {
             // Messages apply to the previous result
             for unary_message in unary_messages.into_iter() {
-                expr = TalkExpression::SendMessages(Box::new(expr), vec![unary_message]);
+                expr = TalkExpression::SendMessage(Box::new(expr), vec![unary_message]);
             }
         }
 
         if binary_messages.len() > 0 {
             for binary_argument in binary_messages {
-                expr = TalkExpression::SendMessages(Box::new(expr), vec![binary_argument]);
+                expr = TalkExpression::SendMessage(Box::new(expr), vec![binary_argument]);
             }
         }
 
         if keyword_arguments.len() > 0 {
-            expr = TalkExpression::SendMessages(Box::new(expr), keyword_arguments);
+            expr = TalkExpression::SendMessage(Box::new(expr), keyword_arguments);
         }
 
         expr

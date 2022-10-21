@@ -83,7 +83,7 @@ pub enum TalkExpression {
     Return(Box<TalkExpression>),
 
     /// Send one or more messages with arguments
-    SendMessages(Box<TalkExpression>, Vec<TalkArgument>),
+    SendMessage(Box<TalkExpression>, Vec<TalkArgument>),
 }
 
 ///
