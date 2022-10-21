@@ -483,8 +483,7 @@ where
                 return Ok(ParserResult { value: variables, location: start_location.to(self.location()) });
             } else {
                 // Unexpected character
-                debug_assert!(false, "Unexpected '{}'", next_chr);
-                return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location.to(self.location()) });
+                return Err(ParserResult { value: TalkParseError::UnexpectedCharacter(next_chr), location: start_location.to(self.location()) });
             }
         }
     }
