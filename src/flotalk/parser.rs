@@ -667,6 +667,8 @@ where
         };
 
         // Followed by the keyword arguments
+        self.consume().await?;
+
         let primary = self.match_primary().await?;
         let primary = if let Some(primary) = primary { primary } else { return Err(ParserResult { value: TalkParseError::MissingMessageArgument, location: start_location.to(self.location()) }) };
 
@@ -699,8 +701,7 @@ where
 
         if binary_messages.len() > 0 {
             for binary_argument in binary_messages {
-                message = TalkExpression::SendMessages(Box::new(message), 
-                    vec![binary_argument]);
+                message = TalkExpression::SendMessages(Box::new(message), vec![binary_argument]);
             }
         }
 
@@ -709,6 +710,9 @@ where
 
     ///
     /// Matches the 'messages' portion of an expression (or None if there are no messages)
+    ///
+    /// Return value is 'unary messages', 'binary messages', 'keyword arguments'. Unary and binary messages are both applied to their output, the keyword arguments
+    /// are a single block of arguments applied to the output of the unary and binary messages.
     ///
     /// `<messages>         ::= <unary-message>+ <binary-message>*`
     /// `<messages>         ::= <unary-message>+ <binary-message>* <keyword-message>`
@@ -721,7 +725,9 @@ where
     /// `<keyword-message>  ::= ( <keyword> <keyword-argument> )+`
     /// `<keyword-argument> ::= <primary> <unary-message>* <binary-message>*`
     ///
-    async fn matches_messages(&mut self) -> Result<Option<ParserResult<()>>, ParserResult<TalkParseError>> {
+    async fn match_messages(&mut self) -> Result<Option<ParserResult<(Vec<TalkArgument>, Vec<TalkArgument>, Vec<TalkArgument>)>>, ParserResult<TalkParseError>> {
+        let start_location = self.location();
+
         // Any number of unary messages
         let mut unary_messages = vec![];
         self.consume().await?;
@@ -733,7 +739,6 @@ where
 
         // Any number of binary messages
         let mut binary_messages = vec![];
-        self.consume().await?;
 
         while let Some(binary_message) = self.match_binary_message().await? {
             binary_messages.push(binary_message);
@@ -741,15 +746,40 @@ where
         }
 
         // Any number of keyword messages
-        let mut keyword_messages = vec![];
-        self.consume().await?;
+        let mut keyword_arguments = vec![];
 
         while let Some(keyword_message) = self.match_keyword_message_argument().await? {
-            keyword_messages.push(keyword_message);
+            keyword_arguments.push(keyword_message.value);
             self.consume().await?;
         }
 
-        todo!()
+        Ok(Some(ParserResult { value: (unary_messages, binary_messages, keyword_arguments), location: start_location.to(self.location()) }))
+    }
+
+    ///
+    /// Applies the specified message arguments to an expression
+    ///
+    fn apply_messages(&self, expr: TalkExpression, (unary_messages, binary_messages, keyword_arguments): (Vec<TalkArgument>, Vec<TalkArgument>, Vec<TalkArgument>)) -> TalkExpression {
+        let mut expr = expr;
+
+        if unary_messages.len() > 0 {
+            // Messages apply to the previous result
+            for unary_message in unary_messages.into_iter() {
+                expr = TalkExpression::SendMessages(Box::new(expr), vec![unary_message]);
+            }
+        }
+
+        if binary_messages.len() > 0 {
+            for binary_argument in binary_messages {
+                expr = TalkExpression::SendMessages(Box::new(expr), vec![binary_argument]);
+            }
+        }
+
+        if keyword_arguments.len() > 0 {
+            expr = TalkExpression::SendMessages(Box::new(expr), keyword_arguments);
+        }
+
+        expr
     }
 
     ///
@@ -907,10 +937,31 @@ where
                 }
             }
 
-            // TODO: Following values indicate any messages to send
+            // Following values indicate any messages to send
+            let mut expression = primary;
+
+            let messages = self.match_messages().await?;
+            if let Some(messages) = messages {
+                // Apply the messages to the result
+                expression.value    = self.apply_messages(expression.value, messages.value);
+                expression.location = expression.location.to(self.location());
+
+                // Read any cascading messages that might follow the expression
+                loop {
+                    self.consume_whitespace().await;
+
+                    if self.peek().await != Some(';') {
+                        // No more messages
+                        break;
+                    }
+
+                    // TODO!
+                    todo!("Cascading message");
+                }
+            }
 
             // Return the result
-            Ok(Some(primary))
+            Ok(Some(expression))
         }.boxed()
     }
 }

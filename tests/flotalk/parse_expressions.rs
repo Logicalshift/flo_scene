@@ -110,3 +110,43 @@ fn assignment() {
     let expr            = parse_result.value;
     assert!(expr == TalkExpression::Assignment(Arc::new("foo".to_string()), Box::new(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string()))))));
 }
+
+#[test]
+fn unary_message() {
+    let test_source     = "foo unaryMessage";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    //assert!(expr == TalkExpression::Assignment(Arc::new("foo".to_string()), Box::new(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string()))))));
+}
+
+#[test]
+fn binary_message() {
+    let test_source     = "foo + 1";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    //assert!(expr == TalkExpression::Assignment(Arc::new("foo".to_string()), Box::new(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string()))))));
+}
+
+#[test]
+fn keyword_message() {
+    let test_source     = "foo someParameter: 1";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    //assert!(expr == TalkExpression::Assignment(Arc::new("foo".to_string()), Box::new(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string()))))));
+}
+
+#[test]
+fn keyword_message_extra_parameter() {
+    let test_source     = "foo someParameter: 1 withValue: 2";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    //assert!(expr == TalkExpression::Assignment(Arc::new("foo".to_string()), Box::new(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string()))))));
+}
