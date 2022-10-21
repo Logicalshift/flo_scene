@@ -995,6 +995,12 @@ pub fn parse_flotalk_expression<'a>(input_stream: impl 'a + Unpin + Send + Strea
                     }
                 }
             }
+
+            // '.' can be used to separate expressions
+            input_stream.consume_whitespace().await;
+            if input_stream.peek().await == Some('.') {
+                input_stream.next().await;
+            }
         }
     })
 }
