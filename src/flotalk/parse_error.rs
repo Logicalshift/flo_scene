@@ -29,4 +29,7 @@ pub enum TalkParseError {
 
     /// The RHS of a binary expression does not seem to be valid
     MissingRValue,
+
+    /// The argument of a keyword message is missing
+    MissingMessageArgument,
 }

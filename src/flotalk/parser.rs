@@ -170,7 +170,7 @@ where
     /// Matches an identifier at the current position (can match 0 characters)
     ///
     /// `<identifier> ::= <letter> [ <letter> | <numeric> ]*`
-    /// `<keyword> ::= <identifier> ':'`
+    /// `<keyword>    ::= <identifier> ':'`
     ///
     async fn match_identifier_or_keyword(&mut self) -> ParserResult<TalkIdentifierOrKeyword> {
         let start_location = self.location();
@@ -303,7 +303,7 @@ where
     /// `<symbol> ::= '#' <identifier>`
     /// `<symbol> ::= '#' <keyword>`
     /// `<symbol> ::= '#' <string>`
-    /// `<array> ::= '#' '(' <array-definition>`
+    /// `<array>  ::= '#' '(' <array-definition>`
     ///
     async fn match_array_or_symbol(&mut self) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
         let start_location      = self.location();
@@ -355,7 +355,7 @@ where
     ///
     /// With the stream at the first character in a literal, matches and consumes that literal, returning None if the stream is not at a literal
     ///
-    /// `<literal> ::= <character> | <string> | <array> | <symbol> | <number> | '-' <number>`
+    /// `<literal>   ::= <character> | <string> | <array> | <symbol> | <number> | '-' <number>`
     /// `<character> ::= '$' <any>`
     ///
     async fn match_literal(&mut self) -> Result<Option<ParserResult<TalkLiteral>>, ParserResult<TalkParseError>> {
@@ -588,10 +588,10 @@ where
     ///
     /// Matches a binary message, if one is next on the stream
     ///
-    /// `<binary-message> ::= <binary-selector> <binary-argument>`
+    /// `<binary-message>  ::= <binary-selector> <binary-argument>`
     /// `<binary-argument> ::= <primary> <unary-message>*`
     ///
-    async fn match_binary_message(&mut self) -> Result<Option<(Arc<String>, TalkExpression, Vec<Arc<String>>)>, ParserResult<TalkParseError>> {
+    async fn match_binary_message(&mut self) -> Result<Option<(Arc<String>, TalkExpression)>, ParserResult<TalkParseError>> {
         let start_location = self.location();
 
         let chr = self.peek().await;
@@ -625,24 +625,98 @@ where
         while let Some(unary_message) = self.match_unary_message().await {
             unary_messages.push(unary_message);
 
-            self.consume().await;
+            self.consume().await?;
         }
 
-        Ok(Some((Arc::new(binary_selector), primary.value, unary_messages)))
+        // The unary messages are applied to the 'primary'
+        let mut message = primary.value;
+
+        if unary_messages.len() > 0 {
+            // Messages apply to the previous result
+            for unary_message in unary_messages.into_iter() {
+                message = TalkExpression::SendMessages(Box::new(message), vec![(unary_message, vec![])]);
+            }
+        }
+
+        Ok(Some((Arc::new(binary_selector), message)))
+    }
+
+    ///
+    /// Matches a keyword message argument, if one is on the stream
+    ///
+    /// `<keyword-message-argument> ::= <keyword> <keyword-argument>`
+    /// `<keyword-argument>         ::= <primary> <unary-message>* <binary-message>*`
+    ///
+    async fn match_keyword_message_argument(&mut self) -> Result<Option<ParserResult<TalkArgument>>, ParserResult<TalkParseError>> {
+        let start_location = self.location();
+
+        // Match the next keyword
+        let maybe_keyword = self.match_identifier_or_keyword().await;
+
+        let keyword = match maybe_keyword.value {
+            TalkIdentifierOrKeyword::Keyword(keyword)       => keyword,
+            TalkIdentifierOrKeyword::Identifier(identifier) => {
+                // Push the entire identifier back
+                for chr in identifier.chars().rev() {
+                    self.pushback(chr)
+                }
+
+                // Not a keyword message
+                return Ok(None);
+            }
+        };
+
+        // Followed by the keyword arguments
+        let primary = self.match_primary().await?;
+        let primary = if let Some(primary) = primary { primary } else { return Err(ParserResult { value: TalkParseError::MissingMessageArgument, location: start_location.to(self.location()) }) };
+
+        // Any number of unary messages, followed by any number of binary messages
+        let mut unary_messages = vec![];
+        self.consume().await?;
+        while let Some(unary_message) = self.match_unary_message().await {
+            unary_messages.push(unary_message);
+            self.consume().await?;
+        }
+
+        let mut binary_messages = vec![];
+        self.consume().await?;
+        while let Some(binary_message) = self.match_binary_message().await? {
+            binary_messages.push(binary_message);
+            self.consume().await?;
+        }
+
+        // Combine into a message
+        let mut message = primary.value;
+
+        if unary_messages.len() > 0 {
+            // Messages apply to the previous result
+            for unary_message in unary_messages.into_iter() {
+                message = TalkExpression::SendMessages(Box::new(message), vec![(unary_message, vec![])]);
+            }
+        }
+
+        if binary_messages.len() > 0 {
+            for (operator, rhs) in binary_messages {
+                message = TalkExpression::SendMessages(Box::new(message), 
+                    vec![(Arc::clone(&operator), vec![TalkArgument { name: Arc::clone(&operator), value: rhs }])]);
+            }
+        }
+
+        Ok(Some(ParserResult { value: TalkArgument { name: keyword, value: message }, location: start_location.to(self.location()) }))
     }
 
     ///
     /// Matches the 'messages' portion of an expression (or None if there are no messages)
     ///
-    /// `<messages> ::= <unary-message>+ <binary-message>*`
-    /// `<messages> ::= <unary-message>+ <binary-message>* <keyword-message>`
-    /// `<messages> ::= <binary-message>+`
-    /// `<messages> ::= <binary-message>+ <keyword-message>`
-    /// `<messages> ::= <keyword-message>`
-    /// `<unary-message> ::= <identifier>`
-    /// `<binary-message> ::= <binary-selector> <binary-argument>`
-    /// `<binary-argument> ::= <primary> <unary-message>*`
-    /// `<keyword-message> ::= ( <keyword> <keyword-argument> )+`
+    /// `<messages>         ::= <unary-message>+ <binary-message>*`
+    /// `<messages>         ::= <unary-message>+ <binary-message>* <keyword-message>`
+    /// `<messages>         ::= <binary-message>+`
+    /// `<messages>         ::= <binary-message>+ <keyword-message>`
+    /// `<messages>         ::= <keyword-message>`
+    /// `<unary-message>    ::= <identifier>`
+    /// `<binary-message>   ::= <binary-selector> <binary-argument>`
+    /// `<binary-argument>  ::= <primary> <unary-message>*`
+    /// `<keyword-message>  ::= ( <keyword> <keyword-argument> )+`
     /// `<keyword-argument> ::= <primary> <unary-message>* <binary-message>*`
     ///
     async fn matches_messages(&mut self) -> Result<Option<ParserResult<()>>, ParserResult<TalkParseError>> {
