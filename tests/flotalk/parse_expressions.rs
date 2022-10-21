@@ -25,6 +25,8 @@ fn postcard() {
         parser.next().await.unwrap().unwrap();   // y := self size + super size.
         parser.next().await.unwrap().unwrap();   // #($a #a 'a' 1 1.0) ...
         parser.next().await.unwrap().unwrap();   // ^x < y
+
+        assert!(parser.next().await.is_none());
     });
 }
 
