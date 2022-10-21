@@ -132,6 +132,7 @@ where
         // Skip past the first "'"
         let first_quote = self.next().await;
         if first_quote != Some('\'') {
+            debug_assert!(false, "Expected '\''");
             return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location }); 
         }
 
@@ -169,6 +170,7 @@ where
             // Should be a bracket waiting to be read
             let opening_bracket = self.next().await;
             if opening_bracket != Some('(') {
+                debug_assert!(false, "Expected '('");
                 return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location }); 
             }
 
@@ -335,6 +337,7 @@ where
         // Skip past the first "#"
         let hash = self.next().await;
         if hash != Some('#') {
+            debug_assert!(false, "Expected '#'");
             return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location }); 
         }
 
@@ -457,7 +460,10 @@ where
 
         // Opening '|' and whitespace
         let initial_pipe = self.next().await;
-        if initial_pipe != Some('|') { return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location }); }
+        if initial_pipe != Some('|') { 
+            debug_assert!(false, "Expected '|'");
+            return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location });
+        }
 
         self.consume().await?;
 
@@ -477,6 +483,7 @@ where
                 return Ok(ParserResult { value: variables, location: start_location.to(self.location()) });
             } else {
                 // Unexpected character
+                debug_assert!(false, "Unexpected '{}'", next_chr);
                 return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location.to(self.location()) });
             }
         }
@@ -494,6 +501,7 @@ where
         // Consume the '['
         let opening_bracket = self.next().await;
         if opening_bracket != Some('[') {
+            debug_assert!(false, "Expected '['");
             return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location });
         }
 
