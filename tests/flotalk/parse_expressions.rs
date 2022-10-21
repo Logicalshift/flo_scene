@@ -157,3 +157,19 @@ fn keyword_message_extra_parameter() {
             TalkArgument { name: Arc::new("withValue:".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("2".to_string())))) }
         ]));
 }
+
+#[test]
+fn keyword_message_with_binary() {
+    let test_source     = "foo someParameter: 1 + 2 withValue: 3 + 4";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::SendMessages(Box::new(TalkExpression::Identifier(Arc::new("foo".to_string()))), 
+        vec![
+            TalkArgument { name: Arc::new("someParameter:".to_string()), value: Some(TalkExpression::SendMessages(Box::new(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string())))), 
+                vec![TalkArgument { name: Arc::new("+".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("2".to_string())))) }])) }, 
+            TalkArgument { name: Arc::new("withValue:".to_string()), value: Some(TalkExpression::SendMessages(Box::new(TalkExpression::Literal(TalkLiteral::Number(Arc::new("3".to_string())))), 
+                vec![TalkArgument { name: Arc::new("+".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("4".to_string())))) }])) }
+        ]));
+}
