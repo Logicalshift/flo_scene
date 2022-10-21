@@ -7,6 +7,35 @@ use futures::executor;
 use std::sync::*;
 
 #[test]
+fn postcard() {
+    // The expressions from 'Smalltalk on a postcard' (should parse without error)
+    let test_source = "| y |
+        true & false not & (nil isNil) ifFalse: [self halt].
+        y := self size + super size.
+        #($a #a 'a' 1 1.0)
+            do: [ :each |
+                Transcript show: (each class name);
+                           show: ' '].
+        ^x < y";
+    let test_source     = stream::iter(test_source.chars());
+    let mut parser      = parse_flotalk_expression(test_source);
+    executor::block_on(async { 
+        parser.next().await.unwrap().unwrap();   // | y |
+        parser.next().await.unwrap().unwrap();   // true & false not & (nil isNil) ifFalse: [self halt]
+        parser.next().await.unwrap().unwrap();   // y := self size + super size.
+        parser.next().await.unwrap().unwrap();   // #($a #a 'a' 1 1.0) ...
+        parser.next().await.unwrap().unwrap();   // ^x < y
+    });
+}
+
+#[test]
+fn postcard_binary_expression() {
+    let test_source     = "true & false not & (nil isNil) ifFalse: [self halt]";
+    let test_source     = stream::iter(test_source.chars());
+    executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+}
+
+#[test]
 fn identifier_expression() {
     let test_source     = "identifier";
     let test_source     = stream::iter(test_source.chars());
@@ -203,3 +232,4 @@ fn cascaded_messages() {
 
         );
 }
+
