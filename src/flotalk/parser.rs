@@ -591,7 +591,7 @@ where
     /// `<binary-message>  ::= <binary-selector> <binary-argument>`
     /// `<binary-argument> ::= <primary> <unary-message>*`
     ///
-    async fn match_binary_message(&mut self) -> Result<Option<(Arc<String>, TalkExpression)>, ParserResult<TalkParseError>> {
+    async fn match_binary_message(&mut self) -> Result<Option<TalkArgument>, ParserResult<TalkParseError>> {
         let start_location = self.location();
 
         let chr = self.peek().await;
@@ -638,7 +638,7 @@ where
             }
         }
 
-        Ok(Some((Arc::new(binary_selector), message)))
+        Ok(Some(TalkArgument { name: Arc::new(binary_selector), value: message }))
     }
 
     ///
@@ -681,7 +681,7 @@ where
 
         let mut binary_messages = vec![];
         self.consume().await?;
-        
+
         while let Some(binary_message) = self.match_binary_message().await? {
             binary_messages.push(binary_message);
             self.consume().await?;
@@ -698,9 +698,9 @@ where
         }
 
         if binary_messages.len() > 0 {
-            for (operator, rhs) in binary_messages {
+            for binary_argument in binary_messages {
                 message = TalkExpression::SendMessages(Box::new(message), 
-                    vec![(Arc::clone(&operator), vec![TalkArgument { name: Arc::clone(&operator), value: rhs }])]);
+                    vec![(Arc::clone(&binary_argument.name), vec![binary_argument])]);
             }
         }
 
