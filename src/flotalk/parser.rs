@@ -160,10 +160,34 @@ where
     ///
     /// After matching '#' and looking ahead to '(', finish matching the rest of the array
     ///
-    /// `<array-definition> ::= ...`
+    /// `<array-definition> ::= '(' <literal>+ ')' `
     ///
-    async fn match_array(&mut self, start_location: TalkLocation) -> Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>> {
-        todo!("Array")
+    fn match_array<'a>(&'a mut self, start_location: TalkLocation) -> BoxFuture<'a, Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>>> {
+        async move {
+            let start_location = self.location();
+
+            // Should be a bracket waiting to be read
+            let opening_bracket = self.next().await;
+            if opening_bracket != Some('(') {
+                return Err(ParserResult { value: TalkParseError::InconsistentState, location: start_location }); 
+            }
+
+            // Array is a series of literals
+            let mut literals = vec![];
+            self.consume().await?;
+            while let Some(literal) = self.match_literal().await? {
+                literals.push(literal.value);
+                self.consume().await?;
+            }
+
+            // Array should finish with a closing bracket
+            let closing_bracket = self.next().await;
+            if closing_bracket != Some(')') {
+                return Err(ParserResult { value: TalkParseError::UnexpectedCharacter(closing_bracket.unwrap_or(' ')), location: self.location() }); 
+            }
+
+            return Ok(ParserResult { value: TalkLiteral::Array(literals), location: start_location.to(self.location()) })
+        }.boxed()
     }
 
     ///
