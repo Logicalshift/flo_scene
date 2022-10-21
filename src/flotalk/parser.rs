@@ -673,6 +673,7 @@ where
         // Any number of unary messages, followed by any number of binary messages
         let mut unary_messages = vec![];
         self.consume().await?;
+
         while let Some(unary_message) = self.match_unary_message().await {
             unary_messages.push(unary_message);
             self.consume().await?;
@@ -680,6 +681,7 @@ where
 
         let mut binary_messages = vec![];
         self.consume().await?;
+        
         while let Some(binary_message) = self.match_binary_message().await? {
             binary_messages.push(binary_message);
             self.consume().await?;
@@ -720,6 +722,33 @@ where
     /// `<keyword-argument> ::= <primary> <unary-message>* <binary-message>*`
     ///
     async fn matches_messages(&mut self) -> Result<Option<ParserResult<()>>, ParserResult<TalkParseError>> {
+        // Any number of unary messages
+        let mut unary_messages = vec![];
+        self.consume().await?;
+
+        while let Some(unary_message) = self.match_unary_message().await {
+            unary_messages.push(unary_message);
+            self.consume().await?;
+        }
+
+        // Any number of binary messages
+        let mut binary_messages = vec![];
+        self.consume().await?;
+
+        while let Some(binary_message) = self.match_binary_message().await? {
+            binary_messages.push(binary_message);
+            self.consume().await?;
+        }
+
+        // Any number of keyword messages
+        let mut keyword_messages = vec![];
+        self.consume().await?;
+
+        while let Some(keyword_message) = self.match_keyword_message_argument().await? {
+            keyword_messages.push(keyword_message);
+            self.consume().await?;
+        }
+
         todo!()
     }
 
