@@ -173,3 +173,16 @@ fn keyword_message_with_binary() {
                 vec![TalkArgument { name: Arc::new("+".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("4".to_string())))) }])) }
         ]));
 }
+
+#[test]
+fn unary_then_keyword_message() {
+    let test_source     = "foo unaryMessage keyword: 1";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::SendMessage(
+            Box::new(TalkExpression::SendMessage(Box::new(TalkExpression::Identifier(Arc::new("foo".to_string()))), 
+                vec![TalkArgument { name: Arc::new("unaryMessage".to_string()), value: None }])), 
+        vec![TalkArgument { name: Arc::new("keyword:".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string())))) }]));
+}
