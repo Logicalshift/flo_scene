@@ -480,6 +480,7 @@ where
                 self.consume().await?;
             } else if next_chr == '|' {
                 // End of variable list
+                self.next().await;
                 return Ok(ParserResult { value: variables, location: start_location.to(self.location()) });
             } else {
                 // Unexpected character
