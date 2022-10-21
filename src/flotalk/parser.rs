@@ -557,7 +557,7 @@ where
     ///
     /// `<unary-message> ::= <identifier>`
     ///
-    async fn match_unary_message(&mut self) -> Option<Arc<String>> {
+    async fn match_unary_message(&mut self) -> Option<TalkArgument> {
         let chr = self.peek().await?;
         
         if is_letter(chr) {
@@ -576,7 +576,7 @@ where
                 }
 
                 TalkIdentifierOrKeyword::Identifier(identifier) => {
-                    Some(identifier)
+                    Some(TalkArgument { name: identifier, value: None })
                 }
             }
         } else {
@@ -634,11 +634,11 @@ where
         if unary_messages.len() > 0 {
             // Messages apply to the previous result
             for unary_message in unary_messages.into_iter() {
-                message = TalkExpression::SendMessages(Box::new(message), vec![(unary_message, vec![])]);
+                message = TalkExpression::SendMessages(Box::new(message), vec![unary_message]);
             }
         }
 
-        Ok(Some(TalkArgument { name: Arc::new(binary_selector), value: message }))
+        Ok(Some(TalkArgument { name: Arc::new(binary_selector), value: Some(message) }))
     }
 
     ///
@@ -693,18 +693,18 @@ where
         if unary_messages.len() > 0 {
             // Messages apply to the previous result
             for unary_message in unary_messages.into_iter() {
-                message = TalkExpression::SendMessages(Box::new(message), vec![(unary_message, vec![])]);
+                message = TalkExpression::SendMessages(Box::new(message), vec![unary_message]);
             }
         }
 
         if binary_messages.len() > 0 {
             for binary_argument in binary_messages {
                 message = TalkExpression::SendMessages(Box::new(message), 
-                    vec![(Arc::clone(&binary_argument.name), vec![binary_argument])]);
+                    vec![binary_argument]);
             }
         }
 
-        Ok(Some(ParserResult { value: TalkArgument { name: keyword, value: message }, location: start_location.to(self.location()) }))
+        Ok(Some(ParserResult { value: TalkArgument { name: keyword, value: Some(message) }, location: start_location.to(self.location()) }))
     }
 
     ///

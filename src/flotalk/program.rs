@@ -47,7 +47,7 @@ pub struct TalkArgument {
     pub name: Arc<String>,
 
     /// Expression that evaluates to the value of this argument
-    pub value: TalkExpression,
+    pub value: Option<TalkExpression>,
 }
 
 ///
@@ -83,7 +83,7 @@ pub enum TalkExpression {
     Return(Box<TalkExpression>),
 
     /// Send one or more messages with arguments
-    SendMessages(Box<TalkExpression>, Vec<(Arc<String>, Vec<TalkArgument>)>),
+    SendMessages(Box<TalkExpression>, Vec<TalkArgument>),
 }
 
 ///
