@@ -186,3 +186,20 @@ fn unary_then_keyword_message() {
                 vec![TalkArgument { name: Arc::new("unaryMessage".to_string()), value: None }])), 
         vec![TalkArgument { name: Arc::new("keyword:".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string())))) }]));
 }
+
+#[test]
+fn cascaded_messages() {
+    let test_source     = "foo unaryMessage keyword: 1; cascade: 2; anotherUnary cascade: 3";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr == TalkExpression::CascadeFrom(Box::new(TalkExpression::Identifier(Arc::new("foo".to_string()))), 
+            vec![
+                TalkExpression::SendMessage(Box::new(TalkExpression::SendMessage(Box::new(TalkExpression::CascadePrimaryResult), vec![TalkArgument { name: Arc::new("unaryMessage".to_string()), value: None }])), vec![TalkArgument { name: Arc::new("keyword:".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string())))) }]), 
+                TalkExpression::SendMessage(Box::new(TalkExpression::CascadePrimaryResult), vec![TalkArgument { name: Arc::new("cascade:".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("2".to_string())))) }]), 
+                TalkExpression::SendMessage(Box::new(TalkExpression::SendMessage(Box::new(TalkExpression::CascadePrimaryResult), vec![TalkArgument { name: Arc::new("anotherUnary".to_string()), value: None }])), vec![TalkArgument { name: Arc::new("cascade:".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("3".to_string())))) }])
+            ])
+
+        );
+}

@@ -84,6 +84,12 @@ pub enum TalkExpression {
 
     /// Send one or more messages with arguments
     SendMessage(Box<TalkExpression>, Vec<TalkArgument>),
+
+    /// Cascade the result of a primary expression to a set of other expressions
+    CascadeFrom(Box<TalkExpression>, Vec<TalkExpression>),
+
+    /// The result of the primary from the `CascadeFrom` expression
+    CascadePrimaryResult,
 }
 
 ///

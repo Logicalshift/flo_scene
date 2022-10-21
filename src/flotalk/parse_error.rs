@@ -32,4 +32,7 @@ pub enum TalkParseError {
 
     /// The argument of a keyword message is missing
     MissingMessageArgument,
+
+    /// No message was supplied after a ';' cascade
+    MissingCascadingMessage,
 }

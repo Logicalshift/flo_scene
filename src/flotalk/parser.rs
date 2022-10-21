@@ -942,9 +942,7 @@ where
 
             let messages = self.match_messages().await?;
             if let Some(messages) = messages {
-                // Apply the messages to the result
-                expression.value    = self.apply_messages(expression.value, messages.value);
-                expression.location = expression.location.to(self.location());
+                let mut messages = vec![messages];
 
                 // Read any cascading messages that might follow the expression
                 loop {
@@ -955,9 +953,28 @@ where
                         break;
                     }
 
-                    // TODO!
-                    todo!("Cascading message");
+                    self.next().await;
+                    self.consume().await?;
+
+                    // Add as a cascading message
+                    if let Some(cascading_message) = self.match_messages().await? {
+                        messages.push(cascading_message);
+                    } else {
+                        return Err(ParserResult { value: TalkParseError::MissingCascadingMessage, location: self.location() });
+                    }
                 }
+
+                // Apply the messages to the result
+                if messages.len() == 1 {
+                    // Just a single message
+                    expression.value = self.apply_messages(expression.value, messages.pop().unwrap().value);
+                } else {
+                    // Cascaded messages are applied to the same primary value
+                    let cascaded        = messages.into_iter().map(|msg| self.apply_messages(TalkExpression::CascadePrimaryResult, msg.value));
+                    expression.value    = TalkExpression::CascadeFrom(Box::new(expression.value), cascaded.collect());
+                }
+
+                expression.location = expression.location.to(self.location());
             }
 
             // Return the result
