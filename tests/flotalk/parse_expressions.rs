@@ -118,7 +118,8 @@ fn unary_message() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    //assert!(expr == TalkExpression::Assignment(Arc::new("foo".to_string()), Box::new(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string()))))));
+    assert!(expr == TalkExpression::SendMessages(Box::new(TalkExpression::Identifier(Arc::new("foo".to_string()))), 
+        vec![TalkArgument { name: Arc::new("unaryMessage".to_string()), value: None }]));
 }
 
 #[test]
@@ -128,7 +129,8 @@ fn binary_message() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    //assert!(expr == TalkExpression::Assignment(Arc::new("foo".to_string()), Box::new(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string()))))));
+    assert!(expr == TalkExpression::SendMessages(Box::new(TalkExpression::Identifier(Arc::new("foo".to_string()))), 
+        vec![TalkArgument { name: Arc::new("+".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string())))) }]));
 }
 
 #[test]
@@ -138,7 +140,8 @@ fn keyword_message() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    //assert!(expr == TalkExpression::Assignment(Arc::new("foo".to_string()), Box::new(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string()))))));
+    assert!(expr == TalkExpression::SendMessages(Box::new(TalkExpression::Identifier(Arc::new("foo".to_string()))), 
+        vec![TalkArgument { name: Arc::new("someParameter:".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string())))) }]));
 }
 
 #[test]
@@ -148,5 +151,9 @@ fn keyword_message_extra_parameter() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    //assert!(expr == TalkExpression::Assignment(Arc::new("foo".to_string()), Box::new(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string()))))));
+    assert!(expr == TalkExpression::SendMessages(Box::new(TalkExpression::Identifier(Arc::new("foo".to_string()))),
+        vec![
+            TalkArgument { name: Arc::new("someParameter:".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("1".to_string())))) }, 
+            TalkArgument { name: Arc::new("withValue:".to_string()), value: Some(TalkExpression::Literal(TalkLiteral::Number(Arc::new("2".to_string())))) }
+        ]));
 }
