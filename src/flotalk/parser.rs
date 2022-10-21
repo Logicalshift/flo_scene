@@ -753,7 +753,11 @@ where
             self.consume().await?;
         }
 
-        Ok(Some(ParserResult { value: (unary_messages, binary_messages, keyword_arguments), location: start_location.to(self.location()) }))
+        if unary_messages.len() == 0 && binary_messages.len() == 0 && keyword_arguments.len() == 0 {
+            Ok(None)
+        } else {
+            Ok(Some(ParserResult { value: (unary_messages, binary_messages, keyword_arguments), location: start_location.to(self.location()) }))
+        }
     }
 
     ///
