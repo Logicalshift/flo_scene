@@ -938,6 +938,7 @@ where
                 is_return = true;
 
                 self.next().await;
+                self.consume().await?;
                 chr = if let Some(chr) = self.peek().await { chr } else { return Ok(None) };
             }
 
@@ -1011,6 +1012,11 @@ where
                 }
 
                 expression.location = expression.location.to(self.location());
+            }
+
+            // Apply the 'return' value
+            if is_return {
+                expression.value = TalkExpression::Return(Box::new(expression.value));
             }
 
             // Return the result
