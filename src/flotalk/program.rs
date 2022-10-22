@@ -97,9 +97,9 @@ pub enum TalkExpression {
 ///
 #[derive(Clone, PartialEq, Debug)]
 pub enum TalkMethodArgument {
-    UnaryArgument(Arc<String>),
-    BinaryArgument(Arc<String>, Arc<String>),
-    KeywordArgument(Vec<(Arc<String>, Arc<String>)>),
+    Unary(Arc<String>),
+    Binary(Arc<String>, Arc<String>),
+    Keyword(Vec<(Arc<String>, Arc<String>)>),
 }
 
 ///

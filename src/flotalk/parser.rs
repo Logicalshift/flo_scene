@@ -1069,7 +1069,7 @@ where
             arguments.push((next_keyword, next_variable));
         }
 
-        Ok(TalkMethodArgument::KeywordArgument(arguments))
+        Ok(TalkMethodArgument::Keyword(arguments))
     }
 
     ///
@@ -1099,7 +1099,7 @@ where
             let identifier_or_keyword = self.match_identifier_or_keyword().await;
 
             match identifier_or_keyword.value {
-                TalkIdentifierOrKeyword::Identifier(identifier) => TalkMethodArgument::UnaryArgument(identifier),
+                TalkIdentifierOrKeyword::Identifier(identifier) => TalkMethodArgument::Unary(identifier),
                 TalkIdentifierOrKeyword::Keyword(keyword)       => self.match_method_keyword_arguments(keyword).await?
             }
         } else if is_binary_character(peek_chr) {
@@ -1123,7 +1123,7 @@ where
                 return Err(ParserResult { value: TalkParseError::UnexpectedCharacter(not_letter), location: self.location() });
             }
 
-            TalkMethodArgument::BinaryArgument(Arc::new(binary_selector), variable_name)
+            TalkMethodArgument::Binary(Arc::new(binary_selector), variable_name)
         } else {
             // Unexpected character
             return Err(ParserResult { value: TalkParseError::UnexpectedCharacter(peek_chr), location: start_location.to(self.location()) } );
