@@ -96,3 +96,27 @@ pub enum TalkExpression {
 /// A flotalk program consists of a series of expressions
 ///
 pub struct TalkProgram(pub Vec<TalkExpression>);
+
+impl TalkExpression {
+    ///
+    /// Strips out any comments or location information from the expression
+    ///
+    pub fn strip(self) -> TalkExpression {
+        use TalkExpression::*;
+
+        match self {
+            Empty                               => self,
+            AtLocation(_location, expr)         => expr.strip(),
+            WithComment(_comment, expr)         => expr.strip(),
+            Literal(ref _literal)               => self,
+            Block(variables, expressions)       => Block(variables, expressions.into_iter().map(|expr| expr.strip()).collect()),
+            Identifier(ref _identifier)         => self,
+            VariableDeclaration(ref _variables) => self,
+            Assignment(name, expr)              => Assignment(name, Box::new(expr.strip())),
+            Return(expr)                        => Return(Box::new(expr.strip())),
+            SendMessage(expr, arguments)        => SendMessage(Box::new(expr.strip()), arguments.into_iter().map(|arg| TalkArgument { name: arg.name, value: arg.value.map(|value| value.strip()) }).collect()),
+            CascadeFrom(expr, expressions)      => CascadeFrom(Box::new(expr.strip()), expressions.into_iter().map(|expr| expr.strip()).collect()),
+            CascadePrimaryResult                => self,
+        }
+    }
+}

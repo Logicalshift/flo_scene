@@ -13,7 +13,7 @@ fn character_literal() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::Character('a')));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Character('a')));
 }
 
 #[test]
@@ -23,7 +23,7 @@ fn string_literal() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::String(Arc::new("string".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::String(Arc::new("string".to_string()))));
 }
 
 #[test]
@@ -33,7 +33,7 @@ fn string_literal_with_quote() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::String(Arc::new("string'quote".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::String(Arc::new("string'quote".to_string()))));
 }
 
 #[test]
@@ -43,7 +43,7 @@ fn symbol_literal() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::Symbol(Arc::new("symbol".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Symbol(Arc::new("symbol".to_string()))));
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn selector_literal() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::Selector(Arc::new("selector".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Selector(Arc::new("selector".to_string()))));
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn selector_literal_keyword() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::Selector(Arc::new("selector:".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Selector(Arc::new("selector:".to_string()))));
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn number_integer() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("42".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Number(Arc::new("42".to_string()))));
 }
 
 #[test]
@@ -83,7 +83,7 @@ fn number_negative_integer() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("-42".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Number(Arc::new("-42".to_string()))));
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn number_float() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("0.42".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Number(Arc::new("0.42".to_string()))));
 }
 
 #[test]
@@ -103,7 +103,7 @@ fn number_negative_float() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("-0.42e10".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Number(Arc::new("-0.42e10".to_string()))));
 }
 
 #[test]
@@ -113,7 +113,7 @@ fn number_float_exponent() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("0.42e10".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Number(Arc::new("0.42e10".to_string()))));
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn number_radix() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::Number(Arc::new("16rF00D".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Number(Arc::new("16rF00D".to_string()))));
 }
 
 #[test]
@@ -133,7 +133,7 @@ fn array() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr == TalkExpression::Literal(TalkLiteral::Array(vec![
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Array(vec![
         TalkLiteral::Number(Arc::new("1".to_string())),
         TalkLiteral::Number(Arc::new("2".to_string())),
         TalkLiteral::Number(Arc::new("3".to_string())),

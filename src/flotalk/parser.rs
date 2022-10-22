@@ -833,7 +833,7 @@ where
             self.next().await;
             let expr = self.match_expression().await?;
 
-            let mut expr = match expr {
+            let expr = match expr {
                 Some(expr)  => expr,
                 None        => { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) }); }
             };
@@ -922,7 +922,7 @@ where
 
             // Decide what type of expression is following
             let chr             = self.peek().await;
-            let mut chr         = if let Some(chr) = chr { chr } else { return Ok(None); };
+            let chr             = if let Some(chr) = chr { chr } else { return Ok(None); };
             let mut is_return   = false;
 
             // '.' is used to end expressions, if it's here by itself, return an empty expression
@@ -937,7 +937,6 @@ where
 
                 self.next().await;
                 self.consume().await?;
-                chr = if let Some(chr) = self.peek().await { chr } else { return Ok(None) };
             }
 
             // Fetch the 'primary' part of the expression
@@ -1016,6 +1015,15 @@ where
             if is_return {
                 expression.value = TalkExpression::Return(Box::new(expression.value));
             }
+
+            // Apply the doc-comment if there is one
+            if let Some(comment) = initial_comment {
+                expression.value    = TalkExpression::WithComment(comment, Box::new(expression.value));
+                expression.location = start_location.to(self.location());
+            }
+
+            // Add location annotations
+            expression.value = TalkExpression::AtLocation(start_location.to(self.location()), Box::new(expression.value));
 
             // Return the result
             Ok(Some(expression))
