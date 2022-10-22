@@ -1029,6 +1029,130 @@ where
             Ok(Some(expression))
         }.boxed()
     }
+
+    ///
+    /// Matches one or more keyword arguments for a method definition (after matching the initial keyword)
+    ///
+    async fn match_method_keyword_arguments(&mut self, initial_keyword: Arc<String>) -> Result<TalkMethodArgument, ParserResult<TalkParseError>> {
+        // First keyword should be followed by an identifier naming the value to put in the variable
+        self.consume().await?;
+        let initial_variable    = self.match_identifier().await?.value;
+
+        let mut arguments       = vec![(initial_keyword, initial_variable)];
+
+        // Futher keywords are more arguments
+        loop {
+            self.consume().await?;
+
+            // First character must start an identifier/keyword
+            let next_chr = if let Some(chr) = self.peek().await { chr } else { break; };
+            if !is_letter(next_chr) { break; }
+
+            // Match the next keyword
+            let maybe_keyword   = self.match_identifier_or_keyword().await.value;
+            let next_keyword    = match maybe_keyword {
+                TalkIdentifierOrKeyword::Identifier(identifier) => {
+                    // Push back the identifier, and stop
+                    for chr in identifier.chars().rev() {
+                        self.pushback(chr)
+                    }
+                    break;
+                }
+
+                TalkIdentifierOrKeyword::Keyword(keyword) => keyword
+            };
+
+            // Keyword is followed by a variable
+            self.consume().await?;
+            let next_variable = self.match_identifier().await?.value;
+
+            arguments.push((next_keyword, next_variable));
+        }
+
+        Ok(TalkMethodArgument::KeywordArgument(arguments))
+    }
+
+    ///
+    /// Parses a method definition
+    ///
+    /// FloTalk's method definition is slightly simplified over traditional smalltalk, as we consider things like declaring temp variables
+    /// as expressions.
+    ///
+    /// <method-definition> ::= <message-pattern> <expression>+
+    /// <message-pattern> ::= <unary-selector> | <binary-selector> <identifier> | (<keyword> <identifier>)+
+    ///
+    async fn match_method_definition(&mut self) -> Result<ParserResult<TalkMethodDefinition>, ParserResult<TalkParseError>> {
+        self.consume_whitespace().await;
+
+        // Method may be preceded by a doc comment
+        let start_location  = self.location();
+        let initial_comment = self.consume_comment().await?.map(|comment| Arc::new(comment.value));
+
+        self.consume().await?;
+
+        // Match the message pattern
+        let peek_chr = self.peek().await;
+        let peek_chr = if let Some(chr) = peek_chr { chr } else { return Err(ParserResult { value: TalkParseError::ExpectedMoreCharacters, location: start_location.to(self.location()) } ); };
+
+        let method_argument = if is_letter(peek_chr) {
+            // Unary selector if identifier, keyword selector list otherwise
+            let identifier_or_keyword = self.match_identifier_or_keyword().await;
+
+            match identifier_or_keyword.value {
+                TalkIdentifierOrKeyword::Identifier(identifier) => TalkMethodArgument::UnaryArgument(identifier),
+                TalkIdentifierOrKeyword::Keyword(keyword)       => self.match_method_keyword_arguments(keyword).await?
+            }
+        } else if is_binary_character(peek_chr) {
+            // Binary selector
+            let mut binary_selector = String::new();
+            binary_selector.push(self.next().await.unwrap());
+
+            while let Some(chr) = self.peek().await {
+                if !is_binary_character(chr) { break; }
+
+                self.next().await;
+                binary_selector.push(chr);
+            }
+
+            // Followed by an identifier
+            self.consume().await?;
+            let variable_name = self.match_identifier().await?.value;
+
+            if variable_name.len() == 0 {
+                let not_letter = self.peek().await.unwrap_or(' ');
+                return Err(ParserResult { value: TalkParseError::UnexpectedCharacter(not_letter), location: self.location() });
+            }
+
+            TalkMethodArgument::BinaryArgument(Arc::new(binary_selector), variable_name)
+        } else {
+            // Unexpected character
+            return Err(ParserResult { value: TalkParseError::UnexpectedCharacter(peek_chr), location: start_location.to(self.location()) } );
+        };
+
+        // Should be followed by 0 or more expressions
+        let mut expressions = vec![];
+        loop {
+            let next_expression = self.match_expression().await?;
+            let next_expression = if let Some(expr) = next_expression { expr } else { break; };
+
+            expressions.push(next_expression.value);
+
+            // '.' can be used to separate expressions
+            self.consume_whitespace().await;
+            if self.peek().await == Some('.') {
+                self.next().await;
+            }
+        }
+
+        let definition = TalkMethodDefinition {
+            location:           Some(start_location.to(self.location())),
+            initial_comment:    initial_comment,
+            argument:           method_argument,
+            expressions:        expressions,
+        };
+
+        Ok(ParserResult { value: definition, location: start_location.to(self.location()) })
+    }
 }
 
 ///

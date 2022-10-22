@@ -93,9 +93,32 @@ pub enum TalkExpression {
 }
 
 ///
-/// A flotalk program consists of a series of expressions
+/// Argument to a method
 ///
-pub struct TalkProgram(pub Vec<TalkExpression>);
+#[derive(Clone, PartialEq, Debug)]
+pub enum TalkMethodArgument {
+    UnaryArgument(Arc<String>),
+    BinaryArgument(Arc<String>, Arc<String>),
+    KeywordArgument(Vec<(Arc<String>, Arc<String>)>),
+}
+
+///
+/// A method definition
+///
+#[derive(Clone, PartialEq, Debug)]
+pub struct TalkMethodDefinition {
+    /// Where in the input stream this method was encountered
+    pub location: Option<TalkLocation>,
+
+    /// If the method definition is preceded by a doc comment, this is it
+    pub initial_comment: Option<Arc<String>>,
+
+    /// The argument(s) for this method
+    pub argument: TalkMethodArgument,
+
+    /// The expressions that make up the method
+    pub expressions: Vec<TalkExpression>,
+}
 
 impl TalkExpression {
     ///
