@@ -165,8 +165,6 @@ where
     ///
     fn match_array<'a>(&'a mut self, start_location: TalkLocation) -> BoxFuture<'a, Result<ParserResult<TalkLiteral>, ParserResult<TalkParseError>>> {
         async move {
-            let start_location = self.location();
-
             // Should be a bracket waiting to be read
             let opening_bracket = self.next().await;
             if opening_bracket != Some('(') {
