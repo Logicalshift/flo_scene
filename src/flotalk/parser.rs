@@ -824,16 +824,16 @@ where
     /// `<primary> ::= '(' <expression> `)` | <block> | <variable-declaration> | <identifier> | <literal>`
     ///
     async fn match_primary(&mut self) -> Result<Option<ParserResult<TalkExpression>>, ParserResult<TalkParseError>> {
-        let start_location      = self.location();
+        let start_location  = self.location();
 
-        let chr             = self.peek().await;
-        let mut chr         = if let Some(chr) = chr { chr } else { return Ok(None); };
+        let chr = self.peek().await;
+        let chr = if let Some(chr) = chr { chr } else { return Ok(None); };
 
         if chr == '(' {
 
             // Nested expression
             self.next().await;
-            let mut expr = self.match_expression().await?;
+            let expr = self.match_expression().await?;
 
             let mut expr = match expr {
                 Some(expr)  => expr,
