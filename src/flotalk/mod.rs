@@ -10,7 +10,9 @@ mod parser;
 mod location;
 mod parse_error;
 mod pushback_stream;
+mod symbol;
 
 pub use self::instruction::*;
 pub use self::program::*;
 pub use self::parser::*;
+pub use self::symbol::*;
