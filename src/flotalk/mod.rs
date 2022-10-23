@@ -13,6 +13,8 @@ mod pushback_stream;
 mod symbol;
 mod context;
 mod class;
+mod reference;
+mod message;
 
 pub use self::instruction::*;
 pub use self::program::*;
@@ -20,3 +22,5 @@ pub use self::parser::*;
 pub use self::symbol::*;
 pub use self::context::*;
 pub use self::class::*;
+pub use self::reference::*;
+pub use self::message::*;
