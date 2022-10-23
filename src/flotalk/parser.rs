@@ -1193,3 +1193,14 @@ pub fn parse_flotalk_expression<'a>(input_stream: impl 'a + Unpin + Send + Strea
         }
     })
 }
+
+///
+/// Parses a method definition from a stream
+///
+pub fn parse_flotalk_method_definition<'a>(input_stream: &'a mut (impl Unpin + Send + Stream<Item=char>)) -> impl 'a + Send + Future<Output=Result<ParserResult<TalkMethodDefinition>, ParserResult<TalkParseError>>> {
+    async move {
+        let mut input_stream = PushBackStream::new(input_stream);
+
+        Ok(input_stream.match_method_definition().await?)
+    }
+}
