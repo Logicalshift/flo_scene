@@ -58,7 +58,7 @@ pub trait TalkClassDefinition {
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message: TalkMessage, target: &mut Self::Data) -> TalkContinuation;
+    fn send_instance_message(&self, message: TalkMessage, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation;
 }
 
 ///

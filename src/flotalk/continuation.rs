@@ -1,5 +1,5 @@
-use super::reference::*;
 use super::value::*;
+use super::context::*;
 
 use futures::task::{Poll, Context};
 
@@ -11,5 +11,5 @@ pub enum TalkContinuation {
     Ready(TalkValue),
 
     /// A value that is ready when a future completes
-    Later(Box<dyn Fn(TalkReference, &mut Context) -> Poll<TalkValue>>),
+    Later(Box<dyn Fn(&mut TalkContext, &mut Context) -> Poll<TalkValue>>),
 }
