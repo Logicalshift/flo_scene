@@ -23,6 +23,9 @@ thread_local! {
 pub (crate) struct TalkClassCallbacks {
     /// Creates the callbacks for this class in a context
     create_in_context: Box<dyn Send + Sync + Fn() -> TalkClassContextCallbacks>,
+
+    /// Sends a message to the class object
+    send_class_message: Box<dyn Send + Sync + Fn(TalkMessage, &mut TalkContext) -> TalkContinuation>,
 }
 
 ///
@@ -40,16 +43,24 @@ pub (crate) struct TalkClassContextCallbacks {
 pub struct TalkClass(pub (crate) usize);
 
 impl TalkClassCallbacks {
+    #[inline]
     pub (crate) fn create_in_context(&self) -> TalkClassContextCallbacks {
         (self.create_in_context)()
+    }
+
+    #[inline]
+    pub (crate) fn send_class_message(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
+        (self.send_class_message)(message, context)
     }
 }
 
 impl TalkClassContextCallbacks {
+    #[inline]
     pub (crate) fn allocate_instance(&mut self) -> TalkDataHandle {
         (self.allocate_instance)()
     }
 }
+
 impl TalkClass {
     ///
     /// Creates a new class identifier
@@ -151,6 +162,15 @@ impl TalkClass {
     }
 
     ///
+    /// Creates the 'send class message' function for a class
+    ///
+    fn callback_send_class_message(definition: Arc<impl 'static + TalkClassDefinition>) -> Box<dyn Send + Sync + Fn(TalkMessage, &mut TalkContext) -> TalkContinuation> {
+        Box::new(move |message, context| {
+            definition.send_class_message(message, context)
+        })
+    }
+
+    ///
     /// Creates a TalkClass from a definition
     ///
     pub fn create(definition: impl 'static + TalkClassDefinition) -> TalkClass {
@@ -168,7 +188,8 @@ impl TalkClass {
 
         // Create the class callbacks
         let class_callbacks = TalkClassCallbacks {
-            create_in_context: Self::callback_create_in_context(Arc::clone(&definition))
+            create_in_context:  Self::callback_create_in_context(Arc::clone(&definition)),
+            send_class_message: Self::callback_send_class_message(Arc::clone(&definition)),
         };
 
         // Store as a static reference (classes live for the lifetime of the program)
@@ -245,6 +266,6 @@ impl TalkClass {
     ///
     #[inline]
     pub fn send_message(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
-        todo!()
+        self.callbacks().send_class_message(message, context)
     }
 }
