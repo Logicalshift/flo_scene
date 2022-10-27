@@ -1,4 +1,5 @@
 use super::class::*;
+use super::context::*;
 
 ///
 /// A reference to the data for a class from the allocator
@@ -13,3 +14,20 @@ pub struct TalkDataHandle(pub usize);
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TalkReference(pub (crate) TalkClass, pub (crate) TalkDataHandle);
+
+impl TalkReference {
+    ///
+    /// Increases the reference count for this reference. References are freed once the count reaches 0.
+    ///
+    #[inline]
+    pub fn add_reference(&self, context: &mut TalkContext) {
+        context.get_callbacks(self.0).add_reference(self.1)
+    }
+    ///
+    /// Decreases the reference count for this reference. References are freed once the count reaches 0.
+    ///
+    #[inline]
+    pub fn remove_reference(&self, context: &mut TalkContext) {
+        context.get_callbacks(self.0).remove_reference(self.1)
+    }
+}
