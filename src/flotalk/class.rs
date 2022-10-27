@@ -4,11 +4,12 @@ use super::message::*;
 use super::reference::*;
 
 use std::any::*;
-use std::sync::*;
 use std::cell::*;
+use std::sync::*;
 
 lazy_static! {
     static ref NEXT_CLASS_ID: Mutex<usize>                                      = Mutex::new(0);
+    static ref CLASS_DEFINITIONS: Mutex<Vec<Option<Box<dyn Send + Any>>>>       = Mutex::new(vec![]);
     static ref CLASS_CALLBACKS: Mutex<Vec<Option<&'static TalkClassCallbacks>>> = Mutex::new(vec![]);
 }
 
@@ -20,15 +21,35 @@ thread_local! {
 /// Callbacks for addressing a TalkClass
 ///
 pub (crate) struct TalkClassCallbacks {
+    /// Creates the callbacks for this class in a context
+    create_in_context: Box<dyn Send + Sync + Fn() -> TalkClassContextCallbacks>,
+}
 
+///
+/// Callbacks for addressing a TalkClass within a context
+///
+pub (crate) struct TalkClassContextCallbacks {
+    /// Allocates an instance of this class
+    allocate_instance: Box<dyn Send + FnMut() -> TalkDataHandle>,
 }
 
 ///
 /// A TalkClass is an identifier for a FloTalk class
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct TalkClass(usize);
+pub struct TalkClass(pub (crate) usize);
 
+impl TalkClassCallbacks {
+    pub (crate) fn create_in_context(&self) -> TalkClassContextCallbacks {
+        (self.create_in_context)()
+    }
+}
+
+impl TalkClassContextCallbacks {
+    pub (crate) fn allocate_instance(&mut self) -> TalkDataHandle {
+        (self.allocate_instance)()
+    }
+}
 impl TalkClass {
     ///
     /// Creates a new class identifier
@@ -38,6 +59,7 @@ impl TalkClass {
             let mut next_class_id   = NEXT_CLASS_ID.lock().unwrap();
             let class_id            = *next_class_id;
             *next_class_id          += 1;
+            
             class_id
         };
 
@@ -63,12 +85,12 @@ pub trait TalkClassDefinition : Send + Sync {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message: TalkMessage, allocator: &mut Self::Allocator) -> TalkContinuation;
+    fn send_class_message(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation;
 
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message: TalkMessage, reference: TalkReference, context: &TalkContext, target: &mut Self::Data) -> TalkContinuation;
+    fn send_instance_message(&self, message: TalkMessage, reference: TalkReference, context: &mut TalkContext, target: &mut Self::Data) -> TalkContinuation;
 }
 
 ///
@@ -100,17 +122,53 @@ pub trait TalkClassAllocator : Send {
 }
 
 impl TalkClass {
+    // TODO: we need to share the allocator between several functions, but those functions should all 'exist' in the same thread,
+    //       so the allocator should not need to be an Arc<Mutex<...>>: can we use something faster to access? Normally this 
+    //       doesn't matter too much but as this ends up in the inner loop of a language interpreter it seems that this could make
+    //       a noticeable performance difference.
+
+    ///
+    /// Creates the 'allocate data for class' function for a class
+    ///
+    fn callback_allocate(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + FnMut() -> TalkDataHandle> {
+        Box::new(move || {
+            let mut allocator = allocator.lock().unwrap();
+            (*allocator).allocate()
+        })
+    }
+
+    ///
+    /// Creates the 'create in context' function for a class
+    ///
+    fn callback_create_in_context(definition: Arc<impl 'static + TalkClassDefinition>) -> Box<dyn Send + Sync + Fn() -> TalkClassContextCallbacks> {
+        Box::new(move || {
+            let allocator = Arc::new(Mutex::new(definition.create_allocator()));
+
+            TalkClassContextCallbacks {
+                allocate_instance: Self::callback_allocate(Arc::clone(&allocator))
+            }
+        })
+    }
+
     ///
     /// Creates a TalkClass from a definition
     ///
-    pub fn create(definition: impl TalkClassDefinition) -> TalkClass {
+    pub fn create(definition: impl 'static + TalkClassDefinition) -> TalkClass {
         // Create an identifier for this class
+        let definition      = Arc::new(definition);
         let class           = TalkClass::new();
         let TalkClass(idx)  = class;
 
-        // Create the class definition
-        let class_callbacks = TalkClassCallbacks {
+        // Store the class definition
+        let mut class_definitions = CLASS_DEFINITIONS.lock().unwrap();
+        while class_definitions.len() <= idx {
+            class_definitions.push(None);
+        }
+        class_definitions[idx] = Some(Box::new(Arc::clone(&definition)));
 
+        // Create the class callbacks
+        let class_callbacks = TalkClassCallbacks {
+            create_in_context: Self::callback_create_in_context(Arc::clone(&definition))
         };
 
         // Store as a static reference (classes live for the lifetime of the program)
@@ -178,14 +236,15 @@ impl TalkClass {
     ///
     #[inline]
     pub fn allocate(&self, context: &mut TalkContext) -> TalkReference {
-        todo!()
+        let data_handle = context.get_callbacks(*self).allocate_instance();
+        TalkReference(*self, data_handle)
     }
 
     ///
     /// Sends a message to this class
     ///
     #[inline]
-    pub fn send_class_message(&self, message: TalkMessage, context: &TalkContext) -> TalkContinuation {
+    pub fn send_message(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
         todo!()
     }
 }

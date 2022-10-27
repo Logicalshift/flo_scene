@@ -12,4 +12,4 @@ pub struct TalkDataHandle(pub usize);
 /// FloTalk data is stored by class and handle. References are only valid for the context that they were created for.
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct TalkReference(TalkClass, TalkDataHandle);
+pub struct TalkReference(pub (crate) TalkClass, pub (crate) TalkDataHandle);
