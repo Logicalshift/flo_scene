@@ -32,8 +32,7 @@ pub (crate) struct TalkClassCallbacks {
 /// Callbacks for addressing a TalkClass within a context
 ///
 pub (crate) struct TalkClassContextCallbacks {
-    /// Allocates an instance of this class
-    allocate_instance: Box<dyn Send + FnMut() -> TalkDataHandle>,
+
 }
 
 ///
@@ -55,10 +54,7 @@ impl TalkClassCallbacks {
 }
 
 impl TalkClassContextCallbacks {
-    #[inline]
-    pub (crate) fn allocate_instance(&mut self) -> TalkDataHandle {
-        (self.allocate_instance)()
-    }
+
 }
 
 impl TalkClass {
@@ -112,11 +108,6 @@ pub trait TalkClassAllocator : Send {
     type Data: Send;
 
     ///
-    /// Allocates data for an instance of this class. This data is allocated with a reference count of 1
-    ///
-    fn allocate(&mut self) -> TalkDataHandle;
-
-    ///
     /// Retrieves a reference to the data attached to a handle (panics if the handle has been released)
     ///
     fn retrieve<'a>(&'a mut self, handle: TalkDataHandle) -> &'a mut Self::Data;
@@ -139,16 +130,6 @@ impl TalkClass {
     //       a noticeable performance difference.
 
     ///
-    /// Creates the 'allocate data for class' function for a class
-    ///
-    fn callback_allocate(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + FnMut() -> TalkDataHandle> {
-        Box::new(move || {
-            let mut allocator = allocator.lock().unwrap();
-            (*allocator).allocate()
-        })
-    }
-
-    ///
     /// Creates the 'create in context' function for a class
     ///
     fn callback_create_in_context(definition: Arc<impl 'static + TalkClassDefinition>) -> Box<dyn Send + Sync + Fn() -> TalkClassContextCallbacks> {
@@ -156,7 +137,7 @@ impl TalkClass {
             let allocator = Arc::new(Mutex::new(definition.create_allocator()));
 
             TalkClassContextCallbacks {
-                allocate_instance: Self::callback_allocate(Arc::clone(&allocator))
+
             }
         })
     }
@@ -250,15 +231,6 @@ impl TalkClass {
         } else {
             self.make_local_callbacks()
         }
-    }
-
-    ///
-    /// Allocates an instance of this class in the specified context
-    ///
-    #[inline]
-    pub fn allocate(&self, context: &mut TalkContext) -> TalkReference {
-        let data_handle = context.get_callbacks(*self).allocate_instance();
-        TalkReference(*self, data_handle)
     }
 
     ///
