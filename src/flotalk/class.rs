@@ -32,7 +32,11 @@ pub (crate) struct TalkClassCallbacks {
 /// Callbacks for addressing a TalkClass within a context
 ///
 pub (crate) struct TalkClassContextCallbacks {
+    /// Add to the reference count for a data handle
+    add_reference: Box<dyn Send + FnMut(TalkDataHandle) -> ()>,
 
+    /// Decreases the reference count for a data handle, and frees it if the count reaches 0
+    remove_reference: Box<dyn Send + FnMut(TalkDataHandle) -> ()>,
 }
 
 ///
@@ -54,7 +58,15 @@ impl TalkClassCallbacks {
 }
 
 impl TalkClassContextCallbacks {
+    #[inline]
+    pub (crate) fn add_reference(&mut self, data_handle: TalkDataHandle) {
+        (self.add_reference)(data_handle)
+    }
 
+    #[inline]
+    pub (crate) fn remove_reference(&mut self, data_handle: TalkDataHandle) {
+        (self.remove_reference)(data_handle)
+    }
 }
 
 impl TalkClass {
@@ -130,6 +142,26 @@ impl TalkClass {
     //       a noticeable performance difference.
 
     ///
+    /// Creates the 'add reference' method for an allocator
+    ///
+    fn callback_add_reference(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + FnMut(TalkDataHandle) -> ()> {
+        Box::new(move |data_handle| {
+            let mut allocator = allocator.lock().unwrap();
+            allocator.add_reference(data_handle)
+        })
+    }
+
+    ///
+    /// Creates the 'remove reference' method for an allocator
+    ///
+    fn callback_remove_reference(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + FnMut(TalkDataHandle) -> ()> {
+        Box::new(move |data_handle| {
+            let mut allocator = allocator.lock().unwrap();
+            allocator.remove_reference(data_handle)
+        })
+    }
+
+    ///
     /// Creates the 'create in context' function for a class
     ///
     fn callback_create_in_context(definition: Arc<impl 'static + TalkClassDefinition>) -> Box<dyn Send + Sync + Fn() -> TalkClassContextCallbacks> {
@@ -137,7 +169,8 @@ impl TalkClass {
             let allocator = Arc::new(Mutex::new(definition.create_allocator()));
 
             TalkClassContextCallbacks {
-
+                add_reference:      Self::callback_add_reference(Arc::clone(&allocator)),
+                remove_reference:   Self::callback_remove_reference(Arc::clone(&allocator)),
             }
         })
     }
