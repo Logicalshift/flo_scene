@@ -1,13 +1,4 @@
 use super::class::*;
-use super::continuation::*;
-use super::value::*;
-
-use ::desync::*;
-
-use futures::prelude::*;
-use futures::future;
-
-use std::sync::*;
 
 ///
 /// A talk context is a self-contained representation of the state of a flotalk interpreter
@@ -61,36 +52,5 @@ impl TalkContext {
         }
 
         self.create_callbacks(class)
-    }
-}
-
-///
-/// Runs a continuation to completion in a TalkContext
-///
-pub fn talk_run_continuation(talk_context: &Arc<Desync<TalkContext>>, continuation: TalkContinuation) -> impl Future<Output=TalkValue> {
-    let talk_context = Arc::clone(talk_context);
-    let (now, later) = match continuation {
-        TalkContinuation::Ready(now)    => (Some(now), None),
-        TalkContinuation::Later(later)  => (None, Some(later)),
-    };
-
-    async move {
-        // Return immediately if the continuation is already complete
-        if let Some(now) = now { return now; }
-
-        // Run the continuation in the context
-        if let Some(mut later) = later {
-            future::poll_fn(move |mut future_context| {
-                let later = &mut later;
-
-                // Poll the 'later' future in the context of the talk_context (TODO: could use future_sync here instead of just sync)
-                talk_context.sync(move |talk_context| {
-                    later(talk_context, &mut future_context)
-                })
-            }).await
-        } else {
-            // Either 'now' or 'later' must return a value
-            unreachable!()
-        }
     }
 }
