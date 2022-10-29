@@ -5,7 +5,7 @@ use super::symbol::*;
 ///
 /// The result of a FloTalk message
 ///
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum TalkValue {
     /// A reference to a value
     Reference(TalkReference),
