@@ -5,7 +5,7 @@
 //!
 
 mod instruction;
-mod program;
+mod expression;
 mod parser;
 mod location;
 mod parse_error;
@@ -21,7 +21,7 @@ mod runtime;
 mod error;
 
 pub use self::instruction::*;
-pub use self::program::*;
+pub use self::expression::*;
 pub use self::parser::*;
 pub use self::symbol::*;
 pub use self::context::*;
