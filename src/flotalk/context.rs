@@ -45,7 +45,7 @@ impl TalkContext {
     pub (crate) fn get_callbacks<'a>(&'a mut self, class: TalkClass) -> &'a mut TalkClassContextCallbacks {
         let TalkClass(class_id) = class;
 
-        if self.context_callbacks.len() < class_id {
+        if self.context_callbacks.len() > class_id {
             if self.context_callbacks[class_id].is_some() {
                 return self.context_callbacks[class_id].as_mut().unwrap()
             }
