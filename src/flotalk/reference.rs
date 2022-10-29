@@ -24,6 +24,14 @@ pub struct TalkReference(pub (crate) TalkClass, pub (crate) TalkDataHandle);
 
 impl TalkReference {
     ///
+    /// Creates a reference from a data handle
+    ///
+    #[inline]
+    pub fn from_handle(class: TalkClass, data_handle: TalkDataHandle) -> TalkReference {
+        TalkReference(class, data_handle)
+    }
+
+    ///
     /// Increases the reference count for this reference. References are freed once the count reaches 0.
     ///
     #[inline]
