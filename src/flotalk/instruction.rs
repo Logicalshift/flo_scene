@@ -16,12 +16,12 @@ pub enum TalkPartialBinding {
 }
 
 ///
-/// A flattened TalkExpression (a view of a TalkExpression that operates on a stack instead of recursively)
+/// A single instruction for a FloTalk interpreter.
 ///
 /// Generic in terms of the symbol and literal value to allow for different symbol binding passes
 ///
 #[derive(Clone, Debug)]
-pub enum TalkFlatExpression<TValue, TSymbol> {
+pub enum TalkInstruction<TValue, TSymbol> {
     /// Follow code comes from the specified location
     Location(TalkLocation),
 
@@ -41,7 +41,7 @@ pub enum TalkFlatExpression<TValue, TSymbol> {
     LoadFromSymbol(TSymbol),
 
     /// Load an object representing a code block onto the stack
-    LoadBlock(Vec<TalkSymbol>, Vec<TalkFlatExpression<TValue, TSymbol>>),
+    LoadBlock(Vec<TalkSymbol>, Vec<TalkInstruction<TValue, TSymbol>>),
 
     /// Loads the value from the top of the stack and stores it a variable
     StoreAtSymbol(TSymbol),

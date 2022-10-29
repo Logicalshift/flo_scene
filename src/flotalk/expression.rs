@@ -146,14 +146,14 @@ impl TalkExpression {
     }
 
     ///
-    /// Flattens an expression sequence, generating a new sequence that returns a result
+    /// Flattens an expression sequence, generating a new sequence that leaves a single result on the stack
     ///
-    pub fn flatten_sequence(sequence: impl IntoIterator<Item=TalkExpression>) -> Vec<TalkFlatExpression<TalkLiteral, TalkSymbol>> {
+    pub fn flatten_sequence(sequence: impl IntoIterator<Item=TalkExpression>) -> Vec<TalkInstruction<TalkLiteral, TalkSymbol>> {
         let mut result = vec![];
 
         for expr in sequence {
             if result.len() != 0 {
-                result.push(TalkFlatExpression::Discard);
+                result.push(TalkInstruction::Discard);
             }
 
             result.extend(expr.flatten());
@@ -163,9 +163,9 @@ impl TalkExpression {
     }
 
     ///
-    /// Creates a 'flat' expression that can be evaluated with a stack. Evaluating an expression always leaves one value behind on the stack.
+    /// 'Flattens' this expression to a series of instructions. Evaluating an expression always leaves one value behind on the stack.
     ///
-    pub fn flatten(self) -> Vec<TalkFlatExpression<TalkLiteral, TalkSymbol>> {
+    pub fn flatten(self) -> Vec<TalkInstruction<TalkLiteral, TalkSymbol>> {
         use TalkExpression::*;
 
         lazy_static! {
@@ -174,41 +174,41 @@ impl TalkExpression {
         }
 
         match self {
-            Empty                               => vec![TalkFlatExpression::LoadNil],
-            AtLocation(location, expr)          => vec![vec![TalkFlatExpression::Location(location)], expr.flatten()].into_iter().flatten().collect(),
+            Empty                               => vec![TalkInstruction::LoadNil],
+            AtLocation(location, expr)          => vec![vec![TalkInstruction::Location(location)], expr.flatten()].into_iter().flatten().collect(),
             WithComment(_comment, expr)         => expr.flatten(),
-            Literal(literal)                    => vec![TalkFlatExpression::Load(literal)],
-            Identifier(identifier)              => vec![TalkFlatExpression::LoadFromSymbol(TalkSymbol::from(identifier))],
+            Literal(literal)                    => vec![TalkInstruction::Load(literal)],
+            Identifier(identifier)              => vec![TalkInstruction::LoadFromSymbol(TalkSymbol::from(identifier))],
             Return(expr)                        => expr.flatten(),
-            Block(variables, expressions)       => vec![TalkFlatExpression::LoadBlock(variables.into_iter().map(|var| TalkSymbol::from(&*var)).collect(), Self::flatten_sequence(expressions))],
+            Block(variables, expressions)       => vec![TalkInstruction::LoadBlock(variables.into_iter().map(|var| TalkSymbol::from(&*var)).collect(), Self::flatten_sequence(expressions))],
 
             Assignment(name, expr)              => // Create result, duplicate it, store the value, return value is duplicated
                 vec![
                     expr.flatten(), 
-                    vec![TalkFlatExpression::Duplicate, TalkFlatExpression::StoreAtSymbol(TalkSymbol::from(name))]
+                    vec![TalkInstruction::Duplicate, TalkInstruction::StoreAtSymbol(TalkSymbol::from(name))]
                 ].into_iter().flatten().collect(),
                 
             VariableDeclaration(variables)      => // Evaluates to 'nil', creates new local bindings
                 vec![
-                    vec![TalkFlatExpression::LoadNil], 
-                    variables.into_iter().map(|var| TalkFlatExpression::PushLocalBinding(TalkSymbol::from(var))).collect()
+                    vec![TalkInstruction::LoadNil], 
+                    variables.into_iter().map(|var| TalkInstruction::PushLocalBinding(TalkSymbol::from(var))).collect()
                 ].into_iter().flatten().collect(),
 
             SendMessage(expr, arguments)        => // Evaluate the expression, the arguments, then sends a message
                 vec![
                     expr.flatten(),
                     arguments.iter().flat_map(|arg| arg.value.clone()).flat_map(|expr| expr.flatten()).collect(),
-                    vec![TalkFlatExpression::SendMessage(arguments.iter().map(|arg| TalkSymbol::from(&arg.name)).collect())]
+                    vec![TalkInstruction::SendMessage(arguments.iter().map(|arg| TalkSymbol::from(&arg.name)).collect())]
                 ].into_iter().flatten().collect(),
 
             CascadeFrom(expr, expressions)      =>  // Store the primary expression in CASCADE_PRIMARY_RESULT, evaluate the expressions, discard CASCADE_PRIMARY_RESULT
                 vec![
                     expr.flatten(),
-                    vec![TalkFlatExpression::PushLocalBinding(*CASCADE_PRIMARY_RESULT), TalkFlatExpression::StoreAtSymbol(*CASCADE_PRIMARY_RESULT)],
+                    vec![TalkInstruction::PushLocalBinding(*CASCADE_PRIMARY_RESULT), TalkInstruction::StoreAtSymbol(*CASCADE_PRIMARY_RESULT)],
                     Self::flatten_sequence(expressions),
-                    vec![TalkFlatExpression::LoadNil, TalkFlatExpression::StoreAtSymbol(*CASCADE_PRIMARY_RESULT), TalkFlatExpression::PopLocalBinding(*CASCADE_PRIMARY_RESULT)],
+                    vec![TalkInstruction::LoadNil, TalkInstruction::StoreAtSymbol(*CASCADE_PRIMARY_RESULT), TalkInstruction::PopLocalBinding(*CASCADE_PRIMARY_RESULT)],
                 ].into_iter().flatten().collect(),
-            CascadePrimaryResult                => vec![TalkFlatExpression::LoadFromSymbol(*CASCADE_PRIMARY_RESULT)],
+            CascadePrimaryResult                => vec![TalkInstruction::LoadFromSymbol(*CASCADE_PRIMARY_RESULT)],
          }
     }
 }
