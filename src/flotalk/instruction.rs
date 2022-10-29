@@ -26,7 +26,13 @@ pub enum TalkFlatExpression<TValue, TSymbol> {
     Location(TalkLocation),
 
     /// Creates (or replaces) a local binding location for a symbol
-    CreateLocalBinding(TalkSymbol),
+    PushLocalBinding(TalkSymbol),
+
+    /// Restores the previous binding for the specified symbol
+    PopLocalBinding(TalkSymbol),
+
+    /// Load the value indicating 'nil' to the stack
+    LoadNil,
 
     /// Load a literal value onto the stack
     Load(TValue),
@@ -35,12 +41,15 @@ pub enum TalkFlatExpression<TValue, TSymbol> {
     LoadFromSymbol(TSymbol),
 
     /// Load an object representing a code block onto the stack
-    LoadBlock(Vec<TalkFlatExpression<TValue, TSymbol>>),
+    LoadBlock(Vec<TalkSymbol>, Vec<TalkFlatExpression<TValue, TSymbol>>),
+
+    /// Loads the value from the top of the stack and stores it a variable
+    StoreAtSymbol(TSymbol),
 
     /// Pops an object off the stack and sends the specified message
     SendUnaryMessage(TalkSymbol),
 
-    /// Pops message arguments and an object from the stack, and sends the specified messaage
+    /// Pops message arguments and an object from the stack, and sends the specified message, leaving the result on the stack
     SendMessage(SmallVec<[TalkSymbol; 4]>),
 
     /// Copies the value on top of the stack
