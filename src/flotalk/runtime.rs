@@ -40,10 +40,11 @@ impl TalkRuntime {
     ///
     /// Runs a continuation with a 'later' part
     ///
-    fn run_continuation_later(&self, later: Box<dyn Send + Fn(&mut TalkContext, &mut Context) -> Poll<TalkValue>>) -> impl Send + Future<Output=TalkValue> {
+    fn run_continuation_later(&self, later: Box<dyn Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>>) -> impl Send + Future<Output=TalkValue> {
         // If the runtime is dropped while the future is running, it will be aborted (if it ever wakes up again)
         let talk_context        = Arc::downgrade(&self.context);
         let mut acquire_context = None;
+        let mut later           = later;
 
         // Poll the 'later' whenever the context is available
         future::poll_fn(move |future_context| {

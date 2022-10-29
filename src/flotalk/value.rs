@@ -4,6 +4,7 @@ use super::reference::*;
 ///
 /// The result of a FloTalk message
 ///
+#[derive(Clone)]
 pub enum TalkValue {
     /// A reference to a value
     Reference(TalkReference),

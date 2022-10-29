@@ -2,6 +2,11 @@ use super::context::*;
 use super::continuation::*;
 use super::message::*;
 use super::reference::*;
+use super::runtime::*;
+use super::value::*;
+
+use futures::prelude::*;
+use futures::task::{Poll};
 
 use std::any::*;
 use std::cell::*;
@@ -270,7 +275,29 @@ impl TalkClass {
     /// Sends a message to this class
     ///
     #[inline]
-    pub fn send_message(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
+    pub fn send_message_in_context(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
         self.callbacks().send_class_message(message, context)
+    }
+
+    ///
+    /// Sends a message to this class
+    ///
+    pub fn send_message(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl Future<Output=TalkValue> {
+        let class                       = *self;
+        let mut message                 = Some(message);
+        let mut message_continuation    = None;
+
+        runtime.run_continuation(TalkContinuation::Later(Box::new(move |talk_context, future_context| {
+            // First, send the message
+            if let Some(message) = message.take() {
+                message_continuation = Some(class.send_message_in_context(message, talk_context));
+            }
+
+            // Then, wait for the message to complete
+            match message_continuation.as_mut().unwrap() {
+                TalkContinuation::Ready(value)  => Poll::Ready(value.clone()),
+                TalkContinuation::Later(later)  => later(talk_context, future_context),
+            }
+        })))
     }
 }

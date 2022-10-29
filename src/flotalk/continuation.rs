@@ -11,5 +11,5 @@ pub enum TalkContinuation {
     Ready(TalkValue),
 
     /// A value that is ready when a future completes
-    Later(Box<dyn Send + Fn(&mut TalkContext, &mut Context) -> Poll<TalkValue>>),
+    Later(Box<dyn Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>>),
 }
