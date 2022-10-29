@@ -28,3 +28,16 @@ pub enum TalkValue {
     /// An error
     Error(TalkError),
 }
+
+impl TalkValue {
+    ///
+    /// Returns the reference represented by this value
+    ///
+    pub fn unwrap_as_reference(self) -> TalkReference {
+        match self {
+            TalkValue::Nil                  => panic!("Value is nil"),
+            TalkValue::Reference(value_ref) => value_ref,
+            _                               => panic!("Value is not a reference")
+        }
+    }
+}
