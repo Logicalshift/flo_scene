@@ -329,4 +329,22 @@ impl TalkClass {
             }
         })))
     }
+
+    ///
+    /// Retrieves the definition for this class, or None if the definition is not of the right type
+    ///
+    pub fn definition<TClass>(&self) -> Option<Arc<TClass>> 
+    where
+        TClass: 'static + TalkClassDefinition
+    {
+        let class_definitions = CLASS_DEFINITIONS.lock().unwrap();
+
+        if let Some(Some(any_defn)) = class_definitions.get(self.0) {
+            any_defn.downcast_ref::<Arc<TClass>>()
+                .map(|defn| Arc::clone(defn))
+        } else {
+            // Definition not stored/registered
+            None
+        }
+    }
 }
