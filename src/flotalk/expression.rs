@@ -168,6 +168,11 @@ impl TalkExpression {
     pub fn flatten(self) -> Vec<TalkFlatExpression<TalkLiteral, TalkSymbol>> {
         use TalkExpression::*;
 
+        lazy_static! {
+            /// Temporary storage used to store the 'primary' in a cascaded expression
+            static ref CASCADE_PRIMARY_RESULT: TalkSymbol = TalkSymbol::new_unnamed(); 
+        }
+
         match self {
             Empty                               => vec![TalkFlatExpression::LoadNil],
             AtLocation(location, expr)          => vec![vec![TalkFlatExpression::Location(location)], expr.flatten()].into_iter().flatten().collect(),
@@ -196,9 +201,14 @@ impl TalkExpression {
                     vec![TalkFlatExpression::SendMessage(arguments.iter().map(|arg| TalkSymbol::from(&arg.name)).collect())]
                 ].into_iter().flatten().collect(),
 
-            CascadeFrom(expr, expressions)      => { todo!() },
-            CascadePrimaryResult                => { todo!() },
-
+            CascadeFrom(expr, expressions)      =>  // Store the primary expression in CASCADE_PRIMARY_RESULT, evaluate the expressions, discard CASCADE_PRIMARY_RESULT
+                vec![
+                    expr.flatten(),
+                    vec![TalkFlatExpression::PushLocalBinding(*CASCADE_PRIMARY_RESULT), TalkFlatExpression::StoreAtSymbol(*CASCADE_PRIMARY_RESULT)],
+                    Self::flatten_sequence(expressions),
+                    vec![TalkFlatExpression::LoadNil, TalkFlatExpression::StoreAtSymbol(*CASCADE_PRIMARY_RESULT), TalkFlatExpression::PopLocalBinding(*CASCADE_PRIMARY_RESULT)],
+                ].into_iter().flatten().collect(),
+            CascadePrimaryResult                => vec![TalkFlatExpression::LoadFromSymbol(*CASCADE_PRIMARY_RESULT)],
          }
     }
 }
