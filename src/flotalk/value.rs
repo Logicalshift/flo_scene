@@ -1,3 +1,4 @@
+use super::error::*;
 use super::reference::*;
 
 ///
@@ -15,4 +16,7 @@ pub enum TalkValue {
 
     /// A floating point value
     Float(f64),
+
+    /// An error
+    Error(TalkError),
 }

@@ -17,6 +17,8 @@ mod reference;
 mod message;
 mod continuation;
 mod value;
+mod runtime;
+mod error;
 
 pub use self::instruction::*;
 pub use self::program::*;
@@ -28,3 +30,5 @@ pub use self::reference::*;
 pub use self::message::*;
 pub use self::continuation::*;
 pub use self::value::*;
+pub use self::runtime::*;
+pub use self::error::*;
