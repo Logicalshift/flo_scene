@@ -1,13 +1,16 @@
 use super::context::*;
 use super::continuation::*;
+use super::error::*;
 use super::value::*;
 
 use futures::prelude::*;
 use futures::future;
 use futures::lock;
-use futures::task::{Poll};
+use futures::task::{Poll, Context};
 
 use std::sync::*;
+
+// TODO: write and upgrade to a 'fair' mutex that processing wakeups in the order that they happen
 
 ///
 /// A `TalkRuntime` is used to run continuations inside a `TalkContext` (it wraps a TalkContext,
@@ -35,13 +38,68 @@ impl TalkRuntime {
     }
 
     ///
+    /// Runs a continuation with a 'later' part
+    ///
+    fn run_continuation_later(&self, later: Box<dyn Send + Fn(&mut TalkContext, &mut Context) -> Poll<TalkValue>>) -> impl Send + Future<Output=TalkValue> {
+        // If the runtime is dropped while the future is running, it will be aborted (if it ever wakes up again)
+        let talk_context        = Arc::downgrade(&self.context);
+        let mut acquire_context = None;
+
+        // Poll the 'later' whenever the context is available
+        future::poll_fn(move |future_context| {
+            if let Some(talk_context) = talk_context.upgrade() {
+                // Often we can just acquire the mutex immediately
+                if acquire_context.is_none() {
+                    // Don't try_lock() if we're acquiring the context some other way
+                    if let Some(mut talk_context) = talk_context.try_lock() {
+                        acquire_context = None;
+                        return later(&mut *talk_context, future_context);
+                    }
+                }
+
+                // Start locking the context if it's currently released
+                if acquire_context.is_none() {
+                    acquire_context = Some(lock::Mutex::lock_owned(talk_context));
+                }
+
+                if let Poll::Ready(mut talk_context) = acquire_context.as_mut().unwrap().poll_unpin(future_context) {
+                    // Acquired access to the context
+                    acquire_context = None;
+
+                    return later(&mut *talk_context, future_context);
+                } else {
+                    // Context is in use on another thread
+                    return Poll::Pending;
+                }
+            } else {
+                // Context is not available
+                acquire_context = None;
+
+                Poll::Ready(TalkValue::Error(TalkError::RuntimeDropped))
+            }
+        })
+    }
+
+    ///
     /// Runs a continuation on this runtime
     ///
+    #[inline]
     pub fn run_continuation(&self, continuation: TalkContinuation) -> impl Send + Future<Output=TalkValue> {
-        let talk_context = Arc::downgrade(&self.context);
+        enum NowLater<T> {
+            Now(TalkValue),
+            Later(T),
+        }
 
-        future::poll_fn(move |future_context| {
-            Poll::Pending
-        })
+        let now_later = match continuation {
+            TalkContinuation::Ready(value)  => NowLater::Now(value),
+            TalkContinuation::Later(later)  => NowLater::Later(self.run_continuation_later(later)),
+        };
+
+        async move {
+            match now_later {
+                NowLater::Now(value)    => value,
+                NowLater::Later(later)  => later.await,
+            }
+        }
     }
 }
