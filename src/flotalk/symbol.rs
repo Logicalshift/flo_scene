@@ -47,6 +47,34 @@ impl<'a> From<&'a str> for TalkSymbol {
     }
 }
 
+impl<'a> From<&'a String> for TalkSymbol {
+    #[inline]
+    fn from(val: &'a String) -> TalkSymbol {
+        TalkSymbol::from(val.as_str())
+    }
+}
+
+impl From<String> for TalkSymbol {
+    #[inline]
+    fn from(val: String) -> TalkSymbol {
+        TalkSymbol::from(val.as_str())
+    }
+}
+
+impl From<Arc<String>> for TalkSymbol {
+    #[inline]
+    fn from(val: Arc<String>) -> TalkSymbol {
+        TalkSymbol::from(&*val)
+    }
+}
+
+impl<'a> From<&'a Arc<String>> for TalkSymbol {
+    #[inline]
+    fn from(val: &'a Arc<String>) -> TalkSymbol {
+        TalkSymbol::from(&**val)
+    }
+}
+
 impl TalkSymbol {
     ///
     /// Returns the name of this symbol
