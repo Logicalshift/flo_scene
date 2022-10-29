@@ -1,5 +1,5 @@
-use super::reference::*;
 use super::symbol::*;
+use super::value::*;
 
 use smallvec::*;
 
@@ -26,7 +26,7 @@ pub enum TalkMessage {
     Unary(TalkSymbol),
 
     /// A message with named arguments
-    WithArguments(SmallVec<[(TalkSymbol, TalkReference); 4]>),
+    WithArguments(TalkMessageSignatureId, SmallVec<[TalkValue; 4]>),
 }
 
 ///
@@ -53,8 +53,8 @@ impl TalkMessage {
     #[inline]
     pub fn signature(&self) -> TalkMessageSignature {
         match self {
-            TalkMessage::Unary(symbol)          => TalkMessageSignature::Unary(*symbol),
-            TalkMessage::WithArguments(args)    => TalkMessageSignature::Arguments(args.iter().map(|(sym, _)| *sym).collect())
+            TalkMessage::Unary(symbol)              => TalkMessageSignature::Unary(*symbol),
+            TalkMessage::WithArguments(id, _args)   => id.to_signature()
         }
     }
 }
@@ -71,7 +71,7 @@ impl TalkMessageSignature {
             *id
         } else {
             let mut id_for_signature = id_for_signature;
-            
+
             // Create a new ID
             let new_id = {
                 let mut next_signature_id   = NEXT_SIGNATURE_ID.lock().unwrap();
