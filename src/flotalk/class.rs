@@ -120,7 +120,7 @@ pub trait TalkClassDefinition : Send + Sync {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message: TalkMessage, allocator: &mut Self::Allocator) -> TalkContinuation;
+    fn send_class_message(&self, message: TalkMessage, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation;
 
     ///
     /// Sends a message to an instance of this class
@@ -195,14 +195,14 @@ impl TalkClass {
     ///
     /// Creates the 'send class message' function for a class
     ///
-    fn callback_send_class_message<TClass>(definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation> 
+    fn callback_send_class_message<TClass>(class_id: TalkClass, definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation> 
     where
         TClass: 'static + TalkClassDefinition,
     {
         Box::new(move |message| {
             let mut allocator   = allocator.lock().unwrap();
 
-            definition.send_class_message(message, &mut *allocator)
+            definition.send_class_message(message, class_id, &mut *allocator)
         })
     }
 
@@ -215,7 +215,7 @@ impl TalkClass {
 
             TalkClassContextCallbacks {
                 send_message:       Self::callback_send_message(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
-                send_class_message: Self::callback_send_class_message(Arc::clone(&definition), Arc::clone(&allocator)),
+                send_class_message: Self::callback_send_class_message(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
                 add_reference:      Self::callback_add_reference(Arc::clone(&allocator)),
                 remove_reference:   Self::callback_remove_reference(Arc::clone(&allocator)),
                 allocator:          Box::new(Arc::clone(&allocator)),
