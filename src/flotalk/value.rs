@@ -1,5 +1,6 @@
 use super::error::*;
 use super::reference::*;
+use super::symbol::*;
 
 ///
 /// The result of a FloTalk message
@@ -17,6 +18,9 @@ pub enum TalkValue {
 
     /// A floating point value
     Float(f64),
+
+    /// A symbol value
+    Symbol(TalkSymbol),
 
     /// An error
     Error(TalkError),
