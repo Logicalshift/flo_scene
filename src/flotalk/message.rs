@@ -6,6 +6,7 @@ use smallvec::*;
 ///
 /// Represents a flotalk message
 ///
+#[derive(Clone)]
 pub enum TalkMessage {
     /// A message with no arguments
     Unary(TalkSymbol),
