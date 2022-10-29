@@ -1,6 +1,8 @@
 use super::reference::*;
 use super::symbol::*;
 
+use smallvec::*;
+
 ///
 /// Represents a flotalk message
 ///
@@ -9,5 +11,5 @@ pub enum TalkMessage {
     Unary(TalkSymbol),
 
     /// A message with named arguments
-    WithArguments(Vec<(TalkSymbol, TalkReference)>),
+    WithArguments(SmallVec<[(TalkSymbol, TalkReference); 4]>),
 }

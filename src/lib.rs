@@ -98,7 +98,8 @@
 //! `flo_binding` library, so these values can be fully reactive computed properties as well as manually updated constants.
 //!
 
-#[cfg(feature="properties")] #[macro_use] extern crate lazy_static;
+#[cfg(any(feature="properties", feature="flotalk"))] #[macro_use] extern crate lazy_static;
+#[cfg(any(feature="flotalk"))] #[macro_use] extern crate smallvec;
 
 mod error;
 mod scene;
