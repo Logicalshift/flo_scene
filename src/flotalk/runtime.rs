@@ -51,7 +51,7 @@ impl TalkRuntime {
             if let Some(talk_context) = talk_context.upgrade() {
                 // Often we can just acquire the mutex immediately
                 if acquire_context.is_none() {
-                    // Don't try_lock() if we're acquiring the context some other way
+                    // Don't try_lock() if we're acquiring the context via the mutex
                     if let Some(mut talk_context) = talk_context.try_lock() {
                         acquire_context = None;
                         return later(&mut *talk_context, future_context);
