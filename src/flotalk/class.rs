@@ -37,6 +37,9 @@ pub (crate) struct TalkClassCallbacks {
 /// Callbacks for addressing a TalkClass within a context
 ///
 pub (crate) struct TalkClassContextCallbacks {
+    /// Sends a message to an object
+    send_message: Box<dyn Send + FnMut(TalkDataHandle, TalkMessage) -> TalkContinuation>,
+
     /// Add to the reference count for a data handle
     add_reference: Box<dyn Send + FnMut(TalkDataHandle) -> ()>,
 
@@ -63,6 +66,11 @@ impl TalkClassCallbacks {
 }
 
 impl TalkClassContextCallbacks {
+    #[inline]
+    pub (crate) fn send_message(&mut self, data_handle: TalkDataHandle, message: TalkMessage) -> TalkContinuation {
+        (self.send_message)(data_handle, message)
+    }
+
     #[inline]
     pub (crate) fn add_reference(&mut self, data_handle: TalkDataHandle) {
         (self.add_reference)(data_handle)
@@ -114,7 +122,7 @@ pub trait TalkClassDefinition : Send + Sync {
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message: TalkMessage, reference: TalkReference, context: &mut TalkContext, target: &mut Self::Data) -> TalkContinuation;
+    fn send_instance_message(&self, message: TalkMessage, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation;
 }
 
 ///
@@ -147,6 +155,21 @@ impl TalkClass {
     //       a noticeable performance difference.
 
     ///
+    /// Creates the 'send message' method for an allocator
+    ///
+    fn callback_send_message<TClass>(class_id: TalkClass, class_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + FnMut(TalkDataHandle, TalkMessage) -> TalkContinuation> 
+    where
+        TClass: 'static + TalkClassDefinition,
+    {
+        Box::new(move |data_handle, message| {
+            let mut allocator   = allocator.lock().unwrap();
+            let data            = allocator.retrieve(data_handle);
+
+            class_definition.send_instance_message(message, TalkReference(class_id, data_handle), data)
+        })
+    }
+
+    ///
     /// Creates the 'add reference' method for an allocator
     ///
     fn callback_add_reference(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + FnMut(TalkDataHandle) -> ()> {
@@ -169,11 +192,12 @@ impl TalkClass {
     ///
     /// Creates the 'create in context' function for a class
     ///
-    fn callback_create_in_context(definition: Arc<impl 'static + TalkClassDefinition>) -> Box<dyn Send + Sync + Fn() -> TalkClassContextCallbacks> {
+    fn callback_create_in_context(class_id: TalkClass, definition: Arc<impl 'static + TalkClassDefinition>) -> Box<dyn Send + Sync + Fn() -> TalkClassContextCallbacks> {
         Box::new(move || {
             let allocator = Arc::new(Mutex::new(definition.create_allocator()));
 
             TalkClassContextCallbacks {
+                send_message:       Self::callback_send_message(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
                 add_reference:      Self::callback_add_reference(Arc::clone(&allocator)),
                 remove_reference:   Self::callback_remove_reference(Arc::clone(&allocator)),
             }
@@ -207,7 +231,7 @@ impl TalkClass {
 
         // Create the class callbacks
         let class_callbacks = TalkClassCallbacks {
-            create_in_context:  Self::callback_create_in_context(Arc::clone(&definition)),
+            create_in_context:  Self::callback_create_in_context(class, Arc::clone(&definition)),
             send_class_message: Self::callback_send_class_message(Arc::clone(&definition)),
         };
 
