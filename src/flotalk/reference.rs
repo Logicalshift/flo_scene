@@ -2,6 +2,11 @@ use super::class::*;
 use super::context::*;
 use super::continuation::*;
 use super::message::*;
+use super::runtime::*;
+use super::value::*;
+
+use futures::prelude::*;
+use futures::task::{Poll};
 
 ///
 /// A reference to the data for a class from the allocator
@@ -40,5 +45,27 @@ impl TalkReference {
     #[inline]
     pub fn send_message_in_context(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
         context.get_callbacks(self.0).send_message(self.1, message)
+    }
+
+    ///
+    /// Sends a message to this object
+    ///
+    pub fn send_message(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl Future<Output=TalkValue> {
+        let reference                   = *self;
+        let mut message                 = Some(message);
+        let mut message_continuation    = None;
+
+        runtime.run_continuation(TalkContinuation::Later(Box::new(move |talk_context, future_context| {
+            // First, send the message
+            if let Some(message) = message.take() {
+                message_continuation = Some(reference.send_message_in_context(message, talk_context));
+            }
+
+            // Then, wait for the message to complete
+            match message_continuation.as_mut().unwrap() {
+                TalkContinuation::Ready(value)  => Poll::Ready(value.clone()),
+                TalkContinuation::Later(later)  => later(talk_context, future_context),
+            }
+        })))
     }
 }
