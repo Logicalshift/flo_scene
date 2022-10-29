@@ -45,6 +45,9 @@ pub (crate) struct TalkClassContextCallbacks {
 
     /// Decreases the reference count for a data handle, and frees it if the count reaches 0
     remove_reference: Box<dyn Send + FnMut(TalkDataHandle) -> ()>,
+
+    /// The allocator for this class (a boxed Arc<Mutex<TalkClassDefinition::Allocator>>)
+    allocator: Box<dyn Send + Any>,
 }
 
 ///
@@ -215,6 +218,7 @@ impl TalkClass {
                 send_class_message: Self::callback_send_class_message(Arc::clone(&definition), Arc::clone(&allocator)),
                 add_reference:      Self::callback_add_reference(Arc::clone(&allocator)),
                 remove_reference:   Self::callback_remove_reference(Arc::clone(&allocator)),
+                allocator:          Box::new(Arc::clone(&allocator)),
             }
         })
     }
@@ -346,5 +350,18 @@ impl TalkClass {
             // Definition not stored/registered
             None
         }
+    }
+
+    ///
+    /// Retrieves the allocator for this class in a context, or None if the definition is not of the right type
+    ///
+    pub fn allocator<TClass>(&self, context: &mut TalkContext) -> Option<Arc<Mutex<TClass::Allocator>>>
+    where
+        TClass: 'static + TalkClassDefinition
+    {
+        let callbacks = context.get_callbacks(*self);
+
+        callbacks.allocator.downcast_ref::<Arc<Mutex<TClass::Allocator>>>()
+            .map(|defn| Arc::clone(defn))
     }
 }
