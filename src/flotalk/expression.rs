@@ -163,7 +163,7 @@ impl TalkExpression {
     }
 
     ///
-    /// Creates a 'flat' expression that can be evaluated with a stack
+    /// Creates a 'flat' expression that can be evaluated with a stack. Evaluating an expression always leaves one value behind on the stack.
     ///
     pub fn flatten(self) -> Vec<TalkFlatExpression<TalkLiteral, TalkSymbol>> {
         use TalkExpression::*;
