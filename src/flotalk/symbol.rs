@@ -1,4 +1,5 @@
 use std::collections::{HashMap};
+use std::fmt;
 use std::sync::*;
 
 lazy_static! {
@@ -59,5 +60,11 @@ impl TalkSymbol {
     ///
     pub fn id(&self) -> usize {
         self.0
+    }
+}
+
+impl fmt::Debug for TalkSymbol {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        fmt.write_fmt(format_args!("#'{}'", self.name()))
     }
 }

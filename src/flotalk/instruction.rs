@@ -8,6 +8,7 @@ use smallvec::*;
 ///
 /// Generic in terms of the symbol and literal value to allow for different symbol binding passes
 ///
+#[derive(Clone, Debug)]
 pub enum TalkFlatExpression<TValue, TSymbol> {
     /// Follow code comes from the specified location
     Location(TalkLocation),
