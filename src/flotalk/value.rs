@@ -7,6 +7,9 @@ use super::symbol::*;
 ///
 #[derive(Clone, PartialEq)]
 pub enum TalkValue {
+    /// The 'nil' value
+    Nil,
+
     /// A reference to a value
     Reference(TalkReference),
 
