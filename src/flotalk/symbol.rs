@@ -77,6 +77,34 @@ impl<'a> From<&'a Arc<String>> for TalkSymbol {
 
 impl TalkSymbol {
     ///
+    /// Creates an 'unnamed' symbol, which cannot be returned by `TalkSymbol::from()`
+    ///
+    /// If you retrieve the name of an unnamed symbol, it will be something like ` <UNNAMED#x> `. Spaces are usually
+    /// not allowed in symbol names, but note that `TalkSymbol::from(" <UNNAMED#x> ")` will not return the same symbol!
+    ///
+    pub fn new_unnamed() -> TalkSymbol {
+        // Create an ID for our unnamed symbol
+        let symbol_id = { 
+            let mut next_symbol_id  = NEXT_SYMBOL_ID.lock().unwrap();
+            let symbol_id           = *next_symbol_id;
+            *next_symbol_id         += 1;
+
+            symbol_id
+        };
+
+        let symbol = TalkSymbol(symbol_id);
+
+        // Create a fake name so that name() won't panic (but it has no mapping the other way)
+        let fake_name = format!(" <UNNAMED#{}> ", symbol_id);
+        let fake_name = fake_name.into_boxed_str();
+        let fake_name = Box::leak(fake_name);
+
+        SYMBOL_NAMES.lock().unwrap().insert(symbol, fake_name);
+
+        symbol
+    }
+
+    ///
     /// Returns the name of this symbol
     ///
     pub fn name(&self) -> &'static str {
