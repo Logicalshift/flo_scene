@@ -23,10 +23,34 @@ lazy_static! {
 #[derive(Clone)]
 pub enum TalkMessage {
     /// A message with no arguments
-    Unary(TalkSymbol),
+    Unary(TalkMessageSignatureId),
 
     /// A message with named arguments
     WithArguments(TalkMessageSignatureId, SmallVec<[TalkValue; 4]>),
+}
+
+impl TalkMessage {
+    ///
+    /// Creates a unary message
+    ///
+    pub fn unary(symbol: impl Into<TalkSymbol>) -> TalkMessage {
+        TalkMessage::Unary(TalkMessageSignature::Unary(symbol.into()).id())
+    }
+
+    ///
+    /// Creates a message with arguments
+    ///
+    pub fn with_arguments(arguments: impl IntoIterator<Item=(impl Into<TalkSymbol>, impl Into<TalkValue>)>) -> TalkMessage {
+        let mut signature_symbols   = smallvec![];
+        let mut argument_values     = smallvec![];
+
+        for (symbol, value) in arguments {
+            signature_symbols.push(symbol.into());
+            argument_values.push(value.into());
+        }
+
+        TalkMessage::WithArguments(TalkMessageSignature::Arguments(signature_symbols).id(), argument_values)
+    }
 }
 
 ///
@@ -53,7 +77,7 @@ impl TalkMessage {
     #[inline]
     pub fn signature(&self) -> TalkMessageSignature {
         match self {
-            TalkMessage::Unary(symbol)              => TalkMessageSignature::Unary(*symbol),
+            TalkMessage::Unary(id)                  => id.to_signature(),
             TalkMessage::WithArguments(id, _args)   => id.to_signature()
         }
     }
