@@ -1,21 +1,20 @@
 use super::symbol::*;
-use super::value::*;
 
 use std::collections::{HashMap};
 
 ///
 /// Associates symbols with values
 ///
-pub struct TalkValueStore {
+pub struct TalkValueStore<TValue> {
     /// The values in this store
-    values: Vec<TalkValue>,
+    values: Vec<TValue>,
 
     /// Maps symbols to their storage cells
     locations: HashMap<TalkSymbol, usize>,
 }
 
-impl Default for TalkValueStore {
-    fn default() -> TalkValueStore {
+impl<TValue> Default for TalkValueStore<TValue> {
+    fn default() -> TalkValueStore<TValue> {
         TalkValueStore {
             values:     vec![],
             locations:  HashMap::new(),
@@ -23,12 +22,15 @@ impl Default for TalkValueStore {
     }
 }
 
-impl TalkValueStore {
+impl<TValue> TalkValueStore<TValue> 
+where
+    TValue: Default,
+{
     ///
     /// Retrieves the value at the specified location
     ///
     #[inline]
-    pub fn at_location(&mut self, location: usize) -> &mut TalkValue {
+    pub fn at_location(&mut self, location: usize) -> &mut TValue {
         &mut self.values[location]
     }
 
@@ -39,7 +41,7 @@ impl TalkValueStore {
     ///
     pub fn define_symbol(&mut self, symbol: impl Into<TalkSymbol>) -> usize {
         let offset = self.values.len();
-        self.values.push(TalkValue::Nil);
+        self.values.push(TValue::default());
 
         self.locations.insert(symbol.into(), offset);
 
@@ -70,7 +72,7 @@ impl TalkValueStore {
     ///
     /// Finds the value for a symbol, if it has one
     ///
-    pub fn value_for_symbol(&mut self, symbol: impl Into<TalkSymbol>) -> Option<&mut TalkValue> {
+    pub fn value_for_symbol(&mut self, symbol: impl Into<TalkSymbol>) -> Option<&mut TValue> {
         self.location_for_symbol(symbol).map(|location| self.at_location(location))
     }
 }
