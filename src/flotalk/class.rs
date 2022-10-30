@@ -24,7 +24,7 @@ lazy_static! {
     static ref CLASS_CALLBACKS: Mutex<Vec<Option<&'static TalkClassCallbacks>>> = Mutex::new(vec![]);
 
     /// A hashmap containing data conversions for fetching the values stored for a particular class (class definition type -> target type -> converter function)
-    static ref CLASS_DATA_READERS: Mutex<HashMap<TypeId, HashMap<TypeId, Box<dyn Send + Fn(Box<dyn Any>) -> Box<dyn Any>>>>> = Mutex::new(HashMap::new());
+    static ref CLASS_DATA_READERS: Mutex<HashMap<TypeId, HashMap<TypeId, Box<dyn Send + Fn(&Box<dyn Any>) -> Box<dyn Any>>>>> = Mutex::new(HashMap::new());
 }
 
 thread_local! {
@@ -377,4 +377,38 @@ impl TalkClass {
         callbacks.allocator.downcast_ref::<Arc<Mutex<TClass::Allocator>>>()
             .map(|defn| Arc::clone(defn))
     }
+}
+
+///
+/// Adds a function to convert from the internal data type of the specified class to a target data type, for reading the
+/// class data for a reference outside of FloTalk (see `TalkReference::read_data()` for where this is used.
+///
+pub fn talk_add_class_data_reader<TClassDefinition, TTargetData>(read_fn: impl 'static + Send + Fn(&TClassDefinition::Data) -> TTargetData) 
+where
+    TClassDefinition:   'static + TalkClassDefinition,
+    TTargetData:        'static,
+{
+    // Fetch the types
+    let class_definition_type   = TypeId::of::<TClassDefinition>();
+    let target_type             = TypeId::of::<TTargetData>();
+
+    // The conversion function takes a reference to a Box<&mut Data> and returns a boxed version of the converted data (for now we only support total conversions)
+    let conversion_fn           = move |boxed: &Box<dyn Any>| {
+        // Unwrap the boxed data
+        let data = boxed.downcast_ref::<&mut TClassDefinition::Data>().unwrap();
+
+        // Pass through the conversion function
+        let converted               = read_fn(*data);
+
+        // Box back up as a Box<Any> (so a generic caller can unwrap it later on)
+        let converted: Box<dyn Any> = Box::new(converted);
+
+        converted
+    };
+
+    // Add to the class data readers
+    CLASS_DATA_READERS.lock().unwrap()
+        .entry(class_definition_type)
+        .or_insert_with(|| HashMap::new())
+        .insert(target_type, Box::new(conversion_fn));
 }
