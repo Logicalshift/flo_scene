@@ -96,3 +96,51 @@ pub fn send_instance_messages() {
         assert!(final_value == TalkValue::Int(43))
     });
 }
+
+#[test]
+pub fn read_class_data() {
+    let test_class  = TalkClass::create(TestClass);
+    let runtime     = TalkRuntime::empty();
+
+    talk_add_class_data_reader::<TestClass, _>(|data| *data);
+
+    executor::block_on(async {
+        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.unwrap_as_reference();
+        let initial_value   = instance.read_data::<usize>(&runtime).await;
+
+        assert!(initial_value == Some(42));
+    });
+}
+
+#[test]
+pub fn read_class_data_conversion() {
+    let test_class  = TalkClass::create(TestClass);
+    let runtime     = TalkRuntime::empty();
+
+    talk_add_class_data_reader::<TestClass, _>(|data| *data);
+    talk_add_class_data_reader::<TestClass, _>(|data| *data as f32);
+
+    executor::block_on(async {
+        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.unwrap_as_reference();
+        let usize_value     = instance.read_data::<usize>(&runtime).await;
+        let f32_value       = instance.read_data::<f32>(&runtime).await;
+
+        assert!(usize_value == Some(42));
+        assert!(f32_value == Some(42.0));
+    });
+}
+
+#[test]
+pub fn read_class_data_unsupported_type() {
+    let test_class  = TalkClass::create(TestClass);
+    let runtime     = TalkRuntime::empty();
+
+    talk_add_class_data_reader::<TestClass, _>(|data| *data);
+
+    executor::block_on(async {
+        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.unwrap_as_reference();
+        let string_value    = instance.read_data::<String>(&runtime).await;
+
+        assert!(string_value == None);
+    });
+}
