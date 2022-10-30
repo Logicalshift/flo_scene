@@ -99,6 +99,20 @@ impl TalkClassContextCallbacks {
     pub (crate) fn send_class_message(&self, message: TalkMessage) -> TalkContinuation {
         (self.send_class_message)(message)
     }
+
+    #[inline]
+    pub (crate) fn read_data<TTargetData>(&mut self, data_handle: TalkDataHandle) -> Option<TTargetData> 
+    where
+        TTargetData: 'static,
+    {
+        let data_any = (self.read_data)(TypeId::of::<TTargetData>(), data_handle);
+
+        if let Some(mut data_any) = data_any {
+            data_any.downcast_mut::<Option<TTargetData>>().and_then(|data| data.take())
+        } else {
+            None
+        }
+    }
 }
 
 impl TalkClass {
