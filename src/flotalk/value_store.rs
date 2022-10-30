@@ -27,14 +27,6 @@ where
     TValue: Default,
 {
     ///
-    /// Retrieves the value at the specified location
-    ///
-    #[inline]
-    pub fn at_location(&mut self, location: usize) -> &mut TValue {
-        &mut self.values[location]
-    }
-
-    ///
     /// Defines a new symbol location
     ///
     /// Overwrites the existing symbol location if it exists, or creates a new location with a nil value if it doesn't
@@ -46,6 +38,34 @@ where
         self.locations.insert(symbol.into(), offset);
 
         offset
+    }
+}
+
+impl<TValue> TalkValueStore<TValue> {
+    ///
+    /// Retrieves the value at the specified location
+    ///
+    #[inline]
+    pub fn at_location(&mut self, location: usize) -> &mut TValue {
+        &mut self.values[location]
+    }
+
+    ///
+    /// Sets the value of a symbol (defining it in this store if it's not already defined)
+    ///
+    pub fn set_symbol_value(&mut self, symbol: impl Into<TalkSymbol>, new_value: TValue) {
+        let symbol = symbol.into();
+
+        if let Some(location) = self.locations.get(&symbol).copied() {
+            // Symbol already assigned a location
+            self.values[location] = new_value;
+        } else {
+            // Assign a new location for the symbol and set it to the value
+            let offset = self.values.len();
+            self.values.push(new_value);
+
+            self.locations.insert(symbol.into(), offset);
+        }
     }
 
     ///
