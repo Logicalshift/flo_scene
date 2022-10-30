@@ -24,6 +24,7 @@ lazy_static! {
     static ref CLASS_CALLBACKS: Mutex<Vec<Option<&'static TalkClassCallbacks>>> = Mutex::new(vec![]);
 
     /// A hashmap containing data conversions for fetching the values stored for a particular class (class definition type -> target type -> converter function)
+    /// The converter function returns a Box<Any> that contains an Option<TargetType> (we use an option so the result can be extracted from the box)
     static ref CLASS_DATA_READERS: Mutex<HashMap<TypeId, HashMap<TypeId, Box<dyn Send + Fn(&Box<dyn Any>) -> Box<dyn Any>>>>> = Mutex::new(HashMap::new());
 }
 
@@ -54,6 +55,9 @@ pub (crate) struct TalkClassContextCallbacks {
 
     /// Decreases the reference count for a data handle, and frees it if the count reaches 0
     remove_reference: Box<dyn Send + FnMut(TalkDataHandle) -> ()>,
+
+    /// If there's a class data reader for the type ID, return a Box containing an Option<TargetType>, otherwise return None
+    read_data: Box<dyn Send + FnMut(TypeId, TalkDataHandle) -> Option<Box<dyn Any>>>,
 
     /// The definition for this class (a boxed Arc<TalkClassDefinition>)
     class_definition: Box<dyn Send + Any>,
@@ -218,6 +222,45 @@ impl TalkClass {
         })
     }
 
+    fn box_data<'a, TData>(data: &'a mut TData) -> Box<dyn 'a + Any> {
+        Box::new(data)
+    }
+
+    ///
+    /// Creates the 'read class data' function for a class
+    ///
+    fn callback_read_data<TClass>(_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + FnMut(TypeId, TalkDataHandle) -> Option<Box<dyn Any>>>
+    where
+        TClass: 'static + TalkClassDefinition,
+    {
+        let class_type_id = TypeId::of::<TClass>();
+
+        Box::new(move |data_type_id, data_handle| {
+            let data_readers = CLASS_DATA_READERS.lock().unwrap();
+
+            if let Some(class_readers) = data_readers.get(&class_type_id) {
+                if let Some(target_reader) = class_readers.get(&data_type_id) {
+                    // Read the value at the handle
+                    let mut allocator   = allocator.lock().unwrap();
+                    let data_value      = allocator.retrieve(data_handle);
+
+                    // Send it to the reader (converted through a Box<Any>)
+                    //let any_data        = Self::box_data(data_value);
+                    //let converted_data  = target_reader(&any_data);
+
+                    //Some(converted_data)
+                    None
+                } else {
+                    // No conversions to the target type
+                    None
+                }
+            } else {
+                // No conversions for this class
+                None
+            }
+        })
+    }
+
     ///
     /// Creates the 'create in context' function for a class
     ///
@@ -230,6 +273,7 @@ impl TalkClass {
                 send_class_message: Self::callback_send_class_message(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
                 add_reference:      Self::callback_add_reference(Arc::clone(&allocator)),
                 remove_reference:   Self::callback_remove_reference(Arc::clone(&allocator)),
+                read_data:          Self::callback_read_data(Arc::clone(&definition), Arc::clone(&allocator)),
                 class_definition:   Box::new(Arc::clone(&definition)),
                 allocator:          Box::new(Arc::clone(&allocator)),
             }
@@ -401,7 +445,7 @@ where
         let converted               = read_fn(*data);
 
         // Box back up as a Box<Any> (so a generic caller can unwrap it later on)
-        let converted: Box<dyn Any> = Box::new(converted);
+        let converted: Box<dyn Any> = Box::new(Some(converted));
 
         converted
     };
