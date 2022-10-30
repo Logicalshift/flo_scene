@@ -19,6 +19,7 @@ mod continuation;
 mod value;
 mod runtime;
 mod error;
+mod value_store;
 
 pub use self::instruction::*;
 pub use self::expression::*;
@@ -32,3 +33,4 @@ pub use self::continuation::*;
 pub use self::value::*;
 pub use self::runtime::*;
 pub use self::error::*;
+pub use self::value_store::*;
