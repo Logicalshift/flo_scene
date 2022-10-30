@@ -1,5 +1,6 @@
-use super::location::*;
 use super::instruction::*;
+use super::location::*;
+use super::message::*;
 use super::symbol::*;
 
 use std::sync::*;
@@ -194,12 +195,15 @@ impl TalkExpression {
                     variables.into_iter().map(|var| TalkInstruction::PushLocalBinding(TalkSymbol::from(var))).collect()
                 ].into_iter().flatten().collect(),
 
-            SendMessage(expr, arguments)        => // Evaluate the expression, the arguments, then sends a message
+            SendMessage(expr, arguments)        => { // Evaluate the expression, the arguments, then sends a message
+                let signature       = TalkMessageSignature::from_expression_arguments(&arguments);
+
                 vec![
                     expr.to_instructions(),
                     arguments.iter().flat_map(|arg| arg.value.clone()).flat_map(|expr| expr.to_instructions()).collect(),
-                    vec![TalkInstruction::SendMessage(arguments.iter().map(|arg| TalkSymbol::from(&arg.name)).collect())]
-                ].into_iter().flatten().collect(),
+                    vec![TalkInstruction::SendMessage(signature.id(), signature.len())]
+                ].into_iter().flatten().collect()
+            },
 
             CascadeFrom(expr, expressions)      =>  // Store the primary expression in CASCADE_PRIMARY_RESULT, evaluate the expressions, discard CASCADE_PRIMARY_RESULT
                 vec![

@@ -1,7 +1,6 @@
 use super::location::*;
+use super::message::*;
 use super::symbol::*;
-
-use smallvec::*;
 
 ///
 /// A variable that is either bound to a local value, or unbound
@@ -49,8 +48,8 @@ pub enum TalkInstruction<TValue, TSymbol> {
     /// Pops an object off the stack and sends the specified message
     SendUnaryMessage(TalkSymbol),
 
-    /// Pops message arguments and an object from the stack, and sends the specified message, leaving the result on the stack
-    SendMessage(SmallVec<[TalkSymbol; 4]>),
+    /// Pops message arguments and an object from the stack, and sends the specified message, leaving the result on the stack. Number of arguments is supplied, and must match the number in the message signature.
+    SendMessage(TalkMessageSignatureId, usize),
 
     /// Copies the value on top of the stack
     Duplicate,
