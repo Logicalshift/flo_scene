@@ -1,8 +1,10 @@
+use super::expression::*;
 use super::symbol::*;
 use super::value::*;
 
 use smallvec::*;
 
+use std::fmt;
 use std::sync::*;
 use std::collections::{HashMap};
 
@@ -113,6 +115,77 @@ impl TalkMessageSignature {
             new_id
         }
     }
+
+    ///
+    /// Creates a unary message signature
+    ///
+    pub fn unary(symbol: impl Into<TalkSymbol>) -> TalkMessageSignature {
+        TalkMessageSignature::Unary(symbol.into())
+    }
+
+    ///
+    /// Creates a message signature with arguments
+    ///
+    pub fn with_arguments(symbols: impl IntoIterator<Item=impl Into<TalkSymbol>>) -> TalkMessageSignature {
+        TalkMessageSignature::Arguments(symbols.into_iter().map(|sym| sym.into()).collect())
+    }
+
+    ///
+    /// Returns true if an argument list represents a unary list
+    ///
+    pub fn arguments_are_unary<'a>(args: impl IntoIterator<Item=&'a TalkArgument>) -> bool {
+        let mut arg_iter = args.into_iter();
+
+        if let Some(first) = arg_iter.next() {
+            if first.value.is_none() {
+                // Unary if there's a single argument with no value
+                let next = arg_iter.next();
+
+                debug_assert!(next.is_none());
+
+                next.is_none()
+            } else {
+                // First argument has a value
+                false
+            }
+        } else {
+            // Empty message
+            false
+        }
+    }
+
+    ///
+    /// Creates a signature from a list of arguments
+    ///
+    pub fn from_expression_arguments<'a>(args: impl IntoIterator<Item=&'a TalkArgument>) -> TalkMessageSignature {
+        let arguments = args.into_iter().collect::<SmallVec<[_; 4]>>();
+
+        if arguments.len() == 1 && arguments[0].value.is_none() {
+            Self::unary(&arguments[0].name)
+        } else {
+            Self::with_arguments(arguments.into_iter().map(|arg| &arg.name))
+        }
+    }
+
+    ///
+    /// True if this is a signature for a unary message (one with no arguments)
+    ///
+    pub fn is_unary(&self) -> bool {
+        match self {
+            TalkMessageSignature::Unary(_)  => true,
+            _                               => false,
+        }
+    }
+
+    ///
+    /// Number of arguments in this message signature
+    ///
+    pub fn len(&self) -> usize {
+        match self {
+            TalkMessageSignature::Unary(_)          => 0,
+            TalkMessageSignature::Arguments(args)   => args.len(),
+        }
+    }
 }
 
 impl TalkMessageSignatureId {
@@ -121,5 +194,20 @@ impl TalkMessageSignatureId {
     ///
     pub fn to_signature(&self) -> TalkMessageSignature {
         SIGNATURE_FOR_ID.lock().unwrap().get(self).unwrap().clone()
+    }
+}
+
+impl fmt::Debug for TalkMessageSignature {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            TalkMessageSignature::Unary(symbol)     => fmt.write_fmt(format_args!("{:?}", symbol)),
+            TalkMessageSignature::Arguments(args)   => fmt.write_fmt(format_args!("{:?}", args.iter().map(|arg| format!("{:?}", arg)).collect::<Vec<_>>().join(" "))),
+        }
+    }
+}
+
+impl fmt::Debug for TalkMessageSignatureId {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        self.to_signature().fmt(fmt)
     }
 }
