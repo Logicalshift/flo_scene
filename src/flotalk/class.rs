@@ -24,7 +24,7 @@ lazy_static! {
     static ref CLASS_CALLBACKS: Mutex<Vec<Option<&'static TalkClassCallbacks>>> = Mutex::new(vec![]);
 
     /// A hashmap containing data conversions for fetching the values stored for a particular class (class definition type -> target type -> converter function)
-    static ref CLASS_CONVERTERS: Mutex<HashMap<TypeId, HashMap<TypeId, Box<dyn Send + Fn(Box<dyn Any>) -> Box<dyn Any>>>>> = Mutex::new(HashMap::new());
+    static ref CLASS_DATA_READERS: Mutex<HashMap<TypeId, HashMap<TypeId, Box<dyn Send + Fn(Box<dyn Any>) -> Box<dyn Any>>>>> = Mutex::new(HashMap::new());
 }
 
 thread_local! {
