@@ -25,7 +25,7 @@ lazy_static! {
 
     /// A hashmap containing data conversions for fetching the values stored for a particular class (class definition type -> target type -> converter function)
     /// The converter function returns a Box<Any> that contains an Option<TargetType> (we use an option so the result can be extracted from the box)
-    static ref CLASS_DATA_READERS: Mutex<HashMap<TypeId, HashMap<TypeId, Box<dyn Send + Fn(&Box<dyn Any>) -> Box<dyn Any>>>>> = Mutex::new(HashMap::new());
+    static ref CLASS_DATA_READERS: Mutex<HashMap<TypeId, HashMap<TypeId, Box<dyn Send + Fn(&mut Box<dyn Any>) -> Box<dyn Any>>>>> = Mutex::new(HashMap::new());
 }
 
 thread_local! {
@@ -222,10 +222,6 @@ impl TalkClass {
         })
     }
 
-    fn box_data<'a, TData>(data: &'a mut TData) -> Box<dyn 'a + Any> {
-        Box::new(data)
-    }
-
     ///
     /// Creates the 'read class data' function for a class
     ///
@@ -241,15 +237,10 @@ impl TalkClass {
             if let Some(class_readers) = data_readers.get(&class_type_id) {
                 if let Some(target_reader) = class_readers.get(&data_type_id) {
                     // Read the value at the handle
-                    let mut allocator   = allocator.lock().unwrap();
-                    let data_value      = allocator.retrieve(data_handle);
+                    let mut parameter: Box<dyn Any> = Box::new((Arc::clone(&allocator), data_handle));
+                    let converted_data              = target_reader(&mut parameter);
 
-                    // Send it to the reader (converted through a Box<Any>)
-                    //let any_data        = Self::box_data(data_value);
-                    //let converted_data  = target_reader(&any_data);
-
-                    //Some(converted_data)
-                    None
+                    Some(converted_data)
                 } else {
                     // No conversions to the target type
                     None
@@ -437,12 +428,14 @@ where
     let target_type             = TypeId::of::<TTargetData>();
 
     // The conversion function takes a reference to a Box<&mut Data> and returns a boxed version of the converted data (for now we only support total conversions)
-    let conversion_fn           = move |boxed: &Box<dyn Any>| {
+    let conversion_fn           = move |boxed: &mut Box<dyn Any>| {
         // Unwrap the boxed data
-        let data = boxed.downcast_ref::<&mut TClassDefinition::Data>().unwrap();
+        let (allocator, handle) = boxed.downcast_mut::<(Arc<Mutex<TClassDefinition::Allocator>>, TalkDataHandle)>().unwrap();
+        let mut allocator       = allocator.lock().unwrap();
+        let data                = allocator.retrieve(*handle);
 
         // Pass through the conversion function
-        let converted               = read_fn(*data);
+        let converted           = read_fn(data);
 
         // Box back up as a Box<Any> (so a generic caller can unwrap it later on)
         let converted: Box<dyn Any> = Box::new(Some(converted));
