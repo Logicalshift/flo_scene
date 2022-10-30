@@ -17,7 +17,7 @@ use std::sync::*;
 /// and schedules continuations on them)
 ///
 pub struct TalkRuntime {
-    context: Arc<lock::Mutex<TalkContext>>
+    pub (crate) context: Arc<lock::Mutex<TalkContext>>
 }
 
 impl TalkRuntime {

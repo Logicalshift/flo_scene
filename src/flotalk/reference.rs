@@ -76,4 +76,28 @@ impl TalkReference {
             }
         })))
     }
+
+    ///
+    /// Return the data for a reference cast to a target type (if it can be read as that type)
+    ///
+    pub fn read_data_in_context<TTargetData>(&self, context: &mut TalkContext) -> Option<TTargetData> 
+    where
+        TTargetData: 'static,
+    {
+        context.get_callbacks(self.0).read_data(self.1)
+    }
+
+    ///
+    /// Return the data for a reference cast to a target type (if it can be read as that type)
+    ///
+    pub fn read_data<'a, TTargetData>(&'a self, runtime: &'a TalkRuntime) -> impl 'a+Future<Output=Option<TTargetData>>
+    where
+        TTargetData: 'static,
+    {
+        async move {
+            let mut context = runtime.context.lock().await;
+
+            self.read_data_in_context(&mut *context)
+        }
+    }
 }
