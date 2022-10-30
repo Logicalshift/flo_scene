@@ -11,11 +11,20 @@ use futures::task::{Poll};
 use std::any::*;
 use std::cell::*;
 use std::sync::*;
+use std::collections::{HashMap};
 
 lazy_static! {
+    /// The ID to assign to the next class that is created
     static ref NEXT_CLASS_ID: Mutex<usize>                                      = Mutex::new(0);
+
+    /// A vector containing the boxed class definitions (as an Arc<TClassDefinition>), indexed by class ID
     static ref CLASS_DEFINITIONS: Mutex<Vec<Option<Box<dyn Send + Any>>>>       = Mutex::new(vec![]);
+
+    /// A vector containing the callbacks for each class, indexed by class ID (callbacks can be used without knowing the underlying types)
     static ref CLASS_CALLBACKS: Mutex<Vec<Option<&'static TalkClassCallbacks>>> = Mutex::new(vec![]);
+
+    /// A hashmap containing data conversions for fetching the values stored for a particular class (class definition type -> target type -> converter function)
+    static ref CLASS_CONVERTERS: Mutex<HashMap<TypeId, HashMap<TypeId, Box<dyn Send + Fn(Box<dyn Any>) -> Box<dyn Any>>>>> = Mutex::new(HashMap::new());
 }
 
 thread_local! {
@@ -45,6 +54,9 @@ pub (crate) struct TalkClassContextCallbacks {
 
     /// Decreases the reference count for a data handle, and frees it if the count reaches 0
     remove_reference: Box<dyn Send + FnMut(TalkDataHandle) -> ()>,
+
+    /// The definition for this class (a boxed Arc<TalkClassDefinition>)
+    class_definition: Box<dyn Send + Any>,
 
     /// The allocator for this class (a boxed Arc<Mutex<TalkClassDefinition::Allocator>>)
     allocator: Box<dyn Send + Any>,
@@ -218,6 +230,7 @@ impl TalkClass {
                 send_class_message: Self::callback_send_class_message(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
                 add_reference:      Self::callback_add_reference(Arc::clone(&allocator)),
                 remove_reference:   Self::callback_remove_reference(Arc::clone(&allocator)),
+                class_definition:   Box::new(Arc::clone(&definition)),
                 allocator:          Box::new(Arc::clone(&allocator)),
             }
         })
