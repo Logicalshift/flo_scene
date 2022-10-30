@@ -29,6 +29,12 @@ pub enum TalkValue {
     Error(TalkError),
 }
 
+impl Default for TalkValue {
+    fn default() -> TalkValue {
+        TalkValue::Nil
+    }
+}
+
 impl TalkValue {
     ///
     /// Returns the reference represented by this value
