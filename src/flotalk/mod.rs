@@ -20,6 +20,7 @@ mod value;
 mod runtime;
 mod error;
 mod value_store;
+mod simple_evaluator;
 
 pub use self::instruction::*;
 pub use self::expression::*;
@@ -34,3 +35,4 @@ pub use self::value::*;
 pub use self::runtime::*;
 pub use self::error::*;
 pub use self::value_store::*;
+pub use self::simple_evaluator::*;
