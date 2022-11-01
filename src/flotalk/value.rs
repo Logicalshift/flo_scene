@@ -1,3 +1,4 @@
+use super::context::*;
 use super::error::*;
 use super::expression::*;
 use super::reference::*;
@@ -65,6 +66,52 @@ impl TalkValue {
             TalkValue::Nil                  => panic!("Value is nil"),
             TalkValue::Reference(value_ref) => value_ref,
             _                               => panic!("Value is not a reference")
+        }
+    }
+
+    ///
+    /// Increases the reference count for this value. References are freed once the count reaches 0.
+    ///
+    #[inline]
+    pub fn add_reference(&self, context: &mut TalkContext) {
+        use TalkValue::*;
+
+        match self {
+            Nil             |
+            Bool(_)         |
+            Int(_)          |
+            Float(_)        |
+            String(_)       |
+            Character(_)    |
+            Symbol(_)       |
+            Selector(_)     |
+            Error(_)        => { }
+
+            Reference(reference)    => reference.add_reference(context),
+            Array(values)           => values.iter().for_each(|val| val.add_reference(context)),
+        }
+    }
+
+    ///
+    /// Decreases the reference count for this value. References are freed once the count reaches 0.
+    ///
+    #[inline]
+    pub fn remove_reference(&self, context: &mut TalkContext) {
+        use TalkValue::*;
+
+        match self {
+            Nil             |
+            Bool(_)         |
+            Int(_)          |
+            Float(_)        |
+            String(_)       |
+            Character(_)    |
+            Symbol(_)       |
+            Selector(_)     |
+            Error(_)        => { }
+
+            Reference(reference)    => reference.remove_reference(context),
+            Array(values)           => values.iter().for_each(|val| val.remove_reference(context)),
         }
     }
 
