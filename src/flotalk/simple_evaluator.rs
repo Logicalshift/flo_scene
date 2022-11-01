@@ -62,6 +62,51 @@ impl TalkStack {
             None
         }
     }
+
+    ///
+    /// Stores the current value of a binding in the list of earlier bindings
+    ///
+    #[inline]
+    pub fn push_binding(&mut self, symbol: TalkSymbol) {
+        // Store the previous value for this symbol
+        if let Some(loc) = self.local_bindings.location_for_symbol(symbol) {
+            // In the local binding
+            self.earlier_bindings.entry(symbol)
+                .or_insert_with(|| vec![])
+                .push((-1, loc));
+        } else {
+            // Check the outer bindings
+            for pos in 0..self.outer_bindings.len() {
+                if let Some(loc) = self.outer_bindings[pos].lock().unwrap().location_for_symbol(symbol) {
+                    self.earlier_bindings.entry(symbol)
+                        .or_insert_with(|| vec![])
+                        .push((pos as i32, loc));
+
+                    break;
+                }
+            }
+        }
+
+        // Create a value in the local binding
+        self.local_bindings.define_symbol(symbol);
+    }
+
+    ///
+    /// Removes the binding from the list of earlier bindings and restores it to its previous value
+    ///
+    /// (We assume that any replacement binding was created in the local bindings)
+    ///
+    #[inline]
+    pub fn pop_binding(&mut self, symbol: TalkSymbol) {
+        // Fetch the last binding position
+        let (last_pos, last_loc) = self.earlier_bindings.get_mut(&symbol).unwrap().pop().unwrap();
+
+        if last_pos == -1 {
+            self.local_bindings.set_symbol_location(symbol, last_loc);
+        } else {
+            self.local_bindings.undefine_symbol(symbol);
+        }
+    }
 }
 
 ///
@@ -98,12 +143,12 @@ where
 
             // Creates (or replaces) a local binding location for a symbol
             PushLocalBinding(symbol) => {
-                todo!()
+                stack.push_binding(symbol.into());
             }
 
             // Restores the previous binding for the specified symbol
             PopLocalBinding(symbol) => {
-                todo!()
+                stack.pop_binding(symbol.into());
             }
 
             // Load the value indicating 'nil' to the stack
@@ -141,7 +186,7 @@ where
                 let symbol      = TalkSymbol::from(symbol);
 
                 if let Some(()) = stack.with_symbol_value(symbol, move |value| *value = new_value) {
-
+                    // Value stored
                 } else {
                     // TODO: declare in the outer state?
                     return TalkWaitState::Finished(TalkValue::Error(TalkError::UnboundSymbol(symbol)));
