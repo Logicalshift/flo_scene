@@ -10,6 +10,7 @@ use futures::prelude::*;
 use futures::task::{Poll};
 
 use std::sync::*;
+use std::collections::{HashMap};
 
 enum TalkWaitState {
     // Evalulate the next expression
@@ -29,15 +30,45 @@ struct TalkStack {
     /// Value stack
     stack: Vec<TalkValue>,
 
-    /// Symbol stores
-    symbol_store: Vec<TalkValueStore<TalkValue>>,
+    /// Symbols defined in the outer contexts (lower accessed first)
+    outer_bindings: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>,
+
+    /// Symbols defined in the current context
+    local_bindings: TalkValueStore<TalkValue>,
+
+    /// The earlier binding locations for symbols, when popped using PopLocalBinding
+    earlier_bindings: HashMap<TalkSymbol, Vec<(i32, usize)>>,
+}
+
+impl TalkStack {
+    ///
+    /// Performs an action on the value of a symbol
+    ///
+    #[inline]
+    pub fn with_symbol_value<TResult>(&mut self, symbol: TalkSymbol, action: impl FnOnce(&mut TalkValue) -> TResult) -> Option<TResult> {
+        if let Some(value) = self.local_bindings.value_for_symbol(symbol) {
+            // In the local binding
+            Some(action(value))
+        } else {
+            // Check the outer bindings
+            for store in self.outer_bindings.iter() {
+                let mut store = store.lock().unwrap();
+
+                if let Some(value) = store.value_for_symbol(symbol) {
+                    return Some(action(value));
+                }
+            }
+
+            None
+        }
+    }
 }
 
 ///
 /// Evaluates expressions from a particular point (until we have a single result or we hit a future)
 ///
 #[inline]
-fn eval_at<TValue, TSymbol>(root_values: &mut TalkValueStore<TalkValue>, expression: &Vec<TalkInstruction<TValue, TSymbol>>, stack: &mut TalkStack, context: &mut TalkContext) -> TalkWaitState 
+fn eval_at<TValue, TSymbol>(expression: &Vec<TalkInstruction<TValue, TSymbol>>, stack: &mut TalkStack, context: &mut TalkContext) -> TalkWaitState 
 where
     TValue:     'static,
     TSymbol:    'static,
@@ -92,7 +123,11 @@ where
             LoadFromSymbol(symbol) => {
                 let symbol = TalkSymbol::from(symbol);
 
-                todo!()
+                if let Some(value) = stack.with_symbol_value(symbol, |value| value.clone()) {
+                    stack.stack.push(value);
+                } else {
+                    return TalkWaitState::Finished(TalkValue::Error(TalkError::UnboundSymbol(symbol)));
+                }
             }
 
             // Load an object representing a code block onto the stack
@@ -102,7 +137,15 @@ where
 
             // Loads the value from the top of the stack and stores it a variable
             StoreAtSymbol(symbol) => {
-                todo!()
+                let new_value   = stack.stack.pop().unwrap();
+                let symbol      = TalkSymbol::from(symbol);
+
+                if let Some(()) = stack.with_symbol_value(symbol, move |value| *value = new_value) {
+
+                } else {
+                    // TODO: declare in the outer state?
+                    return TalkWaitState::Finished(TalkValue::Error(TalkError::UnboundSymbol(symbol)));
+                }
             }
 
             // Pops message arguments and an object from the stack, and sends the specified message, leaving the result on the stack. Number of arguments is supplied, and must match the number in the message signature.
@@ -143,7 +186,7 @@ where
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
     let mut wait_state = TalkWaitState::Run;
-    let mut stack       = TalkStack { pc: 0, stack: vec![], symbol_store: vec![TalkValueStore::default()] };
+    let mut stack       = TalkStack { pc: 0, stack: vec![], outer_bindings: vec![root_values], local_bindings: TalkValueStore::default(), earlier_bindings: HashMap::new() };
 
     TalkContinuation::Later(Box::new(move |talk_context, future_context| {
         use TalkWaitState::*;
@@ -160,8 +203,7 @@ where
         // Run until the future futures
         while let Run = &wait_state {
             // Evaluate until we hit a point where we are finished or need to poll a future
-            let mut root_values = root_values.lock().unwrap();
-            wait_state = eval_at(&mut *root_values, &*expression, &mut stack, talk_context);
+            wait_state = eval_at(&*expression, &mut stack, talk_context);
 
             // Poll the future if one is returned
             if let WaitFor(future) = &mut wait_state {

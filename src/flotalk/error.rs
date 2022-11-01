@@ -1,4 +1,5 @@
 use super::reference::*;
+use super::symbol::*;
 
 ///
 /// An error 
@@ -22,4 +23,7 @@ pub enum TalkError {
 
     /// A value that looked like a radix number could not be interpreted as such
     InvalidRadixNumber(String),
+
+    /// A symbol was used that's not bound to any value
+    UnboundSymbol(TalkSymbol),
 }
