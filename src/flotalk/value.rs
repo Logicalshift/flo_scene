@@ -111,19 +111,27 @@ impl TalkValue {
     }
 }
 
-impl TryFrom<TalkLiteral> for TalkValue {
+impl TryFrom<&TalkLiteral> for TalkValue {
     type Error = TalkError;
 
-    fn try_from(literal: TalkLiteral) -> Result<Self, TalkError> {
+    fn try_from(literal: &TalkLiteral) -> Result<Self, TalkError> {
         use TalkLiteral::*;
 
         match literal {
             Number(number)              => Self::parse_number(&*number),
-            Character(chr)              => Ok(TalkValue::Character(chr)),
-            String(string)              => Ok(TalkValue::String(string)),
+            Character(chr)              => Ok(TalkValue::Character(*chr)),
+            String(string)              => Ok(TalkValue::String(string.clone())),
             Symbol(symbol_name)         => Ok(TalkValue::Symbol(symbol_name.into())),
             Selector(selector_name)     => Ok(TalkValue::Selector(selector_name.into())),
-            Array(values)               => values.into_iter().map(|value| TalkValue::try_from(value)).collect::<Result<Vec<_>, _>>().map(|values| TalkValue::Array(values)),
+            Array(values)               => values.iter().map(|value| TalkValue::try_from(value)).collect::<Result<Vec<_>, _>>().map(|values| TalkValue::Array(values)),
         }
+    }
+}
+
+impl TryFrom<TalkLiteral> for TalkValue {
+    type Error = TalkError;
+
+    fn try_from(literal: TalkLiteral) -> Result<Self, TalkError> {
+        TalkValue::try_from(&literal)
     }
 }
