@@ -202,19 +202,20 @@ where
             Duplicate => {
                 let val = stack.stack.pop().unwrap();
 
+                val.add_reference(context);
+
                 stack.stack.push(val.clone());
                 stack.stack.push(val);
             }
 
             // Discards the value on top of the stack
             Discard => {
-                stack.stack.pop();
+                if let Some(old_value) = stack.stack.pop() {
+                    old_value.remove_reference(context);
+                }
             }
         }
-
     }
-
-    todo!()
 }
 
 ///
