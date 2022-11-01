@@ -170,6 +170,7 @@ where
                 let symbol = TalkSymbol::from(symbol);
 
                 if let Some(value) = stack.with_symbol_value(symbol, |value| value.clone()) {
+                    value.add_reference(context);
                     stack.stack.push(value);
                 } else {
                     return TalkWaitState::Finished(TalkValue::Error(TalkError::UnboundSymbol(symbol)));
