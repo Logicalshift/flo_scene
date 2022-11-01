@@ -7,7 +7,6 @@ use super::symbol::*;
 use super::value::*;
 use super::value_store::*;
 
-use futures::prelude::*;
 use futures::task::{Poll};
 
 use std::sync::*;
@@ -284,7 +283,7 @@ where
 
         // Return the value if finished
         match &wait_state {
-            WaitFor(future) => Poll::Pending,
+            WaitFor(_)      => Poll::Pending,
             Run             => Poll::Pending,
             Finished(value) => {
                 stack.local_bindings.remove_all_references(talk_context);
