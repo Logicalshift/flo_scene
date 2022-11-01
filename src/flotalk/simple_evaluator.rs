@@ -50,7 +50,7 @@ where
 
     loop {
         // If the PC has passed beyond the end of the expression, we're finished
-        if stack.pc > expression_len {
+        if stack.pc >= expression_len {
             return TalkWaitState::Finished(stack.stack.pop().unwrap_or(TalkValue::Nil));
         }
 
