@@ -286,7 +286,10 @@ where
         match &wait_state {
             WaitFor(future) => Poll::Pending,
             Run             => Poll::Pending,
-            Finished(value) => Poll::Ready(value.clone()),
+            Finished(value) => {
+                stack.local_bindings.remove_all_references(talk_context);
+                Poll::Ready(value.clone())
+            },
         }
     }))
 }
