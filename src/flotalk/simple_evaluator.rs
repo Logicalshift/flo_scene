@@ -107,6 +107,19 @@ impl TalkStack {
             self.local_bindings.undefine_symbol(symbol);
         }
     }
+
+    ///
+    /// Release all the references in this frame
+    ///
+    pub fn remove_all_references(&mut self, context: &mut TalkContext) {
+        // Free the stack values
+        while let Some(val) = self.stack.pop() {
+            val.remove_reference(context);
+        }
+
+        // Free anything in the local bindings
+        self.local_bindings.remove_all_references(context);
+    }
 }
 
 ///
@@ -213,8 +226,9 @@ where
 
                 // Push the result if it's immediately ready, otherwise return a continuation
                 match continuation {
-                    TalkContinuation::Ready(value)  => stack.stack.push(value),
-                    TalkContinuation::Later(later)  => return TalkWaitState::WaitFor(TalkContinuation::Later(later)),
+                    TalkContinuation::Ready(TalkValue::Error(err))  => return TalkWaitState::Finished(TalkValue::Error(err)),
+                    TalkContinuation::Ready(value)                  => stack.stack.push(value),
+                    TalkContinuation::Later(later)                  => return TalkWaitState::WaitFor(TalkContinuation::Later(later)),
                 }
             }
 
@@ -261,8 +275,14 @@ where
         if let WaitFor(future) = &mut wait_state {
             // If ready, push the result and move to the 'run' state
             if let Poll::Ready(value) = future.poll(talk_context, future_context) {
-                stack.stack.push(value);
-                wait_state = Run;
+                if let TalkValue::Error(err) = value {
+                    // Errors abort the rest of the evaluation and are returned directly
+                    wait_state = Finished(TalkValue::Error(err));
+                } else {
+                    // Future is finished: push the new value to the stack and continue
+                    stack.stack.push(value);
+                    wait_state = Run;
+                }
             }
         }
 
@@ -286,7 +306,7 @@ where
             WaitFor(_)      => Poll::Pending,
             Run             => Poll::Pending,
             Finished(value) => {
-                stack.local_bindings.remove_all_references(talk_context);
+                stack.remove_all_references(talk_context);
                 Poll::Ready(value.clone())
             },
         }
