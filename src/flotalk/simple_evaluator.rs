@@ -2,6 +2,7 @@ use super::continuation::*;
 use super::context::*;
 use super::error::*;
 use super::instruction::*;
+use super::message::*;
 use super::symbol::*;
 use super::value::*;
 use super::value_store::*;
@@ -195,7 +196,26 @@ where
 
             // Pops message arguments and an object from the stack, and sends the specified message, leaving the result on the stack. Number of arguments is supplied, and must match the number in the message signature.
             SendMessage(message_id, arg_count) => {
-                todo!()
+                // Pop arguments
+                let mut args = smallvec![];
+                for _ in 0..*arg_count {
+                    args.push(stack.stack.pop().unwrap());
+                }
+
+                // Pop the target
+                let target = stack.stack.pop().unwrap();
+
+                // Generate the message
+                let message = if *arg_count == 0 { TalkMessage::Unary(*message_id) } else { TalkMessage::WithArguments(*message_id, args) };
+
+                // Send it
+                let continuation = target.send_message_in_context(message, context);
+
+                // Push the result if it's immediately ready, otherwise return a continuation
+                match continuation {
+                    TalkContinuation::Ready(value)  => stack.stack.push(value),
+                    TalkContinuation::Later(later)  => return TalkWaitState::WaitFor(TalkContinuation::Later(later)),
+                }
             }
 
             // Copies the value on top of the stack
