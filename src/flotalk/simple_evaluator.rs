@@ -23,7 +23,10 @@ enum TalkWaitState {
     Finished(TalkValue),
 }
 
-struct TalkStack {
+///
+/// A call frame
+///
+struct TalkFrame {
     /// Program counter
     pc: usize,
 
@@ -40,7 +43,7 @@ struct TalkStack {
     earlier_bindings: HashMap<TalkSymbol, Vec<(i32, usize)>>,
 }
 
-impl TalkStack {
+impl TalkFrame {
     ///
     /// Performs an action on the value of a symbol
     ///
@@ -126,7 +129,7 @@ impl TalkStack {
 /// Evaluates expressions from a particular point (until we have a single result or we hit a future)
 ///
 #[inline]
-fn eval_at<TValue, TSymbol>(expression: &Vec<TalkInstruction<TValue, TSymbol>>, stack: &mut TalkStack, context: &mut TalkContext) -> TalkWaitState 
+fn eval_at<TValue, TSymbol>(expression: &Vec<TalkInstruction<TValue, TSymbol>>, frame: &mut TalkFrame, context: &mut TalkContext) -> TalkWaitState 
 where
     TValue:     'static,
     TSymbol:    'static,
@@ -134,18 +137,18 @@ where
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
     // Set up the evaluation
-    let mut stack       = stack;
+    let mut frame       = frame;
     let expression_len  = expression.len();
 
     loop {
         // If the PC has passed beyond the end of the expression, we're finished
-        if stack.pc >= expression_len {
-            return TalkWaitState::Finished(stack.stack.pop().unwrap_or(TalkValue::Nil));
+        if frame.pc >= expression_len {
+            return TalkWaitState::Finished(frame.stack.pop().unwrap_or(TalkValue::Nil));
         }
 
         // Fetch the next instruction and move the program counter on
-        let next_instruction = &expression[stack.pc];
-        stack.pc += 1;
+        let next_instruction = &expression[frame.pc];
+        frame.pc += 1;
 
         // Execute the instruction
         use TalkInstruction::*;
@@ -156,23 +159,23 @@ where
 
             // Creates (or replaces) a local binding location for a symbol
             PushLocalBinding(symbol) => {
-                stack.push_binding(symbol.into());
+                frame.push_binding(symbol.into());
             }
 
             // Restores the previous binding for the specified symbol
             PopLocalBinding(symbol) => {
-                stack.pop_binding(symbol.into());
+                frame.pop_binding(symbol.into());
             }
 
             // Load the value indicating 'nil' to the stack
             LoadNil => {
-                stack.stack.push(TalkValue::Nil);
+                frame.stack.push(TalkValue::Nil);
             }
 
             // Load a literal value onto the stack
             Load(literal) => {
                 match literal.try_into() {
-                    Ok(value)   => stack.stack.push(value),
+                    Ok(value)   => frame.stack.push(value),
                     Err(err)    => return TalkWaitState::Finished(TalkValue::Error(err)),
                 }
             }
@@ -181,9 +184,9 @@ where
             LoadFromSymbol(symbol) => {
                 let symbol = TalkSymbol::from(symbol);
 
-                if let Some(value) = stack.with_symbol_value(symbol, |value| value.clone()) {
+                if let Some(value) = frame.with_symbol_value(symbol, |value| value.clone()) {
                     value.add_reference(context);
-                    stack.stack.push(value);
+                    frame.stack.push(value);
                 } else {
                     return TalkWaitState::Finished(TalkValue::Error(TalkError::UnboundSymbol(symbol)));
                 }
@@ -196,10 +199,10 @@ where
 
             // Loads the value from the top of the stack and stores it a variable
             StoreAtSymbol(symbol) => {
-                let new_value   = stack.stack.pop().unwrap();
+                let new_value   = frame.stack.pop().unwrap();
                 let symbol      = TalkSymbol::from(symbol);
 
-                if let Some(()) = stack.with_symbol_value(symbol, move |value| *value = new_value) {
+                if let Some(()) = frame.with_symbol_value(symbol, move |value| *value = new_value) {
                     // Value stored
                 } else {
                     // TODO: declare in the outer state?
@@ -212,11 +215,11 @@ where
                 // Pop arguments
                 let mut args = smallvec![];
                 for _ in 0..*arg_count {
-                    args.push(stack.stack.pop().unwrap());
+                    args.push(frame.stack.pop().unwrap());
                 }
 
                 // Pop the target
-                let target = stack.stack.pop().unwrap();
+                let target = frame.stack.pop().unwrap();
 
                 // Generate the message
                 let message = if *arg_count == 0 { TalkMessage::Unary(*message_id) } else { TalkMessage::WithArguments(*message_id, args) };
@@ -227,24 +230,24 @@ where
                 // Push the result if it's immediately ready, otherwise return a continuation
                 match continuation {
                     TalkContinuation::Ready(TalkValue::Error(err))  => return TalkWaitState::Finished(TalkValue::Error(err)),
-                    TalkContinuation::Ready(value)                  => stack.stack.push(value),
+                    TalkContinuation::Ready(value)                  => frame.stack.push(value),
                     TalkContinuation::Later(later)                  => return TalkWaitState::WaitFor(TalkContinuation::Later(later)),
                 }
             }
 
             // Copies the value on top of the stack
             Duplicate => {
-                let val = stack.stack.pop().unwrap();
+                let val = frame.stack.pop().unwrap();
 
                 val.add_reference(context);
 
-                stack.stack.push(val.clone());
-                stack.stack.push(val);
+                frame.stack.push(val.clone());
+                frame.stack.push(val);
             }
 
             // Discards the value on top of the stack
             Discard => {
-                if let Some(old_value) = stack.stack.pop() {
+                if let Some(old_value) = frame.stack.pop() {
                     old_value.remove_reference(context);
                 }
             }
@@ -265,8 +268,8 @@ where
     TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
-    let mut wait_state = TalkWaitState::Run;
-    let mut stack       = TalkStack { pc: 0, stack: vec![], outer_bindings: vec![root_values], local_bindings: TalkValueStore::default(), earlier_bindings: HashMap::new() };
+    let mut wait_state  = TalkWaitState::Run;
+    let mut frame       = TalkFrame { pc: 0, stack: vec![], outer_bindings: vec![root_values], local_bindings: TalkValueStore::default(), earlier_bindings: HashMap::new() };
 
     TalkContinuation::Later(Box::new(move |talk_context, future_context| {
         use TalkWaitState::*;
@@ -280,7 +283,7 @@ where
                     wait_state = Finished(TalkValue::Error(err));
                 } else {
                     // Future is finished: push the new value to the stack and continue
-                    stack.stack.push(value);
+                    frame.stack.push(value);
                     wait_state = Run;
                 }
             }
@@ -289,13 +292,13 @@ where
         // Run until the future futures
         while let Run = &wait_state {
             // Evaluate until we hit a point where we are finished or need to poll a future
-            wait_state = eval_at(&*expression, &mut stack, talk_context);
+            wait_state = eval_at(&*expression, &mut frame, talk_context);
 
             // Poll the future if one is returned
             if let WaitFor(future) = &mut wait_state {
                 // If ready, push the result and move to the 'run' state
                 if let Poll::Ready(value) = future.poll(talk_context, future_context) {
-                    stack.stack.push(value);
+                    frame.stack.push(value);
                     wait_state = Run;
                 }
             }
@@ -306,7 +309,7 @@ where
             WaitFor(_)      => Poll::Pending,
             Run             => Poll::Pending,
             Finished(value) => {
-                stack.remove_all_references(talk_context);
+                frame.remove_all_references(talk_context);
                 Poll::Ready(value.clone())
             },
         }
