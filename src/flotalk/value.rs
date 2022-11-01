@@ -1,6 +1,8 @@
 use super::context::*;
+use super::continuation::*;
 use super::error::*;
 use super::expression::*;
+use super::message::*;
 use super::reference::*;
 use super::symbol::*;
 
@@ -66,6 +68,29 @@ impl TalkValue {
             TalkValue::Nil                  => panic!("Value is nil"),
             TalkValue::Reference(value_ref) => value_ref,
             _                               => panic!("Value is not a reference")
+        }
+    }
+
+    ///
+    /// Increases the reference count for this value. References are freed once the count reaches 0.
+    ///
+    #[inline]
+    pub fn send_message_in_context(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
+        use TalkValue::*;
+
+        match self {
+            Nil             |
+            Bool(_)         |
+            Int(_)          |
+            Float(_)        |
+            String(_)       |
+            Character(_)    |
+            Symbol(_)       |
+            Selector(_)     |
+            Array(_)        |
+            Error(_)        => { todo!() }
+
+            Reference(reference) => reference.send_message_in_context(message, context),
         }
     }
 
