@@ -47,6 +47,13 @@ impl<'a> From<&'a str> for TalkSymbol {
     }
 }
 
+impl<'a> From<&'a TalkSymbol> for TalkSymbol {
+    #[inline]
+    fn from(val: &'a TalkSymbol) -> TalkSymbol {
+        *val
+    }
+}
+
 impl<'a> From<&'a String> for TalkSymbol {
     #[inline]
     fn from(val: &'a String) -> TalkSymbol {
