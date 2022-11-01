@@ -200,7 +200,7 @@ impl TalkExpression {
 
                 vec![
                     expr.to_instructions(),
-                    arguments.iter().flat_map(|arg| arg.value.clone()).flat_map(|expr| expr.to_instructions()).collect(),
+                    arguments.iter().rev().flat_map(|arg| arg.value.clone()).flat_map(|expr| expr.to_instructions()).collect(),
                     vec![TalkInstruction::SendMessage(signature.id(), signature.len())]
                 ].into_iter().flatten().collect()
             },
