@@ -45,9 +45,6 @@ pub enum TalkInstruction<TValue, TSymbol> {
     /// Loads the value from the top of the stack and stores it a variable
     StoreAtSymbol(TSymbol),
 
-    /// Pops an object off the stack and sends the specified message
-    SendUnaryMessage(TalkSymbol),
-
     /// Pops message arguments and an object from the stack, and sends the specified message, leaving the result on the stack. Number of arguments is supplied, and must match the number in the message signature.
     SendMessage(TalkMessageSignatureId, usize),
 

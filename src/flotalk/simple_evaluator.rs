@@ -105,11 +105,6 @@ where
                 todo!()
             }
 
-            // Pops an object off the stack and sends the specified message
-            SendUnaryMessage(symbol) => {
-                todo!()
-            }
-
             // Pops message arguments and an object from the stack, and sends the specified message, leaving the result on the stack. Number of arguments is supplied, and must match the number in the message signature.
             SendMessage(message_id, arg_count) => {
                 todo!()
