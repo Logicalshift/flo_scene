@@ -37,12 +37,12 @@ struct TalkStack {
 /// Evaluates expressions from a particular point (until we have a single result or we hit a future)
 ///
 #[inline]
-fn eval_at<'a, TValue, TSymbol>(root_values: Arc<Mutex<TalkValueStore<TalkValue>>>, expression: &'a Vec<TalkInstruction<TValue, TSymbol>>, stack: &mut TalkStack, context: &mut TalkContext) -> TalkWaitState 
+fn eval_at<TValue, TSymbol>(root_values: &mut TalkValueStore<TalkValue>, expression: &Vec<TalkInstruction<TValue, TSymbol>>, stack: &mut TalkStack, context: &mut TalkContext) -> TalkWaitState 
 where
     TValue:     'static,
     TSymbol:    'static,
-    TalkValue:  TryFrom<&'a TValue, Error=TalkError>,
-    TalkSymbol: From<&'a TSymbol>,
+    TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
+    TalkSymbol: for<'a> From<&'a TSymbol>,
 {
     // Set up the evaluation
     let mut stack       = stack;
@@ -140,12 +140,12 @@ where
 /// This is the simplest form of expression evaluator, which runs the slowest out of all the possible implementations (due to needing to parse values and look up
 /// symbols every time)
 ///
-pub fn talk_evaluate_simple<'a, TValue, TSymbol>(root_values: Arc<Mutex<TalkValueStore<TalkValue>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation 
+pub fn talk_evaluate_simple<TValue, TSymbol>(root_values: Arc<Mutex<TalkValueStore<TalkValue>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation 
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
-    TalkValue:  TryFrom<&'a TValue, Error=TalkError>,
-    TalkSymbol: From<&'a TSymbol>,
+    TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
+    TalkSymbol: for<'a> From<&'a TSymbol>,
 {
     let mut wait_state = TalkWaitState::Run;
     let mut stack       = TalkStack { pc: 0, stack: vec![], symbol_store: vec![TalkValueStore::default()] };
@@ -165,8 +165,8 @@ where
         // Run until the future futures
         while let Run = &wait_state {
             // Evaluate until we hit a point where we are finished or need to poll a future
-            // TODO: lifetimes
-            //wait_state = eval_at(Arc::clone(&root_values), &*expression, &mut stack, talk_context);
+            let mut root_values = root_values.lock().unwrap();
+            wait_state = eval_at(&mut *root_values, &*expression, &mut stack, talk_context);
 
             // Poll the future if one is returned
             if let WaitFor(future) = &mut wait_state {
