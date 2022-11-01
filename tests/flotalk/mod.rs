@@ -4,3 +4,4 @@
 #[cfg(feature="flotalk")] pub mod symbol;
 #[cfg(feature="flotalk")] pub mod classes;
 #[cfg(feature="flotalk")] pub mod value;
+#[cfg(feature="flotalk")] pub mod simple_eval;
