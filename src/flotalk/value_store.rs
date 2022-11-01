@@ -1,4 +1,6 @@
+use super::context::*;
 use super::symbol::*;
+use super::value::*;
 
 use std::collections::{HashMap};
 
@@ -94,5 +96,19 @@ impl<TValue> TalkValueStore<TValue> {
     ///
     pub fn value_for_symbol(&mut self, symbol: impl Into<TalkSymbol>) -> Option<&mut TValue> {
         self.location_for_symbol(symbol).map(|location| self.at_location(location))
+    }
+}
+
+impl TalkValueStore<TalkValue> {
+    ///
+    /// Calls remove_reference on all the values in this context, leaving it empty
+    ///
+    pub fn remove_all_references(&mut self, context: &mut TalkContext) {
+        for val in self.values.iter() {
+            val.remove_reference(context);
+        }
+
+        self.values     = vec![];
+        self.locations  = HashMap::new();
     }
 }
