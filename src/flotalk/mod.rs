@@ -22,6 +22,7 @@ mod error;
 mod value_store;
 mod simple_evaluator;
 mod allocator;
+mod class_builder;
 
 pub use self::instruction::*;
 pub use self::expression::*;
@@ -38,3 +39,4 @@ pub use self::error::*;
 pub use self::value_store::*;
 pub use self::simple_evaluator::*;
 pub use self::allocator::*;
+pub use self::class_builder::*;
