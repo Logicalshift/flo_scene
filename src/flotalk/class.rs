@@ -24,6 +24,9 @@ use std::collections::{HashMap};
 //
 // (Another note is that currently all message calls are futures, so maybe the continuation is strictly necessary?)
 //
+// ... but for things like '+' message we want to read the data for the second argument even if it's boxed, and that can't
+// be done if the context is borrowed.
+//
 
 lazy_static! {
     /// The ID to assign to the next class that is created
