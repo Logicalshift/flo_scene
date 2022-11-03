@@ -13,6 +13,18 @@ use std::cell::*;
 use std::sync::*;
 use std::collections::{HashMap};
 
+//
+// TODO: a way to perform a call to another class method without having to use a TalkContinuation::Later would probably be nice
+// for performance (and maybe also help with how easy it is to write functions). We currently can't do this because borrowing the
+// allocator or the data type also means borrowing the context, and using a RefCell would prevent recursive calls.
+//
+// There's a benefit to doing things this way too: no need to go through the data casting mechanism to retrieve the data for
+// an object. It'll be difficult to change things in the future, though perhaps this could be done by adding more options to
+// TalkContinuation.
+//
+// (Another note is that currently all message calls are futures, so maybe the continuation is strictly necessary?)
+//
+
 lazy_static! {
     /// The ID to assign to the next class that is created
     static ref NEXT_CLASS_ID: Mutex<usize>                                      = Mutex::new(0);
