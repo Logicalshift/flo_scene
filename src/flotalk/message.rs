@@ -188,6 +188,18 @@ impl TalkMessageSignature {
     }
 }
 
+impl From<&TalkMessageSignature> for TalkMessageSignatureId {
+    fn from(sig: &TalkMessageSignature) -> TalkMessageSignatureId {
+        sig.id()
+    }
+}
+
+impl From<TalkMessageSignature> for TalkMessageSignatureId {
+    fn from(sig: TalkMessageSignature) -> TalkMessageSignatureId {
+        sig.id()
+    }
+}
+
 impl TalkMessageSignatureId {
     ///
     /// Retrieves the signature corresponding to this ID
