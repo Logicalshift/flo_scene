@@ -2,6 +2,8 @@ use super::class::*;
 
 use ouroboros::{self_referencing};
 
+use std::ops::{Deref};
+
 ///
 /// A talk context is a self-contained representation of the state of a flotalk interpreter
 ///
@@ -37,9 +39,16 @@ where
     /// Accesses the data inside this reference
     ///
     #[inline]
-    pub fn data(&mut self) -> &mut TData {
-        todo!() // Can't do this:
-        // *self.borrow_data()
+    pub fn data(&self) -> &TData {
+        self.borrow_data()
+    }
+
+    ///
+    /// Access the data in this reference using a mutable update
+    ///
+    #[inline]
+    pub fn update_data<TReturn>(&mut self, with_fn: impl for<'b> FnOnce(&'b mut TData) -> TReturn) -> TReturn {
+        self.with_data_mut(move |data| with_fn(*data))
     }
 
     ///
@@ -50,6 +59,14 @@ where
         let heads = self.into_heads();
 
         heads.context
+    }
+}
+
+impl<'a, TData> Deref for TalkContextReference<'a, TData> {
+    type Target = TData;
+
+    fn deref(&self) -> &Self::Target {
+        self.borrow_data()
     }
 }
 
