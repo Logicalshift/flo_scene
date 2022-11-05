@@ -1,5 +1,7 @@
 use super::class::*;
 
+use ouroboros::{self_referencing};
+
 ///
 /// A talk context is a self-contained representation of the state of a flotalk interpreter
 ///
@@ -9,6 +11,22 @@ use super::class::*;
 pub struct TalkContext {
     /// Allocators for this context, indexed by class ID
     context_callbacks: Vec<Option<TalkClassContextCallbacks>>,
+}
+
+///
+/// A reference to some data contained within a TalkContext
+///
+#[self_referencing]
+pub struct TalkContextReference<'a, TData> 
+where
+    TData: 'a
+{
+    /// The context that the data is borrowed from
+    context: &'a mut TalkContext,
+
+    /// The data borrowed from the context
+    #[borrows(mut context)]
+    data: &'this mut TData,
 }
 
 impl TalkContext {
@@ -52,5 +70,24 @@ impl TalkContext {
         }
 
         self.create_callbacks(class)
+    }
+
+    ///
+    /// Creates a 'borrowed context reference' via some class context callbacks
+    ///
+    #[inline]
+    pub (crate) fn borrow_with_callbacks<'a, TData>(&'a mut self, class: TalkClass, with_fn: impl for<'b> FnOnce(&'b mut TalkClassContextCallbacks) -> &'b mut TData) -> TalkContextReference<'a, TData> 
+    where
+        TData: 'a
+    {
+        let reference = TalkContextReferenceBuilder {
+            context:        self,
+            data_builder:   |val| { 
+                let callbacks = val.get_callbacks(class);
+                with_fn(callbacks)
+            },
+        }.build();
+
+        reference
     }
 }
