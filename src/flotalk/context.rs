@@ -19,7 +19,7 @@ pub struct TalkContext {
 #[self_referencing]
 pub struct TalkContextReference<'a, TData> 
 where
-    TData: 'a
+    TData: 'a,
 {
     /// The context that the data is borrowed from
     context: &'a mut TalkContext,
@@ -27,6 +27,30 @@ where
     /// The data borrowed from the context
     #[borrows(mut context)]
     data: &'this mut TData,
+}
+
+impl<'a, TData> TalkContextReference<'a, TData>
+where
+    TData: 'a,
+{
+    ///
+    /// Accesses the data inside this reference
+    ///
+    #[inline]
+    pub fn data(&mut self) -> &mut TData {
+        todo!() // Can't do this:
+        // *self.borrow_data()
+    }
+
+    ///
+    /// Releases the reference borrowed by this item and returns the underlying context
+    ///
+    #[inline]
+    pub fn to_context(self) -> &'a mut TalkContext {
+        let heads = self.into_heads();
+
+        heads.context
+    }
 }
 
 impl TalkContext {
