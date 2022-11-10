@@ -21,6 +21,7 @@ mod runtime;
 mod error;
 mod value_store;
 mod simple_evaluator;
+mod simple_evaluator_block;
 mod allocator;
 mod class_builder;
 
@@ -38,5 +39,6 @@ pub use self::runtime::*;
 pub use self::error::*;
 pub use self::value_store::*;
 pub use self::simple_evaluator::*;
+pub use self::simple_evaluator_block::*;
 pub use self::allocator::*;
 pub use self::class_builder::*;
