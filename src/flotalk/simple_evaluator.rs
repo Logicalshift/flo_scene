@@ -275,8 +275,24 @@ where
     TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
+    talk_evaluate_simple_with_arguments(root_values, TalkValueStore::default(), expression)
+}
+
+///
+/// Evaluates a FloTalk expression which does not have any binding specified, and where Literals have not been parsed into values
+///
+/// This is the simplest form of expression evaluator, which runs the slowest out of all the possible implementations (due to needing to parse values and look up
+/// symbols every time)
+///
+pub fn talk_evaluate_simple_with_arguments<TValue, TSymbol>(root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, arguments: TalkValueStore<TalkValue>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation 
+where
+    TValue:     'static + Send + Sync,
+    TSymbol:    'static + Send + Sync,
+    TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
+    TalkSymbol: for<'a> From<&'a TSymbol>,
+{
     let mut wait_state  = TalkWaitState::Run;
-    let mut frame       = TalkFrame { pc: 0, stack: vec![], outer_bindings: root_values, local_bindings: TalkValueStore::default(), earlier_bindings: HashMap::new() };
+    let mut frame       = TalkFrame { pc: 0, stack: vec![], outer_bindings: root_values, local_bindings: arguments, earlier_bindings: HashMap::new() };
 
     TalkContinuation::Later(Box::new(move |talk_context, future_context| {
         use TalkWaitState::*;
