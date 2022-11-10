@@ -9,7 +9,7 @@ use std::sync::*;
 fn evaluate_number() {
     let test_source     = "42";
     let runtime         = TalkRuntime::empty();
-    let root_values     = Arc::new(Mutex::new(TalkValueStore::default()));
+    let root_values     = vec![Arc::new(Mutex::new(TalkValueStore::default()))];
 
     executor::block_on(async { 
         let test_source     = stream::iter(test_source.chars());
@@ -26,7 +26,7 @@ fn evaluate_number() {
 fn call_block() {
     let test_source     = "[ 42 ] value";
     let runtime         = TalkRuntime::empty();
-    let root_values     = Arc::new(Mutex::new(TalkValueStore::default()));
+    let root_values     = vec![Arc::new(Mutex::new(TalkValueStore::default()))];
 
     executor::block_on(async { 
         let test_source     = stream::iter(test_source.chars());

@@ -268,7 +268,7 @@ where
 /// This is the simplest form of expression evaluator, which runs the slowest out of all the possible implementations (due to needing to parse values and look up
 /// symbols every time)
 ///
-pub fn talk_evaluate_simple<TValue, TSymbol>(root_values: Arc<Mutex<TalkValueStore<TalkValue>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation 
+pub fn talk_evaluate_simple<TValue, TSymbol>(root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation 
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
@@ -276,7 +276,7 @@ where
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
     let mut wait_state  = TalkWaitState::Run;
-    let mut frame       = TalkFrame { pc: 0, stack: vec![], outer_bindings: vec![root_values], local_bindings: TalkValueStore::default(), earlier_bindings: HashMap::new() };
+    let mut frame       = TalkFrame { pc: 0, stack: vec![], outer_bindings: root_values, local_bindings: TalkValueStore::default(), earlier_bindings: HashMap::new() };
 
     TalkContinuation::Later(Box::new(move |talk_context, future_context| {
         use TalkWaitState::*;
