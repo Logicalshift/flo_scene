@@ -406,10 +406,19 @@ impl TalkClass {
             }
 
             // Then, wait for the message to complete
-            match message_continuation.as_mut().unwrap() {
-                TalkContinuation::Ready(value)  => Poll::Ready(value.clone()),
-                TalkContinuation::Later(later)  => later(talk_context, future_context),
-            }
+            message_continuation = match message_continuation.take().unwrap() {
+                TalkContinuation::Ready(value)      => { return Poll::Ready(value.clone()); },
+                TalkContinuation::Soon(soon)        => { return Poll::Ready(soon(talk_context)); },
+                TalkContinuation::Later(mut later)  => { 
+                    if let Poll::Ready(value) = later(talk_context, future_context) {
+                        return Poll::Ready(value);
+                    }
+
+                    Some(TalkContinuation::Later(later))
+                },
+            };
+
+            Poll::Pending
         })))
     }
 

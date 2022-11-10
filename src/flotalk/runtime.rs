@@ -94,6 +94,12 @@ impl TalkRuntime {
         let now_later = match continuation {
             TalkContinuation::Ready(value)  => NowLater::Now(value),
             TalkContinuation::Later(later)  => NowLater::Later(self.run_continuation_later(later)),
+
+            TalkContinuation::Soon(soon)    => {
+                let mut soon = Some(soon);
+
+                NowLater::Later(self.run_continuation_later(Box::new(move |talk_context, _| Poll::Ready((soon.take().unwrap())(talk_context)))))
+            },
         };
 
         async move {

@@ -231,6 +231,13 @@ where
                 match continuation {
                     TalkContinuation::Ready(TalkValue::Error(err))  => return TalkWaitState::Finished(TalkValue::Error(err)),
                     TalkContinuation::Ready(value)                  => frame.stack.push(value),
+                    TalkContinuation::Soon(soon_value)              => {
+                        let value = soon_value(context);
+                        match value {
+                            TalkValue::Error(err)   => return TalkWaitState::Finished(TalkValue::Error(err)),
+                            _                       => frame.stack.push(value),
+                        }
+                    }
                     TalkContinuation::Later(later)                  => return TalkWaitState::WaitFor(TalkContinuation::Later(later)),
                 }
             }
