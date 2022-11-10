@@ -101,7 +101,7 @@ impl TalkContext {
     /// Retrieves the allocator for a class
     ///
     #[inline]
-    pub (crate) fn get_callbacks<'a>(&'a mut self, class: TalkClass) -> &'a mut TalkClassContextCallbacks {
+    pub (super) fn get_callbacks<'a>(&'a mut self, class: TalkClass) -> &'a mut TalkClassContextCallbacks {
         let TalkClass(class_id) = class;
 
         if self.context_callbacks.len() > class_id {
@@ -117,7 +117,7 @@ impl TalkContext {
     /// Creates a 'borrowed context reference' via some class context callbacks
     ///
     #[inline]
-    pub (crate) fn borrow_with_callbacks<'a, TData>(&'a mut self, class: TalkClass, with_fn: impl for<'b> FnOnce(&'b mut TalkClassContextCallbacks) -> &'b mut TData) -> TalkContextReference<'a, TData> 
+    pub (super) fn borrow_with_callbacks<'a, TData>(&'a mut self, class: TalkClass, with_fn: impl for<'b> FnOnce(&'b mut TalkClassContextCallbacks) -> &'b mut TData) -> TalkContextReference<'a, TData> 
     where
         TData: 'a
     {

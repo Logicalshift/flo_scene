@@ -52,7 +52,7 @@ thread_local! {
 ///
 /// Callbacks for addressing a TalkClass
 ///
-pub (crate) struct TalkClassCallbacks {
+pub (super) struct TalkClassCallbacks {
     /// Creates the callbacks for this class in a context
     create_in_context: Box<dyn Send + Sync + Fn() -> TalkClassContextCallbacks>,
 }
@@ -60,7 +60,7 @@ pub (crate) struct TalkClassCallbacks {
 ///
 /// Callbacks for addressing a TalkClass within a context
 ///
-pub (crate) struct TalkClassContextCallbacks {
+pub (super) struct TalkClassContextCallbacks {
     /// Sends a message to an object
     send_message: Box<dyn Send + FnMut(TalkDataHandle, TalkMessage) -> TalkContinuation>,
 
@@ -87,38 +87,38 @@ pub (crate) struct TalkClassContextCallbacks {
 /// A TalkClass is an identifier for a FloTalk class
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct TalkClass(pub (crate) usize);
+pub struct TalkClass(pub (super) usize);
 
 impl TalkClassCallbacks {
     #[inline]
-    pub (crate) fn create_in_context(&self) -> TalkClassContextCallbacks {
+    pub (super) fn create_in_context(&self) -> TalkClassContextCallbacks {
         (self.create_in_context)()
     }
 }
 
 impl TalkClassContextCallbacks {
     #[inline]
-    pub (crate) fn send_message(&mut self, data_handle: TalkDataHandle, message: TalkMessage) -> TalkContinuation {
+    pub (super) fn send_message(&mut self, data_handle: TalkDataHandle, message: TalkMessage) -> TalkContinuation {
         (self.send_message)(data_handle, message)
     }
 
     #[inline]
-    pub (crate) fn add_reference(&mut self, data_handle: TalkDataHandle) {
+    pub (super) fn add_reference(&mut self, data_handle: TalkDataHandle) {
         (self.add_reference)(data_handle)
     }
 
     #[inline]
-    pub (crate) fn remove_reference(&mut self, data_handle: TalkDataHandle) {
+    pub (super) fn remove_reference(&mut self, data_handle: TalkDataHandle) {
         (self.remove_reference)(data_handle)
     }
 
     #[inline]
-    pub (crate) fn send_class_message(&self, message: TalkMessage) -> TalkContinuation {
+    pub (super) fn send_class_message(&self, message: TalkMessage) -> TalkContinuation {
         (self.send_class_message)(message)
     }
 
     #[inline]
-    pub (crate) fn read_data<TTargetData>(&mut self, data_handle: TalkDataHandle) -> Option<TTargetData> 
+    pub (super) fn read_data<TTargetData>(&mut self, data_handle: TalkDataHandle) -> Option<TTargetData> 
     where
         TTargetData: 'static,
     {
@@ -129,6 +129,14 @@ impl TalkClassContextCallbacks {
         } else {
             None
         }
+    }
+
+    #[inline]
+    pub (super) fn allocator<TTargetAllocator>(&mut self) -> Option<Arc<Mutex<TTargetAllocator>>>
+    where
+        TTargetAllocator: 'static + TalkClassAllocator,
+    {
+        self.allocator.downcast_mut().cloned()
     }
 }
 
@@ -364,7 +372,7 @@ impl TalkClass {
     /// Retrieve the callbacks for this class
     ///
     #[inline]
-    pub (crate) fn callbacks(&self) -> &'static TalkClassCallbacks {
+    pub (super) fn callbacks(&self) -> &'static TalkClassCallbacks {
         let TalkClass(idx)  = *self;
         let callback        = LOCAL_CLASS_CALLBACKS.with(|callbacks| {
             let callbacks = callbacks.borrow();
