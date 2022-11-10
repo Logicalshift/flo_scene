@@ -10,8 +10,15 @@ use super::simple_evaluator::*;
 use super::value::*;
 use super::value_store::*;
 
-use std::sync::*;
+use std::any::{TypeId};
+use std::collections::{HashMap};
 use std::marker::{PhantomData};
+use std::sync::*;
+
+lazy_static! {
+    /// Maps the type IDs of the value and symbol type to the TalkClass that implements the SimpleEvaluatorClass for that ID type
+    static ref SIMPLE_EVALUATOR_CLASS: Mutex<HashMap<(TypeId, TypeId), TalkClass>> = Mutex::new(HashMap::new());
+}
 
 ///
 /// Class that represents a block evaluated by the simple evaluator
@@ -108,5 +115,28 @@ where
                 }
             }
         }
+    }
+}
+
+///
+/// Retrieves (or creates) the TalkClass corresponding to a simple evaluator block using the specified value and symbol types for the instructions
+///
+pub (super) fn simple_evaluator_block_class<TValue, TSymbol>() -> TalkClass
+where
+    TValue:     'static + Send + Sync,
+    TSymbol:    'static + Send + Sync,
+    TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
+    TalkSymbol: for<'a> From<&'a TSymbol>,
+{
+    let mut classes     = SIMPLE_EVALUATOR_CLASS.lock().unwrap();
+    let evaluator_type  = (TypeId::of::<TValue>(), TypeId::of::<TSymbol>());
+
+    if let Some(class) = classes.get(&evaluator_type) {
+        *class
+    } else {
+        let class = TalkClass::create(SimpleEvaluatorBlockClass { value: PhantomData::<TValue>, symbol: PhantomData::<TSymbol> });
+        classes.insert(evaluator_type, class);
+
+        class
     }
 }
