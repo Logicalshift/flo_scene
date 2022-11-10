@@ -1,5 +1,6 @@
 use super::allocator::*;
 use super::class::*;
+use super::context::*;
 use super::continuation::*;
 use super::error::*;
 use super::instruction::*;
@@ -18,6 +19,9 @@ use std::sync::*;
 lazy_static! {
     /// Maps the type IDs of the value and symbol type to the TalkClass that implements the SimpleEvaluatorClass for that ID type
     static ref SIMPLE_EVALUATOR_CLASS: Mutex<HashMap<(TypeId, TypeId), TalkClass>> = Mutex::new(HashMap::new());
+
+    static ref VALUE_SYMBOL: TalkSymbol         = TalkSymbol::from("value");
+    static ref VALUE_COLON_SYMBOL: TalkSymbol   = TalkSymbol::from("value:");
 }
 
 ///
@@ -139,4 +143,39 @@ where
 
         class
     }
+}
+
+///
+/// Creates a reference to a block that is evaluated using the simple evaluator
+///
+pub (super) fn simple_evaluator_block<TValue, TSymbol>(talk_context: &mut TalkContext, arguments: Vec<TalkSymbol>, root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkReference
+where
+    TValue:     'static + Send + Sync,
+    TSymbol:    'static + Send + Sync,
+    TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
+    TalkSymbol: for<'a> From<&'a TSymbol>,
+{
+    // Create an argument signature
+    let signature = if arguments.len() == 0 {
+        TalkMessageSignature::Unary(*VALUE_SYMBOL)
+    } else {
+        TalkMessageSignature::Arguments(arguments.iter().map(|arg| *VALUE_COLON_SYMBOL).collect())
+    };
+
+    // Create the block data
+    let data        = SimpleEvaluatorBlock {
+        accepted_message_id:    signature.id(),
+        arguments:              arguments,
+        root_values:            root_values,
+        expression:             expression,
+    };
+
+    // Fetch the allocator for this class
+    let class       = simple_evaluator_block_class::<TValue, TSymbol>();
+    let allocator   = talk_context.get_callbacks(class).allocator::<TalkStandardAllocator<Arc<SimpleEvaluatorBlock<TValue, TSymbol>>>>().unwrap();
+
+    // Store the data using the allocator
+    let data_handle = allocator.lock().unwrap().store(Arc::new(data));
+
+    TalkReference(class, data_handle)
 }
