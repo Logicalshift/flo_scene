@@ -80,7 +80,7 @@ fn call_block() {
 
 #[test]
 fn call_block_with_arguments() {
-    let test_source     = "[ :x | x ] value: 42";
+    let test_source     = "[ :x | ^x ] value: 42";
     let runtime         = TalkRuntime::empty();
     let root_values     = vec![Arc::new(Mutex::new(TalkValueStore::default()))];
 
