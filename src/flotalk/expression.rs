@@ -181,7 +181,7 @@ impl TalkExpression {
             Literal(literal)                    => vec![TalkInstruction::Load(literal)],
             Identifier(identifier)              => vec![TalkInstruction::LoadFromSymbol(TalkSymbol::from(identifier))],
             Return(expr)                        => expr.to_instructions(),
-            Block(variables, expressions)       => vec![TalkInstruction::LoadBlock(variables.into_iter().map(|var| TalkSymbol::from(&*var)).collect(), Self::sequence_to_instructions(expressions))],
+            Block(variables, expressions)       => vec![TalkInstruction::LoadBlock(variables.into_iter().map(|var| TalkSymbol::from(&*var)).collect(), Arc::new(Self::sequence_to_instructions(expressions)))],
 
             Assignment(name, expr)              => // Create result, duplicate it, store the value, return value is duplicated
                 vec![

@@ -2,6 +2,8 @@ use super::location::*;
 use super::message::*;
 use super::symbol::*;
 
+use std::sync::*;
+
 ///
 /// A variable that is either bound to a local value, or unbound
 ///
@@ -40,7 +42,7 @@ pub enum TalkInstruction<TValue, TSymbol> {
     LoadFromSymbol(TSymbol),
 
     /// Load an object representing a code block onto the stack
-    LoadBlock(Vec<TalkSymbol>, Vec<TalkInstruction<TValue, TSymbol>>),
+    LoadBlock(Vec<TalkSymbol>, Arc<Vec<TalkInstruction<TValue, TSymbol>>>),
 
     /// Loads the value from the top of the stack and stores it a variable
     StoreAtSymbol(TSymbol),

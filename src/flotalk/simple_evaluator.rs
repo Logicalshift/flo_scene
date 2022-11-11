@@ -3,6 +3,7 @@ use super::context::*;
 use super::error::*;
 use super::instruction::*;
 use super::message::*;
+use super::simple_evaluator_block::*;
 use super::symbol::*;
 use super::value::*;
 use super::value_store::*;
@@ -131,8 +132,8 @@ impl TalkFrame {
 #[inline]
 fn eval_at<TValue, TSymbol>(expression: &Vec<TalkInstruction<TValue, TSymbol>>, frame: &mut TalkFrame, context: &mut TalkContext) -> TalkWaitState 
 where
-    TValue:     'static,
-    TSymbol:    'static,
+    TValue:     'static + Send + Sync,
+    TSymbol:    'static + Send + Sync,
     TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
@@ -194,7 +195,12 @@ where
 
             // Load an object representing a code block onto the stack
             LoadBlock(variables, instructions) => {
-                todo!()
+                // TODO: closure binding
+                // TODO: even for the simple evaluator this is really too slow, add an optimiser that pre-binds the blocks
+
+                // Create the block, and add it to the stack
+                let block_reference = simple_evaluator_block(context, variables.clone(), frame.outer_bindings.clone(), Arc::clone(instructions));
+                frame.stack.push(TalkValue::Reference(block_reference));
             }
 
             // Loads the value from the top of the stack and stores it a variable
