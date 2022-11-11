@@ -4,7 +4,7 @@ use super::symbol::*;
 ///
 /// An error 
 ///
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum TalkError {
     /// Error with a FloTalk object
     Object(TalkReference),

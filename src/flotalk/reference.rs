@@ -11,7 +11,7 @@ use futures::task::{Poll};
 ///
 /// A reference to the data for a class from the allocator
 ///
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct TalkDataHandle(pub usize);
 
 ///
@@ -19,7 +19,7 @@ pub struct TalkDataHandle(pub usize);
 ///
 /// FloTalk data is stored by class and handle. References are only valid for the context that they were created for.
 ///
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct TalkReference(pub (crate) TalkClass, pub (crate) TalkDataHandle);
 
 impl TalkReference {

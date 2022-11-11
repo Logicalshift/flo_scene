@@ -17,7 +17,7 @@ use smallvec::*;
 ///
 /// The result of a FloTalk message
 ///
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum TalkValue {
     /// The 'nil' value
     Nil,

@@ -86,7 +86,7 @@ pub (super) struct TalkClassContextCallbacks {
 ///
 /// A TalkClass is an identifier for a FloTalk class
 ///
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct TalkClass(pub (super) usize);
 
 impl TalkClassCallbacks {
