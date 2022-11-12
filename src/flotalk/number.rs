@@ -32,3 +32,69 @@ impl TalkNumber {
         }
     }
 }
+
+impl Add for TalkNumber {
+    type Output = TalkNumber;
+
+    fn add(self, to: TalkNumber) -> TalkNumber {
+        match (self, to) {
+            (TalkNumber::Int(val1), TalkNumber::Int(val2))  => TalkNumber::Int(val1 + val2),
+            (val1, val2)                                    => TalkNumber::Float(val1.as_float() + val2.as_float()),
+        }
+    }
+}
+
+impl Sub for TalkNumber {
+    type Output = TalkNumber;
+
+    fn sub(self, to: TalkNumber) -> TalkNumber {
+        match (self, to) {
+            (TalkNumber::Int(val1), TalkNumber::Int(val2))  => TalkNumber::Int(val1 - val2),
+            (val1, val2)                                    => TalkNumber::Float(val1.as_float() - val2.as_float()),
+        }
+    }
+}
+
+impl Mul for TalkNumber {
+    type Output = TalkNumber;
+
+    fn mul(self, to: TalkNumber) -> TalkNumber {
+        match (self, to) {
+            (TalkNumber::Int(val1), TalkNumber::Int(val2))  => TalkNumber::Int(val1 * val2),
+            (val1, val2)                                    => TalkNumber::Float(val1.as_float() * val2.as_float()),
+        }
+    }
+}
+
+impl Div for TalkNumber {
+    type Output = TalkNumber;
+
+    fn div(self, to: TalkNumber) -> TalkNumber {
+        match (self, to) {
+            (TalkNumber::Int(val1), TalkNumber::Int(val2))  => TalkNumber::Int(val1 / val2),
+            (val1, val2)                                    => TalkNumber::Float(val1.as_float() / val2.as_float()),
+        }
+    }
+}
+
+impl Rem for TalkNumber {
+    type Output = TalkNumber;
+
+    fn rem(self, to: TalkNumber) -> TalkNumber {
+        match (self, to) {
+            (TalkNumber::Int(val1), TalkNumber::Int(val2))  => TalkNumber::Int(val1 % val2),
+            (val1, val2)                                    => TalkNumber::Float(val1.as_float() % val2.as_float()),
+        }
+    }
+}
+
+impl Neg for TalkNumber {
+    type Output = TalkNumber;
+
+    fn neg(self) -> TalkNumber {
+        match self {
+            TalkNumber::Int(val)    => TalkNumber::Int(-val),
+            TalkNumber::Float(val)  => TalkNumber::Float(-val),
+        }
+    }
+}
