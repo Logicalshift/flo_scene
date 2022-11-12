@@ -237,7 +237,7 @@ where
 {
     fn from(into_symbol: T) -> TalkMessageSignatureId {
         let symbol = into_symbol.into();
-        if symbol.is_keyword() {
+        if symbol.is_keyword() || symbol.is_binary() {
             TalkMessageSignature::Arguments(smallvec![symbol]).into()
         } else {
             TalkMessageSignature::Unary(symbol).into()
