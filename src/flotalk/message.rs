@@ -231,6 +231,53 @@ impl TalkMessageSignatureId {
     }
 }
 
+impl<T> From<T> for TalkMessageSignatureId 
+where
+    T: Into<TalkSymbol>,
+{
+    fn from(into_symbol: T) -> TalkMessageSignatureId {
+        let symbol = into_symbol.into();
+        if symbol.is_keyword() {
+            TalkMessageSignature::Arguments(smallvec![symbol]).into()
+        } else {
+            TalkMessageSignature::Unary(symbol).into()
+        }
+    }
+}
+
+impl<T1, T2> From<(T1, T2)> for TalkMessageSignatureId 
+where
+    T1: Into<TalkSymbol>,
+    T2: Into<TalkSymbol>,
+{
+    fn from((a, b): (T1, T2)) -> TalkMessageSignatureId {
+        TalkMessageSignature::Arguments(smallvec![a.into(), b.into()]).into()
+    }
+}
+
+impl<T1, T2, T3> From<(T1, T2, T3)> for TalkMessageSignatureId 
+where
+    T1: Into<TalkSymbol>,
+    T2: Into<TalkSymbol>,
+    T3: Into<TalkSymbol>,
+{
+    fn from((a, b, c): (T1, T2, T3)) -> TalkMessageSignatureId {
+        TalkMessageSignature::Arguments(smallvec![a.into(), b.into(), c.into()]).into()
+    }
+}
+
+impl<T1, T2, T3, T4> From<(T1, T2, T3, T4)> for TalkMessageSignatureId 
+where
+    T1: Into<TalkSymbol>,
+    T2: Into<TalkSymbol>,
+    T3: Into<TalkSymbol>,
+    T4: Into<TalkSymbol>,
+{
+    fn from((a, b, c, d): (T1, T2, T3, T4)) -> TalkMessageSignatureId {
+        TalkMessageSignature::Arguments(smallvec![a.into(), b.into(), c.into(), d.into()]).into()
+    }
+}
+
 impl Into<usize> for TalkMessageSignatureId {
     #[inline]
     fn into(self) -> usize {

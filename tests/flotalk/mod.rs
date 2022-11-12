@@ -6,3 +6,4 @@
 #[cfg(feature="flotalk")] pub mod value;
 #[cfg(feature="flotalk")] pub mod simple_eval;
 #[cfg(feature="flotalk")] pub mod sparse_array;
+#[cfg(feature="flotalk")] pub mod messages;

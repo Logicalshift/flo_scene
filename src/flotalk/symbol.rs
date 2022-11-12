@@ -124,6 +124,13 @@ impl TalkSymbol {
     pub fn id(&self) -> usize {
         self.0
     }
+
+    ///
+    /// True if this is a keyword symbol (eg: `foo:`, or false if it's not (eg: 'foo'))
+    ///
+    pub fn is_keyword(&self) -> bool {
+        self.name().chars().last() == Some(':')
+    }
 }
 
 impl fmt::Debug for TalkSymbol {
