@@ -58,12 +58,12 @@ impl TalkReference {
     ///
     /// Sends a message to this object
     ///
-    pub fn send_message(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl Future<Output=TalkValue> {
+    pub fn send_message_later(&self, message: TalkMessage) -> TalkContinuation {
         let reference                   = *self;
         let mut message                 = Some(message);
         let mut message_continuation    = None;
 
-        runtime.run_continuation(TalkContinuation::Later(Box::new(move |talk_context, future_context| {
+        TalkContinuation::Later(Box::new(move |talk_context, future_context| {
             // First, send the message
             if let Some(message) = message.take() {
                 message_continuation = Some(reference.send_message_in_context(message, talk_context));
@@ -83,7 +83,14 @@ impl TalkReference {
             };
 
             Poll::Pending
-        })))
+        }))
+    }
+
+    ///
+    /// Sends a message to this object
+    ///
+    pub fn send_message(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl Future<Output=TalkValue> {
+        runtime.run_continuation(self.send_message_later(message))
     }
 
     ///
