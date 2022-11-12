@@ -6,12 +6,15 @@ use super::value::*;
 
 use smallvec::*;
 
+use std::sync::*;
+
 ///
 /// Maps messages to the functions that process them, and other metadata (such as the source code, or a compiled version for the intepreter)
 ///
+#[derive(Clone)]
 pub struct TalkMessageDispatchTable<TDataType> {
     /// The action to take for a particular message type
-    message_action: TalkSparseArray<Box<dyn Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>) -> TalkContinuation>>,
+    message_action: TalkSparseArray<Arc<dyn Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>) -> TalkContinuation>>,
 }
 
 impl<TDataType> TalkMessageDispatchTable<TDataType> {
@@ -43,6 +46,6 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     /// Defines the action for a message
     ///
     pub fn define_message(&mut self, message: TalkMessageSignatureId, action: impl 'static + Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>) -> TalkContinuation) {
-        self.message_action.insert(message.into(), Box::new(action));
+        self.message_action.insert(message.into(), Arc::new(action));
     }
 }

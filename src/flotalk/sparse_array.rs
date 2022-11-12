@@ -3,6 +3,7 @@
 ///
 /// We assume these are allocated from 0, and tend to cluster
 ///
+#[derive(Clone)]
 pub struct TalkSparseArray<TTarget> {
     /// Array of 16384 arrays of 256 arrays of target objects
     values: Vec<Box<[Option<Box<[Option<TTarget>; 256]>>; 16384]>>
