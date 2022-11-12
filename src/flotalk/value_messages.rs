@@ -170,12 +170,7 @@ lazy_static! {
         .with_message(*TALK_BINARY_SUB,             |val, args| Ok::<_, TalkError>(val - args[0].try_as_number()?))
         .with_message(*TALK_BINARY_MUL,             |val, args| Ok::<_, TalkError>(val * args[0].try_as_number()?))
         .with_message(*TALK_BINARY_DIV,             |val, args| Ok::<_, TalkError>(val / args[0].try_as_number()?))
-        .with_message(*TALK_BINARY_DIV_TRUNCATE, |val, args| {
-            let arg                 = args[0].try_as_number()?;
-            let divided: TalkNumber = val / arg;
-            let truncated           = divided.truncate();
-            Ok::<_, TalkError>(truncated)
-        })
+        .with_message(*TALK_BINARY_DIV_TRUNCATE,    |val, args| Ok::<_, TalkError>((val / args[0].try_as_number()?).truncate()))
         .with_message(*TALK_BINARY_LT,              |val, args| Ok::<_, TalkError>(val < args[0].try_as_number()?))
         .with_message(*TALK_BINARY_GT,              |val, args| Ok::<_, TalkError>(val > args[0].try_as_number()?))
         .with_message(*TALK_BINARY_EQUALS,          |val, args| Ok::<_, TalkError>(val == args[0].try_as_number()?))
@@ -186,7 +181,7 @@ lazy_static! {
         .with_message(*TALK_MSG_AS_FLOAT_E,         |val, _| TalkValue::Float(val.as_float()))
         .with_message(*TALK_MSG_AS_FLOAT_Q,         |val, _| TalkValue::Float(val.as_float()))
         .with_message(*TALK_MSG_AS_FRACTION,        |val, _| TalkError::NotImplemented)
-        .with_message(*TALK_MSG_AS_INTEGER,         |val, _| TalkValue::Int(val.truncate()))
+        .with_message(*TALK_MSG_AS_INTEGER,         |val, _| val.truncate())
         .with_message(*TALK_MSG_AS_SCALED_DECIMAL,  |val, _| TalkError::NotImplemented)
         .with_message(*TALK_MSG_CEILING,            |val, _| match val { TalkNumber::Int(x) => TalkNumber::Int(x), TalkNumber::Float(x) => TalkNumber::Float(x.ceil()) })
         .with_message(*TALK_MSG_FLOOR,              |val, _| match val { TalkNumber::Int(x) => TalkNumber::Int(x), TalkNumber::Float(x) => TalkNumber::Float(x.floor()) })
