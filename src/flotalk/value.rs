@@ -75,6 +75,17 @@ impl TalkValue {
     ///
     /// Returns the reference represented by this value
     ///
+    pub fn try_as_bool(self) -> Result<bool, TalkError> {
+        match self {
+            TalkValue::Nil                  => Err(TalkError::IsNil),
+            TalkValue::Bool(val)            => Ok(val),
+            _                               => Err(TalkError::NotABoolean)
+        }
+    }
+
+    ///
+    /// Returns the reference represented by this value
+    ///
     pub fn try_as_int(self) -> Result<i64, TalkError> {
         match self {
             TalkValue::Nil                  => Err(TalkError::IsNil),
