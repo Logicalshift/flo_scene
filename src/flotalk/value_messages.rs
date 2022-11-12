@@ -179,11 +179,11 @@ impl TalkValue {
     ///
     pub fn default_send_message_in_context(&self, message: TalkMessage) -> TalkContinuation {
         match self {
-            TalkValue::Nil                      => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Reference(reference)     => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Bool(val)                => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Int(val)                 => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Float(val)               => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Nil                      => TalkError::IsNil.into(),
+            TalkValue::Reference(reference)     => reference.send_message_later(message),
+            TalkValue::Bool(val)                => TALK_DISPATCH_BOOLEAN.send_message(*val, message),
+            TalkValue::Int(val)                 => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Int(*val), message),
+            TalkValue::Float(val)               => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Float(*val), message),
             TalkValue::String(val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Character(val)           => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Symbol(val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
