@@ -42,7 +42,7 @@ fn is_letter(c: char) -> bool {
 
 /// True if the specified character can be part of a binary selector
 #[inline]
-fn is_binary_character(c: char) -> bool {
+pub (super) fn is_binary_character(c: char) -> bool {
     match c {
         '+' | '-' | '/' | '*' | '!' | '%' | '&' | ','| '<' | '=' | '>' | '?' | '@' | '\\' | '~' | '|' => true,
         _ => false,

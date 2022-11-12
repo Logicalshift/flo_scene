@@ -1,3 +1,5 @@
+use super::parser::*;
+
 use std::collections::{HashMap};
 use std::fmt;
 use std::sync::*;
@@ -126,10 +128,21 @@ impl TalkSymbol {
     }
 
     ///
-    /// True if this is a keyword symbol (eg: `foo:`, or false if it's not (eg: 'foo'))
+    /// True if this is a keyword symbol (eg: `foo:`), or false if it's not (eg: 'foo')
     ///
     pub fn is_keyword(&self) -> bool {
         self.name().chars().last() == Some(':')
+    }
+
+    ///
+    /// True if this is a binary operator symbol (eg: `=`, `+` etc)
+    ///
+    pub fn is_binary(&self) -> bool {
+        if let Some(chr) = self.name().chars().next() {
+            is_binary_character(chr)
+        } else {
+            false
+        }
     }
 }
 
