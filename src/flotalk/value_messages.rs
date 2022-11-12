@@ -153,12 +153,18 @@ lazy_static! {
 }
 
 lazy_static! {
+    ///
+    /// The default message dispatcher for boolean values
+    ///
     pub static ref TALK_DISPATCH_BOOLEAN: TalkMessageDispatchTable<bool> = TalkMessageDispatchTable::empty()
         .with_message(*TALK_BINARY_AND, |val, args| Ok::<_, TalkError>(val & args[0].try_as_bool()?))
         ;
 }
 
 lazy_static! {
+    ///
+    /// The default message dispatcher for number values
+    ///
     pub static ref TALK_DISPATCH_NUMBER: TalkMessageDispatchTable<TalkNumber> = TalkMessageDispatchTable::empty()
         .with_message(*TALK_BINARY_ADD, |val, args| Ok::<_, TalkError>(val + args[0].try_as_number()?))
         .with_message(*TALK_BINARY_SUB, |val, args| Ok::<_, TalkError>(val - args[0].try_as_number()?))
@@ -171,7 +177,19 @@ impl TalkValue {
     ///
     /// Performs the default behaviour for a message when sent to a TalkValue
     ///
-    pub fn default_send_message_in_context(&self, message: TalkMessage, talk_context: &mut TalkContext) -> TalkContinuation {
-        TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message.signature_id())))
+    pub fn default_send_message_in_context(&self, message: TalkMessage) -> TalkContinuation {
+        match self {
+            TalkValue::Nil                      => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Reference(reference)     => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Bool(val)                => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Int(val)                 => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Float(val)               => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::String(val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Character(val)           => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Symbol(val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Selector(val)            => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Array(val)               => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Error(TalkError)         => TalkError::MessageNotSupported(message.signature_id()).into(),
+        }
     }
 }
