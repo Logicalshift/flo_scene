@@ -1,5 +1,6 @@
 use super::error::*;
 
+use std::cmp::*;
 use std::ops::*;
 
 ///
@@ -95,6 +96,15 @@ impl Neg for TalkNumber {
         match self {
             TalkNumber::Int(val)    => TalkNumber::Int(-val),
             TalkNumber::Float(val)  => TalkNumber::Float(-val),
+        }
+    }
+}
+
+impl PartialOrd for TalkNumber {
+    fn partial_cmp(&self, other: &TalkNumber) -> Option<Ordering> {
+        match (self, other) {
+            (TalkNumber::Int(val1), TalkNumber::Int(val2))  => val1.partial_cmp(val2),
+            (val1, val2)                                    => val1.as_float().partial_cmp(&val2.as_float()),
         }
     }
 }
