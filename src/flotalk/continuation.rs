@@ -1,5 +1,6 @@
-use super::value::*;
 use super::context::*;
+use super::error::*;
+use super::value::*;
 
 use futures::task::{Poll, Context};
 
@@ -36,6 +37,30 @@ impl TalkContinuation {
 
                 Poll::Ready(also_soon(talk_context))
             }
+        }
+    }
+}
+
+impl<T> From<T> for TalkContinuation
+where
+    T : Into<TalkValue>,
+{
+    #[inline]
+    fn from(val: T) -> TalkContinuation {
+        TalkContinuation::Ready(val.into())
+    }
+}
+
+impl<T, TErr> From<Result<T, TErr>> for TalkContinuation
+where
+    T: Into<TalkValue>,
+    TErr: Into<TalkError>
+{
+    #[inline]
+    fn from(val: Result<T, TErr>) -> TalkContinuation {
+        match val {
+            Ok(val)     => TalkContinuation::Ready(val.into()),
+            Err(err)    => TalkContinuation::Ready(TalkValue::Error(err.into()))
         }
     }
 }

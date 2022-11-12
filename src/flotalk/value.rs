@@ -183,6 +183,65 @@ impl TalkValue {
     }
 }
 
+impl From<()> for TalkValue {
+    fn from(val: ()) -> TalkValue { TalkValue::Nil }
+}
+
+impl From<TalkReference> for TalkValue {
+    fn from(val: TalkReference) -> TalkValue { TalkValue::Reference(val) }
+}
+
+impl From<bool> for TalkValue {
+    fn from(val: bool) -> TalkValue { TalkValue::Bool(val) }
+}
+
+impl From<i32> for TalkValue {
+    fn from(val: i32) -> TalkValue { TalkValue::Int(val as i64) }
+}
+
+impl From<i64> for TalkValue {
+    fn from(val: i64) -> TalkValue { TalkValue::Int(val) }
+}
+
+impl From<f32> for TalkValue {
+    fn from(val: f32) -> TalkValue { TalkValue::Float(val as f64) }
+}
+
+impl From<f64> for TalkValue {
+    fn from(val: f64) -> TalkValue { TalkValue::Float(val) }
+}
+
+impl From<&str> for TalkValue {
+    fn from(val: &str) -> TalkValue { TalkValue::String(Arc::new(val.into())) }
+}
+
+impl From<String> for TalkValue {
+    fn from(val: String) -> TalkValue { TalkValue::String(Arc::new(val)) }
+}
+
+impl From<Arc<String>> for TalkValue {
+    fn from(val: Arc<String>) -> TalkValue { TalkValue::String(val) }
+}
+
+impl From<&Arc<String>> for TalkValue {
+    fn from(val: &Arc<String>) -> TalkValue { TalkValue::String(Arc::clone(val)) }
+}
+
+impl From<char> for TalkValue {
+    fn from(val: char) -> TalkValue { TalkValue::Character(val) }
+}
+
+impl From<TalkError> for TalkValue {
+    fn from(val: TalkError) -> TalkValue { TalkValue::Error(val) }
+}
+
+impl<T> From<Vec<T>> for TalkValue 
+where
+    T:          Into<TalkValue>,
+{
+    fn from(val: Vec<T>) -> TalkValue { TalkValue::Array(val.into_iter().map(|val| val.into()).collect()) }
+}
+
 impl TryFrom<&TalkLiteral> for TalkValue {
     type Error = TalkError;
 
