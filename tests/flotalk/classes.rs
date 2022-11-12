@@ -86,7 +86,7 @@ pub fn send_instance_messages() {
     let runtime     = TalkRuntime::empty();
 
     executor::block_on(async {
-        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.unwrap_as_reference();
+        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.try_as_reference().unwrap();
         let initial_value   = instance.send_message(TalkMessage::unary("getValue"), &runtime).await;
         let addone_result   = instance.send_message(TalkMessage::unary("addOne"), &runtime).await;
         let final_value     = instance.send_message(TalkMessage::unary("getValue"), &runtime).await;
@@ -105,7 +105,7 @@ pub fn read_class_data() {
     talk_add_class_data_reader::<TestClass, _>(|data| *data);
 
     executor::block_on(async {
-        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.unwrap_as_reference();
+        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.try_as_reference().unwrap();
         let initial_value   = instance.read_data::<usize>(&runtime).await;
 
         assert!(initial_value == Some(42));
@@ -121,7 +121,7 @@ pub fn read_class_data_conversion() {
     talk_add_class_data_reader::<TestClass, _>(|data| *data as f32);
 
     executor::block_on(async {
-        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.unwrap_as_reference();
+        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.try_as_reference().unwrap();
         let usize_value     = instance.read_data::<usize>(&runtime).await;
         let f32_value       = instance.read_data::<f32>(&runtime).await;
 
@@ -138,7 +138,7 @@ pub fn read_class_data_unsupported_type() {
     talk_add_class_data_reader::<TestClass, _>(|data| *data);
 
     executor::block_on(async {
-        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.unwrap_as_reference();
+        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.try_as_reference().unwrap();
         let string_value    = instance.read_data::<String>(&runtime).await;
 
         assert!(string_value == None);
