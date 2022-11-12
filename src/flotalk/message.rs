@@ -231,6 +231,13 @@ impl TalkMessageSignatureId {
     }
 }
 
+impl Into<usize> for TalkMessageSignatureId {
+    #[inline]
+    fn into(self) -> usize {
+        self.0
+    }
+}
+
 impl fmt::Debug for TalkMessageSignature {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
