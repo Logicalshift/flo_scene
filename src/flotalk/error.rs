@@ -10,6 +10,9 @@ pub enum TalkError {
     /// Error with a FloTalk object
     Object(TalkReference),
 
+    /// Something is not implemented
+    NotImplemented,
+
     /// A class message was not supported
     MessageNotSupported(TalkMessageSignatureId),
 
