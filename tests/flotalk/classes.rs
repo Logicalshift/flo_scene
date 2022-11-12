@@ -28,7 +28,7 @@ impl TalkClassDefinition for TestClass {
             let reference = TalkReference::from_handle(class_id, handle);
             TalkContinuation::Ready(TalkValue::Reference(reference))
         } else {
-            TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported))
+            TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(sig.id())))
         }
     }
 
@@ -42,7 +42,7 @@ impl TalkClassDefinition for TestClass {
         } else if sig == TalkMessageSignature::Unary(TalkSymbol::from("getValue")) {
             TalkContinuation::Ready(TalkValue::Int(*target as _))
         } else {
-            TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported))
+            TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(sig.id())))
         }
     }
 }

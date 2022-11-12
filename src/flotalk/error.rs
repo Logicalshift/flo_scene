@@ -1,3 +1,4 @@
+use super::message::*;
 use super::reference::*;
 use super::symbol::*;
 
@@ -10,7 +11,7 @@ pub enum TalkError {
     Object(TalkReference),
 
     /// A class message was not supported
-    MessageNotSupported,
+    MessageNotSupported(TalkMessageSignatureId),
 
     /// The runtime was dropped before a future could completed
     RuntimeDropped,

@@ -155,6 +155,6 @@ impl TalkValue {
     /// Performs the default behaviour for a message when sent to a TalkValue
     ///
     pub fn default_send_message_in_context(&self, message: TalkMessage, talk_context: &mut TalkContext) -> TalkContinuation {
-        TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported))
+        TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message.signature_id())))
     }
 }

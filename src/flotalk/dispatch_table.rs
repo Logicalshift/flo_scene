@@ -50,7 +50,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
         if let Some(action) = self.message_action.get(id.into()) {
             (action)(target, args)
         } else {
-            TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported))
+            TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(id)))
         }
     }
 

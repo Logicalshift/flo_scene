@@ -82,7 +82,7 @@ where
     /// Sends a message to the class object itself
     ///
     fn send_class_message(&self, message: TalkMessage, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation {
-        TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported))
+        TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message.signature_id())))
     }
 
     ///
@@ -96,7 +96,7 @@ where
                     talk_evaluate_simple(target.root_values.clone(), Arc::clone(&target.expression))
                 } else {
                     // Not the message this block was expecting
-                    TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported))
+                    TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
                 }
             }
 
@@ -115,7 +115,7 @@ where
                     talk_evaluate_simple_with_arguments(target.root_values.clone(), argument_store, Arc::clone(&target.expression))
                 } else {
                     // Not the message this block was expecting
-                    TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported))
+                    TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
                 }
             }
         }
