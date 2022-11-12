@@ -30,8 +30,11 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     /// Builder method that can be used to initialise a dispatch table alongside its messages
     ///
-    pub fn with_message(mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>) -> TalkContinuation) -> TalkMessageDispatchTable<TDataType> {
-        self.define_message(message, action);
+    pub fn with_message<TResult>(mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>) -> TResult) -> TalkMessageDispatchTable<TDataType> 
+    where
+        TResult: Into<TalkContinuation>,
+    {
+        self.define_message(message, move |data_type, args| action(data_type, args).into());
 
         self
     }
