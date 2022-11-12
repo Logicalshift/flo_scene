@@ -25,6 +25,8 @@ mod class_builder;
 mod value;
 mod value_store;
 mod value_messages;
+mod dispatch_table;
+pub mod sparse_array;
 
 pub use self::instruction::*;
 pub use self::expression::*;
@@ -44,3 +46,4 @@ pub use self::simple_evaluator_block::*;
 pub use self::allocator::*;
 pub use self::class_builder::*;
 pub use self::value_messages::*;
+pub use self::dispatch_table::*;
