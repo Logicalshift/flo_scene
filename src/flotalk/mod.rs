@@ -22,10 +22,12 @@ mod simple_evaluator;
 mod simple_evaluator_block;
 mod allocator;
 mod class_builder;
+mod number;
 mod value;
 mod value_store;
 mod value_messages;
 mod dispatch_table;
+
 pub mod sparse_array;
 
 pub use self::instruction::*;
@@ -47,3 +49,5 @@ pub use self::allocator::*;
 pub use self::class_builder::*;
 pub use self::value_messages::*;
 pub use self::dispatch_table::*;
+pub use self::number::*;
+
