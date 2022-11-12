@@ -3,6 +3,7 @@ use super::context::*;
 use super::dispatch_table::*;
 use super::error::*;
 use super::message::*;
+use super::number::*;
 use super::value::*;
 
 use smallvec::*;
@@ -154,6 +155,15 @@ lazy_static! {
 lazy_static! {
     pub static ref TALK_DISPATCH_BOOLEAN: TalkMessageDispatchTable<bool> = TalkMessageDispatchTable::empty()
         .with_message(*TALK_BINARY_AND, |val, args| Ok::<_, TalkError>(val & args[0].try_as_bool()?))
+        ;
+}
+
+lazy_static! {
+    pub static ref TALK_DISPATCH_NUMBER: TalkMessageDispatchTable<TalkNumber> = TalkMessageDispatchTable::empty()
+        .with_message(*TALK_BINARY_ADD, |val, args| Ok::<_, TalkError>(val + args[0].try_as_number()?))
+        .with_message(*TALK_BINARY_SUB, |val, args| Ok::<_, TalkError>(val - args[0].try_as_number()?))
+        .with_message(*TALK_BINARY_MUL, |val, args| Ok::<_, TalkError>(val * args[0].try_as_number()?))
+        .with_message(*TALK_BINARY_DIV, |val, args| Ok::<_, TalkError>(val / args[0].try_as_number()?))
         ;
 }
 
