@@ -149,7 +149,7 @@ lazy_static! {
     pub static ref TALK_MSG_TO_BY_DO: TalkMessageSignatureId                    = ("to:", "by:", "do:").into();
     pub static ref TALK_MSG_TO_DO: TalkMessageSignatureId                       = ("to:", "do:").into();
     pub static ref TALK_MSG_TRUNCATED: TalkMessageSignatureId                   = "truncated".into();
-    pub static ref TALK_MSG_TRACATE_TO: TalkMessageSignatureId                  = ("truncateTo:").into();
+    pub static ref TALK_MSG_TRUNCATE_TO: TalkMessageSignatureId                 = ("truncateTo:").into();
 }
 
 lazy_static! {
@@ -166,10 +166,52 @@ lazy_static! {
     /// The default message dispatcher for number values
     ///
     pub static ref TALK_DISPATCH_NUMBER: TalkMessageDispatchTable<TalkNumber> = TalkMessageDispatchTable::empty()
-        .with_message(*TALK_BINARY_ADD, |val, args| Ok::<_, TalkError>(val + args[0].try_as_number()?))
-        .with_message(*TALK_BINARY_SUB, |val, args| Ok::<_, TalkError>(val - args[0].try_as_number()?))
-        .with_message(*TALK_BINARY_MUL, |val, args| Ok::<_, TalkError>(val * args[0].try_as_number()?))
-        .with_message(*TALK_BINARY_DIV, |val, args| Ok::<_, TalkError>(val / args[0].try_as_number()?))
+        .with_message(*TALK_BINARY_ADD,             |val: TalkNumber, args| Ok::<_, TalkError>(val + args[0].try_as_number()?))
+        .with_message(*TALK_BINARY_SUB,             |val, args| Ok::<_, TalkError>(val - args[0].try_as_number()?))
+        .with_message(*TALK_BINARY_MUL,             |val, args| Ok::<_, TalkError>(val * args[0].try_as_number()?))
+        .with_message(*TALK_BINARY_DIV,             |val, args| Ok::<_, TalkError>(val / args[0].try_as_number()?))
+        .with_message(*TALK_BINARY_DIV_TRUNCATE, |val, args| {
+            let arg                 = args[0].try_as_number()?;
+            let divided: TalkNumber = val / arg;
+            let truncated           = divided.truncate();
+            Ok::<_, TalkError>(truncated)
+        })
+        .with_message(*TALK_BINARY_LT,              |val, args| Ok::<_, TalkError>(val < args[0].try_as_number()?))
+        .with_message(*TALK_BINARY_GT,              |val, args| Ok::<_, TalkError>(val > args[0].try_as_number()?))
+        .with_message(*TALK_BINARY_EQUALS,          |val, args| Ok::<_, TalkError>(val == args[0].try_as_number()?))
+        .with_message(*TALK_BINARY_REMAINDER,       |val, args| Ok::<_, TalkError>(val % args[0].try_as_number()?))
+        .with_message(*TALK_MSG_ABS,                |val, _| match val { TalkNumber::Int(x) => TalkNumber::Int(x.abs()), TalkNumber::Float(x) => TalkNumber::Float(x.abs()) })
+        .with_message(*TALK_MSG_AS_FLOAT,           |val, _| TalkValue::Float(val.as_float()))
+        .with_message(*TALK_MSG_AS_FLOAT_D,         |val, _| TalkValue::Float(val.as_float()))
+        .with_message(*TALK_MSG_AS_FLOAT_E,         |val, _| TalkValue::Float(val.as_float()))
+        .with_message(*TALK_MSG_AS_FLOAT_Q,         |val, _| TalkValue::Float(val.as_float()))
+        .with_message(*TALK_MSG_AS_FRACTION,        |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_AS_INTEGER,         |val, _| TalkValue::Int(val.truncate()))
+        .with_message(*TALK_MSG_AS_SCALED_DECIMAL,  |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_CEILING,            |val, _| match val { TalkNumber::Int(x) => TalkNumber::Int(x), TalkNumber::Float(x) => TalkNumber::Float(x.ceil()) })
+        .with_message(*TALK_MSG_FLOOR,              |val, _| match val { TalkNumber::Int(x) => TalkNumber::Int(x), TalkNumber::Float(x) => TalkNumber::Float(x.floor()) })
+        .with_message(*TALK_MSG_FRACTION_PART,      |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_INTEGER_PART,       |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_NEGATED,            |val, _| -val)
+        .with_message(*TALK_MSG_NEGATIVE,           |val, _| match val { TalkNumber::Int(x) => x < 0, TalkNumber::Float(x) => x < 0.0 })
+        .with_message(*TALK_MSG_POSITIVE,           |val, _| match val { TalkNumber::Int(x) => x >= 0, TalkNumber::Float(x) => x >= 0.0 })
+        .with_message(*TALK_MSG_QUO,                |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_RAISED_TO,          |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_RAISED_TO_INTEGER,  |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_RECIPROCAL,         |val, _| TalkNumber::Float(1.0) / val)
+        .with_message(*TALK_MSG_REM,                |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_ROUNDED,            |val, _| match val { TalkNumber::Int(x) => TalkNumber::Int(x), TalkNumber::Float(x) => TalkNumber::Float(x.round()) })
+        .with_message(*TALK_MSG_ROUND_TO,           |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_SIGN,               |val, _| match val { TalkNumber::Int(x) => TalkNumber::Int(x.signum()), TalkNumber::Float(x) => TalkNumber::Int(x.signum() as _) })
+        .with_message(*TALK_MSG_SQRT,               |val, _| match val { TalkNumber::Int(x) => TalkNumber::Int((x as f64).sqrt().round() as i64), TalkNumber::Float(x) => TalkNumber::Float(x.sqrt()) })
+        .with_message(*TALK_MSG_SQUARED,            |val, _| match val { TalkNumber::Int(x) => TalkNumber::Int(x * x), TalkNumber::Float(x) => TalkNumber::Float(x * x) })
+        .with_message(*TALK_MSG_STRICTLY_POSITIVE,  |val, _| match val { TalkNumber::Int(x) => x > 0, TalkNumber::Float(x) => x > 0.0 })
+        .with_message(*TALK_MSG_TO,                 |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_TO_BY,              |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_TO_BY_DO,           |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_TO_DO,              |val, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_TRUNCATED,          |val, _| val.truncate())
+        .with_message(*TALK_MSG_TRUNCATE_TO,        |val, _| TalkError::NotImplemented)
         ;
 }
 
