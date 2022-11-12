@@ -32,6 +32,16 @@ impl TalkNumber {
             TalkNumber::Float(val)  => val,
         }
     }
+
+    ///
+    /// Returns the value of this number as an integer
+    ///
+    pub fn truncate(self) -> i64 {
+        match self {
+            TalkNumber::Int(val)    => val,
+            TalkNumber::Float(val)  => val.floor() as _,
+        }
+    }
 }
 
 impl Add for TalkNumber {
