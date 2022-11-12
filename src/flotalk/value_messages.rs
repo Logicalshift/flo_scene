@@ -1,5 +1,6 @@
 use super::continuation::*;
 use super::context::*;
+use super::dispatch_table::*;
 use super::error::*;
 use super::message::*;
 use super::value::*;
@@ -148,6 +149,12 @@ lazy_static! {
     pub static ref TALK_MSG_TO_DO: TalkMessageSignatureId                       = ("to:", "do:").into();
     pub static ref TALK_MSG_TRUNCATED: TalkMessageSignatureId                   = "truncated".into();
     pub static ref TALK_MSG_TRACATE_TO: TalkMessageSignatureId                  = ("truncateTo:").into();
+}
+
+lazy_static! {
+    pub static ref TALK_DISPATCH_BOOLEAN: TalkMessageDispatchTable<bool> = TalkMessageDispatchTable::empty()
+        .with_message(*TALK_BINARY_AND, |val, args| Ok::<_, TalkError>(val & args[0].try_as_bool()?))
+        ;
 }
 
 impl TalkValue {
