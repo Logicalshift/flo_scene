@@ -64,10 +64,10 @@ impl TalkValue {
     ///
     /// Returns the reference represented by this value
     ///
-    pub fn try_as_reference(self) -> Result<TalkReference, TalkError> {
+    pub fn try_as_reference(&self) -> Result<TalkReference, TalkError> {
         match self {
             TalkValue::Nil                  => Err(TalkError::IsNil),
-            TalkValue::Reference(value_ref) => Ok(value_ref),
+            TalkValue::Reference(value_ref) => Ok(*value_ref),
             _                               => Err(TalkError::NotAReference)
         }
     }
@@ -75,10 +75,10 @@ impl TalkValue {
     ///
     /// Returns the reference represented by this value
     ///
-    pub fn try_as_bool(self) -> Result<bool, TalkError> {
+    pub fn try_as_bool(&self) -> Result<bool, TalkError> {
         match self {
             TalkValue::Nil                  => Err(TalkError::IsNil),
-            TalkValue::Bool(val)            => Ok(val),
+            TalkValue::Bool(val)            => Ok(*val),
             _                               => Err(TalkError::NotABoolean)
         }
     }
@@ -86,10 +86,10 @@ impl TalkValue {
     ///
     /// Returns the reference represented by this value
     ///
-    pub fn try_as_int(self) -> Result<i64, TalkError> {
+    pub fn try_as_int(&self) -> Result<i64, TalkError> {
         match self {
             TalkValue::Nil                  => Err(TalkError::IsNil),
-            TalkValue::Int(num)             => Ok(num),
+            TalkValue::Int(num)             => Ok(*num),
             _                               => Err(TalkError::NotAnInteger)
         }
     }
@@ -97,11 +97,11 @@ impl TalkValue {
     ///
     /// Returns the reference represented by this value
     ///
-    pub fn try_as_float(self) -> Result<f64, TalkError> {
+    pub fn try_as_float(&self) -> Result<f64, TalkError> {
         match self {
             TalkValue::Nil                  => Err(TalkError::IsNil),
-            TalkValue::Int(num)             => Ok(num as f64),
-            TalkValue::Float(num)           => Ok(num),
+            TalkValue::Int(num)             => Ok(*num as f64),
+            TalkValue::Float(num)           => Ok(*num),
             _                               => Err(TalkError::NotAFloat)
         }
     }
@@ -109,11 +109,11 @@ impl TalkValue {
     ///
     /// Returns the reference represented by this value
     ///
-    pub fn try_as_number(self) -> Result<TalkNumber, TalkError> {
+    pub fn try_as_number(&self) -> Result<TalkNumber, TalkError> {
         match self {
             TalkValue::Nil                  => Err(TalkError::IsNil),
-            TalkValue::Int(num)             => Ok(TalkNumber::Int(num)),
-            TalkValue::Float(num)           => Ok(TalkNumber::Float(num)),
+            TalkValue::Int(num)             => Ok(TalkNumber::Int(*num)),
+            TalkValue::Float(num)           => Ok(TalkNumber::Float(*num)),
             _                               => Err(TalkError::NotAFloat)
         }
     }
