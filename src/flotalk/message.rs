@@ -33,6 +33,28 @@ pub enum TalkMessage {
 
 impl TalkMessage {
     ///
+    /// The signature ID of this message
+    ///
+    #[inline]
+    pub fn signature_id(&self) -> TalkMessageSignatureId {
+        match self {
+            TalkMessage::Unary(id)              => *id,
+            TalkMessage::WithArguments(id, _)   => *id,
+        }
+    }
+
+    ///
+    /// Consumes this message and returns the arguments
+    ///
+    #[inline]
+    pub fn to_arguments(self) -> SmallVec<[TalkValue; 4]> {
+        match self {
+            TalkMessage::Unary(_)               => smallvec![],
+            TalkMessage::WithArguments(_, args) => args,
+        }
+    }
+
+    ///
     /// Creates a unary message
     ///
     pub fn unary(symbol: impl Into<TalkSymbol>) -> TalkMessage {
