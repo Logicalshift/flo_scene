@@ -6,6 +6,7 @@ use super::expression::*;
 use super::message::*;
 use super::reference::*;
 use super::symbol::*;
+use super::value_messages::*;
 
 use std::f64;
 use std::i64;
@@ -135,7 +136,7 @@ impl TalkValue {
             Symbol(_)       |
             Selector(_)     |
             Array(_)        |
-            Error(_)        => { todo!() }
+            Error(_)        => { self.default_send_message(message) }
 
             Reference(reference) => reference.send_message_in_context(message, context),
         }
