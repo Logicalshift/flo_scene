@@ -1,3 +1,4 @@
+use super::context::*;
 use super::expression::*;
 use super::symbol::*;
 use super::value::*;
@@ -102,6 +103,16 @@ impl TalkMessage {
         }
 
         TalkMessage::WithArguments(TalkMessageSignature::Arguments(signature_symbols).id(), argument_values)
+    }
+
+    ///
+    /// Releases all the references contained in this message
+    ///
+    pub fn release_references(self, context: &TalkContext) {
+        match self {
+            TalkMessage::Unary(_)               => { }
+            TalkMessage::WithArguments(_, args) => { context.release_values(args); }
+        }
     }
 }
 
