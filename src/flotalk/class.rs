@@ -68,10 +68,10 @@ pub (super) struct TalkClassContextCallbacks {
     send_class_message: Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation>,
 
     /// Add to the reference count for a data handle
-    add_reference: Box<dyn Send + FnMut(TalkDataHandle) -> ()>,
+    add_reference: Box<dyn Send + Fn(TalkDataHandle) -> ()>,
 
     /// Decreases the reference count for a data handle, and frees it if the count reaches 0
-    remove_reference: Box<dyn Send + FnMut(TalkDataHandle) -> ()>,
+    remove_reference: Box<dyn Send + Fn(TalkDataHandle) -> ()>,
 
     /// If there's a class data reader for the type ID, return a Box containing an Option<TargetType>, otherwise return None
     read_data: Box<dyn Send + Fn(TypeId, TalkDataHandle) -> Option<Box<dyn Any>>>,
@@ -103,12 +103,12 @@ impl TalkClassContextCallbacks {
     }
 
     #[inline]
-    pub (super) fn add_reference(&mut self, data_handle: TalkDataHandle) {
+    pub (super) fn add_reference(&self, data_handle: TalkDataHandle) {
         (self.add_reference)(data_handle)
     }
 
     #[inline]
-    pub (super) fn remove_reference(&mut self, data_handle: TalkDataHandle) {
+    pub (super) fn remove_reference(&self, data_handle: TalkDataHandle) {
         (self.remove_reference)(data_handle)
     }
 
@@ -230,7 +230,7 @@ impl TalkClass {
     ///
     /// Creates the 'add reference' method for an allocator
     ///
-    fn callback_add_reference(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + FnMut(TalkDataHandle) -> ()> {
+    fn callback_add_reference(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + Fn(TalkDataHandle) -> ()> {
         Box::new(move |data_handle| {
             let mut allocator = allocator.lock().unwrap();
             allocator.add_reference(data_handle)
@@ -240,7 +240,7 @@ impl TalkClass {
     ///
     /// Creates the 'remove reference' method for an allocator
     ///
-    fn callback_remove_reference(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + FnMut(TalkDataHandle) -> ()> {
+    fn callback_remove_reference(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + Fn(TalkDataHandle) -> ()> {
         Box::new(move |data_handle| {
             let mut allocator = allocator.lock().unwrap();
             allocator.remove_reference(data_handle)
