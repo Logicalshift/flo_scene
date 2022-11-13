@@ -127,18 +127,18 @@ impl TalkValue {
         use TalkValue::*;
 
         match self {
-            Nil             |
-            Bool(_)         |
-            Int(_)          |
-            Float(_)        |
-            String(_)       |
-            Character(_)    |
-            Symbol(_)       |
-            Selector(_)     |
-            Array(_)        |
-            Error(_)        => { self.default_send_message(message, context) }
+            Nil                         => context.value_dispatch_tables.any_dispatch.send_message(TalkValue::Nil, message, context),
+            Bool(bool_value)            => context.value_dispatch_tables.bool_dispatch.send_message(*bool_value, message, context),
+            Int(int_value)              => context.value_dispatch_tables.int_dispatch.send_message(TalkNumber::Int(*int_value), message, context),
+            Float(float_value)          => context.value_dispatch_tables.float_dispatch.send_message(TalkNumber::Float(*float_value), message, context),
+            String(string_value)        => context.value_dispatch_tables.string_dispatch.send_message(Arc::clone(string_value), message, context),
+            Character(char_value)       => context.value_dispatch_tables.character_dispatch.send_message(*char_value, message, context),
+            Symbol(symbol_value)        => context.value_dispatch_tables.symbol_dispatch.send_message(*symbol_value, message, context),
+            Selector(selector_value)    => context.value_dispatch_tables.selector_dispatch.send_message(*selector_value, message, context),
+            Array(array_value)          => context.value_dispatch_tables.array_dispatch.send_message(array_value.clone(), message, context),
+            Error(error)                => context.value_dispatch_tables.error_dispatch.send_message(error.clone(), message, context),
 
-            Reference(reference) => reference.send_message_in_context(message, context),
+            Reference(reference)        => reference.send_message_in_context(message, context),
         }
     }
 
