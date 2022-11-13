@@ -1,5 +1,6 @@
 use super::context::*;
 use super::error::*;
+use super::message::*;
 use super::value::*;
 
 use futures::task::{Poll, Context};
@@ -62,5 +63,32 @@ where
             Ok(val)     => TalkContinuation::Ready(val.into()),
             Err(err)    => TalkContinuation::Ready(TalkValue::Error(err.into()))
         }
+    }
+}
+
+impl From<TalkSendMessage> for TalkContinuation {
+    #[inline]
+    fn from(TalkSendMessage(target, message): TalkSendMessage) -> TalkContinuation {
+        let mut message                 = Some(message);
+        let mut message_continuation    = None;
+
+        TalkContinuation::Later(Box::new(move |talk_context, future_context| {
+            loop {
+                match message_continuation.take() {
+                    None                                    => { message_continuation = Some(target.send_message_in_context(message.take().unwrap(), talk_context)); },
+                    Some(TalkContinuation::Ready(val))      => { message_continuation = Some(TalkContinuation::Ready(TalkValue::Nil)); return Poll::Ready(val); }
+                    Some(TalkContinuation::Soon(soon_fn))   => {
+                        message_continuation    = Some(TalkContinuation::Ready(TalkValue::Nil));
+                        let result              = soon_fn(talk_context);
+                        return Poll::Ready(result);
+                    }
+                    Some(TalkContinuation::Later(mut later_fn))   => {
+                        let result              = later_fn(talk_context, future_context);
+                        message_continuation    = Some(TalkContinuation::Later(later_fn));
+                        return result;
+                    }
+                }
+            }
+        }))
     }
 }

@@ -20,7 +20,22 @@ lazy_static! {
 }
 
 ///
-/// Represents a flotalk message
+/// Represents a FloTalk message
+///
+/// Messages can be either unary (a call with no arguments):
+///
+/// ```
+/// # use flo_scene::flotalk::*;
+/// let message = TalkMessage::Unary("message".into());
+/// ```
+///
+/// Or they can supply some arguments, where the number of arguments must match the message signature ID:
+///
+/// ```
+/// # use flo_scene::flotalk::*;
+/// # use smallvec::*;
+/// let message = TalkMessage::WithArguments(("arg1:", "arg2:").into(), smallvec![42.into(), "String".into()]);
+/// ```
 ///
 #[derive(Clone)]
 pub enum TalkMessage {
@@ -30,6 +45,19 @@ pub enum TalkMessage {
     /// A message with named arguments
     WithArguments(TalkMessageSignatureId, SmallVec<[TalkValue; 4]>),
 }
+
+///
+/// The data represented by a message send action
+///
+/// This is commonly used to create a continuation that will send the specified message:
+///
+/// ```
+/// # use flo_scene::flotalk::*;
+/// # let some_value = TalkValue::Nil;
+/// let continuation = TalkContinuation::from(TalkSendMessage(some_value, TalkMessage::Unary("value".into())));
+/// ```
+///
+pub struct TalkSendMessage(pub TalkValue, pub TalkMessage);
 
 impl TalkMessage {
     ///
