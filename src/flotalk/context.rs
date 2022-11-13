@@ -1,6 +1,7 @@
 use super::class::*;
 use super::dispatch_table::*;
 use super::reference::*;
+use super::value::*;
 use super::value_messages::*;
 
 use ouroboros::{self_referencing};
@@ -154,5 +155,39 @@ impl TalkContext {
         }.build();
 
         reference
+    }
+
+    ///
+    /// Releases multiple references using this context
+    ///
+    #[inline]
+    pub fn release_references(&self, references: impl IntoIterator<Item=TalkReference>) {
+        for reference in references {
+            if let Some(callbacks) = self.get_callbacks(reference.0) {
+                callbacks.remove_reference(reference.1);
+            }
+        }
+    }
+
+    ///
+    /// Releases multiple references using this context
+    ///
+    #[inline]
+    pub fn release_values(&self, values: impl IntoIterator<Item=TalkValue>) {
+        for value in values {
+            match value {
+                TalkValue::Reference(reference) => {
+                    if let Some(callbacks) = self.get_callbacks(reference.0) {
+                        callbacks.remove_reference(reference.1);
+                    }
+                },
+
+                TalkValue::Array(array) => {
+                    self.release_values(array);
+                }
+
+                _ => {}
+            }
+        }
     }
 }
