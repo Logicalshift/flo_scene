@@ -218,6 +218,9 @@ where
 
             // Pops message arguments and an object from the stack, and sends the specified message, leaving the result on the stack. Number of arguments is supplied, and must match the number in the message signature.
             SendMessage(message_id, arg_count) => {
+                // TODO: need to handle releasing arguments after the message has been completed
+                //      (better if the receiver is responsible for releasing its arguments and itself...)
+
                 // Pop arguments
                 let mut args = smallvec![];
                 for _ in 0..*arg_count {
