@@ -69,6 +69,11 @@ pub fn create_class() {
 }
 
 #[test]
+pub fn create_runtime() {
+    TalkRuntime::empty();
+}
+
+#[test]
 pub fn send_new_message() {
     let test_class  = TalkClass::create(TestClass);
     let runtime     = TalkRuntime::empty();
