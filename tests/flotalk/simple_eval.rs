@@ -57,6 +57,57 @@ fn divide_numbers() {
 }
 
 #[test]
+fn and_success() {
+    let test_source     = "(1 < 2) and: [ (3 < 4) ]";
+    let runtime         = TalkRuntime::empty();
+    let root_values     = vec![Arc::new(Mutex::new(TalkValueStore::default()))];
+
+    executor::block_on(async { 
+        let test_source     = stream::iter(test_source.chars());
+        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
+        let instructions    = expr.value.to_instructions();
+
+        let result          = runtime.run_continuation(talk_evaluate_simple(root_values, Arc::new(instructions))).await;
+
+        assert!(result == TalkValue::Bool(true));
+    });
+}
+
+#[test]
+fn and_failure_rhs() {
+    let test_source     = "(1 < 2) and: [ (3 > 4) ]";
+    let runtime         = TalkRuntime::empty();
+    let root_values     = vec![Arc::new(Mutex::new(TalkValueStore::default()))];
+
+    executor::block_on(async { 
+        let test_source     = stream::iter(test_source.chars());
+        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
+        let instructions    = expr.value.to_instructions();
+
+        let result          = runtime.run_continuation(talk_evaluate_simple(root_values, Arc::new(instructions))).await;
+
+        assert!(result == TalkValue::Bool(false));
+    });
+}
+
+#[test]
+fn and_failure_lhs() {
+    let test_source     = "(1 > 2) and: [ (3 < 4) ]";
+    let runtime         = TalkRuntime::empty();
+    let root_values     = vec![Arc::new(Mutex::new(TalkValueStore::default()))];
+
+    executor::block_on(async { 
+        let test_source     = stream::iter(test_source.chars());
+        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
+        let instructions    = expr.value.to_instructions();
+
+        let result          = runtime.run_continuation(talk_evaluate_simple(root_values, Arc::new(instructions))).await;
+
+        assert!(result == TalkValue::Bool(false));
+    });
+}
+
+#[test]
 fn retrieve_argument() {
     let test_source     = "x";
     let runtime         = TalkRuntime::empty();
