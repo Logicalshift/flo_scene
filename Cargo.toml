@@ -16,7 +16,7 @@ test-scene      = [ "futures-timer" ]
 timer           = [ "futures-timer" ]
 logging         = [ "log" ]
 properties      = [ "flo_binding", "flo_rope", "flo_stream", "lazy_static" ]
-flotalk         = [ "flo_stream", "lazy_static", "smallvec", "ouroboros" ]
+flotalk         = [ "flo_stream", "lazy_static", "smallvec" ]
 
 [dependencies]
 futures         = "0.3"
@@ -29,7 +29,6 @@ flo_rope        = { version = "0.2", optional = true }
 log             = { version = "0.4", optional = true }
 lazy_static     = { version = "1.4", optional = true }
 smallvec        = { version = "1.10", optional = true }
-ouroboros       = { version = "0.15", optional = true }
 
 [patch.crates-io]
 flo_binding     = { git = "https://github.com/Logicalshift/flo_binding", branch = "v3.0" }

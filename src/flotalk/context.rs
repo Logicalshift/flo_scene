@@ -4,8 +4,6 @@ use super::reference::*;
 use super::value::*;
 use super::value_messages::*;
 
-use ouroboros::{self_referencing};
-
 use std::ops::{Deref};
 
 ///
@@ -23,61 +21,6 @@ pub struct TalkContext {
 
     /// Dispatch tables by value
     pub (super) value_dispatch_tables: TalkValueDispatchTables,
-}
-
-///
-/// A reference to some data contained within a TalkContext
-///
-#[self_referencing]
-pub struct TalkContextReference<'a, TData> 
-where
-    TData: 'a,
-{
-    /// The context that the data is borrowed from
-    context: &'a mut TalkContext,
-
-    /// The data borrowed from the context
-    #[borrows(mut context)]
-    data: &'this mut TData,
-}
-
-impl<'a, TData> TalkContextReference<'a, TData>
-where
-    TData: 'a,
-{
-    ///
-    /// Accesses the data inside this reference
-    ///
-    #[inline]
-    pub fn data(&self) -> &TData {
-        self.borrow_data()
-    }
-
-    ///
-    /// Access the data in this reference using a mutable update
-    ///
-    #[inline]
-    pub fn update_data<TReturn>(&mut self, with_fn: impl for<'b> FnOnce(&'b mut TData) -> TReturn) -> TReturn {
-        self.with_data_mut(move |data| with_fn(*data))
-    }
-
-    ///
-    /// Releases the reference borrowed by this item and returns the underlying context
-    ///
-    #[inline]
-    pub fn to_context(self) -> &'a mut TalkContext {
-        let heads = self.into_heads();
-
-        heads.context
-    }
-}
-
-impl<'a, TData> Deref for TalkContextReference<'a, TData> {
-    type Target = TData;
-
-    fn deref(&self) -> &Self::Target {
-        self.borrow_data()
-    }
 }
 
 impl TalkContext {
@@ -136,25 +79,6 @@ impl TalkContext {
             Some(ctxt)  => ctxt.as_ref(),
             None        => None,
         }
-    }
-
-    ///
-    /// Creates a 'borrowed context reference' via some class context callbacks
-    ///
-    #[inline]
-    pub (super) fn borrow_with_callbacks<'a, TData>(&'a mut self, class: TalkClass, with_fn: impl for<'b> FnOnce(&'b mut TalkClassContextCallbacks) -> &'b mut TData) -> TalkContextReference<'a, TData> 
-    where
-        TData: 'a
-    {
-        let reference = TalkContextReferenceBuilder {
-            context:        self,
-            data_builder:   |val| { 
-                let callbacks = val.get_callbacks_mut(class);
-                with_fn(callbacks)
-            },
-        }.build();
-
-        reference
     }
 
     ///
