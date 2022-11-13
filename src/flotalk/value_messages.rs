@@ -159,7 +159,7 @@ lazy_static! {
     pub static ref TALK_DISPATCH_BOOLEAN: TalkMessageDispatchTable<bool> = TalkMessageDispatchTable::empty()
         .with_message(*TALK_BINARY_AND,             |val: bool, args, _| Ok::<_, TalkError>(val & args[0].try_as_bool()?))
         .with_message(*TALK_BINARY_OR,              |val, args, _| Ok::<_, TalkError>(val | args[0].try_as_bool()?))
-        .with_message(*TALK_MSG_AND,                |val, args, _| if !val { TalkContinuation::from(false) } else { TalkContinuation::from(TalkSendMessage(args[0].clone(), TalkMessage::Unary(*TALK_MSG_VALUE))) })
+        .with_message(*TALK_MSG_AND,                |val, args, context| if !val { TalkContinuation::from(false) } else { args[0].send_message_in_context(TalkMessage::Unary(*TALK_MSG_VALUE), context) })
         .with_message(*TALK_MSG_OR,                 |_, _, _| TalkError::NotImplemented)
         .with_message(*TALK_MSG_XOR,                |_, _, _| TalkError::NotImplemented)
         .with_message(*TALK_MSG_EQV,                |_, _, _| TalkError::NotImplemented)
