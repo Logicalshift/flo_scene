@@ -19,7 +19,7 @@ pub struct TalkDataHandle(pub usize);
 ///
 /// FloTalk data is stored by class and handle. References are only valid for the context that they were created for.
 ///
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct TalkReference(pub (crate) TalkClass, pub (crate) TalkDataHandle);
 
 impl TalkReference {
@@ -73,8 +73,8 @@ impl TalkReference {
     ///
     /// Sends a message to this object
     ///
-    pub fn send_message_later(&self, message: TalkMessage) -> TalkContinuation {
-        let reference                   = *self;
+    pub fn send_message_later(self, message: TalkMessage) -> TalkContinuation {
+        let reference                   = self;
         let mut message                 = Some(message);
         let mut message_continuation    = None;
 
@@ -97,7 +97,7 @@ impl TalkReference {
     ///
     /// Sends a message to this object
     ///
-    pub fn send_message(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl Future<Output=TalkValue> {
+    pub fn send_message(self, message: TalkMessage, runtime: &TalkRuntime) -> impl Future<Output=TalkValue> {
         runtime.run_continuation(self.send_message_later(message))
     }
 

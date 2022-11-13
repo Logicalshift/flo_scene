@@ -7,8 +7,8 @@ use super::symbol::*;
 ///
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum TalkError {
-    /// Error with a FloTalk object
-    Object(TalkReference),
+    // TODO: Error described by a FloTalk object
+    // Object(TalkReference),
 
     /// Something is not implemented
     NotImplemented,

@@ -85,6 +85,7 @@ pub fn send_new_message() {
     assert!(new_result == TalkValue::Reference(TalkReference::from_handle(test_class, TalkDataHandle(0))));
 }
 
+/* -- TODO!
 #[test]
 pub fn send_instance_messages() {
     let test_class  = TalkClass::create(TestClass);
@@ -149,3 +150,4 @@ pub fn read_class_data_unsupported_type() {
         assert!(string_value == None);
     });
 }
+*/

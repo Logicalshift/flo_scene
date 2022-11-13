@@ -1,6 +1,7 @@
 use super::context::*;
 use super::continuation::*;
 use super::error::*;
+use super::message::*;
 use super::value::*;
 
 use futures::prelude::*;
@@ -36,6 +37,20 @@ impl TalkRuntime {
     pub fn empty() -> TalkRuntime {
         Self::with_context(TalkContext::empty())
     }
+
+    /* -- TODO, lifetimes
+    ///
+    /// Sends a message to a value using this runtime
+    ///
+    pub fn send_message<'a>(&'a self, value: &'a TalkValue, message: TalkMessage) -> impl 'a + Send + Future<Output=TalkValue> {
+        async move {
+            self.run_continuation(TalkContinuation::Soon(Box::new(move |talk_context| {
+                let value = value.clone_in_context(talk_context);
+                value.send_message_in_context(message, talk_context)
+            }))).await
+        }
+    }
+    */
 
     ///
     /// Runs a continuation with a 'later' part

@@ -262,13 +262,13 @@ impl TalkValue {
     /// Performs the default behaviour for a message when sent to a TalkValue
     ///
     #[inline]
-    pub fn default_send_message(&self, message: TalkMessage, context: &TalkContext) -> TalkContinuation {
+    pub fn default_send_message(self, message: TalkMessage, context: &TalkContext) -> TalkContinuation {
         match self {
             TalkValue::Nil                      => TalkError::IsNil.into(),
             TalkValue::Reference(reference)     => reference.send_message_later(message),
-            TalkValue::Bool(val)                => TALK_DISPATCH_BOOLEAN.send_message(*val, message, context),
-            TalkValue::Int(val)                 => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Int(*val), message, context),
-            TalkValue::Float(val)               => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Float(*val), message, context),
+            TalkValue::Bool(val)                => TALK_DISPATCH_BOOLEAN.send_message(val, message, context),
+            TalkValue::Int(val)                 => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Int(val), message, context),
+            TalkValue::Float(val)               => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Float(val), message, context),
             TalkValue::String(val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Character(val)           => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Symbol(val)              => TalkError::MessageNotSupported(message.signature_id()).into(),

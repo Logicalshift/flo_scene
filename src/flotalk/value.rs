@@ -100,10 +100,10 @@ impl TalkValue {
     ///
     /// Returns the reference represented by this value
     ///
-    pub fn try_as_reference(&self) -> Result<TalkReference, TalkError> {
+    pub fn try_as_reference(&self) -> Result<&TalkReference, TalkError> {
         match self {
             TalkValue::Nil                  => Err(TalkError::IsNil),
-            TalkValue::Reference(value_ref) => Ok(*value_ref),
+            TalkValue::Reference(value_ref) => Ok(value_ref),
             _                               => Err(TalkError::NotAReference)
         }
     }
@@ -155,7 +155,7 @@ impl TalkValue {
     }
 
     ///
-    /// Increases the reference count for this value. References are freed once the count reaches 0.
+    /// Sends a message to this value, then releases it
     ///
     #[inline]
     pub fn send_message_in_context(self, message: TalkMessage, context: &TalkContext) -> TalkContinuation {
@@ -175,6 +175,14 @@ impl TalkValue {
 
             Reference(reference)        => reference.send_message_in_context(message, context),
         }
+    }
+
+    ///
+    /// Sends a message to this value, then releases it
+    ///
+    #[inline]
+    fn send_message(self, message: TalkMessage) -> TalkContinuation {
+        TalkContinuation::Soon(Box::new(move |talk_context| self.send_message_in_context(message, talk_context)))
     }
 
     ///
