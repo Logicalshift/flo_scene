@@ -208,7 +208,7 @@ lazy_static! {
         .with_message(*TALK_MSG_ROUNDED,            |val, _, _| match val { TalkNumber::Int(x) => TalkNumber::Int(x), TalkNumber::Float(x) => TalkNumber::Float(x.round()) })
         .with_message(*TALK_MSG_ROUND_TO,           |_, _, _| TalkError::NotImplemented)
         .with_message(*TALK_MSG_SIGN,               |val, _, _| match val { TalkNumber::Int(x) => TalkNumber::Int(x.signum()), TalkNumber::Float(x) => TalkNumber::Int(x.signum() as _) })
-        .with_message(*TALK_MSG_SQRT,               |val, _, _| match val { TalkNumber::Int(x) => TalkNumber::Int((x as f64).sqrt().round() as i64), TalkNumber::Float(x) => TalkNumber::Float(x.sqrt()) })
+        .with_message(*TALK_MSG_SQRT,               |val, _, _| match val { TalkNumber::Int(x) => TalkNumber::Int((x as f64).sqrt().floor() as i64), TalkNumber::Float(x) => TalkNumber::Float(x.sqrt()) })
         .with_message(*TALK_MSG_SQUARED,            |val, _, _| match val { TalkNumber::Int(x) => TalkNumber::Int(x * x), TalkNumber::Float(x) => TalkNumber::Float(x * x) })
         .with_message(*TALK_MSG_STRICTLY_POSITIVE,  |val, _, _| match val { TalkNumber::Int(x) => x > 0, TalkNumber::Float(x) => x > 0.0 })
         .with_message(*TALK_MSG_TO,                 |_, _, _| TalkError::NotImplemented)
