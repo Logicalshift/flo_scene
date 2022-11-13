@@ -136,7 +136,7 @@ impl TalkValue {
             Symbol(_)       |
             Selector(_)     |
             Array(_)        |
-            Error(_)        => { self.default_send_message(message) }
+            Error(_)        => { self.default_send_message(message, context) }
 
             Reference(reference) => reference.send_message_in_context(message, context),
         }
