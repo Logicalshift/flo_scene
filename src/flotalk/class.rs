@@ -62,7 +62,7 @@ pub (super) struct TalkClassCallbacks {
 ///
 pub (super) struct TalkClassContextCallbacks {
     /// Sends a message to an object
-    send_message: Box<dyn Send + FnMut(TalkDataHandle, TalkMessage) -> TalkContinuation>,
+    send_message: Box<dyn Send + Fn(TalkDataHandle, TalkMessage) -> TalkContinuation>,
 
     /// Sends a message to the class object
     send_class_message: Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation>,
@@ -74,7 +74,7 @@ pub (super) struct TalkClassContextCallbacks {
     remove_reference: Box<dyn Send + FnMut(TalkDataHandle) -> ()>,
 
     /// If there's a class data reader for the type ID, return a Box containing an Option<TargetType>, otherwise return None
-    read_data: Box<dyn Send + FnMut(TypeId, TalkDataHandle) -> Option<Box<dyn Any>>>,
+    read_data: Box<dyn Send + Fn(TypeId, TalkDataHandle) -> Option<Box<dyn Any>>>,
 
     /// The definition for this class (a boxed Arc<TalkClassDefinition>)
     class_definition: Box<dyn Send + Any>,
@@ -98,7 +98,7 @@ impl TalkClassCallbacks {
 
 impl TalkClassContextCallbacks {
     #[inline]
-    pub (super) fn send_message(&mut self, data_handle: TalkDataHandle, message: TalkMessage) -> TalkContinuation {
+    pub (super) fn send_message(&self, data_handle: TalkDataHandle, message: TalkMessage) -> TalkContinuation {
         (self.send_message)(data_handle, message)
     }
 
@@ -118,7 +118,7 @@ impl TalkClassContextCallbacks {
     }
 
     #[inline]
-    pub (super) fn read_data<TTargetData>(&mut self, data_handle: TalkDataHandle) -> Option<TTargetData> 
+    pub (super) fn read_data<TTargetData>(&self, data_handle: TalkDataHandle) -> Option<TTargetData> 
     where
         TTargetData: 'static,
     {
@@ -215,7 +215,7 @@ impl TalkClass {
     ///
     /// Creates the 'send message' method for an allocator
     ///
-    fn callback_send_message<TClass>(class_id: TalkClass, class_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + FnMut(TalkDataHandle, TalkMessage) -> TalkContinuation> 
+    fn callback_send_message<TClass>(class_id: TalkClass, class_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + Fn(TalkDataHandle, TalkMessage) -> TalkContinuation> 
     where
         TClass: 'static + TalkClassDefinition,
     {
@@ -264,7 +264,7 @@ impl TalkClass {
     ///
     /// Creates the 'read class data' function for a class
     ///
-    fn callback_read_data<TClass>(_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + FnMut(TypeId, TalkDataHandle) -> Option<Box<dyn Any>>>
+    fn callback_read_data<TClass>(_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + Fn(TypeId, TalkDataHandle) -> Option<Box<dyn Any>>>
     where
         TClass: 'static + TalkClassDefinition,
     {
@@ -396,7 +396,7 @@ impl TalkClass {
     ///
     #[inline]
     pub fn send_message_in_context(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
-        context.get_callbacks(*self).send_class_message(message)
+        context.get_callbacks_mut(*self).send_class_message(message)
     }
 
     ///
@@ -455,7 +455,7 @@ impl TalkClass {
     where
         TClass: 'static + TalkClassDefinition
     {
-        let callbacks = context.get_callbacks(*self);
+        let callbacks = context.get_callbacks_mut(*self);
 
         callbacks.allocator.downcast_ref::<Arc<Mutex<TClass::Allocator>>>()
             .map(|defn| Arc::clone(defn))

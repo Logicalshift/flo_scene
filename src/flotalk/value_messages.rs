@@ -262,7 +262,7 @@ impl TalkValue {
     /// Performs the default behaviour for a message when sent to a TalkValue
     ///
     #[inline]
-    pub fn default_send_message(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
+    pub fn default_send_message(&self, message: TalkMessage, context: &TalkContext) -> TalkContinuation {
         match self {
             TalkValue::Nil                      => TalkError::IsNil.into(),
             TalkValue::Reference(reference)     => reference.send_message_later(message),

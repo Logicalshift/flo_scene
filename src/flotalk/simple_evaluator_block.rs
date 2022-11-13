@@ -172,7 +172,7 @@ where
 
     // Fetch the allocator for this class
     let class       = simple_evaluator_block_class::<TValue, TSymbol>();
-    let allocator   = talk_context.get_callbacks(class).allocator::<TalkStandardAllocator<Arc<SimpleEvaluatorBlock<TValue, TSymbol>>>>().unwrap();
+    let allocator   = talk_context.get_callbacks_mut(class).allocator::<TalkStandardAllocator<Arc<SimpleEvaluatorBlock<TValue, TSymbol>>>>().unwrap();
 
     // Store the data using the allocator
     let data_handle = allocator.lock().unwrap().store(Arc::new(data));

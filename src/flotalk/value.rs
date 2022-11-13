@@ -123,7 +123,7 @@ impl TalkValue {
     /// Increases the reference count for this value. References are freed once the count reaches 0.
     ///
     #[inline]
-    pub fn send_message_in_context(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
+    pub fn send_message_in_context(&self, message: TalkMessage, context: &TalkContext) -> TalkContinuation {
         use TalkValue::*;
 
         match self {

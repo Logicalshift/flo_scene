@@ -36,7 +36,7 @@ impl TalkReference {
     ///
     #[inline]
     pub fn add_reference(&self, context: &mut TalkContext) {
-        context.get_callbacks(self.0).add_reference(self.1)
+        context.get_callbacks_mut(self.0).add_reference(self.1)
     }
 
     ///
@@ -44,15 +44,18 @@ impl TalkReference {
     ///
     #[inline]
     pub fn remove_reference(&self, context: &mut TalkContext) {
-        context.get_callbacks(self.0).remove_reference(self.1)
+        context.get_callbacks_mut(self.0).remove_reference(self.1)
     }
 
     ///
     /// Sends a message to this object.
     ///
     #[inline]
-    pub fn send_message_in_context(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
-        context.get_callbacks(self.0).send_message(self.1, message)
+    pub fn send_message_in_context(&self, message: TalkMessage, context: &TalkContext) -> TalkContinuation {
+        match context.get_callbacks(self.0) {
+            Some(callbacks)     => callbacks.send_message(self.1, message),
+            None                => unreachable!("A reference should not reference a class that has not been initialized in the context"),   // As we have to send a message to an instance of a class before we can have a reference to that class, the callbacks should always exist when sending a message to a reference
+        }
     }
 
     ///
@@ -93,7 +96,7 @@ impl TalkReference {
     where
         TTargetData: 'static,
     {
-        context.get_callbacks(self.0).read_data(self.1)
+        context.get_callbacks(self.0).unwrap().read_data(self.1)
     }
 
     ///

@@ -112,7 +112,7 @@ impl TalkContext {
     /// Retrieves the allocator for a class
     ///
     #[inline]
-    pub (super) fn get_callbacks<'a>(&'a mut self, class: TalkClass) -> &'a mut TalkClassContextCallbacks {
+    pub (super) fn get_callbacks_mut<'a>(&'a mut self, class: TalkClass) -> &'a mut TalkClassContextCallbacks {
         let TalkClass(class_id) = class;
 
         if self.context_callbacks.len() > class_id {
@@ -122,6 +122,19 @@ impl TalkContext {
         }
 
         self.create_callbacks(class)
+    }
+
+    ///
+    /// Retrieves the allocator for a class
+    ///
+    #[inline]
+    pub (super) fn get_callbacks<'a>(&'a self, class: TalkClass) -> Option<&'a TalkClassContextCallbacks> {
+        let TalkClass(class_id) = class;
+
+        match self.context_callbacks.get(class_id) {
+            Some(ctxt)  => ctxt.as_ref(),
+            None        => None,
+        }
     }
 
     ///
@@ -135,7 +148,7 @@ impl TalkContext {
         let reference = TalkContextReferenceBuilder {
             context:        self,
             data_builder:   |val| { 
-                let callbacks = val.get_callbacks(class);
+                let callbacks = val.get_callbacks_mut(class);
                 with_fn(callbacks)
             },
         }.build();
