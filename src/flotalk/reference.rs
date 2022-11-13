@@ -64,25 +64,18 @@ impl TalkReference {
         let mut message_continuation    = None;
 
         TalkContinuation::Later(Box::new(move |talk_context, future_context| {
-            // First, send the message
-            if let Some(message) = message.take() {
-                message_continuation = Some(reference.send_message_in_context(message, talk_context));
-            }
-
-            // Then, wait for the message to complete
-            message_continuation = match message_continuation.take().unwrap() {
-                TalkContinuation::Ready(value)      => { return Poll::Ready(value.clone()); },
-                TalkContinuation::Soon(soon)        => { return Poll::Ready(soon(talk_context)); },
-                TalkContinuation::Later(mut later)  => { 
-                    if let Poll::Ready(value) = later(talk_context, future_context) {
-                        return Poll::Ready(value);
+            loop {
+                match message_continuation.take() {
+                    None                                    => { message_continuation = Some(reference.send_message_in_context(message.take().unwrap(), talk_context)); },
+                    Some(TalkContinuation::Ready(val))      => { message_continuation = Some(TalkContinuation::Ready(TalkValue::Nil)); return Poll::Ready(val); }
+                    Some(TalkContinuation::Soon(soon_fn))   => { message_continuation = Some(soon_fn(talk_context)); }
+                    Some(TalkContinuation::Later(mut later_fn))   => {
+                        let result              = later_fn(talk_context, future_context);
+                        message_continuation    = Some(TalkContinuation::Later(later_fn));
+                        return result;
                     }
-
-                    Some(TalkContinuation::Later(later))
-                },
-            };
-
-            Poll::Pending
+                }
+            }
         }))
     }
 

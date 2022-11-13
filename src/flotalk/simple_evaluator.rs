@@ -231,20 +231,16 @@ where
                 let message = if *arg_count == 0 { TalkMessage::Unary(*message_id) } else { TalkMessage::WithArguments(*message_id, args) };
 
                 // Send it
-                let continuation = target.send_message_in_context(message, context);
+                let mut continuation = target.send_message_in_context(message, context);
 
                 // Push the result if it's immediately ready, otherwise return a continuation
-                match continuation {
-                    TalkContinuation::Ready(TalkValue::Error(err))  => return TalkWaitState::Finished(TalkValue::Error(err)),
-                    TalkContinuation::Ready(value)                  => frame.stack.push(value),
-                    TalkContinuation::Soon(soon_value)              => {
-                        let value = soon_value(context);
-                        match value {
-                            TalkValue::Error(err)   => return TalkWaitState::Finished(TalkValue::Error(err)),
-                            _                       => frame.stack.push(value),
-                        }
+                loop {
+                    match continuation {
+                        TalkContinuation::Ready(TalkValue::Error(err))  => return TalkWaitState::Finished(TalkValue::Error(err)),
+                        TalkContinuation::Ready(value)                  => { frame.stack.push(value); break; },
+                        TalkContinuation::Soon(soon_value)              => { continuation = soon_value(context); }
+                        TalkContinuation::Later(later)                  => return TalkWaitState::WaitFor(TalkContinuation::Later(later)),
                     }
-                    TalkContinuation::Later(later)                  => return TalkWaitState::WaitFor(TalkContinuation::Later(later)),
                 }
             }
 

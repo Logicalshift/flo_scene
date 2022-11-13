@@ -96,9 +96,26 @@ impl TalkRuntime {
             TalkContinuation::Later(later)  => NowLater::Later(self.run_continuation_later(later)),
 
             TalkContinuation::Soon(soon)    => {
-                let mut soon = Some(soon);
+                let mut continuation = Some(TalkContinuation::Soon(soon));
 
-                NowLater::Later(self.run_continuation_later(Box::new(move |talk_context, _| Poll::Ready((soon.take().unwrap())(talk_context)))))
+                NowLater::Later(self.run_continuation_later(Box::new(move |talk_context, future_context| {
+                    loop {
+                        match continuation.take() {
+                            None                                        => { return Poll::Ready(TalkValue::Nil); }
+                            Some(TalkContinuation::Ready(val))          => { return Poll::Ready(val); }
+                            Some(TalkContinuation::Later(mut later_fn)) => {
+                                let result      = later_fn(talk_context, future_context);
+                                continuation    = Some(TalkContinuation::Later(later_fn));
+
+                                return result;
+                            }
+
+                            Some(TalkContinuation::Soon(soon_fn)) => {
+                                continuation = Some(soon_fn(talk_context));
+                            }
+                        }
+                    }
+                })))
             },
         };
 

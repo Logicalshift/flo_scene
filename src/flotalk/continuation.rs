@@ -15,7 +15,7 @@ pub enum TalkContinuation {
     Ready(TalkValue),
 
     /// A value that requires access to the context to compute, but which doesn't require awaiting a future
-    Soon(Box<dyn Send + FnOnce(&mut TalkContext) -> TalkValue>),
+    Soon(Box<dyn Send + FnOnce(&mut TalkContext) -> TalkContinuation>),
 
     /// A value that is ready when a future completes
     Later(Box<dyn Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>>),
@@ -29,14 +29,19 @@ impl TalkContinuation {
     pub fn poll(&mut self, talk_context: &mut TalkContext, future_context: &mut Context) -> Poll<TalkValue> {
         use TalkContinuation::*;
 
-        match self {
-            Ready(value)    => Poll::Ready(value.clone()),
-            Later(poll_fn)  => poll_fn(talk_context, future_context),
-            Soon(soon)      => {
-                let mut also_soon: Box<dyn Send + FnOnce(&mut TalkContext) -> TalkValue> = Box::new(|_| TalkValue::Nil);
-                mem::swap(soon, &mut also_soon);
+        loop {
+            let mut continuation = TalkContinuation::Ready(TalkValue::Nil);
+            mem::swap(&mut continuation, self);
 
-                Poll::Ready(also_soon(talk_context))
+            match continuation {
+                Ready(value)        => { return Poll::Ready(value.clone()); },
+                Soon(soon)          => { *self = soon(talk_context); }
+
+                Later(mut poll_fn)  => { 
+                    let result = poll_fn(talk_context, future_context); 
+                    *self = TalkContinuation::Later(poll_fn);
+                    return result;
+                },
             }
         }
     }
@@ -77,11 +82,7 @@ impl From<TalkSendMessage> for TalkContinuation {
                 match message_continuation.take() {
                     None                                    => { message_continuation = Some(target.send_message_in_context(message.take().unwrap(), talk_context)); },
                     Some(TalkContinuation::Ready(val))      => { message_continuation = Some(TalkContinuation::Ready(TalkValue::Nil)); return Poll::Ready(val); }
-                    Some(TalkContinuation::Soon(soon_fn))   => {
-                        message_continuation    = Some(TalkContinuation::Ready(TalkValue::Nil));
-                        let result              = soon_fn(talk_context);
-                        return Poll::Ready(result);
-                    }
+                    Some(TalkContinuation::Soon(soon_fn))   => { message_continuation = Some(soon_fn(talk_context)); }
                     Some(TalkContinuation::Later(mut later_fn))   => {
                         let result              = later_fn(talk_context, future_context);
                         message_continuation    = Some(TalkContinuation::Later(later_fn));
