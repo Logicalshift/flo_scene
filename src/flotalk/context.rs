@@ -18,10 +18,10 @@ pub struct TalkContext {
     context_callbacks: Vec<Option<TalkClassContextCallbacks>>,
 
     /// Dispatch tables by class
-    class_dispatch_tables: Vec<Option<TalkMessageDispatchTable<TalkDataHandle>>>,
+    pub (super) class_dispatch_tables: Vec<Option<TalkMessageDispatchTable<TalkDataHandle>>>,
 
     /// Dispatch tables by value
-    value_dispatch_tables: TalkValueDispatchTables,
+    pub (super) value_dispatch_tables: TalkValueDispatchTables,
 }
 
 ///
