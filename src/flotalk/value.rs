@@ -8,13 +8,14 @@ use super::reference::*;
 use super::symbol::*;
 use super::value_messages::*;
 
+use smallvec::*;
+
 use std::f64;
 use std::i64;
 use std::u32;
 use std::str::{FromStr};
 use std::sync::*;
-
-use smallvec::*;
+use std::mem;
 
 ///
 /// The result of a FloTalk message
@@ -62,6 +63,16 @@ impl Default for TalkValue {
 }
 
 impl TalkValue {
+    ///
+    /// Moves this value, replacing it with the value 'Nil'
+    ///
+    #[inline]
+    pub fn take(&mut self) -> TalkValue {
+        let mut value = TalkValue::Nil;
+        mem::swap(self, &mut value);
+        value
+    }
+
     ///
     /// Returns the reference represented by this value
     ///
