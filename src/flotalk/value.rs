@@ -20,7 +20,7 @@ use std::mem;
 ///
 /// The result of a FloTalk message
 ///
-#[derive(Clone, PartialEq, Debug)]
+#[derive(PartialEq, Debug)]
 pub enum TalkValue {
     /// The 'nil' value
     Nil,
@@ -71,6 +71,30 @@ impl TalkValue {
         let mut value = TalkValue::Nil;
         mem::swap(self, &mut value);
         value
+    }
+
+    ///
+    /// Creates a copy of this value in the specified context
+    ///
+    /// This will copy this value and increase its reference count
+    ///
+    #[inline]
+    pub fn clone_in_context(&self, context: &TalkContext) -> TalkValue {
+        use TalkValue::*;
+
+        match self {
+            Nil                     => Nil,
+            Reference(reference)    => Reference(reference.clone_in_context(context)),
+            Bool(boolean)           => Bool(*boolean),
+            Int(int)                => Int(*int),
+            Float(float)            => Float(*float),
+            String(string)          => String(Arc::clone(string)),
+            Character(character)    => Character(*character),
+            Symbol(symbol)          => Symbol(*symbol),
+            Selector(symbol)        => Selector(*symbol),
+            Array(array)            => Array(array.iter().map(|val| val.clone_in_context(context)).collect()),
+            Error(error)            => Error(error.clone()),
+        }
     }
 
     ///

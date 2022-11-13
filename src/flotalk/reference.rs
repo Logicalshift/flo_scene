@@ -32,6 +32,18 @@ impl TalkReference {
     }
 
     ///
+    /// This will create a copy of this reference and increase its reference count
+    ///
+    #[inline]
+    pub fn clone_in_context(&self, context: &TalkContext) -> TalkReference {
+        let clone = TalkReference(self.0, self.1);
+        if let Some(callbacks) = context.get_callbacks(self.0) {
+            callbacks.add_reference(self.1);
+        }
+        clone
+    }
+
+    ///
     /// Increases the reference count for this reference. References are freed once the count reaches 0.
     ///
     #[inline]

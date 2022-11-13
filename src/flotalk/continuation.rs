@@ -34,7 +34,7 @@ impl TalkContinuation {
             mem::swap(&mut continuation, self);
 
             match continuation {
-                Ready(value)        => { return Poll::Ready(value.clone()); },
+                Ready(value)        => { return Poll::Ready(value); },
                 Soon(soon)          => { *self = soon(talk_context); }
 
                 Later(mut poll_fn)  => { 

@@ -185,8 +185,7 @@ where
             LoadFromSymbol(symbol) => {
                 let symbol = TalkSymbol::from(symbol);
 
-                if let Some(value) = frame.with_symbol_value(symbol, |value| value.clone()) {
-                    value.add_reference(context);
+                if let Some(value) = frame.with_symbol_value(symbol, |value| value.clone_in_context(context)) {
                     frame.stack.push(value);
                 } else {
                     return TalkWaitState::Finished(TalkValue::Error(TalkError::UnboundSymbol(symbol)));
@@ -251,9 +250,7 @@ where
             Duplicate => {
                 let val = frame.stack.pop().unwrap();
 
-                val.add_reference(context);
-
-                frame.stack.push(val.clone());
+                frame.stack.push(val.clone_in_context(context));
                 frame.stack.push(val);
             }
 
@@ -333,12 +330,12 @@ where
         }
 
         // Return the value if finished
-        match &wait_state {
+        match &mut wait_state {
             WaitFor(_)      => Poll::Pending,
             Run             => Poll::Pending,
             Finished(value) => {
                 frame.remove_all_references(talk_context);
-                Poll::Ready(value.clone())
+                Poll::Ready(value.take())
             },
         }
     }))

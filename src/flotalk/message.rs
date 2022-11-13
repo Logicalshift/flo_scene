@@ -38,7 +38,6 @@ lazy_static! {
 /// let message = TalkMessage::WithArguments(("arg1:", "arg2:").into(), smallvec![42.into(), "String".into()]);
 /// ```
 ///
-#[derive(Clone)]
 pub enum TalkMessage {
     /// A message with no arguments
     Unary(TalkMessageSignatureId),
