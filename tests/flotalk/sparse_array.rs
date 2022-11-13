@@ -39,3 +39,17 @@ fn update_value() {
     assert!(array.get(9) == Some(&42));
     assert!(array.get(10) == Some(&43));
 }
+
+#[test]
+fn clone_array() {
+    let mut array = TalkSparseArray::<usize>::empty();
+
+    array.insert(9, 42);
+    array.insert(10, 42);
+
+    let mut clone_array = array.clone();
+    (*clone_array.get_mut(10).unwrap()) = 43;
+
+    assert!(clone_array.get(9) == Some(&42));
+    assert!(clone_array.get(10) == Some(&43));
+}
