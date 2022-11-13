@@ -31,11 +31,41 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     /// Builder method that can be used to initialise a dispatch table alongside its messages
     ///
-    pub fn with_message<TResult>(mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>, &TalkContext) -> TResult) -> TalkMessageDispatchTable<TDataType> 
+    pub fn with_message<TResult>(mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>, &TalkContext) -> TResult) -> Self 
     where
         TResult: Into<TalkContinuation>,
     {
         self.define_message(message, move |data_type, args, context| action(data_type, args, context).into());
+
+        self
+    }
+
+    ///
+    /// Builder method that adds all the messages from the specified table to this table
+    ///
+    pub fn with_messages_from(mut self, table: &TalkMessageDispatchTable<TDataType>) -> Self {
+        for (message_id, message) in table.message_action.iter() {
+            self.message_action.insert(message_id, Arc::clone(message));
+        }
+
+        self
+    }
+
+    ///
+    /// Builder method that adds all the messages from the specified table to this table, with a map function to convert the data type
+    ///
+    pub fn with_mapped_messages_from<TSourceDataType>(mut self, table: &TalkMessageDispatchTable<TSourceDataType>, map_fn: impl 'static + Send + Sync + Fn(TDataType) -> TSourceDataType) -> Self 
+    where
+        TSourceDataType: 'static,
+    {
+        let map_fn = Arc::new(map_fn);
+
+        for (message_id, message) in table.message_action.iter() {
+            let map_fn  = Arc::clone(&map_fn);
+            let message = Arc::clone(message);
+
+            self.message_action.insert(message_id, Arc::new(move |data, args, context| { (message)((map_fn)(data), args, context) }));
+        }
 
         self
     }
