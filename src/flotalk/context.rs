@@ -1,4 +1,7 @@
 use super::class::*;
+use super::dispatch_table::*;
+use super::reference::*;
+use super::value_messages::*;
 
 use ouroboros::{self_referencing};
 
@@ -11,8 +14,14 @@ use std::ops::{Deref};
 /// scheduling continuations on a context
 ///
 pub struct TalkContext {
-    /// Allocators for this context, indexed by class ID
+    /// Callbacks for this context, indexed by class ID
     context_callbacks: Vec<Option<TalkClassContextCallbacks>>,
+
+    /// Dispatch tables by class
+    class_dispatch_tables: Vec<Option<TalkMessageDispatchTable<TalkDataHandle>>>,
+
+    /// Dispatch tables by value
+    value_dispatch_tables: TalkValueDispatchTables,
 }
 
 ///
@@ -76,7 +85,9 @@ impl TalkContext {
     ///
     pub fn empty() -> TalkContext {
         TalkContext {
-            context_callbacks: vec![]
+            context_callbacks:      vec![],
+            class_dispatch_tables:  vec![],
+            value_dispatch_tables:  TalkValueDispatchTables::default(),
         }
     }
 

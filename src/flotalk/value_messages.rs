@@ -4,9 +4,13 @@ use super::dispatch_table::*;
 use super::error::*;
 use super::message::*;
 use super::number::*;
+use super::reference::*;
+use super::symbol::*;
 use super::value::*;
 
 use smallvec::*;
+
+use std::sync::*;
 
 lazy_static! {
     // Object protocol message signatures
@@ -218,6 +222,39 @@ lazy_static! {
         .with_message(*TALK_MSG_TRUNCATED,          |val, _, _| val.truncate())
         .with_message(*TALK_MSG_TRUNCATE_TO,        |_, _, _| TalkError::NotImplemented)
         ;
+}
+
+///
+/// Message dispatch tables for the raw values types
+///
+pub struct TalkValueDispatchTables {
+    pub (super) any_dispatch:       TalkMessageDispatchTable<TalkValue>,
+    pub (super) bool_dispatch:      TalkMessageDispatchTable<bool>,
+    pub (super) int_dispatch:       TalkMessageDispatchTable<TalkNumber>,
+    pub (super) float_dispatch:     TalkMessageDispatchTable<TalkNumber>,
+    pub (super) string_dispatch:    TalkMessageDispatchTable<Arc<String>>,
+    pub (super) character_dispatch: TalkMessageDispatchTable<char>,
+    pub (super) symbol_dispatch:    TalkMessageDispatchTable<TalkSymbol>,
+    pub (super) selector_dispatch:  TalkMessageDispatchTable<TalkSymbol>,
+    pub (super) array_dispatch:     TalkMessageDispatchTable<Vec<TalkValue>>,
+    pub (super) error_dispatch:     TalkMessageDispatchTable<TalkError>,
+}
+
+impl Default for TalkValueDispatchTables {
+    fn default() -> TalkValueDispatchTables {
+        TalkValueDispatchTables {
+            any_dispatch:       TalkMessageDispatchTable::empty(),
+            bool_dispatch:      TALK_DISPATCH_BOOLEAN.clone(),
+            int_dispatch:       TALK_DISPATCH_NUMBER.clone(),
+            float_dispatch:     TALK_DISPATCH_NUMBER.clone(),
+            string_dispatch:    TalkMessageDispatchTable::empty(),
+            character_dispatch: TalkMessageDispatchTable::empty(),
+            symbol_dispatch:    TalkMessageDispatchTable::empty(),
+            selector_dispatch:  TalkMessageDispatchTable::empty(),
+            array_dispatch:     TalkMessageDispatchTable::empty(),
+            error_dispatch:     TalkMessageDispatchTable::empty(),
+        }
+    }
 }
 
 impl TalkValue {
