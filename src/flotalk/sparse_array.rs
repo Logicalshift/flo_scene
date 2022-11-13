@@ -13,8 +13,30 @@ where
     TTarget: Clone
 {
     fn clone(&self) -> Self {
+        // Calling clone() on a Box<[Bigslice]> will run out of stack space
+        let mut values = vec![];
+        values.reserve(self.values.len());
+
+        for parent_set in self.values.iter() {
+            let mut clone_parent_set = vec![];
+            clone_parent_set.reserve(16384);
+
+            for target_set in parent_set.iter() {
+                if let Some(targets) = target_set {
+                    clone_parent_set.push(Some(targets.clone()));
+                } else {
+                    clone_parent_set.push(None);
+                }
+            }
+
+            values.push(match clone_parent_set.into_boxed_slice().try_into() {
+                Ok(val) => val,
+                Err(_)  => unreachable!(),
+            });
+        }
+
         TalkSparseArray {
-            values: self.values.clone()
+            values: values
         }
     }
 }
