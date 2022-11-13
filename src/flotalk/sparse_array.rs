@@ -8,6 +8,11 @@ pub struct TalkSparseArray<TTarget> {
     values: Vec<Box<[Option<Box<[Option<TTarget>; 256]>>; 16384]>>
 }
 
+struct Iter<'a, TTarget> {
+    array:      &'a TalkSparseArray<TTarget>,
+    next_pos:   usize,
+}
+
 impl<TTarget> Clone for TalkSparseArray<TTarget>
 where
     TTarget: Clone
@@ -147,5 +152,51 @@ impl<TTarget> TalkSparseArray<TTarget> {
         };
 
         parent[cell_idx] = Some(value);
+    }
+
+    ///
+    /// Creates an iterator that covers the values in this sparse array
+    ///
+    pub fn iter<'a>(&'a self) -> impl 'a + Iterator<Item=(usize, &'a TTarget)> {
+        Iter {
+            array:      self,
+            next_pos:   0,
+        }
+    }
+}
+
+impl<'a, TTarget> Iterator for Iter<'a, TTarget> {
+    type Item = (usize, &'a TTarget);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            // Position to check
+            let pos = self.next_pos;
+
+            // Break down
+            let cell_idx            = pos & 255;
+            let parent_idx          = (pos >> 8) & 16383;
+            let parent_parent_idx   = pos >> 22;
+
+            // Stop if we've reached the end
+            if parent_parent_idx >= self.array.values.len() { return None; }
+
+            // Try to read the value at the current location
+            let values = &self.array.values[parent_parent_idx];
+
+            if let Some(values) = &values[parent_idx] {
+                if let Some(value) = &values[cell_idx] {
+                    // Return this value and move on to the next value
+                    self.next_pos += 1;
+                    return Some((pos, value));
+                } else {
+                    // Move on to the next value
+                    self.next_pos += 1;
+                }
+            } else {
+                // Move on to the next block
+                self.next_pos = ((parent_idx + 1) << 8) + (parent_parent_idx << 22);
+            }
+        }
     }
 }

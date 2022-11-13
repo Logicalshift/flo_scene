@@ -53,3 +53,16 @@ fn clone_array() {
     assert!(clone_array.get(9) == Some(&42));
     assert!(clone_array.get(10) == Some(&43));
 }
+
+#[test]
+fn iterate() {
+    let mut array = TalkSparseArray::<usize>::empty();
+
+    array.insert(9, 42);
+    array.insert(10, 42);
+    array.insert(65537, 45);
+    (*array.get_mut(10).unwrap()) = 43;
+
+    let values = array.iter().map(|(a, b)| (a, *b)).collect::<Vec<_>>();
+    assert!(values == vec![(9, 42), (10, 43), (65537, 45)]);
+}
