@@ -134,10 +134,10 @@ impl TalkValue {
     /// Increases the reference count for this value. References are freed once the count reaches 0.
     ///
     #[inline]
-    pub fn send_message_in_context(&self, message: TalkMessage, context: &TalkContext) -> TalkContinuation {
+    pub fn send_message_in_context(self, message: TalkMessage, context: &TalkContext) -> TalkContinuation {
         use TalkValue::*;
 
-        match self {
+        match &self {
             Nil                         => context.value_dispatch_tables.any_dispatch.send_message(TalkValue::Nil, message, context),
             Bool(bool_value)            => context.value_dispatch_tables.bool_dispatch.send_message(*bool_value, message, context),
             Int(int_value)              => context.value_dispatch_tables.int_dispatch.send_message(TalkNumber::Int(*int_value), message, context),

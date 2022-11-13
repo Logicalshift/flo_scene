@@ -74,13 +74,14 @@ where
 impl From<TalkSendMessage> for TalkContinuation {
     #[inline]
     fn from(TalkSendMessage(target, message): TalkSendMessage) -> TalkContinuation {
+        let mut target                  = target;
         let mut message                 = Some(message);
         let mut message_continuation    = None;
 
         TalkContinuation::Later(Box::new(move |talk_context, future_context| {
             loop {
                 match message_continuation.take() {
-                    None                                    => { message_continuation = Some(target.send_message_in_context(message.take().unwrap(), talk_context)); },
+                    None                                    => { message_continuation = Some(target.take().send_message_in_context(message.take().unwrap(), talk_context)); },
                     Some(TalkContinuation::Ready(val))      => { message_continuation = Some(TalkContinuation::Ready(TalkValue::Nil)); return Poll::Ready(val); }
                     Some(TalkContinuation::Soon(soon_fn))   => { message_continuation = Some(soon_fn(talk_context)); }
                     Some(TalkContinuation::Later(mut later_fn))   => {
