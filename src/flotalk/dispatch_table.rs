@@ -87,6 +87,21 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     }
 
     ///
+    /// Tries to send a message to this dispatch table, returning 'None' if no message can be sent
+    ///
+    #[inline]
+    pub fn try_send_message(&self, target: TDataType, message: TalkMessage, talk_context: &TalkContext) -> Option<TalkContinuation<'static>> {
+        let id      = message.signature_id();
+        let args    = message.to_arguments();
+
+        if let Some(action) = self.message_action.get(id.into()) {
+            Some((action)(target, TalkOwned::new(args, talk_context), talk_context))
+        } else {
+            None
+        }
+    }
+
+    ///
     /// Defines the action for a message
     ///
     pub fn define_message(&mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TDataType, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) {
