@@ -2,7 +2,7 @@ use super::context::*;
 use super::reference::*;
 use super::value::*;
 
-use std::ops::{Deref};
+use std::ops::{Deref, DerefMut};
 use std::sync::*;
 
 ///
@@ -86,6 +86,19 @@ where
     #[inline]
     fn deref(&self) -> &TReleasable {
         match &self.value {
+            Some(value) => value,
+            None        => unreachable!()
+        }
+    }
+}
+
+impl<'a, TReleasable> DerefMut for TalkOwned<'a, TReleasable>
+where
+    TReleasable: TalkReleasable
+{
+    #[inline]
+    fn deref_mut(&mut self) -> &mut TReleasable {
+        match &mut self.value {
             Some(value) => value,
             None        => unreachable!()
         }

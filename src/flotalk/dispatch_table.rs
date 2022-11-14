@@ -2,6 +2,7 @@ use super::context::*;
 use super::continuation::*;
 use super::error::*;
 use super::message::*;
+use super::releasable::*;
 use super::sparse_array::*;
 use super::value::*;
 
@@ -15,7 +16,7 @@ use std::sync::*;
 #[derive(Clone)]
 pub struct TalkMessageDispatchTable<TDataType> {
     /// The action to take for a particular message type
-    message_action: TalkSparseArray<Arc<dyn Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>, &TalkContext) -> TalkContinuation<'static>>>,
+    message_action: TalkSparseArray<Arc<dyn Send + Sync + for<'a> Fn(TDataType, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>>>,
 }
 
 impl<TDataType> TalkMessageDispatchTable<TDataType> {
@@ -31,7 +32,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     /// Builder method that can be used to initialise a dispatch table alongside its messages
     ///
-    pub fn with_message<TResult>(mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>, &TalkContext) -> TResult) -> Self 
+    pub fn with_message<TResult>(mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TDataType, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TResult) -> Self 
     where
         TResult: Into<TalkContinuation<'static>>,
     {
@@ -79,7 +80,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
         let args    = message.to_arguments();
 
         if let Some(action) = self.message_action.get(id.into()) {
-            (action)(target, args, talk_context)
+            (action)(target, TalkOwned::new(args, talk_context), talk_context)
         } else {
             TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(id)))
         }
@@ -88,7 +89,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     /// Defines the action for a message
     ///
-    pub fn define_message(&mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>, &TalkContext) -> TalkContinuation<'static>) {
+    pub fn define_message(&mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TDataType, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) {
         self.message_action.insert(message.into().into(), Arc::new(action));
     }
 }
