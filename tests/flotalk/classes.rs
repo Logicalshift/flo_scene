@@ -102,7 +102,6 @@ pub fn send_instance_messages() {
     });
 }
 
-/*
 #[test]
 pub fn read_class_data() {
     let test_class  = TalkClass::create(TestClass);
@@ -111,8 +110,8 @@ pub fn read_class_data() {
     talk_add_class_data_reader::<TestClass, _>(|data| *data);
 
     executor::block_on(async {
-        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.try_as_reference().unwrap();
-        let initial_value   = instance.read_data::<usize>(&runtime).await;
+        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await;
+        let initial_value   = instance.try_as_reference().unwrap().read_data::<usize>(&runtime).await;
 
         assert!(initial_value == Some(42));
     });
@@ -127,9 +126,9 @@ pub fn read_class_data_conversion() {
     talk_add_class_data_reader::<TestClass, _>(|data| *data as f32);
 
     executor::block_on(async {
-        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.try_as_reference().unwrap();
-        let usize_value     = instance.read_data::<usize>(&runtime).await;
-        let f32_value       = instance.read_data::<f32>(&runtime).await;
+        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await;
+        let usize_value     = instance.try_as_reference().unwrap().read_data::<usize>(&runtime).await;
+        let f32_value       = instance.try_as_reference().unwrap().read_data::<f32>(&runtime).await;
 
         assert!(usize_value == Some(42));
         assert!(f32_value == Some(42.0));
@@ -144,10 +143,9 @@ pub fn read_class_data_unsupported_type() {
     talk_add_class_data_reader::<TestClass, _>(|data| *data);
 
     executor::block_on(async {
-        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.try_as_reference().unwrap();
-        let string_value    = instance.read_data::<String>(&runtime).await;
+        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await;
+        let string_value    = instance.try_as_reference().unwrap().read_data::<String>(&runtime).await;
 
         assert!(string_value == None);
     });
 }
-*/
