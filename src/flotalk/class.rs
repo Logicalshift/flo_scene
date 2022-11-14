@@ -62,10 +62,10 @@ pub (super) struct TalkClassCallbacks {
 ///
 pub (super) struct TalkClassContextCallbacks {
     /// Sends a message to an object
-    send_message: Box<dyn Send + Fn(TalkDataHandle, TalkMessage) -> TalkContinuation>,
+    send_message: Box<dyn Send + Fn(TalkDataHandle, TalkMessage) -> TalkContinuation<'static>>,
 
     /// Sends a message to the class object
-    send_class_message: Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation>,
+    send_class_message: Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation<'static>>,
 
     /// Add to the reference count for a data handle
     add_reference: Box<dyn Send + Fn(TalkDataHandle) -> ()>,
@@ -98,7 +98,7 @@ impl TalkClassCallbacks {
 
 impl TalkClassContextCallbacks {
     #[inline]
-    pub (super) fn send_message(&self, data_handle: TalkDataHandle, message: TalkMessage) -> TalkContinuation {
+    pub (super) fn send_message(&self, data_handle: TalkDataHandle, message: TalkMessage) -> TalkContinuation<'static> {
         (self.send_message)(data_handle, message)
     }
 
@@ -113,7 +113,7 @@ impl TalkClassContextCallbacks {
     }
 
     #[inline]
-    pub (super) fn send_class_message(&self, message: TalkMessage) -> TalkContinuation {
+    pub (super) fn send_class_message(&self, message: TalkMessage) -> TalkContinuation<'static> {
         (self.send_class_message)(message)
     }
 
@@ -175,12 +175,12 @@ pub trait TalkClassDefinition : Send + Sync {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message: TalkMessage, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation;
+    fn send_class_message(&self, message: TalkMessage, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static>;
 
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message: TalkMessage, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation;
+    fn send_instance_message(&self, message: TalkMessage, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static>;
 }
 
 ///
@@ -215,7 +215,7 @@ impl TalkClass {
     ///
     /// Creates the 'send message' method for an allocator
     ///
-    fn callback_send_message<TClass>(class_id: TalkClass, class_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + Fn(TalkDataHandle, TalkMessage) -> TalkContinuation> 
+    fn callback_send_message<TClass>(class_id: TalkClass, class_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + Fn(TalkDataHandle, TalkMessage) -> TalkContinuation<'static>> 
     where
         TClass: 'static + TalkClassDefinition,
     {
@@ -250,7 +250,7 @@ impl TalkClass {
     ///
     /// Creates the 'send class message' function for a class
     ///
-    fn callback_send_class_message<TClass>(class_id: TalkClass, definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation> 
+    fn callback_send_class_message<TClass>(class_id: TalkClass, definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation<'static>> 
     where
         TClass: 'static + TalkClassDefinition,
     {
@@ -395,38 +395,19 @@ impl TalkClass {
     /// Sends a message to this class
     ///
     #[inline]
-    pub fn send_message_in_context(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation {
+    pub fn send_message_in_context(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation<'static> {
         context.get_callbacks_mut(*self).send_class_message(message)
     }
 
     ///
     /// Sends a message to this class
     ///
-    pub fn send_message(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl Future<Output=TalkValue> {
-        let class                       = *self;
-        let mut message                 = Some(message);
-        let mut message_continuation    = None;
+    pub fn send_message<'a>(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl 'a + Future<Output=TalkValue> {
+        let class = *self;
 
-        runtime.run_continuation(TalkContinuation::Later(Box::new(move |talk_context, future_context| {
-            // First, send the message
-            if let Some(message) = message.take() {
-                message_continuation = Some(class.send_message_in_context(message, talk_context));
-            }
-
-            // Then, wait for the message to complete
-            loop {
-                message_continuation = match message_continuation.take().unwrap() {
-                    TalkContinuation::Ready(value)      => { return Poll::Ready(value); },
-                    TalkContinuation::Soon(soon)        => { Some(soon(talk_context)) },
-                    TalkContinuation::Later(mut later)  => { 
-                        if let Poll::Ready(value) = later(talk_context, future_context) {
-                            return Poll::Ready(value);
-                        }
-
-                        Some(TalkContinuation::Later(later))
-                    },
-                };
-            }
+        runtime.run_continuation(TalkContinuation::<'a>::Soon(Box::new(move |talk_context| {
+            let continuation = class.send_message_in_context(message, talk_context);
+            continuation
         })))
     }
 

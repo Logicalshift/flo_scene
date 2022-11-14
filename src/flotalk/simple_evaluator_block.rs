@@ -81,14 +81,14 @@ where
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message: TalkMessage, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation {
+    fn send_class_message(&self, message: TalkMessage, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
         TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message.signature_id())))
     }
 
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message: TalkMessage, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation {
+    fn send_instance_message(&self, message: TalkMessage, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
         match message {
             TalkMessage::Unary(message_id) => {
                 if message_id == target.accepted_message_id {

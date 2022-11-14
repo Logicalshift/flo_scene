@@ -55,7 +55,7 @@ impl TalkRuntime {
     ///
     /// Runs a continuation with a 'later' part
     ///
-    fn run_continuation_later(&self, later: Box<dyn Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>>) -> impl Send + Future<Output=TalkValue> {
+    fn run_continuation_later<'a>(&self, later: Box<dyn 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>>) -> impl 'a + Send + Future<Output=TalkValue> {
         // If the runtime is dropped while the future is running, it will be aborted (if it ever wakes up again)
         let talk_context        = Arc::downgrade(&self.context);
         let mut acquire_context = None;
@@ -100,7 +100,7 @@ impl TalkRuntime {
     /// Runs a continuation on this runtime
     ///
     #[inline]
-    pub fn run_continuation(&self, continuation: TalkContinuation) -> impl Send + Future<Output=TalkValue> {
+    pub fn run_continuation<'a>(&self, continuation: TalkContinuation<'a>) -> impl 'a + Send + Future<Output=TalkValue> {
         enum NowLater<T> {
             Now(TalkValue),
             Later(T),

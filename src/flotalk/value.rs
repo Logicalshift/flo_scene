@@ -158,7 +158,7 @@ impl TalkValue {
     /// Sends a message to this value, then releases it
     ///
     #[inline]
-    pub fn send_message_in_context(self, message: TalkMessage, context: &TalkContext) -> TalkContinuation {
+    pub fn send_message_in_context<'a>(self, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'a> {
         use TalkValue::*;
 
         match self {
@@ -181,7 +181,7 @@ impl TalkValue {
     /// Sends a message to this value, then releases it
     ///
     #[inline]
-    fn send_message(self, message: TalkMessage) -> TalkContinuation {
+    fn send_message<'a>(self, message: TalkMessage) -> TalkContinuation<'a> {
         TalkContinuation::Soon(Box::new(move |talk_context| self.send_message_in_context(message, talk_context)))
     }
 

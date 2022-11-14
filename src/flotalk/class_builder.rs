@@ -15,10 +15,10 @@ pub struct TalkClassBuilder<TDataType> {
     name: String,
 
     /// Supported instance messages
-    instance_messages:  HashMap<TalkMessageSignatureId, Box<dyn Send + Sync + for<'a> Fn(TalkMessage, &'a mut TDataType) -> TalkContinuation>>,
+    instance_messages:  HashMap<TalkMessageSignatureId, Box<dyn Send + Sync + for<'a> Fn(TalkMessage, &'a mut TDataType) -> TalkContinuation<'static>>>,
 
     /// Supported class messages
-    class_messages:     HashMap<TalkMessageSignatureId, Box<dyn Send + Sync + for<'a> Fn(&'a mut TalkStandardAllocator<TDataType>, TalkMessage) -> TalkContinuation>>,
+    class_messages:     HashMap<TalkMessageSignatureId, Box<dyn Send + Sync + for<'a> Fn(&'a mut TalkStandardAllocator<TDataType>, TalkMessage) -> TalkContinuation<'static>>>,
 }
 
 ///
@@ -29,7 +29,7 @@ pub trait TalkIntoInstanceFn<TDataType> {
     fn num_arguments(&self) -> usize;
 
     /// Creates an instance function for this function
-    fn into_instance_fn(self) -> Box<dyn Send + Sync + for<'a> Fn(TalkMessage, &'a mut TDataType) -> TalkContinuation>;
+    fn into_instance_fn(self) -> Box<dyn Send + Sync + for<'a> Fn(TalkMessage, &'a mut TDataType) -> TalkContinuation<'static>>;
 }
 
 ///
@@ -40,7 +40,7 @@ pub trait TalkIntoClassFn<TDataType> {
     fn num_arguments(&self) -> usize;
 
     /// Creates an instance function for this function
-    fn into_class_fn(self) -> Box<dyn Send + Sync + for<'a> Fn(&'a mut TalkStandardAllocator<TDataType>, TalkMessage) -> TalkContinuation>;
+    fn into_class_fn(self) -> Box<dyn Send + Sync + for<'a> Fn(&'a mut TalkStandardAllocator<TDataType>, TalkMessage) -> TalkContinuation<'static>>;
 }
 
 impl<TDataType> TalkClassBuilder<TDataType> {
@@ -68,13 +68,13 @@ impl<TDataType> TalkClassBuilder<TDataType> {
 impl<TDataType, TContinuation, TFn> TalkIntoInstanceFn<TDataType> for TFn
 where
     TFn:            'static + Send + Sync + Fn(&mut TDataType) -> TContinuation,
-    TContinuation:  Into<TalkContinuation>,
+    TContinuation:  Into<TalkContinuation<'static>>,
 {
     fn num_arguments(&self) -> usize {
         0
     }
 
-    fn into_instance_fn(self) -> Box<dyn Send + Sync + for<'a> Fn(TalkMessage, &'a mut TDataType) -> TalkContinuation> {
+    fn into_instance_fn(self) -> Box<dyn Send + Sync + for<'a> Fn(TalkMessage, &'a mut TDataType) -> TalkContinuation<'static>> {
         Box::new(move |_msg, data| {
             (self)(data).into()
         })
@@ -91,7 +91,7 @@ where
         1
     }
 
-    fn into_instance_fn(self) -> Box<dyn Send + Sync + for<'a> Fn(TalkMessage, &'a mut TDataType) -> TalkContinuation> {
+    fn into_instance_fn(self) -> Box<dyn Send + Sync + for<'a> Fn(TalkMessage, &'a mut TDataType) -> TalkContinuation<'static>> {
         Box::new(move |msg, data| {
             let arg = match msg {
                 TalkMessage::Unary(_)               => TalkValue::Nil,

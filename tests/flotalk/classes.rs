@@ -18,7 +18,7 @@ impl TalkClassDefinition for TestClass {
         }
     }
 
-    fn send_class_message(&self, message: TalkMessage, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation {
+    fn send_class_message(&self, message: TalkMessage, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
         let sig = message.signature();
 
         if sig == TalkMessageSignature::Unary(TalkSymbol::from("new")) {
@@ -32,7 +32,7 @@ impl TalkClassDefinition for TestClass {
         }
     }
 
-    fn send_instance_message(&self, message: TalkMessage, _reference: TalkReference, target: &mut Self::Data) -> TalkContinuation {
+    fn send_instance_message(&self, message: TalkMessage, _reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
         let sig = message.signature();
 
         if sig == TalkMessageSignature::Unary(TalkSymbol::from("addOne")) {

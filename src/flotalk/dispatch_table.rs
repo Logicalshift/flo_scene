@@ -15,7 +15,7 @@ use std::sync::*;
 #[derive(Clone)]
 pub struct TalkMessageDispatchTable<TDataType> {
     /// The action to take for a particular message type
-    message_action: TalkSparseArray<Arc<dyn Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>, &TalkContext) -> TalkContinuation>>,
+    message_action: TalkSparseArray<Arc<dyn Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>, &TalkContext) -> TalkContinuation<'static>>>,
 }
 
 impl<TDataType> TalkMessageDispatchTable<TDataType> {
@@ -33,7 +33,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     pub fn with_message<TResult>(mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>, &TalkContext) -> TResult) -> Self 
     where
-        TResult: Into<TalkContinuation>,
+        TResult: Into<TalkContinuation<'static>>,
     {
         self.define_message(message, move |data_type, args, context| action(data_type, args, context).into());
 
@@ -74,7 +74,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     /// Sends a message to an item in this dispatch table
     ///
     #[inline]
-    pub fn send_message(&self, target: TDataType, message: TalkMessage, talk_context: &TalkContext) -> TalkContinuation {
+    pub fn send_message(&self, target: TDataType, message: TalkMessage, talk_context: &TalkContext) -> TalkContinuation<'static> {
         let id      = message.signature_id();
         let args    = message.to_arguments();
 
@@ -88,7 +88,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     /// Defines the action for a message
     ///
-    pub fn define_message(&mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>, &TalkContext) -> TalkContinuation) {
+    pub fn define_message(&mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + Fn(TDataType, SmallVec<[TalkValue; 4]>, &TalkContext) -> TalkContinuation<'static>) {
         self.message_action.insert(message.into().into(), Arc::new(action));
     }
 }

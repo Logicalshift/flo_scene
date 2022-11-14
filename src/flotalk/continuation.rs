@@ -10,18 +10,18 @@ use std::mem;
 ///
 /// Raw functions return a continuation, which specifies how a result may be retrieved
 ///
-pub enum TalkContinuation {
+pub enum TalkContinuation<'a> {
     /// A value that's ready now
     Ready(TalkValue),
 
     /// A value that requires access to the context to compute, but which doesn't require awaiting a future
-    Soon(Box<dyn Send + FnOnce(&mut TalkContext) -> TalkContinuation>),
+    Soon(Box<dyn 'a + Send + FnOnce(&mut TalkContext) -> TalkContinuation<'static>>),
 
     /// A value that is ready when a future completes
-    Later(Box<dyn Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>>),
+    Later(Box<dyn 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>>),
 }
 
-impl TalkContinuation {
+impl<'a> TalkContinuation<'a> {
     ///
     /// Polls this continuation for a result
     ///
@@ -47,23 +47,23 @@ impl TalkContinuation {
     }
 }
 
-impl<T> From<T> for TalkContinuation
+impl<'a, T> From<T> for TalkContinuation<'a>
 where
     T : Into<TalkValue>,
 {
     #[inline]
-    fn from(val: T) -> TalkContinuation {
+    fn from(val: T) -> TalkContinuation<'a> {
         TalkContinuation::Ready(val.into())
     }
 }
 
-impl<T, TErr> From<Result<T, TErr>> for TalkContinuation
+impl<'a, T, TErr> From<Result<T, TErr>> for TalkContinuation<'a>
 where
     T: Into<TalkValue>,
     TErr: Into<TalkError>
 {
     #[inline]
-    fn from(val: Result<T, TErr>) -> TalkContinuation {
+    fn from(val: Result<T, TErr>) -> TalkContinuation<'a> {
         match val {
             Ok(val)     => TalkContinuation::Ready(val.into()),
             Err(err)    => TalkContinuation::Ready(TalkValue::Error(err.into()))
@@ -71,9 +71,9 @@ where
     }
 }
 
-impl From<TalkSendMessage> for TalkContinuation {
+impl<'a> From<TalkSendMessage> for TalkContinuation<'a> {
     #[inline]
-    fn from(TalkSendMessage(target, message): TalkSendMessage) -> TalkContinuation {
+    fn from(TalkSendMessage(target, message): TalkSendMessage) -> TalkContinuation<'a> {
         let mut target                  = target;
         let mut message                 = Some(message);
         let mut message_continuation    = None;

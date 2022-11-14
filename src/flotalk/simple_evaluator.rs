@@ -18,7 +18,7 @@ enum TalkWaitState {
     Run,
 
     /// Wait for the specified future to complete, then push the result to the stack
-    WaitFor(TalkContinuation),
+    WaitFor(TalkContinuation<'static>),
 
     /// Expression completed, returned a value
     Finished(TalkValue),
@@ -270,7 +270,7 @@ where
 /// This is the simplest form of expression evaluator, which runs the slowest out of all the possible implementations (due to needing to parse values and look up
 /// symbols every time)
 ///
-pub fn talk_evaluate_simple<TValue, TSymbol>(root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation 
+pub fn talk_evaluate_simple<TValue, TSymbol>(root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation<'static> 
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
@@ -286,7 +286,7 @@ where
 /// This is the simplest form of expression evaluator, which runs the slowest out of all the possible implementations (due to needing to parse values and look up
 /// symbols every time)
 ///
-pub fn talk_evaluate_simple_with_arguments<TValue, TSymbol>(root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, arguments: TalkValueStore<TalkValue>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation 
+pub fn talk_evaluate_simple_with_arguments<TValue, TSymbol>(root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, arguments: TalkValueStore<TalkValue>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation<'static> 
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
