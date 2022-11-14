@@ -38,7 +38,6 @@ impl TalkRuntime {
         Self::with_context(TalkContext::empty())
     }
 
-    /* -- TODO, lifetimes
     ///
     /// Sends a message to a value using this runtime
     ///
@@ -50,7 +49,6 @@ impl TalkRuntime {
             }))).await
         }
     }
-    */
 
     ///
     /// Runs a continuation with a 'later' part

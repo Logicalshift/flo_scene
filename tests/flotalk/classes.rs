@@ -85,17 +85,16 @@ pub fn send_new_message() {
     assert!(new_result == TalkValue::Reference(TalkReference::from_handle(test_class, TalkDataHandle(0))));
 }
 
-/* -- TODO!
 #[test]
 pub fn send_instance_messages() {
     let test_class  = TalkClass::create(TestClass);
     let runtime     = TalkRuntime::empty();
 
     executor::block_on(async {
-        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await.try_as_reference().unwrap();
-        let initial_value   = instance.send_message(TalkMessage::unary("getValue"), &runtime).await;
-        let addone_result   = instance.send_message(TalkMessage::unary("addOne"), &runtime).await;
-        let final_value     = instance.send_message(TalkMessage::unary("getValue"), &runtime).await;
+        let instance        = test_class.send_message(TalkMessage::unary("new"), &runtime).await;
+        let initial_value   = runtime.send_message(&instance, TalkMessage::unary("getValue")).await;
+        let addone_result   = runtime.send_message(&instance, TalkMessage::unary("addOne")).await;
+        let final_value     = runtime.send_message(&instance, TalkMessage::unary("getValue")).await;
 
         assert!(initial_value == TalkValue::Int(42));
         assert!(addone_result == TalkValue::Nil);
@@ -103,6 +102,7 @@ pub fn send_instance_messages() {
     });
 }
 
+/*
 #[test]
 pub fn read_class_data() {
     let test_class  = TalkClass::create(TestClass);
