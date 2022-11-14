@@ -9,7 +9,7 @@ pub trait TalkReleasable {
     ///
     /// Releases this item within the specified context
     ///
-    fn release_in_context(&self, context: &TalkContext);
+    fn release_in_context(self, context: &TalkContext);
 }
 
 ///
@@ -30,7 +30,7 @@ where
     TReleasable: TalkReleasable
 {
     context:    &'a TalkContext,
-    value:      TReleasable
+    value:      Option<TReleasable>
 }
 
 impl<'a, TReleasable> TalkOwned<'a, TReleasable>
@@ -43,7 +43,8 @@ where
     #[inline]
     pub fn new(value: TReleasable, context: &'a TalkContext) -> TalkOwned<'a, TReleasable> {
         TalkOwned {
-            context, value
+            context:    context, 
+            value:      Some(value),
         }
     }
 }
@@ -54,7 +55,7 @@ where
 {
     #[inline]
     fn drop(&mut self) {
-        self.value.release_in_context(self.context);
+        self.value.take().unwrap().release_in_context(self.context);
     }
 }
 
@@ -63,9 +64,12 @@ where
     TReleasable: TalkReleasable + TalkCloneable
 {
     fn clone(&self) -> Self {
-        TalkOwned {
-            context:    self.context,
-            value:      self.value.clone_in_context(self.context),
+        match &self.value {
+            Some(value) => TalkOwned {
+                context:    self.context,
+                value:      Some(value.clone_in_context(self.context)),
+            },
+            None        => unreachable!()
         }
     }
 }
@@ -78,6 +82,9 @@ where
 
     #[inline]
     fn deref(&self) -> &TReleasable {
-        &self.value
+        match &self.value {
+            Some(value) => value,
+            None        => unreachable!()
+        }
     }
 }
