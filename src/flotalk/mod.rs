@@ -27,6 +27,7 @@ mod value;
 mod value_store;
 mod value_messages;
 mod dispatch_table;
+mod releasable;
 
 pub mod sparse_array;
 
@@ -50,4 +51,4 @@ pub use self::class_builder::*;
 pub use self::value_messages::*;
 pub use self::dispatch_table::*;
 pub use self::number::*;
-
+pub use self::releasable::*;
