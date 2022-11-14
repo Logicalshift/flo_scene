@@ -7,9 +7,12 @@ use super::instruction::*;
 use super::message::*;
 use super::symbol::*;
 use super::reference::*;
+use super::releasable::*;
 use super::simple_evaluator::*;
 use super::value::*;
 use super::value_store::*;
+
+use smallvec::*;
 
 use std::any::{TypeId};
 use std::collections::{HashMap};
@@ -88,35 +91,32 @@ where
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message: TalkMessage, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
-        match message {
-            TalkMessage::Unary(message_id) => {
-                if message_id == target.accepted_message_id {
-                    // Send with no arguments
-                    talk_evaluate_simple(target.root_values.clone(), Arc::clone(&target.expression))
-                } else {
-                    // Not the message this block was expecting
-                    TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
-                }
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, arguments: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
+        if arguments.len() == 0 {
+            if message_id == target.accepted_message_id {
+                // Send with no arguments
+                talk_evaluate_simple(target.root_values.clone(), Arc::clone(&target.expression))
+            } else {
+                // Not the message this block was expecting
+                TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
             }
+        } else {
+            if message_id == target.accepted_message_id {
+                // Create a value store to store the argument values
+                let mut argument_store  = TalkValueStore::default();
+                let mut arguments       = arguments;
 
-            TalkMessage::WithArguments(message_id, arg_values) => {
-                if message_id == target.accepted_message_id {
-                    // Create a value store to store the argument values
-                    let mut argument_store = TalkValueStore::default();
+                // Assume that arg_values is the same length as target.arguments
+                arguments.iter_mut()
+                    .enumerate()
+                    .for_each(|(idx, value)| {
+                        argument_store.set_symbol_value(target.arguments[idx], value.take())
+                    });
 
-                    // Assume that arg_values is the same length as target.arguments
-                    arg_values.into_iter()
-                        .enumerate()
-                        .for_each(|(idx, value)| {
-                            argument_store.set_symbol_value(target.arguments[idx], value)
-                        });
-
-                    talk_evaluate_simple_with_arguments(target.root_values.clone(), argument_store, Arc::clone(&target.expression))
-                } else {
-                    // Not the message this block was expecting
-                    TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
-                }
+                talk_evaluate_simple_with_arguments(target.root_values.clone(), argument_store, Arc::clone(&target.expression))
+            } else {
+                // Not the message this block was expecting
+                TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
             }
         }
     }

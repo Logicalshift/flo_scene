@@ -1,5 +1,6 @@
 use flo_scene::flotalk::*;
 
+use smallvec::*;
 use futures::executor;
 
 pub struct TestClass;
@@ -32,8 +33,8 @@ impl TalkClassDefinition for TestClass {
         }
     }
 
-    fn send_instance_message(&self, message: TalkMessage, _reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
-        let sig = message.signature();
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, _arguments: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
+        let sig = message_id.to_signature();
 
         if sig == TalkMessageSignature::Unary(TalkSymbol::from("addOne")) {
             *target += 1;

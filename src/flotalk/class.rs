@@ -1,12 +1,15 @@
 use super::context::*;
 use super::continuation::*;
+use super::dispatch_table::*;
 use super::message::*;
 use super::reference::*;
+use super::releasable::*;
 use super::runtime::*;
 use super::value::*;
 
 use futures::prelude::*;
 use futures::task::{Poll};
+use smallvec::*;
 
 use std::any::*;
 use std::cell::*;
@@ -61,8 +64,8 @@ pub (super) struct TalkClassCallbacks {
 /// Callbacks for addressing a TalkClass within a context
 ///
 pub (super) struct TalkClassContextCallbacks {
-    /// Sends a message to an object
-    send_message: Box<dyn Send + Fn(TalkDataHandle, TalkMessage) -> TalkContinuation<'static>>,
+    /// The dispatch table for this class
+    dispatch_table: TalkMessageDispatchTable<TalkDataHandle>,
 
     /// Sends a message to the class object
     send_class_message: Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation<'static>>,
@@ -98,8 +101,8 @@ impl TalkClassCallbacks {
 
 impl TalkClassContextCallbacks {
     #[inline]
-    pub (super) fn send_message(&self, data_handle: TalkDataHandle, message: TalkMessage) -> TalkContinuation<'static> {
-        (self.send_message)(data_handle, message)
+    pub (super) fn send_message(&self, data_handle: TalkDataHandle, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'static> {
+        self.dispatch_table.send_message(data_handle, message, context)
     }
 
     #[inline]
@@ -180,7 +183,7 @@ pub trait TalkClassDefinition : Send + Sync {
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message: TalkMessage, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static>;
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static>;
 }
 
 ///
@@ -213,18 +216,19 @@ impl TalkClass {
     //       a noticeable performance difference.
 
     ///
-    /// Creates the 'send message' method for an allocator
+    /// Creates the dispatch table for an allocator
     ///
-    fn callback_send_message<TClass>(class_id: TalkClass, class_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + Fn(TalkDataHandle, TalkMessage) -> TalkContinuation<'static>> 
+    fn callback_dispatch_table<TClass>(class_id: TalkClass, class_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> TalkMessageDispatchTable<TalkDataHandle> 
     where
         TClass: 'static + TalkClassDefinition,
     {
-        Box::new(move |data_handle, message| {
-            let mut allocator   = allocator.lock().unwrap();
-            let data            = allocator.retrieve(data_handle);
+        TalkMessageDispatchTable::empty()
+            .with_not_supported(move |data_handle, message_id, message_args, _talk_context| {
+                let mut allocator   = allocator.lock().unwrap();
+                let data            = allocator.retrieve(data_handle);
 
-            class_definition.send_instance_message(message, TalkReference(class_id, data_handle), data)
-        })
+                class_definition.send_instance_message(message_id, message_args, TalkReference(class_id, data_handle), data)
+            })
     }
 
     ///
@@ -299,7 +303,7 @@ impl TalkClass {
             let allocator = Arc::new(Mutex::new(definition.create_allocator()));
 
             TalkClassContextCallbacks {
-                send_message:       Self::callback_send_message(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
+                dispatch_table:     Self::callback_dispatch_table(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
                 send_class_message: Self::callback_send_class_message(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
                 add_reference:      Self::callback_add_reference(Arc::clone(&allocator)),
                 remove_reference:   Self::callback_remove_reference(Arc::clone(&allocator)),
