@@ -74,30 +74,6 @@ impl TalkValue {
     }
 
     ///
-    /// Creates a copy of this value in the specified context
-    ///
-    /// This will copy this value and increase its reference count
-    ///
-    #[inline]
-    pub fn clone_in_context(&self, context: &TalkContext) -> TalkValue {
-        use TalkValue::*;
-
-        match self {
-            Nil                     => Nil,
-            Reference(reference)    => Reference(reference.clone_in_context(context)),
-            Bool(boolean)           => Bool(*boolean),
-            Int(int)                => Int(*int),
-            Float(float)            => Float(*float),
-            String(string)          => String(Arc::clone(string)),
-            Character(character)    => Character(*character),
-            Symbol(symbol)          => Symbol(*symbol),
-            Selector(symbol)        => Selector(*symbol),
-            Array(array)            => Array(array.iter().map(|val| val.clone_in_context(context)).collect()),
-            Error(error)            => Error(error.clone()),
-        }
-    }
-
-    ///
     /// Returns the reference represented by this value
     ///
     pub fn try_as_reference(&self) -> Result<&TalkReference, TalkError> {

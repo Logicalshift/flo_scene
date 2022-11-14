@@ -3,6 +3,7 @@ use super::context::*;
 use super::error::*;
 use super::instruction::*;
 use super::message::*;
+use super::releasable::*;
 use super::simple_evaluator_block::*;
 use super::symbol::*;
 use super::value::*;

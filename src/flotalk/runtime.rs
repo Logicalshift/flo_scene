@@ -2,6 +2,7 @@ use super::context::*;
 use super::continuation::*;
 use super::error::*;
 use super::message::*;
+use super::releasable::*;
 use super::value::*;
 
 use futures::prelude::*;
