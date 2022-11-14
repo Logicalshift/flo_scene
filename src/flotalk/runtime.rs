@@ -51,6 +51,20 @@ impl TalkRuntime {
     }
 
     ///
+    /// Releases a TalkValue
+    ///
+    /// FloTalk uses a reference-counting system for values; failing to call release_value() on a TalkValue will leak it
+    ///
+    pub fn release_value<'a>(&'a self, value: TalkValue) -> impl 'a + Send + Future<Output=()> {
+        async move {
+            self.run_continuation(TalkContinuation::Soon(Box::new(move |talk_context| {
+                value.remove_reference(talk_context);
+                TalkValue::Nil.into()
+            })));
+        }
+    }
+
+    ///
     /// Runs a continuation with a 'later' part
     ///
     fn run_continuation_later<'a>(&self, later: Box<dyn 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>>) -> impl 'a + Send + Future<Output=TalkValue> {
