@@ -189,7 +189,7 @@ impl TalkValue {
     /// Increases the reference count for this value. References are freed once the count reaches 0.
     ///
     #[inline]
-    pub fn add_reference(&self, context: &mut TalkContext) {
+    pub fn add_reference(&self, context: &TalkContext) {
         use TalkValue::*;
 
         match self {
@@ -212,7 +212,7 @@ impl TalkValue {
     /// Decreases the reference count for this value. References are freed once the count reaches 0.
     ///
     #[inline]
-    pub fn remove_reference(&self, context: &mut TalkContext) {
+    pub fn remove_reference(&self, context: &TalkContext) {
         use TalkValue::*;
 
         match self {

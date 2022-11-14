@@ -47,16 +47,22 @@ impl TalkReference {
     /// Increases the reference count for this reference. References are freed once the count reaches 0.
     ///
     #[inline]
-    pub fn add_reference(&self, context: &mut TalkContext) {
-        context.get_callbacks_mut(self.0).add_reference(self.1)
+    pub fn add_reference(&self, context: &TalkContext) {
+        match context.get_callbacks(self.0) {
+            Some(callbacks) => callbacks.add_reference(self.1),
+            None            => { /* Should be unreachable */ }
+        }
     }
 
     ///
     /// Decreases the reference count for this reference. References are freed once the count reaches 0.
     ///
     #[inline]
-    pub fn remove_reference(&self, context: &mut TalkContext) {
-        context.get_callbacks_mut(self.0).remove_reference(self.1)
+    pub fn remove_reference(&self, context: &TalkContext) {
+        match context.get_callbacks(self.0) {
+            Some(callbacks) => callbacks.remove_reference(self.1),
+            None            => { /* Should be unreachable */ }
+        }
     }
 
     ///
