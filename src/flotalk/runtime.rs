@@ -61,7 +61,7 @@ impl TalkRuntime {
             self.run_continuation(TalkContinuation::Soon(Box::new(move |talk_context| {
                 value.remove_reference(talk_context);
                 TalkValue::Nil.into()
-            })));
+            }))).await;
         }
     }
 

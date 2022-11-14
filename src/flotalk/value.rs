@@ -6,7 +6,6 @@ use super::expression::*;
 use super::message::*;
 use super::reference::*;
 use super::symbol::*;
-use super::value_messages::*;
 
 use smallvec::*;
 
@@ -159,7 +158,7 @@ impl TalkValue {
     /// Sends a message to this value, then releases it
     ///
     #[inline]
-    fn send_message<'a>(self, message: TalkMessage) -> TalkContinuation<'a> {
+    pub fn send_message<'a>(self, message: TalkMessage) -> TalkContinuation<'a> {
         TalkContinuation::Soon(Box::new(move |talk_context| self.send_message_in_context(message, talk_context)))
     }
 
@@ -253,7 +252,7 @@ impl TalkValue {
 }
 
 impl From<()> for TalkValue {
-    fn from(val: ()) -> TalkValue { TalkValue::Nil }
+    fn from(_val: ()) -> TalkValue { TalkValue::Nil }
 }
 
 impl From<TalkReference> for TalkValue {

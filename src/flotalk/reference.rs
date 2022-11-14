@@ -6,7 +6,6 @@ use super::runtime::*;
 use super::value::*;
 
 use futures::prelude::*;
-use futures::task::{Poll};
 
 ///
 /// A reference to the data for a class from the allocator

@@ -8,7 +8,6 @@ use super::runtime::*;
 use super::value::*;
 
 use futures::prelude::*;
-use futures::task::{Poll};
 use smallvec::*;
 
 use std::any::*;

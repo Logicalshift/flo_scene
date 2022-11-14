@@ -4,11 +4,8 @@ use super::dispatch_table::*;
 use super::error::*;
 use super::message::*;
 use super::number::*;
-use super::reference::*;
 use super::symbol::*;
 use super::value::*;
-
-use smallvec::*;
 
 use std::sync::*;
 
@@ -269,12 +266,12 @@ impl TalkValue {
             TalkValue::Bool(val)                => TALK_DISPATCH_BOOLEAN.send_message(val, message, context),
             TalkValue::Int(val)                 => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Int(val), message, context),
             TalkValue::Float(val)               => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Float(val), message, context),
-            TalkValue::String(val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Character(val)           => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Symbol(val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Selector(val)            => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Array(val)               => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Error(TalkError)         => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::String(_val)             => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Character(_val)          => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Symbol(_val)             => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Selector(_val)           => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Array(_val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Error(_err)              => TalkError::MessageNotSupported(message.signature_id()).into(),
         }
     }
 }

@@ -84,14 +84,14 @@ where
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message: TalkMessage, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
+    fn send_class_message(&self, message: TalkMessage, _class_id: TalkClass, _allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
         TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message.signature_id())))
     }
 
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, arguments: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, arguments: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
         if arguments.len() == 0 {
             if message_id == target.accepted_message_id {
                 // Send with no arguments
@@ -159,7 +159,7 @@ where
     let signature = if arguments.len() == 0 {
         TalkMessageSignature::Unary(*VALUE_SYMBOL)
     } else {
-        TalkMessageSignature::Arguments(arguments.iter().map(|arg| *VALUE_COLON_SYMBOL).collect())
+        TalkMessageSignature::Arguments(arguments.iter().map(|_| *VALUE_COLON_SYMBOL).collect())
     };
 
     // Create the block data

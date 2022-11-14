@@ -1,9 +1,6 @@
 use super::allocator::*;
-use super::class::*;
-use super::context::*;
 use super::continuation::*;
 use super::message::*;
-use super::value::*;
 
 use std::collections::{HashMap};
 

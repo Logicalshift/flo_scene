@@ -1,10 +1,7 @@
 use super::class::*;
-use super::dispatch_table::*;
 use super::reference::*;
 use super::value::*;
 use super::value_messages::*;
-
-use std::ops::{Deref};
 
 ///
 /// A talk context is a self-contained representation of the state of a flotalk interpreter
@@ -15,9 +12,6 @@ use std::ops::{Deref};
 pub struct TalkContext {
     /// Callbacks for this context, indexed by class ID
     context_callbacks: Vec<Option<TalkClassContextCallbacks>>,
-
-    /// Dispatch tables by class
-    pub (super) class_dispatch_tables: Vec<Option<TalkMessageDispatchTable<TalkDataHandle>>>,
 
     /// Dispatch tables by value
     pub (super) value_dispatch_tables: TalkValueDispatchTables,
@@ -30,7 +24,6 @@ impl TalkContext {
     pub fn empty() -> TalkContext {
         TalkContext {
             context_callbacks:      vec![],
-            class_dispatch_tables:  vec![],
             value_dispatch_tables:  TalkValueDispatchTables::default(),
         }
     }
