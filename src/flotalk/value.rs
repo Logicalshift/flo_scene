@@ -66,6 +66,8 @@ impl TalkValue {
     ///
     /// Moves this value, replacing it with the value 'Nil'
     ///
+    /// This is useful for retrieving values from `TalkOwned`, but note that they have to be manually released after this
+    ///
     #[inline]
     pub fn take(&mut self) -> TalkValue {
         let mut value = TalkValue::Nil;
