@@ -57,7 +57,7 @@ impl TalkReference {
     /// Sends a message to this object.
     ///
     #[inline]
-    pub fn send_message_in_context<'a>(&self, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'a> {
+    pub fn send_message_in_context<'a>(self, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'a> {
         match context.get_callbacks(self.0) {
             Some(callbacks)     => callbacks.send_message(self.1, message),
             None                => unreachable!("A reference should not reference a class that has not been initialized in the context"),   // As we have to send a message to an instance of a class before we can have a reference to that class, the callbacks should always exist when sending a message to a reference
@@ -68,24 +68,7 @@ impl TalkReference {
     /// Sends a message to this object
     ///
     pub fn send_message_later<'a>(self, message: TalkMessage) -> TalkContinuation<'a> {
-        let reference                   = self;
-        let mut message                 = Some(message);
-        let mut message_continuation    = None;
-
-        TalkContinuation::Later(Box::new(move |talk_context, future_context| {
-            loop {
-                match message_continuation.take() {
-                    None                                    => { message_continuation = Some(reference.send_message_in_context(message.take().unwrap(), talk_context)); },
-                    Some(TalkContinuation::Ready(val))      => { message_continuation = Some(TalkContinuation::Ready(TalkValue::Nil)); return Poll::Ready(val); }
-                    Some(TalkContinuation::Soon(soon_fn))   => { message_continuation = Some(soon_fn(talk_context)); }
-                    Some(TalkContinuation::Later(mut later_fn))   => {
-                        let result              = later_fn(talk_context, future_context);
-                        message_continuation    = Some(TalkContinuation::Later(later_fn));
-                        return result;
-                    }
-                }
-            }
-        }))
+        TalkContinuation::Soon(Box::new(move |talk_context| self.send_message_in_context(message, talk_context)))
     }
 
     ///
