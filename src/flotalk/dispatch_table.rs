@@ -17,6 +17,9 @@ use std::sync::*;
 pub struct TalkMessageDispatchTable<TDataType> {
     /// The action to take for a particular message type
     message_action: TalkSparseArray<Arc<dyn Send + Sync + for<'a> Fn(TDataType, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>>>,
+
+    /// The action to take when a message is not supported
+    not_supported: Arc<dyn Send + Sync + for<'a> Fn(TDataType, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>>,
 }
 
 impl<TDataType> TalkMessageDispatchTable<TDataType> {
@@ -25,7 +28,8 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     pub fn empty() -> TalkMessageDispatchTable<TDataType> {
         TalkMessageDispatchTable {
-            message_action: TalkSparseArray::empty()
+            message_action:     TalkSparseArray::empty(),
+            not_supported:      Arc::new(|_, id, _, _| TalkError::MessageNotSupported(id).into()),
         }
     }
 
@@ -37,6 +41,17 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
         TResult: Into<TalkContinuation<'static>>,
     {
         self.define_message(message, move |data_type, args, context| action(data_type, args, context).into());
+
+        self
+    }
+
+    ///
+    /// Builder method that will set the action to take when an 'unsupported' message is sent to this dispatch table
+    ///
+    /// The default 'not supported' action is to return a MessageNotSupported error
+    ///
+    pub fn with_not_supported(mut self, not_supported: impl 'static + Send + Sync + for<'a> Fn(TDataType, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) -> Self {
+        self.not_supported = Arc::new(not_supported);
 
         self
     }
@@ -77,12 +92,12 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     #[inline]
     pub fn send_message(&self, target: TDataType, message: TalkMessage, talk_context: &TalkContext) -> TalkContinuation<'static> {
         let id      = message.signature_id();
-        let args    = message.to_arguments();
+        let args    = TalkOwned::new(message.to_arguments(), talk_context);
 
         if let Some(action) = self.message_action.get(id.into()) {
-            (action)(target, TalkOwned::new(args, talk_context), talk_context)
+            (action)(target, args, talk_context)
         } else {
-            TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(id)))
+            (self.not_supported)(target, id, args, talk_context)
         }
     }
 
