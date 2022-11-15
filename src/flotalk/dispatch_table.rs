@@ -2,7 +2,6 @@ use super::context::*;
 use super::continuation::*;
 use super::error::*;
 use super::message::*;
-use super::reference::*;
 use super::releasable::*;
 use super::sparse_array::*;
 use super::value::*;
@@ -15,15 +14,21 @@ use std::sync::*;
 /// Maps messages to the functions that process them, and other metadata (such as the source code, or a compiled version for the intepreter)
 ///
 #[derive(Clone)]
-pub struct TalkMessageDispatchTable<TDataType> {
+pub struct TalkMessageDispatchTable<TDataType>
+where
+    TDataType: TalkReleasable
+{
     /// The action to take for a particular message type
-    message_action: TalkSparseArray<Arc<dyn Send + Sync + for<'a> Fn(TDataType, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>>>,
+    message_action: TalkSparseArray<Arc<dyn Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>>>,
 
     /// The action to take when a message is not supported
-    not_supported: Arc<dyn Send + Sync + for<'a> Fn(TDataType, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>>,
+    not_supported: Arc<dyn Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>>,
 }
 
-impl<TDataType> TalkMessageDispatchTable<TDataType> {
+impl<TDataType> TalkMessageDispatchTable<TDataType>
+where
+    TDataType: TalkReleasable
+{
     ///
     /// Creates an empty dispatch table
     ///
@@ -37,7 +42,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     /// Builder method that can be used to initialise a dispatch table alongside its messages
     ///
-    pub fn with_message<TResult>(mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TDataType, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TResult) -> Self 
+    pub fn with_message<TResult>(mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TResult) -> Self 
     where
         TResult: Into<TalkContinuation<'static>>,
     {
@@ -51,7 +56,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     /// The default 'not supported' action is to return a MessageNotSupported error
     ///
-    pub fn with_not_supported(mut self, not_supported: impl 'static + Send + Sync + for<'a> Fn(TDataType, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) -> Self {
+    pub fn with_not_supported(mut self, not_supported: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) -> Self {
         self.not_supported = Arc::new(not_supported);
 
         self
@@ -73,7 +78,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     pub fn with_mapped_messages_from<TSourceDataType>(mut self, table: &TalkMessageDispatchTable<TSourceDataType>, map_fn: impl 'static + Send + Sync + Fn(TDataType) -> TSourceDataType) -> Self 
     where
-        TSourceDataType: 'static,
+        TSourceDataType: 'static + TalkReleasable,
     {
         let map_fn = Arc::new(map_fn);
 
@@ -81,17 +86,18 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
             let map_fn  = Arc::clone(&map_fn);
             let message = Arc::clone(message);
 
-            self.message_action.insert(message_id, Arc::new(move |data, args, context| { (message)((map_fn)(data), args, context) }));
+            self.message_action.insert(message_id, Arc::new(move |data, args, context| { (message)(data.map(&*map_fn), args, context) }));
         }
 
         self
     }
 
     ///
-    /// Sends a message to an item in this dispatch table
+    /// Sends a message to an item in this dispatch table (freeing the target when done)
     ///
     #[inline]
-    pub fn send_message(&self, target: TDataType, message: TalkMessage, talk_context: &TalkContext) -> TalkContinuation<'static> {
+    pub fn send_message<'a>(&'a self, target: TDataType, message: TalkMessage, talk_context: &'a TalkContext) -> TalkContinuation<'static> {
+        let target  = TalkOwned::new(target, talk_context);
         let id      = message.signature_id();
         let args    = TalkOwned::new(message.to_arguments(), talk_context);
 
@@ -107,6 +113,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     #[inline]
     pub fn try_send_message(&self, target: TDataType, message: TalkMessage, talk_context: &TalkContext) -> Option<TalkContinuation<'static>> {
+        let target  = TalkOwned::new(target, talk_context);
         let id      = message.signature_id();
         let args    = message.to_arguments();
 
@@ -120,22 +127,7 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     /// Defines the action for a message
     ///
-    pub fn define_message(&mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TDataType, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) {
+    pub fn define_message(&mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) {
         self.message_action.insert(message.into().into(), Arc::new(action));
-    }
-}
-
-impl TalkMessageDispatchTable<TalkDataHandle> {
-    ///
-    /// Sends a message to an item in this dispatch table, then releases the reference
-    ///
-    #[inline]
-    pub fn send_message_and_release<'a>(&'a self, target: TalkReference, message: TalkMessage, talk_context: &'a TalkContext) -> TalkContinuation<'static> {
-        // The reference is released after the continuation is returned
-        // 
-        // The upside of this approach is that not every implementation must retain itself in order to work
-        // Downside is it's surprising: the data item must be retained by the target if the continuation is a 'Soon' or 'Later' variant
-        let owned = TalkOwned::new(target, talk_context);
-        self.send_message((*owned).1, message, talk_context)
     }
 }

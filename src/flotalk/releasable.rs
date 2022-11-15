@@ -1,6 +1,11 @@
 use super::context::*;
+use super::error::*;
+use super::number::*;
 use super::reference::*;
+use super::symbol::*;
 use super::value::*;
+
+use smallvec::*;
 
 use std::ops::{Deref, DerefMut};
 use std::sync::*;
@@ -50,6 +55,20 @@ where
             value:      Some(value),
         }
     }
+
+    ///
+    /// Changes the type/value of the internal value without releasing it
+    ///
+    #[inline]
+    pub fn map<TTargetType>(mut self, map_fn: impl FnOnce(TReleasable) -> TTargetType) -> TalkOwned<'a, TTargetType>
+    where
+        TTargetType: TalkReleasable 
+    {
+        TalkOwned {
+            context:    self.context,
+            value:      Some((map_fn)(self.value.take().unwrap()))
+        }
+    }
 }
 
 impl<'a, TReleasable> Drop for TalkOwned<'a, TReleasable>
@@ -58,7 +77,9 @@ where
 {
     #[inline]
     fn drop(&mut self) {
-        self.value.take().unwrap().release_in_context(self.context);
+        if let Some(value) = self.value.take() {
+            value.release_in_context(self.context);
+        }
     }
 }
 
@@ -141,6 +162,15 @@ impl TalkCloneable for TalkValue {
     }
 }
 
+impl TalkReleasable for bool        { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for i64         { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for f64         { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for char        { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for Arc<String> { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for TalkSymbol  { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for TalkNumber  { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for TalkError   { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+
 impl TalkReleasable for TalkReference {
     ///
     /// Decreases the reference count of this value by 1
@@ -165,10 +195,19 @@ impl TalkCloneable for TalkReference {
     }
 }
 
-impl<TIntoIter> TalkReleasable for TIntoIter
+impl<TReleasable> TalkReleasable for Vec<TReleasable>
 where
-    TIntoIter:          IntoIterator,
-    TIntoIter::Item:    TalkReleasable,
+    TReleasable:        TalkReleasable,
+{
+    #[inline]
+    fn release_in_context(self, context: &TalkContext) {
+        self.into_iter().for_each(|item| item.release_in_context(context));
+    }
+}
+
+impl<TReleasable> TalkReleasable for SmallVec<[TReleasable; 4]>
+where
+    TReleasable:        TalkReleasable,
 {
     #[inline]
     fn release_in_context(self, context: &TalkContext) {

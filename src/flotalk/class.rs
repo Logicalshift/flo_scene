@@ -64,7 +64,7 @@ pub (super) struct TalkClassCallbacks {
 ///
 pub (super) struct TalkClassContextCallbacks {
     /// The dispatch table for this class
-    dispatch_table: TalkMessageDispatchTable<TalkDataHandle>,
+    dispatch_table: TalkMessageDispatchTable<TalkReference>,
 
     /// Sends a message to the class object
     send_class_message: Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation<'static>>,
@@ -101,7 +101,7 @@ impl TalkClassCallbacks {
 impl TalkClassContextCallbacks {
     #[inline]
     pub (super) fn send_message(&self, reference: TalkReference, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'static> {
-        self.dispatch_table.send_message_and_release(reference, message, context)
+        self.dispatch_table.send_message(reference, message, context)
     }
 
     #[inline]
@@ -217,12 +217,13 @@ impl TalkClass {
     ///
     /// Creates the dispatch table for an allocator
     ///
-    fn callback_dispatch_table<TClass>(class_id: TalkClass, class_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> TalkMessageDispatchTable<TalkDataHandle> 
+    fn callback_dispatch_table<TClass>(class_id: TalkClass, class_definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> TalkMessageDispatchTable<TalkReference> 
     where
         TClass: 'static + TalkClassDefinition,
     {
         TalkMessageDispatchTable::empty()
-            .with_not_supported(move |data_handle, message_id, message_args, _talk_context| {
+            .with_not_supported(move |reference: TalkOwned<'_, TalkReference>, message_id, message_args, _talk_context| {
+                let data_handle     = reference.1;
                 let mut allocator   = allocator.lock().unwrap();
                 let data            = allocator.retrieve(data_handle);
 
