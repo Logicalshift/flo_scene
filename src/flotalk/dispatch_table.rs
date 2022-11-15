@@ -2,6 +2,7 @@ use super::context::*;
 use super::continuation::*;
 use super::error::*;
 use super::message::*;
+use super::reference::*;
 use super::releasable::*;
 use super::sparse_array::*;
 use super::value::*;
@@ -121,5 +122,20 @@ impl<TDataType> TalkMessageDispatchTable<TDataType> {
     ///
     pub fn define_message(&mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TDataType, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) {
         self.message_action.insert(message.into().into(), Arc::new(action));
+    }
+}
+
+impl TalkMessageDispatchTable<TalkDataHandle> {
+    ///
+    /// Sends a message to an item in this dispatch table, then releases the reference
+    ///
+    #[inline]
+    pub fn send_message_and_release<'a>(&'a self, target: TalkReference, message: TalkMessage, talk_context: &'a TalkContext) -> TalkContinuation<'static> {
+        // The reference is released after the continuation is returned
+        // 
+        // The upside of this approach is that not every implementation must retain itself in order to work
+        // Downside is it's surprising: the data item must be retained by the target if the continuation is a 'Soon' or 'Later' variant
+        let owned = TalkOwned::new(target, talk_context);
+        self.send_message((*owned).1, message, talk_context)
     }
 }

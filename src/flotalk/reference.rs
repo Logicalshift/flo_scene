@@ -19,7 +19,7 @@ pub struct TalkDataHandle(pub usize);
 /// FloTalk data is stored by class and handle. References are only valid for the context that they were created for.
 ///
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-pub struct TalkReference(pub (crate) TalkClass, pub (crate) TalkDataHandle);
+pub struct TalkReference(pub (super) TalkClass, pub (super) TalkDataHandle);
 
 impl TalkReference {
     ///
@@ -53,12 +53,12 @@ impl TalkReference {
     }
 
     ///
-    /// Sends a message to this object.
+    /// Sends a message to the object this reference points at, then releases it.
     ///
     #[inline]
     pub fn send_message_in_context<'a>(self, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'a> {
         match context.get_callbacks(self.0) {
-            Some(callbacks)     => callbacks.send_message(self.1, message, context),
+            Some(callbacks)     => callbacks.send_message(self, message, context),
             None                => unreachable!("A reference should not reference a class that has not been initialized in the context"),   // As we have to send a message to an instance of a class before we can have a reference to that class, the callbacks should always exist when sending a message to a reference
         }
     }

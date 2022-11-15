@@ -100,8 +100,8 @@ impl TalkClassCallbacks {
 
 impl TalkClassContextCallbacks {
     #[inline]
-    pub (super) fn send_message(&self, data_handle: TalkDataHandle, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'static> {
-        self.dispatch_table.send_message(data_handle, message, context)
+    pub (super) fn send_message(&self, reference: TalkReference, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'static> {
+        self.dispatch_table.send_message_and_release(reference, message, context)
     }
 
     #[inline]
