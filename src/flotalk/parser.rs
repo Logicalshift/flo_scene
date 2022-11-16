@@ -324,8 +324,9 @@ where
     ///
     /// With the lookahead on the stream being a '#', match the following array or symbol
     ///
-    /// `<symbol> ::= '#' <identifier>`
-    /// `<symbol> ::= '#' <keyword>`
+    /// `<selector> ::= '#' <identifier>`
+    /// `<selector> ::= '#' <keyword>+`
+    /// `<selector> ::= '#' <binaryCharacter>+`
     /// `<symbol> ::= '#' <string>`
     /// `<array>  ::= '#' '(' <array-definition>`
     ///
