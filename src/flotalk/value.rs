@@ -5,6 +5,7 @@ use super::error::*;
 use super::expression::*;
 use super::message::*;
 use super::reference::*;
+use super::releasable::*;
 use super::symbol::*;
 
 use smallvec::*;
@@ -152,6 +153,24 @@ impl TalkValue {
             Error(error)                => context.value_dispatch_tables.error_dispatch.send_message(error, message, context),
 
             Reference(reference)        => reference.send_message_in_context(message, context),
+        }
+    }
+
+    ///
+    /// Sends a message to this value, then releases it
+    ///
+    /// This differs from `send_message` in that `send_message` assumes that the caller is always using the correct number of arguments for the
+    /// selector. This will check, and only send the message if the arguments match.
+    ///
+    #[inline]
+    pub (super) fn perform_message_in_context<'a>(self, message_id: TalkMessageSignatureId, arguments: TalkOwned<'a, SmallVec<[TalkValue; 4]>>, context: &'a TalkContext) -> TalkContinuation<'static> {
+        if message_id.len() != arguments.len() {
+            // Selector does not match the arguments
+            TalkError::WrongNumberOfArguments.into()
+        } else {
+            // Send the message
+            let message = if message_id.len() == 1 { TalkMessage::Unary(message_id) } else { TalkMessage::WithArguments(message_id, arguments.leak()) };
+            self.send_message_in_context(message, context)
         }
     }
 
