@@ -2,7 +2,7 @@ use super::message::*;
 use super::symbol::*;
 
 ///
-/// An error 
+/// A FloTalk error 
 ///
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum TalkError {
@@ -15,7 +15,7 @@ pub enum TalkError {
     /// A class message was not supported
     MessageNotSupported(TalkMessageSignatureId),
 
-    /// The runtime was dropped before a future could completed
+    /// The runtime was dropped before a future could complete
     RuntimeDropped,
 
     /// A value that was not supposed to be nil is nil
@@ -35,6 +35,9 @@ pub enum TalkError {
 
     /// A value that was expected to be a float was not a float
     NotAFloat,
+
+    /// A selector was called with the incorrect number of arguments
+    WrongNumberOfArguments,
 
     /// A value that looked like a floating point number could not be interpreted as such
     InvalidFloatingPointNumber(String),
