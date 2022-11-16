@@ -369,7 +369,7 @@ where
                 TalkIdentifierOrKeyword::Keyword(keyword)       => keyword,
             };
 
-            Ok(ParserResult { value: TalkLiteral::Selector(identifier), location: start_location })
+            Ok(ParserResult { value: TalkLiteral::Selector(vec![identifier]), location: start_location })
 
         } else {
 

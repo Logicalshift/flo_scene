@@ -29,7 +29,7 @@ fn symbol() {
 
 #[test]
 fn selector() {
-    assert!(TalkValue::try_from(TalkLiteral::Selector(Arc::new("some_symbol:".into()))) == Ok(TalkValue::Selector("some_symbol:".into())));
+    assert!(TalkValue::try_from(TalkLiteral::Selector(vec![Arc::new("some_symbol:".into())])) == Ok(TalkValue::Selector("some_symbol:".into())));
 }
 
 #[test]

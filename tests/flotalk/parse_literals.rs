@@ -53,7 +53,7 @@ fn selector_literal() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Selector(Arc::new("selector".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Selector(vec![Arc::new("selector".to_string())])));
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn selector_literal_keyword() {
     let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
 
     let expr            = parse_result.value;
-    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Selector(Arc::new("selector:".to_string()))));
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Selector(vec![Arc::new("selector:".to_string())])));
 }
 
 #[test]

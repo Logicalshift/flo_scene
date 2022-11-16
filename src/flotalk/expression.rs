@@ -35,7 +35,7 @@ pub enum TalkLiteral {
     Symbol(Arc<String>),
 
     /// A selector (`#foo` or `#foo:`)
-    Selector(Arc<String>),
+    Selector(Vec<Arc<String>>),
 
     /// An array (`#(1 2 3 4)`)
     Array(Vec<TalkLiteral>),
