@@ -8,6 +8,8 @@ use super::symbol::*;
 use super::releasable::*;
 use super::value::*;
 
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::{DefaultHasher};
 use std::sync::*;
 
 lazy_static! {
@@ -156,8 +158,29 @@ lazy_static! {
 
 lazy_static! {
     pub static ref TALK_DISPATCH_ANY: TalkMessageDispatchTable<TalkValue> = TalkMessageDispatchTable::empty()
-        .with_message(*TALK_BINARY_EQUALS,          |val, args, _| *val == args[0])
-        .with_message(*TALK_BINARY_EQUALS_EQUALS,   |val, args, _| *val == args[0]);
+        .with_message(*TALK_BINARY_EQUALS,                  |val: TalkOwned<'_, TalkValue>, args, _| *val == args[0])
+        .with_message(*TALK_BINARY_EQUALS_EQUALS,           |val, args, _| *val == args[0])
+        .with_message(*TALK_BINARY_TILDE_EQUALS,            |val, args, _| *val != args[0])
+        .with_message(*TALK_BINARY_TILDE_TILDE,             |val, args, _| *val != args[0])
+        .with_message(*TALK_MSG_CLASS,                      |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_COPY,                       |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_DOES_NOT_UNDERSTAND,        |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_ERROR,                      |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_HASH,                       |val, _, _| { let mut hasher = DefaultHasher::new(); (*val).hash(&mut hasher); hasher.finish() as i64 })
+        .with_message(*TALK_MSG_IDENTITY_HASH,              |val, _, _| { let mut hasher = DefaultHasher::new(); (*val).hash(&mut hasher); hasher.finish() as i64 })
+        .with_message(*TALK_MSG_IS_KIND_OF,                 |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_IS_MEMBER_OF,               |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_IS_NIL,                     |val, _, _| *val == TalkValue::Nil)
+        .with_message(*TALK_MSG_NOT_NIL,                    |val, _, _| *val != TalkValue::Nil)
+        .with_message(*TALK_MSG_PERFORM,                    |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_PERFORM_WITH,               |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_PERFORM_WITH_WITH,          |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_PERFORM_WITH_WITH_WITH,     |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_PERFORM_WITH_ARGUMENTS,     |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_PRINT_ON,                   |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_PRINT_STRING,               |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_RESPONDS_TO,                |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_YOURSELF,                   |mut val, _, _| val.take());
 }
 
 lazy_static! {
