@@ -169,7 +169,7 @@ impl TalkValue {
             TalkError::WrongNumberOfArguments.into()
         } else {
             // Send the message
-            let message = if message_id.len() == 1 { TalkMessage::Unary(message_id) } else { TalkMessage::WithArguments(message_id, arguments.leak()) };
+            let message = if message_id.len() == 0 { TalkMessage::Unary(message_id) } else { TalkMessage::WithArguments(message_id, arguments.leak()) };
             self.send_message_in_context(message, context)
         }
     }
