@@ -288,6 +288,13 @@ impl TalkMessageSignatureId {
     pub fn to_signature(&self) -> TalkMessageSignature {
         SIGNATURE_FOR_ID.lock().unwrap().get(self).unwrap().clone()
     }
+
+    ///
+    /// Retrieves the number of arguments for this signature ID
+    ///
+    pub fn len(&self) -> usize {
+        SIGNATURE_FOR_ID.lock().unwrap().get(self).unwrap().len()
+    }
 }
 
 impl<T> From<T> for TalkMessageSignatureId 
