@@ -47,7 +47,7 @@ pub enum TalkValue {
     Symbol(TalkSymbol),
 
     /// A symbol representing a selector
-    Selector(TalkSymbol),
+    Selector(TalkMessageSignatureId),
 
     /// An array of values
     Array(Vec<TalkValue>),

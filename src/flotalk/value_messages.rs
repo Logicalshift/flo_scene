@@ -264,7 +264,7 @@ pub struct TalkValueDispatchTables {
     pub (super) string_dispatch:    TalkMessageDispatchTable<Arc<String>>,
     pub (super) character_dispatch: TalkMessageDispatchTable<char>,
     pub (super) symbol_dispatch:    TalkMessageDispatchTable<TalkSymbol>,
-    pub (super) selector_dispatch:  TalkMessageDispatchTable<TalkSymbol>,
+    pub (super) selector_dispatch:  TalkMessageDispatchTable<TalkMessageSignatureId>,
     pub (super) array_dispatch:     TalkMessageDispatchTable<Vec<TalkValue>>,
     pub (super) error_dispatch:     TalkMessageDispatchTable<TalkError>,
 }

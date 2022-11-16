@@ -1,5 +1,6 @@
 use super::context::*;
 use super::error::*;
+use super::message::*;
 use super::number::*;
 use super::reference::*;
 use super::symbol::*;
@@ -162,14 +163,15 @@ impl TalkCloneable for TalkValue {
     }
 }
 
-impl TalkReleasable for bool        { #[inline] fn release_in_context(self, _: &TalkContext) { } }
-impl TalkReleasable for i64         { #[inline] fn release_in_context(self, _: &TalkContext) { } }
-impl TalkReleasable for f64         { #[inline] fn release_in_context(self, _: &TalkContext) { } }
-impl TalkReleasable for char        { #[inline] fn release_in_context(self, _: &TalkContext) { } }
-impl TalkReleasable for Arc<String> { #[inline] fn release_in_context(self, _: &TalkContext) { } }
-impl TalkReleasable for TalkSymbol  { #[inline] fn release_in_context(self, _: &TalkContext) { } }
-impl TalkReleasable for TalkNumber  { #[inline] fn release_in_context(self, _: &TalkContext) { } }
-impl TalkReleasable for TalkError   { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for bool                    { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for i64                     { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for f64                     { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for char                    { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for Arc<String>             { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for TalkSymbol              { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for TalkNumber              { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for TalkError               { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for TalkMessageSignatureId  { #[inline] fn release_in_context(self, _: &TalkContext) { } }
 
 impl TalkReleasable for TalkReference {
     ///
