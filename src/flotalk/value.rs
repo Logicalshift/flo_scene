@@ -15,6 +15,7 @@ use std::u32;
 use std::str::{FromStr};
 use std::sync::*;
 use std::mem;
+use std::hash;
 
 ///
 /// The result of a FloTalk message
@@ -247,6 +248,28 @@ impl TalkValue {
             i64::from_str(number)
                 .map(|num| TalkValue::Int(num))
                 .map_err(|_| TalkError::InvalidIntegerNumber(number.to_string()))
+        }
+    }
+}
+
+impl hash::Hash for TalkValue {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: hash::Hasher 
+    {
+        use TalkValue::*;
+        match self {
+            Nil                         => { 0.hash(state); },
+            Bool(bool_value)            => { 1.hash(state); bool_value.hash(state); }
+            Int(int_value)              => { 2.hash(state); int_value.hash(state); }
+            Float(float_value)          => { let bits = float_value.to_bits(); 3.hash(state); bits.hash(state); }
+            String(string_value)        => { 4.hash(state); string_value.hash(state); }
+            Character(char_value)       => { 5.hash(state); char_value.hash(state); }
+            Symbol(symbol_value)        => { 6.hash(state); symbol_value.hash(state); }
+            Selector(selector_value)    => { 7.hash(state); selector_value.hash(state); }
+            Array(array_value)          => { 8.hash(state); array_value.hash(state); }
+            Error(error)                => { 9.hash(state); error.hash(state); }
+            Reference(reference)        => { 10.hash(state); reference.hash(state); }
         }
     }
 }
