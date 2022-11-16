@@ -155,10 +155,17 @@ lazy_static! {
 }
 
 lazy_static! {
+    pub static ref TALK_DISPATCH_ANY: TalkMessageDispatchTable<TalkValue> = TalkMessageDispatchTable::empty()
+        .with_message(*TALK_BINARY_EQUALS,          |val, args, _| *val == args[0])
+        .with_message(*TALK_BINARY_EQUALS_EQUALS,   |val, args, _| *val == args[0]);
+}
+
+lazy_static! {
     ///
     /// The default message dispatcher for boolean values
     ///
     pub static ref TALK_DISPATCH_BOOLEAN: TalkMessageDispatchTable<bool> = TalkMessageDispatchTable::empty()
+        .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |bool_value| TalkValue::Bool(bool_value))
         .with_message(*TALK_BINARY_AND,             |val: TalkOwned<'_, bool>, args, _| Ok::<_, TalkError>(*val & args[0].try_as_bool()?))
         .with_message(*TALK_BINARY_OR,              |val, args, _| Ok::<_, TalkError>(*val | args[0].try_as_bool()?))
         .with_message(*TALK_MSG_AND,                |val, mut args, context| if !*val { TalkContinuation::from(false) } else { args[0].take().send_message_in_context(TalkMessage::Unary(*TALK_MSG_VALUE), context) })
@@ -178,6 +185,7 @@ lazy_static! {
     /// The default message dispatcher for number values
     ///
     pub static ref TALK_DISPATCH_NUMBER: TalkMessageDispatchTable<TalkNumber> = TalkMessageDispatchTable::empty()
+        .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |number_value| TalkValue::from(number_value))
         .with_message(*TALK_BINARY_ADD,             |val: TalkOwned<'_, TalkNumber>, args, _| Ok::<_, TalkError>(*val + args[0].try_as_number()?))
         .with_message(*TALK_BINARY_SUB,             |val, args, _| Ok::<_, TalkError>(*val - args[0].try_as_number()?))
         .with_message(*TALK_BINARY_MUL,             |val, args, _| Ok::<_, TalkError>(*val * args[0].try_as_number()?))
@@ -241,7 +249,7 @@ pub struct TalkValueDispatchTables {
 impl Default for TalkValueDispatchTables {
     fn default() -> TalkValueDispatchTables {
         TalkValueDispatchTables {
-            any_dispatch:       TalkMessageDispatchTable::empty(),
+            any_dispatch:       TALK_DISPATCH_ANY.clone(),
             bool_dispatch:      TALK_DISPATCH_BOOLEAN.clone(),
             int_dispatch:       TALK_DISPATCH_NUMBER.clone(),
             float_dispatch:     TALK_DISPATCH_NUMBER.clone(),

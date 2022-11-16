@@ -13,7 +13,6 @@ use std::sync::*;
 ///
 /// Maps messages to the functions that process them, and other metadata (such as the source code, or a compiled version for the intepreter)
 ///
-#[derive(Clone)]
 pub struct TalkMessageDispatchTable<TDataType>
 where
     TDataType: TalkReleasable
@@ -23,6 +22,18 @@ where
 
     /// The action to take when a message is not supported
     not_supported: Arc<dyn Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>>,
+}
+
+impl<TDataType> Clone for TalkMessageDispatchTable<TDataType>
+where
+    TDataType: TalkReleasable
+{
+    fn clone(&self) -> Self {
+        TalkMessageDispatchTable {
+            message_action: self.message_action.clone(),
+            not_supported:  self.not_supported.clone(),
+        }
+    }
 }
 
 impl<TDataType> TalkMessageDispatchTable<TDataType>
