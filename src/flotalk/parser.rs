@@ -385,6 +385,21 @@ where
 
             Ok(ParserResult { value: TalkLiteral::Selector(components), location: start_location })
 
+        } else if is_binary_character(next_chr) {
+
+            // Is a binary selector
+            let mut binary_selector = String::new();
+            binary_selector.push(self.next().await.unwrap());
+
+            while let Some(chr) = self.peek().await {
+                if !is_binary_character(chr) { break; }
+
+                self.next().await;
+                binary_selector.push(chr);
+            }
+
+            Ok(ParserResult { value: TalkLiteral::Selector(vec![Arc::new(binary_selector)]), location: start_location })
+
         } else {
 
             // Not a valid '#' sequence
