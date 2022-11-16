@@ -70,6 +70,17 @@ where
             value:      Some((map_fn)(self.value.take().unwrap()))
         }
     }
+
+    ///
+    /// Retrieves the internal value, and no longer releases it when it's dropped
+    ///
+    #[inline]
+    pub (super) fn leak(mut self) -> TReleasable {
+        match self.value.take() {
+            Some(value) => value,
+            None        => unreachable!(),
+        }
+    }
 }
 
 impl<'a, TReleasable> Drop for TalkOwned<'a, TReleasable>
