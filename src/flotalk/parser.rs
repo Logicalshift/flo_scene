@@ -362,14 +362,28 @@ where
 
         } else if is_letter(next_chr) {
             
-            // Is a selector
-            let identifier = self.match_identifier_or_keyword().await.value;
-            let identifier = match identifier {
-                TalkIdentifierOrKeyword::Identifier(identifier) => identifier,
-                TalkIdentifierOrKeyword::Keyword(keyword)       => keyword,
-            };
+            let mut components = vec![];
 
-            Ok(ParserResult { value: TalkLiteral::Selector(vec![identifier]), location: start_location })
+            // Is a selector
+            loop {
+                let identifier = self.match_identifier_or_keyword().await.value;
+
+                match identifier {
+                    TalkIdentifierOrKeyword::Identifier(identifier) => { components.push(identifier); break; },
+                    TalkIdentifierOrKeyword::Keyword(keyword)       => { components.push(keyword); },
+                };
+
+                if let Some(chr) = self.peek().await {
+                    // 'foo:bar:' parses as the selector 'foo: bar:'
+                    if !is_letter(chr) {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            Ok(ParserResult { value: TalkLiteral::Selector(components), location: start_location })
 
         } else {
 

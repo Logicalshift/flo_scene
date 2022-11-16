@@ -67,6 +67,16 @@ fn selector_literal_keyword() {
 }
 
 #[test]
+fn selector_literal_keyword_double() {
+    let test_source     = "#selector:with:";
+    let test_source     = stream::iter(test_source.chars());
+    let parse_result    = executor::block_on(async { parse_flotalk_expression(test_source).next().await.unwrap().unwrap() });
+
+    let expr            = parse_result.value;
+    assert!(expr.strip() == TalkExpression::Literal(TalkLiteral::Selector(vec![Arc::new("selector:".to_string()), Arc::new("with:".to_string())])));
+}
+
+#[test]
 fn number_integer() {
     let test_source     = "42";
     let test_source     = stream::iter(test_source.chars());
