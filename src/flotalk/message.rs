@@ -329,6 +329,25 @@ where
     }
 }
 
+impl<T> From<Vec<T>> for TalkMessageSignatureId  
+where
+    TalkSymbol: From<T>,
+{
+    fn from(into_symbol: Vec<T>) -> TalkMessageSignatureId {
+        if into_symbol.len() == 1 {
+            let symbol = TalkSymbol::from(into_symbol.into_iter().next().unwrap());
+            
+            if symbol.is_keyword() || symbol.is_binary() {
+                TalkMessageSignature::Arguments(smallvec![symbol]).into()
+            } else {
+                TalkMessageSignature::Unary(symbol).into()
+            }
+        } else {
+            TalkMessageSignature::Arguments(into_symbol.into_iter().map(|sym| sym.into()).collect()).into()
+        }
+    }
+}
+
 impl<T1, T2> From<(T1, T2)> for TalkMessageSignatureId 
 where
     T1: Into<TalkSymbol>,

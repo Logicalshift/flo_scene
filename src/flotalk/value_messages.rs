@@ -8,6 +8,8 @@ use super::symbol::*;
 use super::releasable::*;
 use super::value::*;
 
+use smallvec::*;
+
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::{DefaultHasher};
 use std::sync::*;
@@ -68,6 +70,21 @@ lazy_static! {
 
     /// Performs the specified selector on the object, with the specified arguments
     pub static ref TALK_MSG_PERFORM_WITH_WITH_WITH: TalkMessageSignatureId      = ("perform:", "with:", "with:", "with:").into();
+
+    /// Performs the specified selector on the object, with the specified arguments
+    pub static ref TALK_MSG_PERFORM_WITH4: TalkMessageSignatureId               = vec!["perform:", "with:", "with:", "with:", "with:"].into();
+
+    /// Performs the specified selector on the object, with the specified arguments
+    pub static ref TALK_MSG_PERFORM_WITH5: TalkMessageSignatureId               = vec!["perform:", "with:", "with:", "with:", "with:", "with:"].into();
+
+    /// Performs the specified selector on the object, with the specified arguments
+    pub static ref TALK_MSG_PERFORM_WITH6: TalkMessageSignatureId               = vec!["perform:", "with:", "with:", "with:", "with:", "with:", "with:"].into();
+
+    /// Performs the specified selector on the object, with the specified arguments
+    pub static ref TALK_MSG_PERFORM_WITH7: TalkMessageSignatureId               = vec!["perform:", "with:", "with:", "with:", "with:", "with:", "with:", "with:"].into();
+
+    /// Performs the specified selector on the object, with the specified arguments
+    pub static ref TALK_MSG_PERFORM_WITH8: TalkMessageSignatureId               = vec!["perform:", "with:", "with:", "with:", "with:", "with:", "with:", "with:", "with:"].into();
 
     /// Performs the specified selector on the object, with the specified arguments
     pub static ref TALK_MSG_PERFORM_WITH_ARGUMENTS: TalkMessageSignatureId      = ("perform:", "withAruments:").into();
@@ -156,6 +173,48 @@ lazy_static! {
     pub static ref TALK_MSG_TRUNCATE_TO: TalkMessageSignatureId                 = ("truncateTo:").into();
 }
 
+///
+/// Implements the various 'perform:with:' selectors
+///
+#[inline]
+fn perform(mut val: TalkOwned<'_, TalkValue>, mut args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, context: &TalkContext) -> TalkContinuation<'static> {
+    // First argument is the selector
+    if let TalkValue::Selector(selector) = args[0] {
+        // Remove the first argument to create the arguments for the message
+        let _ = TalkOwned::new(args.remove(0), context);
+        val.take().perform_message_in_context(selector, args, context)
+    } else {
+        // First argument was not a selector
+        TalkError::NotASelector.into()
+    }
+}
+
+///
+/// Implements the 'perform:withArguments:' selector
+///
+#[inline]
+fn perform_with_arguments(mut val: TalkOwned<'_, TalkValue>, mut args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, context: &TalkContext) -> TalkContinuation<'static> {
+    // First argument is the selector, and second argument is the array
+    match (&args[0], &args[1]) {
+        (TalkValue::Selector(selector), TalkValue::Array(perform_args)) => {
+            // Take the arguments out of the array to claim them for ourselves
+            let perform_args = perform_args.iter().map(|arg| arg.clone_in_context(context)).collect();
+            let perform_args = TalkOwned::new(perform_args, context);
+
+            // Send the message
+            val.take().perform_message_in_context(*selector, perform_args, context)
+        }
+
+        (TalkValue::Selector(_), _) => {
+            TalkError::NotAnArray.into()
+        }
+
+        _ => {
+            TalkError::NotASelector.into()
+        }
+    }
+}
+
 lazy_static! {
     pub static ref TALK_DISPATCH_ANY: TalkMessageDispatchTable<TalkValue> = TalkMessageDispatchTable::empty()
         .with_message(*TALK_BINARY_EQUALS,                  |val: TalkOwned<'_, TalkValue>, args, _| *val == args[0])
@@ -172,11 +231,16 @@ lazy_static! {
         .with_message(*TALK_MSG_IS_MEMBER_OF,               |_, _, _| TalkError::NotImplemented)
         .with_message(*TALK_MSG_IS_NIL,                     |val, _, _| *val == TalkValue::Nil)
         .with_message(*TALK_MSG_NOT_NIL,                    |val, _, _| *val != TalkValue::Nil)
-        .with_message(*TALK_MSG_PERFORM,                    |_, _, _| TalkError::NotImplemented)
-        .with_message(*TALK_MSG_PERFORM_WITH,               |_, _, _| TalkError::NotImplemented)
-        .with_message(*TALK_MSG_PERFORM_WITH_WITH,          |_, _, _| TalkError::NotImplemented)
-        .with_message(*TALK_MSG_PERFORM_WITH_WITH_WITH,     |_, _, _| TalkError::NotImplemented)
-        .with_message(*TALK_MSG_PERFORM_WITH_ARGUMENTS,     |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_PERFORM,                    |val, args, context| perform(val, args, context))
+        .with_message(*TALK_MSG_PERFORM_WITH,               |val, args, context| perform(val, args, context))
+        .with_message(*TALK_MSG_PERFORM_WITH_WITH,          |val, args, context| perform(val, args, context))
+        .with_message(*TALK_MSG_PERFORM_WITH_WITH_WITH,     |val, args, context| perform(val, args, context))
+        .with_message(*TALK_MSG_PERFORM_WITH4,              |val, args, context| perform(val, args, context))
+        .with_message(*TALK_MSG_PERFORM_WITH5,              |val, args, context| perform(val, args, context))
+        .with_message(*TALK_MSG_PERFORM_WITH6,              |val, args, context| perform(val, args, context))
+        .with_message(*TALK_MSG_PERFORM_WITH7,              |val, args, context| perform(val, args, context))
+        .with_message(*TALK_MSG_PERFORM_WITH8,              |val, args, context| perform(val, args, context))
+        .with_message(*TALK_MSG_PERFORM_WITH_ARGUMENTS,     |val, args, context| perform_with_arguments(val, args, context))
         .with_message(*TALK_MSG_PRINT_ON,                   |_, _, _| TalkError::NotImplemented)
         .with_message(*TALK_MSG_PRINT_STRING,               |_, _, _| TalkError::NotImplemented)
         .with_message(*TALK_MSG_RESPONDS_TO,                |_, _, _| TalkError::NotImplemented)

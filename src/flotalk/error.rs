@@ -36,6 +36,12 @@ pub enum TalkError {
     /// A value that was expected to be a float was not a float
     NotAFloat,
 
+    /// Tried to send a message using something that is not a selector
+    NotASelector,
+
+    /// A value that was expected to be an array was not an array
+    NotAnArray,
+
     /// A selector was called with the incorrect number of arguments
     WrongNumberOfArguments,
 
