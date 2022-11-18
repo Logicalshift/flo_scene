@@ -105,6 +105,11 @@ impl TalkClassContextCallbacks {
     }
 
     #[inline]
+    pub (super) fn responds_to(&self, message: impl Into<TalkMessageSignatureId>) -> bool {
+        self.dispatch_table.responds_to(message)
+    }
+
+    #[inline]
     pub (super) fn add_reference(&self, data_handle: TalkDataHandle) {
         (self.add_reference)(data_handle)
     }

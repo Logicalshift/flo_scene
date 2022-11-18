@@ -281,3 +281,20 @@ fn perform_message_with() {
         assert!(result == TalkValue::Int(42));
     });
 }
+
+#[test]
+fn responds_to_responds_to() {
+    let test_source     = "42 respondsTo: #respondsTo:";
+    let runtime         = TalkRuntime::empty();
+    let root_values     = vec![Arc::new(Mutex::new(TalkValueStore::default()))];
+
+    executor::block_on(async { 
+        let test_source     = stream::iter(test_source.chars());
+        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
+        let instructions    = expr.value.to_instructions();
+
+        let result          = runtime.run_continuation(talk_evaluate_simple(root_values, Arc::new(instructions))).await;
+
+        assert!(result == TalkValue::Bool(true));
+    });
+}

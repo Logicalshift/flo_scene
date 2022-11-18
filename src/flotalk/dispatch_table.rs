@@ -141,4 +141,13 @@ where
     pub fn define_message(&mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) {
         self.message_action.insert(message.into().into(), Arc::new(action));
     }
+
+    ///
+    /// Returns true if this dispatch table has an entry for the specified message
+    ///
+    #[inline]
+    pub fn responds_to(&self, message_id: impl Into<TalkMessageSignatureId>) -> bool {
+        let message_id = message_id.into();
+        self.message_action.get(message_id.into()).is_some()
+    }
 }

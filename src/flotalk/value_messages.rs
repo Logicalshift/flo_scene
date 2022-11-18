@@ -5,6 +5,7 @@ use super::error::*;
 use super::message::*;
 use super::number::*;
 use super::symbol::*;
+use super::reference::*;
 use super::releasable::*;
 use super::value::*;
 
@@ -215,6 +216,34 @@ fn perform_with_arguments(mut val: TalkOwned<'_, TalkValue>, mut args: TalkOwned
     }
 }
 
+#[inline]
+fn responds_to(mut val: TalkOwned<'_, TalkValue>, mut args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, context: &TalkContext) -> TalkContinuation<'static> {
+    use TalkValue::*;
+
+    match (&*val, &args[0]) {
+        (Nil, Selector(selector))           => context.value_dispatch_tables.any_dispatch.responds_to(*selector).into(),
+        (Bool(_), Selector(selector))       => context.value_dispatch_tables.bool_dispatch.responds_to(*selector).into(),
+        (Int(_), Selector(selector))        => context.value_dispatch_tables.int_dispatch.responds_to(*selector).into(),
+        (Float(_), Selector(selector))      => context.value_dispatch_tables.float_dispatch.responds_to(*selector).into(),
+        (String(_), Selector(selector))     => context.value_dispatch_tables.string_dispatch.responds_to(*selector).into(),
+        (Character(_), Selector(selector))  => context.value_dispatch_tables.character_dispatch.responds_to(*selector).into(),
+        (Symbol(_), Selector(selector))     => context.value_dispatch_tables.symbol_dispatch.responds_to(*selector).into(),
+        (Selector(_), Selector(selector))   => context.value_dispatch_tables.selector_dispatch.responds_to(*selector).into(),
+        (Array(_), Selector(selector))      => context.value_dispatch_tables.array_dispatch.responds_to(*selector).into(),
+        (Error(_), Selector(selector))      => context.value_dispatch_tables.error_dispatch.responds_to(*selector).into(),
+
+        (Reference(TalkReference(class_id, _)), Selector(selector)) => {
+            if let Some(callbacks) = context.get_callbacks(*class_id) {
+                callbacks.responds_to(*selector).into()
+            } else {
+                false.into()
+            }
+        }
+
+        _ => TalkError::NotASelector.into()
+    }
+}
+
 lazy_static! {
     pub static ref TALK_DISPATCH_ANY: TalkMessageDispatchTable<TalkValue> = TalkMessageDispatchTable::empty()
         .with_message(*TALK_BINARY_EQUALS,                  |val: TalkOwned<'_, TalkValue>, args, _| *val == args[0])
@@ -243,7 +272,7 @@ lazy_static! {
         .with_message(*TALK_MSG_PERFORM_WITH_ARGUMENTS,     |val, args, context| perform_with_arguments(val, args, context))
         .with_message(*TALK_MSG_PRINT_ON,                   |_, _, _| TalkError::NotImplemented)
         .with_message(*TALK_MSG_PRINT_STRING,               |_, _, _| TalkError::NotImplemented)
-        .with_message(*TALK_MSG_RESPONDS_TO,                |_, _, _| TalkError::NotImplemented)
+        .with_message(*TALK_MSG_RESPONDS_TO,                |val, args, context| responds_to(val, args, context))
         .with_message(*TALK_MSG_YOURSELF,                   |mut val, _, _| val.take());
 }
 
