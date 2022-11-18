@@ -66,8 +66,8 @@ pub (super) struct TalkClassContextCallbacks {
     /// The dispatch table for this class
     dispatch_table: TalkMessageDispatchTable<TalkReference>,
 
-    /// Sends a message to the class object
-    send_class_message: Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation<'static>>,
+    /// The dispatch table for the class object
+    class_dispatch_table: TalkMessageDispatchTable<()>,
 
     /// Add to the reference count for a data handle
     add_reference: Box<dyn Send + Fn(TalkDataHandle) -> ()>,
@@ -120,8 +120,8 @@ impl TalkClassContextCallbacks {
     }
 
     #[inline]
-    pub (super) fn send_class_message(&self, message: TalkMessage) -> TalkContinuation<'static> {
-        (self.send_class_message)(message)
+    pub (super) fn send_class_message(&self, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'static> {
+        self.class_dispatch_table.send_message((), message, context)
     }
 
     #[inline]
@@ -182,7 +182,7 @@ pub trait TalkClassDefinition : Send + Sync {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message: TalkMessage, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static>;
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static>;
 
     ///
     /// Sends a message to an instance of this class
@@ -259,15 +259,16 @@ impl TalkClass {
     ///
     /// Creates the 'send class message' function for a class
     ///
-    fn callback_send_class_message<TClass>(class_id: TalkClass, definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> Box<dyn Send + Sync + Fn(TalkMessage) -> TalkContinuation<'static>> 
+    fn callback_class_dispatch_table<TClass>(class_id: TalkClass, definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> TalkMessageDispatchTable<()>
     where
         TClass: 'static + TalkClassDefinition,
     {
-        Box::new(move |message| {
-            let mut allocator   = allocator.lock().unwrap();
+        TalkMessageDispatchTable::empty()
+            .with_not_supported(move |_: TalkOwned<'_, ()>, message_id, message_args, _talk_context| {
+                let mut allocator   = allocator.lock().unwrap();
 
-            definition.send_class_message(message, class_id, &mut *allocator)
-        })
+                definition.send_class_message(message_id, message_args, class_id, &mut *allocator)
+            })
     }
 
     ///
@@ -308,13 +309,13 @@ impl TalkClass {
             let allocator = Arc::new(Mutex::new(definition.create_allocator()));
 
             TalkClassContextCallbacks {
-                dispatch_table:     Self::callback_dispatch_table(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
-                send_class_message: Self::callback_send_class_message(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
-                add_reference:      Self::callback_add_reference(Arc::clone(&allocator)),
-                remove_reference:   Self::callback_remove_reference(Arc::clone(&allocator)),
-                read_data:          Self::callback_read_data(Arc::clone(&definition), Arc::clone(&allocator)),
-                class_definition:   Box::new(Arc::clone(&definition)),
-                allocator:          Box::new(Arc::clone(&allocator)),
+                dispatch_table:         Self::callback_dispatch_table(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
+                class_dispatch_table:   Self::callback_class_dispatch_table(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
+                add_reference:          Self::callback_add_reference(Arc::clone(&allocator)),
+                remove_reference:       Self::callback_remove_reference(Arc::clone(&allocator)),
+                read_data:              Self::callback_read_data(Arc::clone(&definition), Arc::clone(&allocator)),
+                class_definition:       Box::new(Arc::clone(&definition)),
+                allocator:              Box::new(Arc::clone(&allocator)),
             }
         })
     }
@@ -405,7 +406,12 @@ impl TalkClass {
     ///
     #[inline]
     pub fn send_message_in_context(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation<'static> {
-        context.get_callbacks_mut(*self).send_class_message(message)
+        if let Some(callbacks) = context.get_callbacks(*self) {
+            callbacks.send_class_message(message, context)
+        } else {
+            let _ = context.get_callbacks_mut(*self);
+            context.get_callbacks(*self).unwrap().send_class_message(message, context)
+        }
     }
 
     ///

@@ -84,8 +84,8 @@ where
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message: TalkMessage, _class_id: TalkClass, _allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
-        TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message.signature_id())))
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, _arguments: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _class_id: TalkClass, _allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
+        TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
     }
 
     ///

@@ -19,8 +19,8 @@ impl TalkClassDefinition for TestClass {
         }
     }
 
-    fn send_class_message(&self, message: TalkMessage, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
-        let sig = message.signature();
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, _arguments: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
+        let sig = message_id.to_signature();
 
         if sig == TalkMessageSignature::Unary(TalkSymbol::from("new")) {
             let handle = TalkDataHandle(allocator.items.len());
