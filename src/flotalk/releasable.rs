@@ -183,6 +183,8 @@ impl TalkReleasable for TalkSymbol              { #[inline] fn release_in_contex
 impl TalkReleasable for TalkNumber              { #[inline] fn release_in_context(self, _: &TalkContext) { } }
 impl TalkReleasable for TalkError               { #[inline] fn release_in_context(self, _: &TalkContext) { } }
 impl TalkReleasable for TalkMessageSignatureId  { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl<T> TalkReleasable for &T                   { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl<T> TalkReleasable for &mut T               { #[inline] fn release_in_context(self, _: &TalkContext) { } }
 
 impl TalkReleasable for TalkReference {
     ///
