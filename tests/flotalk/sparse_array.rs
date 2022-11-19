@@ -8,6 +8,23 @@ fn retrieve_nothing() {
 }
 
 #[test]
+fn fill_100k_entries() {
+    let mut array = TalkSparseArray::<usize>::empty();
+
+    for p in 0..100000 {
+        array.insert(p, p);
+
+        assert!(array.get(p) == Some(&p), "Insert: {:?} == {:?}", p, array.get(p));
+    }
+
+    array.check_hash_values();
+
+    for p in 0..100000 {
+        assert!(array.get(p) == Some(&p), "Read: {:?} == {:?}", p, array.get(p));
+    }
+}
+
+#[test]
 fn retrieve_something() {
     let mut array = TalkSparseArray::<usize>::empty();
 

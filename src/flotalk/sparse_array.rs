@@ -1,49 +1,100 @@
+//
+// We use our own sparse array for looking up messages, because we know some things about them:
+//
+//  * This is performance critical, so we want to be able to use the most appropriate algorithm
+//  * Keys are always usize values
+//  * Messages are numbered from 0 and rarely have values greater than a certain amount
+//  * Messages for a class tend to all be allocated together, so are more likely to have
+//    lower bits that match up
+//  * Sparse arrays are accessed frequently but updated rarely (so slow rehashing is allowed)
+//  * If it's ever necessary, we can deal with adversarial message allocations when we assign 
+//    message IDs rather than during the hash lookup.
+//  * Rust's own hashmap is constructed in a way that makes it different to evaluate
+//      * (Eg: HashMap::get() calls a get function in hashbrown, which calls an inner get
+//          get function, which in turn calls a get function in another inner type, so you
+//          can't just read the code and see what it does)
+//  * Some sources indicate that hashmap performance is poor for small types like usize/int
+//  * Don't really want a third-party dependency for this.
+//
+
+//
+// This implementation is a 'cuckoo hash': there are two hash functions providing locations
+// in two separate pools of data. A value can be stored in either of those pools, but is not
+// allowed to collide with any other values. If there's a collision between values that can't be
+// resolved, the hash functions are changed and the table is rehashed.
+//
+// This type of table is OK for insertions, but has a guaranteed O(1) lookup time which is very
+// desirable for message dispatch.
+//
+
+use rand::prelude::*;
+
+use std::mem;
+
+///
+/// Representation of a bucket in a hash array
+///
+#[derive(Clone)]
+enum SparseBucket<TTarget> {
+    /// No item
+    Empty,
+
+    /// Bucket containing an item with the specified index
+    Item(usize, TTarget),
+}
+
+impl<TTarget> Default for SparseBucket<TTarget> {
+    #[inline]
+    fn default() -> SparseBucket<TTarget> {
+        SparseBucket::Empty
+    }
+}
+
+impl<TTarget> SparseBucket<TTarget> {
+    fn pos(&self) -> Option<usize> {
+        match self {
+            SparseBucket::Empty         => None,
+            SparseBucket::Item(pos, _)  => Some(*pos),
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    #[inline]
+    fn must_be_empty(self) {
+        debug_assert!(match self {
+            SparseBucket::Empty     => true,
+            _                       => false
+        });
+    }
+
+    #[cfg(not(debug_assertions))]
+    #[inline]
+    fn must_be_empty(self) { }
+}
+
 ///
 /// Sparse array indexed by usize
 ///
 /// We assume these are allocated from 0, and tend to cluster
 ///
 pub struct TalkSparseArray<TTarget> {
-    /// Array of 16384 arrays of 256 arrays of target objects
-    values: Vec<Box<[Option<Box<[Option<TTarget>; 256]>>; 16384]>>
-}
+    /// Size of the hash array, as a power of 2
+    size_log_2: u8,
 
-struct Iter<'a, TTarget> {
-    array:      &'a TalkSparseArray<TTarget>,
-    next_pos:   usize,
-}
+    /// Mask value used with the hash functions (equal to (1 << size_log_2) - 1))
+    mask: usize,
 
-impl<TTarget> Clone for TalkSparseArray<TTarget>
-where
-    TTarget: Clone
-{
-    fn clone(&self) -> Self {
-        // Calling clone() on a Box<[Bigslice]> will run out of stack space
-        let mut values = vec![];
-        values.reserve(self.values.len());
+    /// Total number of cells that are occupied
+    num_occupied: usize,
 
-        for parent_set in self.values.iter() {
-            let mut clone_parent_set = vec![];
-            clone_parent_set.reserve(16384);
+    /// Values in this hash array (1 << size_log_2 entries)
+    values: Vec<SparseBucket<TTarget>>,
 
-            for target_set in parent_set.iter() {
-                if let Some(targets) = target_set {
-                    clone_parent_set.push(Some(targets.clone()));
-                } else {
-                    clone_parent_set.push(None);
-                }
-            }
+    /// Hash multiplier 1
+    mul_1: usize,
 
-            values.push(match clone_parent_set.into_boxed_slice().try_into() {
-                Ok(val) => val,
-                Err(_)  => unreachable!(),
-            });
-        }
-
-        TalkSparseArray {
-            values: values
-        }
-    }
+    /// Hash multiplier 2
+    mul_2: usize,
 }
 
 impl<TTarget> TalkSparseArray<TTarget> {
@@ -51,9 +102,56 @@ impl<TTarget> TalkSparseArray<TTarget> {
     /// Creates an empty sparse array
     ///
     pub fn empty() -> TalkSparseArray<TTarget> {
+        let (mul_1, mul_2)  = Self::generate_multipliers();
+        let size_log_2      = 4;
+
         TalkSparseArray {
-            values: vec![]
+            num_occupied:   0,
+            size_log_2:     size_log_2,
+            mask:           (1<<(size_log_2-1))-1,
+            values:         Self::empty_values(size_log_2),
+            mul_1:          mul_1,
+            mul_2:          mul_2,
         }
+    }
+
+    ///
+    /// Creates an empty values array of the specified size
+    ///
+    fn empty_values(size_log_2: u8) -> Vec<SparseBucket<TTarget>> {
+        let full_size   = 1usize << size_log_2;
+        let mut values  = vec![];
+        values.reserve_exact(full_size);
+
+        for _ in 0..full_size {
+            values.push(SparseBucket::default())
+        }
+
+        values
+    }
+
+    ///
+    /// Generates multipliers to re-hash a sparse array
+    ///
+    fn generate_multipliers() -> (usize, usize) {
+        let mut rng = rand::thread_rng();
+        (rng.gen(), rng.gen())
+    }
+
+    ///
+    /// First hash function, produces a value in the range `0..(1<<(size_log_2-1))`
+    ///
+    #[inline]
+    fn hash1(&self, val: usize) -> usize {
+        (val.wrapping_mul(self.mul_1)).rotate_left(16) & self.mask
+    }
+
+    ///
+    /// Second hash function, produces a value in the range `(1<<(size_log_2-1))..(1<<size_log_2)`
+    ///
+    #[inline]
+    fn hash2(&self, val: usize) -> usize {
+        ((val.wrapping_mul(self.mul_2)).rotate_left(16) & self.mask) + (self.mask+1)
     }
 
     ///
@@ -61,23 +159,43 @@ impl<TTarget> TalkSparseArray<TTarget> {
     ///
     #[inline]
     pub fn get(&self, pos: usize) -> Option<&TTarget> {
-        let cell_idx            = pos & 255;
-        let parent_idx          = (pos >> 8) & 16383;
-        let parent_parent_idx   = pos >> 22;
-
-        if let Some(top_array) = self.values.get(parent_parent_idx) {
-            if let Some(array) = &top_array[parent_idx] {
-                if let Some(val) = &array[cell_idx] {
-                    Some(val)
-                } else {
-                    None
-                }
-            } else {
-                None
+        // Cuckoo hash means that either hash1 or hash2 will contain our item
+        if let SparseBucket::Item(found_pos, val) = &self.values[self.hash1(pos)] {
+            if *found_pos == pos {
+                return Some(val);
             }
-        } else {
-            None
         }
+
+        if let SparseBucket::Item(found_pos, val) = &self.values[self.hash2(pos)] {
+            if *found_pos == pos {
+                return Some(val);
+            }
+        }
+
+        None
+    }
+
+    ///
+    /// Returns the index of a hashed value, if it's present
+    ///
+    #[inline]
+    fn index(&self, pos: usize) -> Option<usize> {
+        let hash1   = self.hash1(pos);
+        let hash2   = self.hash2(pos);
+
+        if let SparseBucket::Item(found_pos, val) = &self.values[hash1] {
+            if *found_pos == pos {
+                return Some(hash1);
+            }
+        }
+
+        if let SparseBucket::Item(found_pos, val) = &self.values[hash2] {
+            if *found_pos == pos {
+                return Some(hash2);
+            }
+        }
+
+        None
     }
 
     ///
@@ -85,19 +203,15 @@ impl<TTarget> TalkSparseArray<TTarget> {
     ///
     #[inline]
     pub fn get_mut(&mut self, pos: usize) -> Option<&mut TTarget> {
-        let cell_idx            = pos & 255;
-        let parent_idx          = (pos >> 8) & 16383;
-        let parent_parent_idx   = pos >> 22;
+        // Cuckoo hash means that either hash1 or hash2 will contain our item
+        let idx = self.index(pos);
 
-        if let Some(top_array) = self.values.get_mut(parent_parent_idx) {
-            if let Some(array) = &mut top_array[parent_idx] {
-                if let Some(val) = &mut array[cell_idx] {
-                    Some(val)
-                } else {
-                    None
-                }
+        // Rust's lifetime requirements mean we have to borrow immutably, then mutably, which means decoding the bucket twice
+        if let Some(idx) = idx {
+            if let SparseBucket::Item(_, val) = &mut self.values[idx] {
+                Some(val)
             } else {
-                None
+                unreachable!()
             }
         } else {
             None
@@ -105,98 +219,257 @@ impl<TTarget> TalkSparseArray<TTarget> {
     }
 
     ///
-    /// Creates a boxed slice with 16384 items in it
+    /// True if we need to resize the current hash table
     ///
-    fn empty_array_16384<T>() -> Box<[Option<T>; 16384]> {
-        let mut vec_array = vec![];
-        vec_array.reserve_exact(16384);
-        (0..16384).into_iter().for_each(|_| vec_array.push(None));
-
-        match vec_array.into_boxed_slice().try_into() {
-            Ok(vec_array)   => vec_array,
-            Err(_)          => unreachable!()
+    fn needs_resize(&self) -> bool {
+        // When rehashing, we'll resize if the table has got more than half-full
+        if self.num_occupied >= (1<<(self.size_log_2-1)) {
+            true
+        } else {
+            false
         }
     }
 
     ///
-    /// Creates a boxed slice with 256 items in it
+    /// When an item won't fit into this hash table, resizes it if necessary, then changes the hash functions used for the existing values
     ///
-    fn empty_array_256<T>() -> Box<[Option<T>; 256]> {
-        let mut vec_array = vec![];
-        vec_array.reserve_exact(256);
-        (0..256).into_iter().for_each(|_| vec_array.push(None));
+    fn rehash(&mut self) {
+        // Resize the hash table if necessary
+        if self.needs_resize() {
+            self.size_log_2 += 1;
+            self.mask       = (1<<(self.size_log_2-1))-1;
 
-        match vec_array.into_boxed_slice().try_into() {
-            Ok(vec_array)   => vec_array,
-            Err(_)          => unreachable!()
+            let full_size   = 1usize << self.size_log_2;
+            self.values.reserve_exact(full_size - self.values.len());
+
+            while self.values.len() < full_size { self.values.push(SparseBucket::default()); }
+        }
+
+        // We should only swap so many times before re-hashing
+        let max_iters = (1<<(self.size_log_2-2)).max(4);
+
+        // Pick new multiplication values and rehash (possibly repeatedly if we fail to find a stable configuration)
+        loop { // New multipliers
+            let (mul_1, mul_2)  = Self::generate_multipliers();
+            self.mul_1          = mul_1;
+            self.mul_2          = mul_2;
+
+            // Run the insertion algorithm on every item that's not in its right place
+            let mut idx = 0;
+
+            let successfully_hashed = loop {
+                if idx >= self.values.len() { break true; }
+
+                // Fetch the hashes and the value to move
+                let (mut hash1, mut hash2, mut value) = if let SparseBucket::Item(pos, value) = &self.values[idx] {
+                    let expected_hash1 = self.hash1(*pos);
+                    let expected_hash2 = self.hash2(*pos);
+
+                    if idx != expected_hash1 && idx != expected_hash2 {
+                        // Remove this item and re-insert it
+                        let mut value = SparseBucket::Empty;
+                        mem::swap(&mut value, &mut self.values[idx]);
+
+                        (expected_hash1, expected_hash2, value)
+                    } else {
+                        // Item is already in the right spot
+                        idx += 1;
+                        continue;
+                    }
+                } else {
+                    // Item is empty
+                    idx += 1;
+                    continue;
+                };
+
+                // Attempt to re-insert this value
+                let mut iter = 0;
+                loop {
+                    if iter >= max_iters { break; }
+                    iter += 1;
+
+                    // Insert the current value at hash1, displacing the existing value
+                    match &self.values[hash1] {
+                        SparseBucket::Empty => {
+                            // If the hash1 value is empty, then just store the item here, and finish
+                            mem::swap(&mut value, &mut self.values[hash1]);
+                            break;
+                        }
+
+                        SparseBucket::Item(new_pos, new_value) => {
+                            // Kick this item out and make it the value we're inserting
+                            let new_pos = *new_pos;
+                            mem::swap(&mut value, &mut self.values[hash1]);
+
+                            hash1 = self.hash1(new_pos);
+                            hash2 = self.hash2(new_pos);
+                        }
+                    }
+
+                    // Insert the current value at hash2, displacing the existing value
+                    match &self.values[hash2] {
+                        SparseBucket::Empty => {
+                            // If the hash1 value is empty, then just store the item here, and finish
+                            mem::swap(&mut value, &mut self.values[hash2]);
+                            break;
+                        }
+
+                        SparseBucket::Item(new_pos, new_value) => {
+                            // Kick this item out and make it the value we're inserting
+                            let new_pos = *new_pos;
+                            mem::swap(&mut value, &mut self.values[hash2]);
+
+                            hash1 = self.hash1(new_pos);
+                            hash2 = self.hash2(new_pos);
+                        }
+                    }
+                }
+
+                // Rehash failed if the hash table failed to stabilise
+                if iter >= max_iters {
+                    // Put the current value back in the table
+                    for table_val in self.values.iter_mut() {
+                        if let SparseBucket::Empty = table_val {
+                            mem::swap(&mut value, table_val);
+                            break;
+                        }
+                    }
+
+                    value.must_be_empty();
+                    break false; 
+                }
+
+                value.must_be_empty();
+
+                // Move to the next value
+                idx += 1;
+            };
+
+            // Try again with some new multipliers if the rehash failed to find a good configuration of values
+            if successfully_hashed {
+                break;
+            }
         }
     }
+
+    #[cfg(debug_assertions)]
+    pub fn check_hash_values(&self) {
+        for (idx, val) in self.values.iter().enumerate() {
+            match val {
+                SparseBucket::Empty => { }
+                SparseBucket::Item(pos, _)  => {
+                    assert!(idx == self.hash1(*pos) || idx == self.hash2(*pos));
+                }
+            }
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    #[inline]
+    pub fn check_hash_values(&self) { }
 
     ///
     /// Inserts a new value in this sparse array
     ///
     pub fn insert(&mut self, pos: usize, value: TTarget) {
-        let cell_idx            = pos & 255;
-        let parent_idx          = (pos >> 8) & 16383;
-        let parent_parent_idx   = pos >> 22;
+        // This is the cuckoo hashing algorithm: we move things around until everything is either at it's hash-1 or hash-2 position, or we rehash
+        if let Some(existing) = self.get_mut(pos) {
+            // This value already has a spot in this array
+            let mut value = value;
+            mem::swap(&mut value, existing);
 
-        while self.values.len() <= parent_parent_idx {
-            self.values.push(Self::empty_array_16384());
+            return;
         }
 
-        let parent = if let Some(vals) = &mut self.values[parent_parent_idx][parent_idx] {
-            vals
-        } else {
-            self.values[parent_parent_idx][parent_idx] = Some(Self::empty_array_256());
-            self.values[parent_parent_idx][parent_idx].as_mut().unwrap()
-        };
+        // Value waiting to be inserted
+        self.num_occupied += 1;
 
-        parent[cell_idx] = Some(value);
+        let mut hash1 = self.hash1(pos);
+        let mut hash2 = self.hash2(pos);
+        let mut value = SparseBucket::Item(pos, value);
+
+        loop {  // Rehash loop
+            // We should only swap so many times before re-hashing
+            let max_iters = (1<<(self.size_log_2-2)).max(4);
+
+            for _ in 0..max_iters {
+                // Insert the current value at hash1, displacing the existing value
+                match &self.values[hash1] {
+                    SparseBucket::Empty => {
+                        // If the hash1 value is empty, then just store the item here, and finish
+                        mem::swap(&mut value, &mut self.values[hash1]);
+                        value.must_be_empty();
+                        return;
+                    }
+
+                    SparseBucket::Item(new_pos, _) => {
+                        // Kick this item out and make it the value we're inserting
+                        let new_pos = *new_pos;
+                        mem::swap(&mut value, &mut self.values[hash1]);
+
+                        hash1 = self.hash1(new_pos);
+                        hash2 = self.hash2(new_pos);
+                    }
+                }
+
+                // Insert the current value at hash2, displacing the existing value
+                match &self.values[hash2] {
+                    SparseBucket::Empty => {
+                        // If the hash1 value is empty, then just store the item here, and finish
+                        mem::swap(&mut value, &mut self.values[hash2]);
+                        value.must_be_empty();
+                        return;
+                    }
+
+                    SparseBucket::Item(new_pos, _) => {
+                        // Kick this item out and make it the value we're inserting
+                        let new_pos = *new_pos;
+                        mem::swap(&mut value, &mut self.values[hash2]);
+
+                        hash1 = self.hash1(new_pos);
+                        hash2 = self.hash2(new_pos);
+                    }
+                }
+            }
+
+            // The hash table failed to find a stable configuration, so rehash it and try again
+            self.rehash();
+
+            // Rehashing changes the value
+            match value {
+                SparseBucket::Item(pos, _)  => {
+                    hash1 = self.hash1(pos);
+                    hash2 = self.hash2(pos);
+                }
+
+                _ => unreachable!()
+            }
+        }
     }
 
     ///
     /// Creates an iterator that covers the values in this sparse array
     ///
     pub fn iter<'a>(&'a self) -> impl 'a + Iterator<Item=(usize, &'a TTarget)> {
-        Iter {
-            array:      self,
-            next_pos:   0,
-        }
+        self.values.iter().filter_map(|val| match val {
+            SparseBucket::Empty             => None,
+            SparseBucket::Item(pos, value)  => Some((*pos, value)),
+        })
     }
 }
 
-impl<'a, TTarget> Iterator for Iter<'a, TTarget> {
-    type Item = (usize, &'a TTarget);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            // Position to check
-            let pos = self.next_pos;
-
-            // Break down
-            let cell_idx            = pos & 255;
-            let parent_idx          = (pos >> 8) & 16383;
-            let parent_parent_idx   = pos >> 22;
-
-            // Stop if we've reached the end
-            if parent_parent_idx >= self.array.values.len() { return None; }
-
-            // Try to read the value at the current location
-            let values = &self.array.values[parent_parent_idx];
-
-            if let Some(values) = &values[parent_idx] {
-                if let Some(value) = &values[cell_idx] {
-                    // Return this value and move on to the next value
-                    self.next_pos += 1;
-                    return Some((pos, value));
-                } else {
-                    // Move on to the next value
-                    self.next_pos += 1;
-                }
-            } else {
-                // Move on to the next block
-                self.next_pos = ((parent_idx + 1) << 8) + (parent_parent_idx << 22);
-            }
+impl<TTarget> Clone for TalkSparseArray<TTarget>
+where
+    TTarget: Clone
+{
+    fn clone(&self) -> Self {
+        TalkSparseArray {
+            size_log_2:     self.size_log_2,
+            mask:           self.mask,
+            num_occupied:   self.num_occupied,
+            values:         self.values.clone(),
+            mul_1:          self.mul_1,
+            mul_2:          self.mul_2,
         }
     }
 }
