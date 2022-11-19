@@ -6,6 +6,7 @@ use super::reference::*;
 use super::releasable::*;
 use super::runtime::*;
 use super::value::*;
+use super::value_messages::*;
 
 use futures::prelude::*;
 use smallvec::*;
@@ -188,6 +189,20 @@ pub trait TalkClassDefinition : Send + Sync {
     /// Sends a message to an instance of this class
     ///
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static>;
+
+    ///
+    /// Generates default dispatch table for an instance of this class
+    ///
+    /// Messages are dispatched here ahead of the 'send_instance_message' callback (note in particular `respondsTo:` may need to be overridden)
+    ///
+    fn default_instance_dispatch_table(&self) -> TalkMessageDispatchTable<TalkReference> { TalkMessageDispatchTable::empty().with_mapped_messages_from(&*TALK_DISPATCH_ANY, |v| TalkValue::Reference(v)) }
+
+    ///
+    /// Generates default dispatch table for the class object for this class
+    ///
+    /// Messages are dispatched here ahead of the 'send_instance_message' callback (note in particular `respondsTo:` may need to be overridden)
+    ///
+    fn default_class_dispatch_table(&self) -> TalkMessageDispatchTable<()> { TalkMessageDispatchTable::empty() }
 }
 
 ///
@@ -226,7 +241,7 @@ impl TalkClass {
     where
         TClass: 'static + TalkClassDefinition,
     {
-        TalkMessageDispatchTable::empty()
+        class_definition.default_instance_dispatch_table()
             .with_not_supported(move |reference: TalkOwned<'_, TalkReference>, message_id, message_args, _talk_context| {
                 let data_handle     = reference.1;
                 let mut allocator   = allocator.lock().unwrap();
@@ -263,7 +278,7 @@ impl TalkClass {
     where
         TClass: 'static + TalkClassDefinition,
     {
-        TalkMessageDispatchTable::empty()
+        definition.default_class_dispatch_table()
             .with_not_supported(move |_: TalkOwned<'_, ()>, message_id, message_args, _talk_context| {
                 let mut allocator   = allocator.lock().unwrap();
 
