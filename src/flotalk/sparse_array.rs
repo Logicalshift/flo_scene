@@ -51,13 +51,6 @@ impl<TTarget> Default for SparseBucket<TTarget> {
 }
 
 impl<TTarget> SparseBucket<TTarget> {
-    fn pos(&self) -> Option<usize> {
-        match self {
-            SparseBucket::Empty         => None,
-            SparseBucket::Item(pos, _)  => Some(*pos),
-        }
-    }
-
     #[cfg(debug_assertions)]
     #[inline]
     fn must_be_empty(self) {
@@ -183,13 +176,13 @@ impl<TTarget> TalkSparseArray<TTarget> {
         let hash1   = self.hash1(pos);
         let hash2   = self.hash2(pos);
 
-        if let SparseBucket::Item(found_pos, val) = &self.values[hash1] {
+        if let SparseBucket::Item(found_pos, _) = &self.values[hash1] {
             if *found_pos == pos {
                 return Some(hash1);
             }
         }
 
-        if let SparseBucket::Item(found_pos, val) = &self.values[hash2] {
+        if let SparseBucket::Item(found_pos, _) = &self.values[hash2] {
             if *found_pos == pos {
                 return Some(hash2);
             }
@@ -261,7 +254,8 @@ impl<TTarget> TalkSparseArray<TTarget> {
                 if idx >= self.values.len() { break true; }
 
                 // Fetch the hashes and the value to move
-                let (mut hash1, mut hash2, mut value) = if let SparseBucket::Item(pos, value) = &self.values[idx] {
+                let mut hash2;
+                let (mut hash1, mut value) = if let SparseBucket::Item(pos, _) = &self.values[idx] {
                     let expected_hash1 = self.hash1(*pos);
                     let expected_hash2 = self.hash2(*pos);
 
@@ -270,7 +264,7 @@ impl<TTarget> TalkSparseArray<TTarget> {
                         let mut value = SparseBucket::Empty;
                         mem::swap(&mut value, &mut self.values[idx]);
 
-                        (expected_hash1, expected_hash2, value)
+                        (expected_hash1, value)
                     } else {
                         // Item is already in the right spot
                         idx += 1;
@@ -296,12 +290,12 @@ impl<TTarget> TalkSparseArray<TTarget> {
                             break;
                         }
 
-                        SparseBucket::Item(new_pos, new_value) => {
+                        SparseBucket::Item(new_pos, _) => {
                             // Kick this item out and make it the value we're inserting
                             let new_pos = *new_pos;
                             mem::swap(&mut value, &mut self.values[hash1]);
 
-                            hash1 = self.hash1(new_pos);
+                            // hash1 = self.hash1(new_pos); // (never read)
                             hash2 = self.hash2(new_pos);
                         }
                     }
@@ -314,13 +308,13 @@ impl<TTarget> TalkSparseArray<TTarget> {
                             break;
                         }
 
-                        SparseBucket::Item(new_pos, new_value) => {
+                        SparseBucket::Item(new_pos, _) => {
                             // Kick this item out and make it the value we're inserting
                             let new_pos = *new_pos;
                             mem::swap(&mut value, &mut self.values[hash2]);
 
                             hash1 = self.hash1(new_pos);
-                            hash2 = self.hash2(new_pos);
+                            // hash2 = self.hash2(new_pos); (never read)
                         }
                     }
                 }
@@ -385,7 +379,7 @@ impl<TTarget> TalkSparseArray<TTarget> {
         self.num_occupied += 1;
 
         let mut hash1 = self.hash1(pos);
-        let mut hash2 = self.hash2(pos);
+        let mut hash2;
         let mut value = SparseBucket::Item(pos, value);
 
         loop {  // Rehash loop
@@ -407,7 +401,7 @@ impl<TTarget> TalkSparseArray<TTarget> {
                         let new_pos = *new_pos;
                         mem::swap(&mut value, &mut self.values[hash1]);
 
-                        hash1 = self.hash1(new_pos);
+                        // hash1 = self.hash1(new_pos); // (never read)
                         hash2 = self.hash2(new_pos);
                     }
                 }
@@ -427,7 +421,7 @@ impl<TTarget> TalkSparseArray<TTarget> {
                         mem::swap(&mut value, &mut self.values[hash2]);
 
                         hash1 = self.hash1(new_pos);
-                        hash2 = self.hash2(new_pos);
+                        // hash2 = self.hash2(new_pos); // (never read)
                     }
                 }
             }
@@ -439,7 +433,7 @@ impl<TTarget> TalkSparseArray<TTarget> {
             match value {
                 SparseBucket::Item(pos, _)  => {
                     hash1 = self.hash1(pos);
-                    hash2 = self.hash2(pos);
+                    // hash2 = self.hash2(pos); // (never read)
                 }
 
                 _ => unreachable!()
