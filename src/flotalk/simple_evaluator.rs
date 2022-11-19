@@ -4,7 +4,7 @@ use super::error::*;
 use super::instruction::*;
 use super::message::*;
 use super::releasable::*;
-use super::simple_evaluator_block::*;
+use super::standard_classes::*;
 use super::symbol::*;
 use super::value::*;
 use super::value_store::*;

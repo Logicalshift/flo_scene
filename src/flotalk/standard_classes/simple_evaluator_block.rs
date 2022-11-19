@@ -1,16 +1,16 @@
-use super::allocator::*;
-use super::class::*;
-use super::context::*;
-use super::continuation::*;
-use super::error::*;
-use super::instruction::*;
-use super::message::*;
-use super::symbol::*;
-use super::reference::*;
-use super::releasable::*;
-use super::simple_evaluator::*;
-use super::value::*;
-use super::value_store::*;
+use crate::flotalk::allocator::*;
+use crate::flotalk::class::*;
+use crate::flotalk::context::*;
+use crate::flotalk::continuation::*;
+use crate::flotalk::error::*;
+use crate::flotalk::instruction::*;
+use crate::flotalk::message::*;
+use crate::flotalk::symbol::*;
+use crate::flotalk::reference::*;
+use crate::flotalk::releasable::*;
+use crate::flotalk::simple_evaluator::*;
+use crate::flotalk::value::*;
+use crate::flotalk::value_store::*;
 
 use smallvec::*;
 
@@ -125,7 +125,7 @@ where
 ///
 /// Retrieves (or creates) the TalkClass corresponding to a simple evaluator block using the specified value and symbol types for the instructions
 ///
-pub (super) fn simple_evaluator_block_class<TValue, TSymbol>() -> TalkClass
+pub (crate) fn simple_evaluator_block_class<TValue, TSymbol>() -> TalkClass
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
@@ -148,7 +148,7 @@ where
 ///
 /// Creates a reference to a block that is evaluated using the simple evaluator
 ///
-pub (super) fn simple_evaluator_block<TValue, TSymbol>(talk_context: &mut TalkContext, arguments: Vec<TalkSymbol>, root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkReference
+pub (crate) fn simple_evaluator_block<TValue, TSymbol>(talk_context: &mut TalkContext, arguments: Vec<TalkSymbol>, root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkReference
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,

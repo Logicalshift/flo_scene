@@ -19,7 +19,6 @@ mod continuation;
 mod runtime;
 mod error;
 mod simple_evaluator;
-mod simple_evaluator_block;
 mod allocator;
 mod class_builder;
 mod number;
@@ -28,6 +27,7 @@ mod value_store;
 mod value_messages;
 mod dispatch_table;
 mod releasable;
+mod standard_classes;
 
 pub mod sparse_array;
 
@@ -51,3 +51,4 @@ pub use self::value_messages::*;
 pub use self::dispatch_table::*;
 pub use self::number::*;
 pub use self::releasable::*;
+pub use self::standard_classes::*;
