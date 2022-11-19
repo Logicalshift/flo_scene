@@ -194,7 +194,7 @@ fn perform(mut val: TalkOwned<'_, TalkValue>, mut args: TalkOwned<'_, SmallVec<[
 /// Implements the 'perform:withArguments:' selector
 ///
 #[inline]
-fn perform_with_arguments(mut val: TalkOwned<'_, TalkValue>, mut args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, context: &TalkContext) -> TalkContinuation<'static> {
+fn perform_with_arguments(mut val: TalkOwned<'_, TalkValue>, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, context: &TalkContext) -> TalkContinuation<'static> {
     // First argument is the selector, and second argument is the array
     match (&args[0], &args[1]) {
         (TalkValue::Selector(selector), TalkValue::Array(perform_args)) => {
@@ -217,7 +217,7 @@ fn perform_with_arguments(mut val: TalkOwned<'_, TalkValue>, mut args: TalkOwned
 }
 
 #[inline]
-fn responds_to(mut val: TalkOwned<'_, TalkValue>, mut args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, context: &TalkContext) -> TalkContinuation<'static> {
+fn responds_to(val: TalkOwned<'_, TalkValue>, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, context: &TalkContext) -> TalkContinuation<'static> {
     use TalkValue::*;
 
     match (&*val, &args[0]) {
