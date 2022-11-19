@@ -199,7 +199,7 @@ where
                 // TODO: even for the simple evaluator this is really too slow, add an optimiser that pre-binds the blocks
 
                 // Create the block, and add it to the stack
-                let block_reference = simple_evaluator_block(context, variables.clone(), frame.outer_bindings.clone(), Arc::clone(instructions));
+                let block_reference = create_simple_evaluator_block_in_context(context, variables.clone(), frame.outer_bindings.clone(), Arc::clone(instructions));
                 frame.stack.push(TalkValue::Reference(block_reference));
             }
 

@@ -148,7 +148,7 @@ where
 ///
 /// Creates a reference to a block that is evaluated using the simple evaluator
 ///
-pub (crate) fn simple_evaluator_block<TValue, TSymbol>(talk_context: &mut TalkContext, arguments: Vec<TalkSymbol>, root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkReference
+pub fn create_simple_evaluator_block_in_context<TValue, TSymbol>(talk_context: &mut TalkContext, arguments: Vec<TalkSymbol>, root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkReference
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
