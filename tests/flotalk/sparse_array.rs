@@ -80,6 +80,7 @@ fn iterate() {
     array.insert(65537, 45);
     (*array.get_mut(10).unwrap()) = 43;
 
-    let values = array.iter().map(|(a, b)| (a, *b)).collect::<Vec<_>>();
+    let mut values = array.iter().map(|(a, b)| (a, *b)).collect::<Vec<_>>();
+    values.sort_by_key(|(a, b)| *a);
     assert!(values == vec![(9, 42), (10, 43), (65537, 45)]);
 }
