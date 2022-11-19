@@ -435,7 +435,7 @@ impl<TTarget> TalkSparseArray<TTarget> {
             // The hash table failed to find a stable configuration, so rehash it and try again
             self.rehash();
 
-            // Rehashing changes the value
+            // After rehashing, the hash values will be different
             match value {
                 SparseBucket::Item(pos, _)  => {
                     hash1 = self.hash1(pos);
