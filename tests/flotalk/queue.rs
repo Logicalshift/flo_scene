@@ -44,14 +44,14 @@ pub fn acquire_read_lock_twice_in_parallel() {
 
     let rw_queue        = &rw_queue;
     let read_1          = async move {
-        let read_value = *rw_queue.read().await;
-        send1.send(());
-        recv2.await;
+        let _read_value = *rw_queue.read().await;
+        send1.send(()).unwrap();
+        recv2.await.unwrap();
     };
     let read_2          = async move {
-        recv1.await;
-        let read_value = *rw_queue.read().await;
-        send2.send(());
+        recv1.await.unwrap();
+        let _read_value = *rw_queue.read().await;
+        send2.send(()).unwrap();
     };
 
     executor::block_on(async move { future::join(read_1, read_2).await; });
@@ -75,27 +75,27 @@ pub fn cant_acquire_write_lock_in_parallel() {
             *write_lock = 43;
 
             println!("Signalling 2nd future");
-            send1.send(());
+            send1.send(()).unwrap();
 
             println!("Awaiting 2nd future");
-            recv2.await;
+            recv2.await.unwrap();
             println!("First done");
         }
 
         println!("Signalling again");
-        send3.send(());
+        send3.send(()).unwrap();
     };
     let write_2         = async move {
         // Wait until write_1 stqarts
         println!("Waiting for write_1");
-        recv1.await;
+        recv1.await.unwrap();
 
         // Write_lock_2 should not be available until we signal send_2
         println!("Starting lock");
         let write_lock_2 = rw_queue.write();
         pin_mut!(write_lock_2);
 
-        for x in 0..100 {
+        for _ in 0..100 {
             println!("Checking status...");
             let is_done = future::poll_fn(|context| {
                 Poll::Ready(write_lock_2.poll_unpin(context))
@@ -106,8 +106,8 @@ pub fn cant_acquire_write_lock_in_parallel() {
         }
 
         println!("Signalling write_1");
-        send2.send(());
-        recv3.await;
+        send2.send(()).unwrap();
+        recv3.await.unwrap();
         println!("Lock should be released");
 
         let mut writer = write_lock_2.await;
@@ -135,27 +135,27 @@ pub fn drop_before_locking() {
             *write_lock = 43;
 
             println!("Signalling 2nd future");
-            send1.send(());
+            send1.send(()).unwrap();
 
             println!("Awaiting 2nd future");
-            recv2.await;
+            recv2.await.unwrap();
             println!("First done");
         }
 
         println!("Signalling again");
-        send3.send(());
+        send3.send(()).unwrap();
     };
     let write_2         = async move {
         // Wait until write_1 stqarts
         println!("Waiting for write_1");
-        recv1.await;
+        recv1.await.unwrap();
 
         // Write_lock_2 should not be available until we signal send_2
         println!("Starting lock");
         let write_lock_2 = rw_queue.write();
         pin_mut!(write_lock_2);
 
-        for x in 0..100 {
+        for _ in 0..100 {
             println!("Checking status...");
             let is_done = future::poll_fn(|context| {
                 Poll::Ready(write_lock_2.poll_unpin(context))
@@ -166,8 +166,8 @@ pub fn drop_before_locking() {
         }
 
         println!("Signalling write_1");
-        send2.send(());
-        recv3.await;
+        send2.send(()).unwrap();
+        recv3.await.unwrap();
         println!("Lock should be released");
     };
   

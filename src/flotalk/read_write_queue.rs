@@ -257,7 +257,7 @@ impl<TData> ReadWriteQueue<TData> {
             {
                 // Try to lock immediately, or generate a ticket
                 let mut maybe_locks = self.locks.lock().unwrap();
-                if let Some(locks) = &mut *maybe_locks {
+                if let Some(_) = &mut *maybe_locks {
                     // Lock is held at least once (we always wait for a write lock)
                 } else {
                     // Lock is not held: create a write lock
