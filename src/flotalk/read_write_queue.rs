@@ -20,6 +20,11 @@ lazy_static! {
 struct Ticket(usize);
 
 ///
+/// Releases the specified ticket when dropped, if the ticket has not been claimed
+///
+struct TicketHolder<'a, TData>(&'a ReadWriteQueue<TData>, Option<Ticket>);
+
+///
 /// A waiting lock 
 ///
 enum WaitingLock {
@@ -212,6 +217,8 @@ impl<TData> ReadWriteQueue<TData> {
             }
 
             // Wait for the lock to become available
+            let _holder = TicketHolder(self, Some(ticket));
+
             future::poll_fn(|context| {
                 let mut maybe_locks = self.locks.lock().unwrap();
 
@@ -232,6 +239,7 @@ impl<TData> ReadWriteQueue<TData> {
             }).await;
 
             // Lock acquired: safe to return the data
+            _holder.claim();
             unsafe { return ReadOnlyData { owner: self, ticket: ticket, data: &*self.data.get() } };
         }
     }
@@ -273,6 +281,8 @@ impl<TData> ReadWriteQueue<TData> {
             }
 
             // Wait for the lock to become available
+            let _holder = TicketHolder(self, Some(ticket));
+
             future::poll_fn(|context| {
                 let mut maybe_locks = self.locks.lock().unwrap();
 
@@ -293,6 +303,7 @@ impl<TData> ReadWriteQueue<TData> {
             }).await;
 
             // Lock acquired: safe to return the data
+            _holder.claim();
             unsafe { return WriteableData { owner: self, ticket: ticket, data: &mut *self.data.get() } };
         }
     }
@@ -343,6 +354,20 @@ impl<'a, TData> DerefMut for WriteableData<'a, TData> {
 impl<'a, TData> Drop for WriteableData<'a, TData> {
     fn drop(&mut self) {
         self.owner.release(self.ticket);
+    }
+}
+
+impl<'a, TData> TicketHolder<'a, TData> {
+    fn claim(mut self) {
+        self.1 = None;
+    }
+}
+
+impl<'a, TData> Drop for TicketHolder<'a, TData> {
+    fn drop(&mut self) {
+        if let Some(ticket) = self.1.take() {
+            self.0.release(ticket);
+        }
     }
 }
 
