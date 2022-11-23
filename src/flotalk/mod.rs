@@ -28,6 +28,7 @@ mod value_messages;
 mod dispatch_table;
 mod releasable;
 mod standard_classes;
+mod read_write_queue;
 
 pub mod sparse_array;
 
@@ -52,3 +53,4 @@ pub use self::dispatch_table::*;
 pub use self::number::*;
 pub use self::releasable::*;
 pub use self::standard_classes::*;
+pub use self::read_write_queue::*;
