@@ -24,6 +24,22 @@ pub fn acquire_write_lock() {
 }
 
 #[test]
+pub fn try_acquire_read_lock() {
+    let rw_queue    = ReadWriteQueue::new(42);
+    let read_value  = *rw_queue.try_read().unwrap();
+
+    assert!(read_value == 42);
+}
+
+#[test]
+pub fn try_acquire_write_lock() {
+    let rw_queue    = ReadWriteQueue::new(42);
+    let read_value  = *rw_queue.try_write().unwrap();
+
+    assert!(read_value == 42);
+}
+
+#[test]
 pub fn acquire_write_lock_twice() {
     let rw_queue        = ReadWriteQueue::new(42);
 

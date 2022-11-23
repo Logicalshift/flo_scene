@@ -158,6 +158,69 @@ impl<TData> ReadWriteQueue<TData> {
     }
 
     ///
+    /// If this is in a state where it can be read from, return the readable data immediately
+    ///
+    pub fn try_read<'a>(&'a self) -> Option<ReadOnlyData<'a, TData>> {
+        let ticket = Ticket::new();
+
+        // Try to lock immediately, or generate a ticket
+        let mut maybe_locks = self.locks.lock().unwrap();
+        if let Some(locks) = &mut *maybe_locks {
+            // Lock is held at least once (we can acquire it immediately if nothing is waiting and it's held as a read lock)
+            match &mut locks.held {
+                WaitingLock::ReadLock(owners) => {
+                    if locks.waiting.len() == 0 {
+                        // There's one lock owner, and it's a read lock, so we can read in parallel with it
+                        owners.push((ticket, None));
+
+                        // Safe to return the data
+                        unsafe { return Some(ReadOnlyData { owner: self, ticket: ticket, data: &*self.data.get() }) };
+                    }
+                }
+
+                WaitingLock::WriteLock(_, _) => { /* Always need to wait for a write lock to be released */ }
+            }
+        } else {
+            // Lock is not held: create a read lock
+            *maybe_locks = Some(Box::new(Locks {
+                held:       WaitingLock::ReadLock(vec![(ticket, None)]),
+                waiting:    VecDeque::new()
+            }));
+
+            // Safe to return the data
+            unsafe { return Some(ReadOnlyData { owner: self, ticket: ticket, data: &*self.data.get() }) };
+        }
+
+        None
+    }
+
+    ///
+    /// If this is in a state where it can be read from, return the readable data immediately
+    ///
+    #[inline]
+    pub fn try_write<'a>(&'a self) -> Option<WriteableData<'a, TData>> {
+        let ticket = Ticket::new();
+
+        // Try to lock immediately, or generate a ticket
+        let mut maybe_locks = self.locks.lock().unwrap();
+        if let Some(_) = &mut *maybe_locks {
+            // Lock is held by something
+        } else {
+            // Lock is not held: create a write lock
+            *maybe_locks = Some(Box::new(Locks {
+                held:       WaitingLock::WriteLock(ticket, None),
+                waiting:    VecDeque::new()
+            }));
+
+            // Safe to return the data
+            unsafe { return Some(WriteableData { owner: self, ticket: ticket, data: &mut *self.data.get() }) };
+        }
+
+        None
+    }
+
+
+    ///
     /// Returns a future that has read acess to the data protected by this queue
     ///
     /// Access is granted in the same order that it's requested. In particular, even if a read lock is already held, this will wait if
@@ -313,6 +376,7 @@ impl Ticket {
     ///
     /// Returns a unique ticket for a pending request
     ///
+    #[inline]
     pub fn new() -> Ticket {
         let next_id = NEXT_TICKET_ID.fetch_add(1, Ordering::Relaxed);
 
@@ -330,6 +394,7 @@ impl<'a, TData> Deref for ReadOnlyData<'a, TData> {
 }
 
 impl<'a, TData> Drop for ReadOnlyData<'a, TData> {
+    #[inline]
     fn drop(&mut self) {
         self.owner.release(self.ticket);
     }
@@ -352,18 +417,21 @@ impl<'a, TData> DerefMut for WriteableData<'a, TData> {
 }
 
 impl<'a, TData> Drop for WriteableData<'a, TData> {
+    #[inline]
     fn drop(&mut self) {
         self.owner.release(self.ticket);
     }
 }
 
 impl<'a, TData> TicketHolder<'a, TData> {
+    #[inline]
     fn claim(mut self) {
         self.1 = None;
     }
 }
 
 impl<'a, TData> Drop for TicketHolder<'a, TData> {
+    #[inline]
     fn drop(&mut self) {
         if let Some(ticket) = self.1.take() {
             self.0.release(ticket);
