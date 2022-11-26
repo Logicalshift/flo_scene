@@ -107,7 +107,7 @@ where
     /// Sends a message to an item in this dispatch table (freeing the target when done)
     ///
     #[inline]
-    pub fn send_message<'a>(&'a self, target: TDataType, message: TalkMessage, talk_context: &'a TalkContext) -> TalkContinuation<'static> {
+    pub fn send_message<'a, 'b>(&self, target: TDataType, message: TalkMessage, talk_context: &'a TalkContext) -> TalkContinuation<'b> {
         let target  = TalkOwned::new(target, talk_context);
         let id      = message.signature_id();
         let args    = TalkOwned::new(message.to_arguments(), talk_context);
@@ -123,7 +123,7 @@ where
     /// Tries to send a message to this dispatch table, returning 'None' if no message can be sent
     ///
     #[inline]
-    pub fn try_send_message(&self, target: TDataType, message: TalkMessage, talk_context: &TalkContext) -> Option<TalkContinuation<'static>> {
+    pub fn try_send_message<'a>(&self, target: TDataType, message: TalkMessage, talk_context: &TalkContext) -> Option<TalkContinuation<'a>> {
         let target  = TalkOwned::new(target, talk_context);
         let id      = message.signature_id();
         let args    = message.to_arguments();
