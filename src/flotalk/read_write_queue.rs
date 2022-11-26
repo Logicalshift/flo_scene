@@ -384,6 +384,15 @@ impl Ticket {
     }
 }
 
+impl<'a, TData> ReadOnlyData<'a, TData> {
+    ///
+    /// Upgrades this read-only lock to a writeable lock
+    ///
+    pub fn upgrade(self) -> impl 'a + Future<Output=WriteableData<'a, TData>> {
+        self.owner.write()
+    }
+}
+
 impl<'a, TData> Deref for ReadOnlyData<'a, TData> {
     type Target = TData;
 
