@@ -420,12 +420,16 @@ impl TalkClass {
     /// Sends a message to this class
     ///
     #[inline]
-    pub fn send_message_in_context(&self, message: TalkMessage, context: &mut TalkContext) -> TalkContinuation<'static> {
+    pub fn send_message_in_context<'a>(&self, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'a> {
         if let Some(callbacks) = context.get_callbacks(*self) {
             callbacks.send_class_message(message, context)
         } else {
-            let _ = context.get_callbacks_mut(*self);
-            context.get_callbacks(*self).unwrap().send_class_message(message, context)
+            let our_class = *self;
+
+            TalkContinuation::Soon(Box::new(move |talk_context| {
+                let _ = talk_context.get_callbacks_mut(our_class);
+                talk_context.get_callbacks(our_class).unwrap().send_class_message(message, talk_context)
+            }))
         }
     }
 
