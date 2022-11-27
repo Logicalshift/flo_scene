@@ -33,6 +33,18 @@ pub struct TalkCellBlock(pub u32);
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct TalkCell(pub TalkCellBlock, pub u32);
 
+///
+/// A reference to a cell in a frame
+///
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+pub struct TalkFrameCell {
+    /// The frame this cell is found in (with '0' being the current frame, '1' being the parent's frame, etc). The frame should contain the cell block.
+    pub frame: u32,
+
+    /// The cell number within the frame
+    pub cell: u32,
+}
+
 impl TalkReference {
     ///
     /// Creates a reference from a data handle
