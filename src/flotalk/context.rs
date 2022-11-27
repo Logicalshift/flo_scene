@@ -196,4 +196,20 @@ impl TalkContext {
     pub fn cell_block_mut(&mut self, TalkCellBlock(idx): TalkCellBlock) -> &mut [TalkValue] {
         &mut self.cells[idx as usize]
     }
+
+    ///
+    /// Returns a reference to the value in a cell
+    ///
+    #[inline]
+    pub fn get_cell(&self, TalkCell(TalkCellBlock(block_idx), cell_idx): TalkCell) -> &TalkValue {
+        &self.cells[block_idx as usize][cell_idx as usize]
+    }
+
+    ///
+    /// Returns a mutable reference to the value in a cell
+    ///
+    #[inline]
+    pub fn get_cell_mut(&mut self, TalkCell(TalkCellBlock(block_idx), cell_idx): TalkCell) -> &mut TalkValue {
+        &mut self.cells[block_idx as usize][cell_idx as usize]
+    }
 }
