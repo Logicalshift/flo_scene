@@ -113,3 +113,13 @@ impl TalkReference {
         }
     }
 }
+
+impl TalkCellBlock {
+    ///
+    /// Returns a cell with a particular index
+    ///
+    #[inline]
+    pub fn cell(&self, cell_number: u32) -> TalkCell {
+        TalkCell(*self, cell_number)
+    }
+}
