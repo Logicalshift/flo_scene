@@ -9,8 +9,8 @@ use crate::flotalk::symbol::*;
 use crate::flotalk::reference::*;
 use crate::flotalk::releasable::*;
 use crate::flotalk::simple_evaluator::*;
+use crate::flotalk::symbol_table::*;
 use crate::flotalk::value::*;
-use crate::flotalk::value_store::*;
 
 use smallvec::*;
 
@@ -57,8 +57,11 @@ where
     /// The symbols stored for the arguments passed into this block
     arguments:              Vec<TalkSymbol>,
 
-    /// The captured environment for this block
-    root_values:            Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>,
+    /// The symbol table for the parent frames
+    parent_symbol_table:    Arc<Mutex<TalkSymbolTable>>,
+
+    /// The cell blocks representing the parent frames
+    parent_frames:          Vec<TalkCellBlock>,
 
     /// The expression to evaluate for this block
     expression:             Arc<Vec<TalkInstruction<TValue, TSymbol>>>,
@@ -92,32 +95,12 @@ where
     /// Sends a message to an instance of this class
     ///
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, arguments: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
-        if arguments.len() == 0 {
-            if message_id == target.accepted_message_id {
-                // Send with no arguments
-                talk_evaluate_simple(target.root_values.clone(), Arc::clone(&target.expression))
-            } else {
-                // Not the message this block was expecting
-                TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
-            }
+        if message_id == target.accepted_message_id {
+            // Leak the arguments to the method call (it will dispose them when done)
+            talk_evaluate_simple_with_arguments(Arc::clone(&target.parent_symbol_table), target.parent_frames.clone(), arguments.leak(), Arc::clone(&target.expression))
         } else {
-            if message_id == target.accepted_message_id {
-                // Create a value store to store the argument values
-                let mut argument_store  = TalkValueStore::default();
-                let mut arguments       = arguments;
-
-                // Assume that arg_values is the same length as target.arguments
-                arguments.iter_mut()
-                    .enumerate()
-                    .for_each(|(idx, value)| {
-                        argument_store.set_symbol_value(target.arguments[idx], value.take())
-                    });
-
-                talk_evaluate_simple_with_arguments(target.root_values.clone(), argument_store, Arc::clone(&target.expression))
-            } else {
-                // Not the message this block was expecting
-                TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
-            }
+            // Not the message this block was expecting
+            TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
         }
     }
 }
@@ -148,7 +131,10 @@ where
 ///
 /// Creates a reference to a block that is evaluated using the simple evaluator
 ///
-pub fn create_simple_evaluator_block_in_context<TValue, TSymbol>(talk_context: &mut TalkContext, arguments: Vec<TalkSymbol>, root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkReference
+/// The parent_frames will be released when this block is freed, so callers need to consider that the cell blocks ownership has been transferred 
+/// to the new object.
+///
+pub fn create_simple_evaluator_block_in_context<TValue, TSymbol>(talk_context: &mut TalkContext, arguments: Vec<TalkSymbol>, parent_frames: Vec<TalkCellBlock>, parent_symbol_table: Arc<Mutex<TalkSymbolTable>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkReference
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
@@ -166,7 +152,8 @@ where
     let data        = SimpleEvaluatorBlock {
         accepted_message_id:    signature.id(),
         arguments:              arguments,
-        root_values:            root_values,
+        parent_symbol_table:    parent_symbol_table,
+        parent_frames:          parent_frames,
         expression:             expression,
     };
 

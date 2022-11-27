@@ -21,7 +21,9 @@ use std::hash;
 ///
 /// The result of a FloTalk message
 ///
-#[derive(PartialEq, Debug)]
+/// Note that clonign a value does not increase the reference count for any data that's referenced. Use `clone_in_context()` for that.
+///
+#[derive(Clone, PartialEq, Debug)]
 pub enum TalkValue {
     /// The 'nil' value
     Nil,

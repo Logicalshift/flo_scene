@@ -16,9 +16,10 @@ pub struct TalkDataHandle(pub usize);
 ///
 /// A reference to a data structure within a TalkContext
 ///
-/// FloTalk data is stored by class and handle. References are only valid for the context that they were created for.
+/// FloTalk data is stored by class and handle. References are only valid for the context that they were created for. Cloning a reference
+/// doesn't increase the reference count: use `clone_in_context()` if that's what's required.
 ///
-#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct TalkReference(pub (super) TalkClass, pub (super) TalkDataHandle);
 
 ///

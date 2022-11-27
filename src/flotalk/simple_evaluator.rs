@@ -4,12 +4,14 @@ use super::error::*;
 use super::instruction::*;
 use super::message::*;
 use super::releasable::*;
+use super::reference::*;
 use super::standard_classes::*;
 use super::symbol::*;
+use super::symbol_table::*;
 use super::value::*;
-use super::value_store::*;
 
 use futures::task::{Poll};
+use smallvec::*;
 
 use std::sync::*;
 use std::collections::{HashMap};
@@ -35,14 +37,17 @@ struct TalkFrame {
     /// Value stack
     stack: Vec<TalkValue>,
 
-    /// Symbols defined in the outer contexts (lower accessed first)
-    outer_bindings: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>,
+    /// The arguments for this call, if they're not loaded yet
+    arguments: Option<SmallVec<[TalkValue; 4]>>,
 
-    /// Symbols defined in the current context
-    local_bindings: TalkValueStore<TalkValue>,
+    /// Symbols defined in the outer contexts (lower accessed first)
+    bindings: Vec<TalkCellBlock>,
+
+    /// The symbol table for this frame
+    symbol_table: TalkSymbolTable,
 
     /// The earlier binding locations for symbols, when popped using PopLocalBinding
-    earlier_bindings: HashMap<TalkSymbol, Vec<(i32, usize)>>,
+    earlier_bindings: HashMap<TalkSymbol, Vec<TalkFrameCell>>,
 }
 
 impl TalkFrame {
@@ -50,20 +55,13 @@ impl TalkFrame {
     /// Performs an action on the value of a symbol
     ///
     #[inline]
-    pub fn with_symbol_value<TResult>(&mut self, symbol: TalkSymbol, action: impl FnOnce(&mut TalkValue) -> TResult) -> Option<TResult> {
-        if let Some(value) = self.local_bindings.value_for_symbol(symbol) {
-            // In the local binding
-            Some(action(value))
+    pub fn with_symbol_value<TResult>(&mut self, symbol: TalkSymbol, context: &mut TalkContext, action: impl FnOnce(&mut TalkValue) -> TResult) -> Option<TResult> {
+        if let Some(binding) = self.symbol_table.symbol(symbol) {
+            let cell_block  = self.bindings[binding.frame as usize];
+            let cell_block  = context.cell_block_mut(cell_block);
+
+            Some(action(&mut cell_block[binding.cell as usize]))
         } else {
-            // Check the outer bindings
-            for store in self.outer_bindings.iter() {
-                let mut store = store.lock().unwrap();
-
-                if let Some(value) = store.value_for_symbol(symbol) {
-                    return Some(action(value));
-                }
-            }
-
             None
         }
     }
@@ -73,27 +71,15 @@ impl TalkFrame {
     ///
     #[inline]
     pub fn push_binding(&mut self, symbol: TalkSymbol) {
-        // Store the previous value for this symbol
-        if let Some(loc) = self.local_bindings.location_for_symbol(symbol) {
-            // In the local binding
+        if let Some(old_location) = self.symbol_table.symbol(symbol) {
+            // Store the old location for the binding
             self.earlier_bindings.entry(symbol)
                 .or_insert_with(|| vec![])
-                .push((-1, loc));
-        } else {
-            // Check the outer bindings
-            for pos in 0..self.outer_bindings.len() {
-                if let Some(loc) = self.outer_bindings[pos].lock().unwrap().location_for_symbol(symbol) {
-                    self.earlier_bindings.entry(symbol)
-                        .or_insert_with(|| vec![])
-                        .push((pos as i32, loc));
-
-                    break;
-                }
-            }
+                .push(old_location);
         }
 
-        // Create a value in the local binding
-        self.local_bindings.define_symbol(symbol);
+        // Create a new location for this symbol
+        self.symbol_table.define_symbol(symbol);
     }
 
     ///
@@ -104,12 +90,14 @@ impl TalkFrame {
     #[inline]
     pub fn pop_binding(&mut self, symbol: TalkSymbol) {
         // Fetch the last binding position
-        let (last_pos, last_loc) = self.earlier_bindings.get_mut(&symbol).unwrap().pop().unwrap();
+        let last_binding = self.earlier_bindings.get_mut(&symbol).unwrap().pop().unwrap();
 
-        if last_pos == -1 {
-            self.local_bindings.set_symbol_location(symbol, last_loc);
-        } else {
-            self.local_bindings.undefine_symbol(symbol);
+        // Undefine the symbol
+        self.symbol_table.undefine_symbol(symbol);
+
+        if last_binding.frame == 0 {
+            // The previous binding was in the same frame
+            self.symbol_table.alias_symbol(symbol, last_binding.cell);
         }
     }
 
@@ -122,8 +110,10 @@ impl TalkFrame {
             val.remove_reference(context);
         }
 
-        // Free anything in the local bindings
-        self.local_bindings.remove_all_references(context);
+        // Free anything in the local bindings (if the arguments haven't been taken yet, there are no local bindings)
+        if self.arguments.is_none() {
+            context.release_cell_block(self.bindings[0]);
+        }
     }
 }
 
@@ -170,8 +160,26 @@ where
             }
 
             // Sets the symbol values for the arguments for this expression
-            LoadArguments(arguments) => {
-                todo!()
+            LoadArguments(argument_symbols) => {
+                if let Some(arguments) = frame.arguments.take() {
+                    // Create a cell block to store the arguments
+                    let local_cell_block = context.allocate_cell_block(arguments.len());
+
+                    // Move the arguments into the cell block
+                    let cell_block_values = context.cell_block_mut(local_cell_block);
+                    for (idx, arg) in arguments.into_iter().enumerate() {
+                        cell_block_values[idx] = arg;
+                    }
+
+                    // Set up the symbol table by defining each argument in turn (will allocate from 0 if the table is empty)
+                    debug_assert!(frame.symbol_table.len() == 0);
+                    for arg_symbol in argument_symbols {
+                        frame.symbol_table.define_symbol(arg_symbol);
+                    }
+
+                    // This block becomes the first binding
+                    frame.bindings.insert(0, local_cell_block);
+                }
             }
 
             // Load the value indicating 'nil' to the stack
@@ -191,7 +199,8 @@ where
             LoadFromSymbol(symbol) => {
                 let symbol = TalkSymbol::from(symbol);
 
-                if let Some(value) = frame.with_symbol_value(symbol, |value| value.clone_in_context(context)) {
+                if let Some(value) = frame.with_symbol_value(symbol, context, |value| value.clone()) {
+                    let value = value.clone_in_context(context);
                     frame.stack.push(value);
                 } else {
                     return TalkWaitState::Finished(TalkValue::Error(TalkError::UnboundSymbol(symbol)));
@@ -200,11 +209,16 @@ where
 
             // Load an object representing a code block onto the stack
             LoadBlock(variables, instructions) => {
-                // TODO: closure binding
                 // TODO: even for the simple evaluator this is really too slow, add an optimiser that pre-binds the blocks
 
+                // Retain the bindings for the block
+                let bindings = frame.bindings.clone();
+                for cell_block in bindings.iter() {
+                    context.retain_cell_block(*cell_block);
+                }
+
                 // Create the block, and add it to the stack
-                let block_reference = create_simple_evaluator_block_in_context(context, variables.clone(), frame.outer_bindings.clone(), Arc::clone(instructions));
+                let block_reference = create_simple_evaluator_block_in_context(context, variables.clone(), bindings, Arc::new(Mutex::new(frame.symbol_table.clone())), Arc::clone(instructions));
                 frame.stack.push(TalkValue::Reference(block_reference));
             }
 
@@ -213,7 +227,7 @@ where
                 let new_value   = frame.stack.pop().unwrap();
                 let symbol      = TalkSymbol::from(symbol);
 
-                if let Some(()) = frame.with_symbol_value(symbol, move |value| *value = new_value) {
+                if let Some(()) = frame.with_symbol_value(symbol, context, move |value| *value = new_value) {
                     // Value stored
                 } else {
                     // TODO: declare in the outer state?
@@ -276,14 +290,14 @@ where
 /// This is the simplest form of expression evaluator, which runs the slowest out of all the possible implementations (due to needing to parse values and look up
 /// symbols every time)
 ///
-pub fn talk_evaluate_simple<TValue, TSymbol>(root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation<'static> 
+pub fn talk_evaluate_simple<TValue, TSymbol>(parent_symbol_table: Arc<Mutex<TalkSymbolTable>>, parent_frames: Vec<TalkCellBlock>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation<'static> 
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
     TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
-    talk_evaluate_simple_with_arguments(root_values, TalkValueStore::default(), expression)
+    talk_evaluate_simple_with_arguments(parent_symbol_table, parent_frames, smallvec![], expression)
 }
 
 ///
@@ -292,15 +306,21 @@ where
 /// This is the simplest form of expression evaluator, which runs the slowest out of all the possible implementations (due to needing to parse values and look up
 /// symbols every time)
 ///
-pub fn talk_evaluate_simple_with_arguments<TValue, TSymbol>(root_values: Vec<Arc<Mutex<TalkValueStore<TalkValue>>>>, arguments: TalkValueStore<TalkValue>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation<'static> 
+/// The argument cell block will be released when this returns, but the parent frames will not be released (ie, the parent frames are considered borrowed and the arguments are
+/// considered owned).
+///
+pub fn talk_evaluate_simple_with_arguments<TValue, TSymbol>(parent_symbol_table: Arc<Mutex<TalkSymbolTable>>, parent_frames: Vec<TalkCellBlock>, arguments: SmallVec<[TalkValue; 4]>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation<'static> 
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
     TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
-    let mut wait_state  = TalkWaitState::Run;
-    let mut frame       = TalkFrame { pc: 0, stack: vec![], outer_bindings: root_values, local_bindings: arguments, earlier_bindings: HashMap::new() };
+    // Create the first frame
+    let mut wait_state      = TalkWaitState::Run;
+    let symbol_table        = TalkSymbolTable::with_parent_frame(parent_symbol_table);      // TODO: makes the cells invalid (frame number is wrong) until LoadArguments is called, which is kind of janky
+    let mut bindings        = parent_frames;
+    let mut frame           = TalkFrame { pc: 0, stack: vec![], arguments: Some(arguments), bindings: bindings, symbol_table: symbol_table, earlier_bindings: HashMap::new() };
 
     TalkContinuation::Later(Box::new(move |talk_context, future_context| {
         use TalkWaitState::*;

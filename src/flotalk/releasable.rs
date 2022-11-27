@@ -81,6 +81,13 @@ where
             None        => unreachable!(),
         }
     }
+
+    ///
+    /// Returns the context for this 'owned' item
+    ///
+    pub fn context(&self) -> &TalkContext {
+        self.context
+    }
 }
 
 impl<'a, TReleasable> Drop for TalkOwned<'a, TReleasable>

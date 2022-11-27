@@ -50,7 +50,7 @@ impl TalkSymbolTable {
     }
 
     ///
-    /// Defines a symbol within this table, assigning it a new cell
+    /// Defines a symbol within this table, assigning it a new cell (including if the symbol is already bound to something)
     ///
     pub fn define_symbol(&mut self, symbol: impl Into<TalkSymbol>) -> TalkFrameCell {
         let TalkSymbol(sym_id) = symbol.into();
