@@ -200,8 +200,10 @@ impl TalkContext {
     ///
     /// Releases a block of cells, freeing it if its reference count reaches 0
     ///
+    /// Returns true if the cell block was actually released, otherwise false
+    ///
     #[inline]
-    pub fn release_cell_block(&self, TalkCellBlock(idx): TalkCellBlock) {
+    pub fn release_cell_block(&self, TalkCellBlock(idx): TalkCellBlock) -> bool {
         let ref_count = &self.cell_reference_count[idx as usize];
         debug_assert!(ref_count.load(Ordering::Relaxed) > 0);
 
@@ -213,6 +215,10 @@ impl TalkContext {
             self.release_cell_contents(freed_cells);
 
             self.free_cells.lock().unwrap().push(idx as _);
+
+            true
+        } else {
+            false
         }
     }
 
