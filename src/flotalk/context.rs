@@ -96,7 +96,7 @@ impl TalkContext {
     pub fn release_references(&self, references: impl IntoIterator<Item=TalkReference>) {
         for reference in references {
             if let Some(callbacks) = self.get_callbacks(reference.0) {
-                callbacks.remove_reference(reference.1);
+                callbacks.remove_reference(reference.1, self);
             }
         }
     }
@@ -110,7 +110,7 @@ impl TalkContext {
             match value {
                 TalkValue::Reference(reference) => {
                     if let Some(callbacks) = self.get_callbacks(reference.0) {
-                        callbacks.remove_reference(reference.1);
+                        callbacks.remove_reference(reference.1, self);
                     }
                 },
 

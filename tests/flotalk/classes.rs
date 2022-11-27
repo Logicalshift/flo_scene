@@ -55,11 +55,11 @@ impl TalkClassAllocator for TestAllocator {
         &mut self.items[handle.0]
     }
 
-    fn add_reference(&mut self, _handle: TalkDataHandle) {
+    fn add_reference(&mut self, _handle: TalkDataHandle, _context: &TalkContext) {
 
     }
 
-    fn remove_reference(&mut self, _handle: TalkDataHandle) {
+    fn remove_reference(&mut self, _handle: TalkDataHandle, _context: &TalkContext) {
 
     }
 }

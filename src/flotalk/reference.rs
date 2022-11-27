@@ -61,7 +61,7 @@ impl TalkReference {
     #[inline]
     pub fn add_reference(&self, context: &TalkContext) {
         match context.get_callbacks(self.0) {
-            Some(callbacks) => callbacks.add_reference(self.1),
+            Some(callbacks) => callbacks.add_reference(self.1, context),
             None            => { /* Should be unreachable */ }
         }
     }
@@ -72,7 +72,7 @@ impl TalkReference {
     #[inline]
     pub fn remove_reference(&self, context: &TalkContext) {
         match context.get_callbacks(self.0) {
-            Some(callbacks) => callbacks.remove_reference(self.1),
+            Some(callbacks) => callbacks.remove_reference(self.1, context),
             None            => { /* Should be unreachable */ }
         }
     }

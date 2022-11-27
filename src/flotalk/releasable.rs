@@ -223,7 +223,7 @@ impl TalkCloneable for TalkReference {
     fn clone_in_context(&self, context: &TalkContext) -> TalkReference {
         let clone = TalkReference(self.0, self.1);
         if let Some(callbacks) = context.get_callbacks(self.0) {
-            callbacks.add_reference(self.1);
+            callbacks.add_reference(self.1, context);
         }
         clone
     }

@@ -1,4 +1,5 @@
 use super::class::*;
+use super::context::*;
 use super::reference::*;
 use super::releasable::*;
 
@@ -96,7 +97,7 @@ where
     /// Adds to the reference count for a data handle
     ///
     #[inline]
-    fn add_reference(&mut self, TalkDataHandle(pos): TalkDataHandle) {
+    fn add_reference(&mut self, TalkDataHandle(pos): TalkDataHandle, _: &TalkContext) {
         if self.reference_counts[pos] > 0 {
             self.reference_counts[pos] += 1;
         }
@@ -106,12 +107,14 @@ where
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
     #[inline]
-    fn remove_reference(&mut self, TalkDataHandle(pos): TalkDataHandle) {
+    fn remove_reference(&mut self, TalkDataHandle(pos): TalkDataHandle, talk_context: &TalkContext) {
         if self.reference_counts[pos] > 0 {
             self.reference_counts[pos] -= 1;
 
             if self.reference_counts[pos] == 0 {
-                self.data[pos] = None;
+                if let Some(data) = self.data[pos].take() {
+                    data.release_in_context(talk_context);
+                }
                 self.free_slots.push(pos);
             }
         }
