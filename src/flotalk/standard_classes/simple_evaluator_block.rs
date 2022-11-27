@@ -54,9 +54,6 @@ where
     /// The ID of the message that evaluates this block
     accepted_message_id:    TalkMessageSignatureId,
 
-    /// The symbols stored for the arguments passed into this block
-    arguments:              Vec<TalkSymbol>,
-
     /// The symbol table for the parent frames
     parent_symbol_table:    Arc<Mutex<TalkSymbolTable>>,
 
@@ -151,7 +148,6 @@ where
     // Create the block data
     let data        = SimpleEvaluatorBlock {
         accepted_message_id:    signature.id(),
-        arguments:              arguments,
         parent_symbol_table:    parent_symbol_table,
         parent_frames:          parent_frames,
         expression:             expression,
