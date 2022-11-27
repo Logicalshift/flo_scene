@@ -154,17 +154,29 @@ impl TalkContext {
     }
 
     ///
+    /// Releases the contents of a set of cells
+    ///
+    fn release_cell_contents(&mut self, cells: Box<[TalkValue]>) {
+        cells.into_iter()
+            .for_each(|value| value.remove_reference(self));
+    }
+
+    ///
     /// Releases a block of cells, freeing it if its reference count reaches 0
     ///
     #[inline]
     pub fn release_cell_block(&mut self, idx: usize) {
         debug_assert!(self.cells[idx].is_some());
 
-        let mut ref_count = &mut self.cell_reference_count[idx];
+        let ref_count = &mut self.cell_reference_count[idx];
         debug_assert!(*ref_count > 0);
 
         if *ref_count == 1 {
-            self.cells[idx] = None;
+            *ref_count = 0;
+
+            let freed_cells = self.cells[idx].take();
+            self.release_cell_contents(freed_cells.unwrap());
+
             self.free_cells.push(idx);
         } else {
             *ref_count -= 1;
