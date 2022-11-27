@@ -149,13 +149,36 @@ impl TalkContext {
     ///
     /// Sets the size of an allocated cell block
     ///
-    #[inline]
     pub fn resize_cell_block(&mut self, TalkCellBlock(idx): TalkCellBlock, new_size: usize) {
-        //use std::mem;
+        use std::mem;
 
-        //let mut new_block = Box::new([]);
+        // Create an empty block
+        let mut new_block: Box<[TalkValue]> = Box::new([]);
 
-        todo!()
+        // Convert the existing block back to a vec
+        mem::swap(&mut self.cells[idx as usize], &mut new_block);
+        let mut new_block = new_block.to_vec();
+
+        // Reserve space for the new cells
+        if new_size > new_block.len() {
+            new_block.reserve_exact(new_size - new_block.len());
+
+            while new_block.len() < new_size {
+                new_block.push(TalkValue::Nil);
+            }
+        } else {
+             while new_block.len() > new_size {
+                new_block.pop();
+             }
+
+             new_block.shrink_to_fit();
+        }
+
+        // Convert back to a slice
+        let mut new_block = new_block.into_boxed_slice();
+
+        // Put back in to the cells
+        mem::swap(&mut self.cells[idx as usize], &mut new_block);
     }
 
     ///
