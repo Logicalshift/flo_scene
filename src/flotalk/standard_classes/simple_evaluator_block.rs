@@ -72,7 +72,10 @@ where
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
     fn release_in_context(self, context: &TalkContext) {
-        todo!()
+        // Release any cells referenced by this evaluator block
+        for cell_block in self.parent_frames.iter() {
+            context.release_cell_block(*cell_block);
+        }
     }
 }
 
