@@ -148,6 +148,16 @@ impl TalkReleasable for TalkValue {
     }
 }
 
+impl TalkReleasable for TalkCellBlock {
+    ///
+    /// Decreases the reference count of this value by 1
+    ///
+    #[inline]
+    fn release_in_context(self, context: &TalkContext) {
+        context.release_cell_block(self);
+    }
+}
+
 impl TalkCloneable for TalkValue {
     ///
     /// Creates a copy of this value in the specified context

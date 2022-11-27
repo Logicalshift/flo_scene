@@ -129,7 +129,7 @@ impl TalkContext {
     /// The block is returned with a reference count of 1
     ///
     #[inline]
-    pub fn allocate_cell_block(&mut self, count: usize) -> usize {
+    pub fn allocate_cell_block(&mut self, count: usize) -> TalkCellBlock {
         // Crete a new block of nil cells
         let new_block = (0..count).into_iter().map(|_| TalkValue::Nil).collect::<Vec<_>>().into_boxed_slice();
 
@@ -137,20 +137,20 @@ impl TalkContext {
         if let Some(idx) = self.free_cells.lock().unwrap().pop() {
             self.cells[idx]                 = new_block;
             self.cell_reference_count[idx]  = AtomicU32::new(1);
-            idx
+            TalkCellBlock(idx as _)
         } else {
             let idx = self.cells.len();
             self.cells.push(new_block);
             self.cell_reference_count.push(AtomicU32::new(1));
-            idx
+            TalkCellBlock(idx as _)
         }
     }
 
     ///
     /// Retains a cell block so that 'release' needs to be called on it one more time
     ///
-    pub fn retain_cell_block(&self, idx: usize) {
-        let old_count = self.cell_reference_count[idx].fetch_add(1, Ordering::Relaxed);
+    pub fn retain_cell_block(&self, TalkCellBlock(idx): TalkCellBlock) {
+        let old_count = self.cell_reference_count[idx as usize].fetch_add(1, Ordering::Relaxed);
         debug_assert!(old_count > 0);
     }
 
@@ -166,18 +166,18 @@ impl TalkContext {
     /// Releases a block of cells, freeing it if its reference count reaches 0
     ///
     #[inline]
-    pub fn release_cell_block(&self, idx: usize) {
-        let ref_count = &self.cell_reference_count[idx];
+    pub fn release_cell_block(&self, TalkCellBlock(idx): TalkCellBlock) {
+        let ref_count = &self.cell_reference_count[idx as usize];
         debug_assert!(ref_count.load(Ordering::Relaxed) > 0);
 
         let old_count = ref_count.fetch_sub(1, Ordering::Relaxed);
         if old_count == 1 {
             // The old cells are left behind (as we can't mutate them here) but we reduce their reference count too. References may start to point at invalid values.
             // Once the cells are reallocated using allocate_cell_block, their contents are finally fully freed
-            let freed_cells = &self.cells[idx];
+            let freed_cells = &self.cells[idx as usize];
             self.release_cell_contents(freed_cells);
 
-            self.free_cells.lock().unwrap().push(idx);
+            self.free_cells.lock().unwrap().push(idx as _);
         }
     }
 
@@ -185,15 +185,15 @@ impl TalkContext {
     /// Retrieves a cell block for reading
     ///
     #[inline]
-    pub fn cell_block(&self, idx: usize) -> &[TalkValue] {
-        &self.cells[idx]
+    pub fn cell_block(&self, TalkCellBlock(idx): TalkCellBlock) -> &[TalkValue] {
+        &self.cells[idx as usize]
     }
 
     ///
     /// Retrieves a cell block for writing
     ///
     #[inline]
-    pub fn cell_block_mut(&mut self, idx: usize) -> &mut [TalkValue] {
-        &mut self.cells[idx]
+    pub fn cell_block_mut(&mut self, TalkCellBlock(idx): TalkCellBlock) -> &mut [TalkValue] {
+        &mut self.cells[idx as usize]
     }
 }

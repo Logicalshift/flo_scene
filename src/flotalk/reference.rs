@@ -21,6 +21,18 @@ pub struct TalkDataHandle(pub usize);
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct TalkReference(pub (super) TalkClass, pub (super) TalkDataHandle);
 
+///
+/// A reference to a cell block (set of reference-counted values stored within a TalkContext)
+///
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+pub struct TalkCellBlock(pub u32);
+
+///
+/// A reference to a specific value within a cell block
+///
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+pub struct TalkCell(pub TalkCellBlock, pub u32);
+
 impl TalkReference {
     ///
     /// Creates a reference from a data handle
