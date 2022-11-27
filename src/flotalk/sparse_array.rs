@@ -212,6 +212,31 @@ impl<TTarget> TalkSparseArray<TTarget> {
     }
 
     ///
+    /// Removes a value from this array, if it exists
+    ///
+    pub fn remove(&mut self, pos: usize) -> Option<TTarget> {
+        // Cuckoo hash means that either hash1 or hash2 will contain our item
+        let idx = self.index(pos);
+
+        // Rust's lifetime requirements mean we have to borrow immutably, then mutably, which means decoding the bucket twice
+        if let Some(idx) = idx {
+            // Change the old value back to 'empty'
+            let mut old_val = SparseBucket::Empty;
+            mem::swap(&mut old_val, &mut self.values[idx]);
+
+            // Return the original value
+            if let SparseBucket::Item(_, val) = old_val {
+                Some(val)
+            } else {
+                // Must be an item for self.index() to return a value
+                unreachable!()
+            }
+        } else {
+            None
+        }
+    }
+
+    ///
     /// True if we need to resize the current hash table
     ///
     fn needs_resize(&self) -> bool {
