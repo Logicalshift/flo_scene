@@ -17,10 +17,13 @@ pub struct TalkContext {
     pub (super) value_dispatch_tables: TalkValueDispatchTables,
 
     /// Storage cells that make up the heap for the interpreter
-    pub (super) cells: Vec<Option<Box<[TalkValue]>>>,
+    cells: Vec<Option<Box<[TalkValue]>>>,
+
+    /// The reference count for each cell block (this allows us to share cell blocks around more easily)
+    cell_reference_count: Vec<u32>,
 
     /// Values in the 'cells' array that have been freed
-    pub (super) free_cells: Vec<usize>,
+    free_cells: Vec<usize>,
 }
 
 impl TalkContext {
@@ -32,6 +35,7 @@ impl TalkContext {
             context_callbacks:      vec![],
             value_dispatch_tables:  TalkValueDispatchTables::default(),
             cells:                  vec![],
+            cell_reference_count:   vec![],
             free_cells:             vec![],
         }
     }
@@ -119,6 +123,8 @@ impl TalkContext {
     ///
     /// Allocates a block of cells, returning the size
     ///
+    /// The block is returned with a reference count of 1
+    ///
     #[inline]
     pub fn allocate_cell_block(&mut self, count: usize) -> usize {
         // Crete a new block of nil cells
@@ -126,24 +132,43 @@ impl TalkContext {
 
         // Store at the end of the list of cells or add a new item to the list
         if let Some(idx) = self.free_cells.pop() {
-            self.cells[idx] = Some(new_block);
+            self.cells[idx]                 = Some(new_block);
+            self.cell_reference_count[idx]  = 1;
             idx
         } else {
             let idx = self.cells.len();
             self.cells.push(Some(new_block));
+            self.cell_reference_count.push(1);
             idx
         }
     }
 
     ///
-    /// Frees a block of cells, adding it to the free list
+    /// Retains a cell block so that 'release' needs to be called on it one more time
+    ///
+    pub fn retain_cell_block(&mut self, idx: usize) {
+        debug_assert!(self.cells[idx].is_some());
+        debug_assert!(self.cell_reference_count[idx] > 0);
+
+        self.cell_reference_count[idx] += 1;
+    }
+
+    ///
+    /// Releases a block of cells, freeing it if its reference count reaches 0
     ///
     #[inline]
-    pub fn free_cell_block(&mut self, idx: usize) {
+    pub fn release_cell_block(&mut self, idx: usize) {
         debug_assert!(self.cells[idx].is_some());
 
-        self.cells[idx] = None;
-        self.free_cells.push(idx);
+        let mut ref_count = &mut self.cell_reference_count[idx];
+        debug_assert!(*ref_count > 0);
+
+        if *ref_count == 1 {
+            self.cells[idx] = None;
+            self.free_cells.push(idx);
+        } else {
+            *ref_count -= 1;
+        }
     }
 
     ///
