@@ -29,6 +29,7 @@ mod dispatch_table;
 mod releasable;
 mod standard_classes;
 mod read_write_queue;
+mod symbol_table;
 
 pub mod sparse_array;
 
@@ -54,3 +55,4 @@ pub use self::number::*;
 pub use self::releasable::*;
 pub use self::standard_classes::*;
 pub use self::read_write_queue::*;
+pub use self::symbol_table::*;

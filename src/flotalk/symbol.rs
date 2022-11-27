@@ -14,7 +14,7 @@ lazy_static! {
 /// A unique identifier for a FloTalk symbol
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct TalkSymbol(usize);
+pub struct TalkSymbol(pub (super) usize);
 
 impl<'a> From<&'a str> for TalkSymbol {
     fn from(val: &'a str) -> TalkSymbol {
