@@ -3,6 +3,9 @@ use super::reference::*;
 use super::value::*;
 use super::value_messages::*;
 
+use std::sync::*;
+use std::sync::atomic::{AtomicU32, Ordering};
+
 ///
 /// A talk context is a self-contained representation of the state of a flotalk interpreter
 ///
@@ -20,10 +23,10 @@ pub struct TalkContext {
     cells: Vec<Option<Box<[TalkValue]>>>,
 
     /// The reference count for each cell block (this allows us to share cell blocks around more easily)
-    cell_reference_count: Vec<u32>,
+    cell_reference_count: Vec<AtomicU32>,
 
     /// Values in the 'cells' array that have been freed
-    free_cells: Vec<usize>,
+    free_cells: Mutex<Vec<usize>>,
 }
 
 impl TalkContext {
@@ -36,7 +39,7 @@ impl TalkContext {
             value_dispatch_tables:  TalkValueDispatchTables::default(),
             cells:                  vec![],
             cell_reference_count:   vec![],
-            free_cells:             vec![],
+            free_cells:             Mutex::new(vec![]),
         }
     }
 
@@ -131,14 +134,14 @@ impl TalkContext {
         let new_block = (0..count).into_iter().map(|_| TalkValue::Nil).collect::<Vec<_>>().into_boxed_slice();
 
         // Store at the end of the list of cells or add a new item to the list
-        if let Some(idx) = self.free_cells.pop() {
+        if let Some(idx) = self.free_cells.lock().unwrap().pop() {
             self.cells[idx]                 = Some(new_block);
-            self.cell_reference_count[idx]  = 1;
+            self.cell_reference_count[idx]  = AtomicU32::new(1);
             idx
         } else {
             let idx = self.cells.len();
             self.cells.push(Some(new_block));
-            self.cell_reference_count.push(1);
+            self.cell_reference_count.push(AtomicU32::new(1));
             idx
         }
     }
@@ -146,17 +149,17 @@ impl TalkContext {
     ///
     /// Retains a cell block so that 'release' needs to be called on it one more time
     ///
-    pub fn retain_cell_block(&mut self, idx: usize) {
+    pub fn retain_cell_block(&self, idx: usize) {
         debug_assert!(self.cells[idx].is_some());
-        debug_assert!(self.cell_reference_count[idx] > 0);
 
-        self.cell_reference_count[idx] += 1;
+        let old_count = self.cell_reference_count[idx].fetch_add(1, Ordering::Relaxed);
+        debug_assert!(old_count > 0);
     }
 
     ///
     /// Releases the contents of a set of cells
     ///
-    fn release_cell_contents(&mut self, cells: Box<[TalkValue]>) {
+    fn release_cell_contents(&self, cells: &Box<[TalkValue]>) {
         cells.into_iter()
             .for_each(|value| value.remove_reference(self));
     }
@@ -165,21 +168,20 @@ impl TalkContext {
     /// Releases a block of cells, freeing it if its reference count reaches 0
     ///
     #[inline]
-    pub fn release_cell_block(&mut self, idx: usize) {
+    pub fn release_cell_block(&self, idx: usize) {
         debug_assert!(self.cells[idx].is_some());
 
-        let ref_count = &mut self.cell_reference_count[idx];
-        debug_assert!(*ref_count > 0);
+        let ref_count = &self.cell_reference_count[idx];
+        debug_assert!(ref_count.load(Ordering::Relaxed) > 0);
 
-        if *ref_count == 1 {
-            *ref_count = 0;
-
-            let freed_cells = self.cells[idx].take();
+        let old_count = ref_count.fetch_sub(1, Ordering::Relaxed);
+        if old_count == 1 {
+            // The old cells are left behind (as we can't mutate them here) but we reduce their reference count too. References may start to point at invalid values.
+            // Once the cells are reallocated using allocate_cell_block, their contents are finally fully freed
+            let freed_cells = self.cells[idx].as_ref();
             self.release_cell_contents(freed_cells.unwrap());
 
-            self.free_cells.push(idx);
-        } else {
-            *ref_count -= 1;
+            self.free_cells.lock().unwrap().push(idx);
         }
     }
 
