@@ -147,6 +147,18 @@ impl TalkContext {
     }
 
     ///
+    /// Sets the size of an allocated cell block
+    ///
+    #[inline]
+    pub fn resize_cell_block(&mut self, TalkCellBlock(idx): TalkCellBlock, new_size: usize) {
+        //use std::mem;
+
+        //let mut new_block = Box::new([]);
+
+        todo!()
+    }
+
+    ///
     /// Retains a cell block so that 'release' needs to be called on it one more time
     ///
     pub fn retain_cell_block(&self, TalkCellBlock(idx): TalkCellBlock) {
