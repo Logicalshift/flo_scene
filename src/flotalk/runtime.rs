@@ -2,7 +2,10 @@ use super::context::*;
 use super::continuation::*;
 use super::error::*;
 use super::message::*;
+use super::reference::*;
 use super::releasable::*;
+use super::symbol::*;
+use super::symbol_table::*;
 use super::value::*;
 
 use futures::prelude::*;
@@ -153,5 +156,34 @@ impl TalkRuntime {
                 NowLater::Later(later)  => later.await,
             }
         }
+    }
+
+    ///
+    /// Generates a symbol table, then runs a continuation with it
+    ///
+    #[inline]
+    pub fn run_with_symbols<'a>(&'a self, symbol_table: impl 'a + Send + FnOnce(&mut TalkContext) -> Vec<(TalkSymbol, TalkValue)>, continuation: impl 'a + Send + FnOnce(Arc<Mutex<TalkSymbolTable>>, Vec<TalkCellBlock>) -> TalkContinuation<'a>) -> impl 'a + Send + Future<Output=TalkValue> {
+        let continuation = TalkContinuation::Soon(Box::new(move |talk_context| {
+            // Ask for the symbol table
+            let symbols             = symbol_table(talk_context);
+
+            // Create a cell block to contain the symbols
+            let cell_block          = talk_context.allocate_cell_block(symbols.len());
+            let mut symbol_table    = TalkSymbolTable::empty();
+
+            // Load the values into the symbol table
+            let cells               = talk_context.cell_block_mut(cell_block);
+            for (symbol, value) in symbols {
+                let pos                     = symbol_table.define_symbol(symbol);
+                cells[pos.cell as usize]    = value;
+            }
+
+            // Run the continuation with our new table
+            // TODO: release the cell block when the continuation returns
+            // continuation(Arc::new(Mutex::new(symbol_table)), vec![cell_block])
+            todo!()
+        }));
+
+        self.run_continuation(continuation)
     }
 }
