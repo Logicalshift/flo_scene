@@ -198,6 +198,26 @@ fn retrieve_root_value() {
 }
 
 #[test]
+fn assign_local_variable() {
+    // As we only evaluate a single expression, we need to use a block expresion here
+    let test_source     = "[ | y | y := 21 . x + y ] value";
+    let runtime         = TalkRuntime::empty();
+
+    executor::block_on(async { 
+        let test_source     = stream::iter(test_source.chars());
+        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
+        let instructions    = expr.value.to_instructions();
+
+        println!("{:?}", instructions);
+
+        let result          = runtime.run_with_symbols(|_| vec![("x".into(), TalkValue::Int(21)), ("y".into(), TalkValue::Int(13))], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
+
+        println!("{:?}", result);
+        assert!(result == TalkValue::Int(42));
+    });
+}
+
+#[test]
 fn call_block() {
     let test_source     = "[ 42 ] value";
     let runtime         = TalkRuntime::empty();
