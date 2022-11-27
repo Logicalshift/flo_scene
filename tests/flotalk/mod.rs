@@ -8,3 +8,4 @@
 #[cfg(feature="flotalk")] pub mod sparse_array;
 #[cfg(feature="flotalk")] pub mod messages;
 #[cfg(feature="flotalk")] pub mod queue;
+#[cfg(feature="flotalk")] pub mod context;
