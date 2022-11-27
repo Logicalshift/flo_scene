@@ -26,6 +26,9 @@ pub enum TalkInstruction<TValue, TSymbol> {
     /// Follow code comes from the specified location
     Location(TalkLocation),
 
+    /// Sets the symbol values for the arguments for this expression
+    LoadArguments(Vec<TSymbol>),
+
     /// Creates (or replaces) a local binding location for a symbol
     PushLocalBinding(TalkSymbol),
 

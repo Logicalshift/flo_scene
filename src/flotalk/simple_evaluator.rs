@@ -169,6 +169,11 @@ where
                 frame.pop_binding(symbol.into());
             }
 
+            // Sets the symbol values for the arguments for this expression
+            LoadArguments(arguments) => {
+                todo!()
+            }
+
             // Load the value indicating 'nil' to the stack
             LoadNil => {
                 frame.stack.push(TalkValue::Nil);
