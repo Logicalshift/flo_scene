@@ -83,7 +83,7 @@ impl TalkFrame {
 
         // Expand the list of cells if needed
         let cells = context.cell_block(self.bindings[0]);
-        if cells.len() < new_symbol.cell as _ {
+        if cells.len() <= new_symbol.cell as _ {
             // Reserve space by doubling what we have
             let mut new_len = cells.len();
             while new_len <= new_symbol.cell as _ {
