@@ -70,7 +70,7 @@ impl TalkFrame {
     /// Stores the current value of a binding in the list of earlier bindings
     ///
     #[inline]
-    pub fn push_binding(&mut self, symbol: TalkSymbol) {
+    pub fn push_binding(&mut self, symbol: TalkSymbol, context: &mut TalkContext) {
         if let Some(old_location) = self.symbol_table.symbol(symbol) {
             // Store the old location for the binding
             self.earlier_bindings.entry(symbol)
@@ -79,7 +79,21 @@ impl TalkFrame {
         }
 
         // Create a new location for this symbol
-        self.symbol_table.define_symbol(symbol);
+        let new_symbol = self.symbol_table.define_symbol(symbol);
+
+        // Expand the list of cells if needed
+        let cells = context.cell_block(self.bindings[0]);
+        if cells.len() < new_symbol.cell as _ {
+            // Reserve space by doubling what we have
+            let mut new_len = cells.len();
+            while new_len <= new_symbol.cell as _ {
+                if new_len < 1 { new_len = 1; }
+                new_len *= 2;
+            }
+
+            // Resize the cell block
+            context.resize_cell_block(self.bindings[0], new_len);
+        }
     }
 
     ///
@@ -132,6 +146,21 @@ where
     let mut frame       = frame;
     let expression_len  = expression.len();
 
+    // If the arguments (local frame) have not been allocated yet, allocate them
+    if let Some(arguments) = frame.arguments.take() {
+        // Create a cell block to store the arguments
+        let local_cell_block = context.allocate_cell_block(arguments.len());
+
+        // Move the arguments into the cell block
+        let cell_block_values = context.cell_block_mut(local_cell_block);
+        for (idx, arg) in arguments.into_iter().enumerate() {
+            cell_block_values[idx] = arg;
+        }
+
+        // This block becomes the first binding
+        frame.bindings.insert(0, local_cell_block);
+    }
+
     loop {
         // If the PC has passed beyond the end of the expression, we're finished
         if frame.pc >= expression_len {
@@ -151,7 +180,7 @@ where
 
             // Creates (or replaces) a local binding location for a symbol
             PushLocalBinding(symbol) => {
-                frame.push_binding(symbol.into());
+                frame.push_binding(symbol.into(), context);
             }
 
             // Restores the previous binding for the specified symbol
@@ -161,24 +190,10 @@ where
 
             // Sets the symbol values for the arguments for this expression
             LoadArguments(argument_symbols) => {
-                if let Some(arguments) = frame.arguments.take() {
-                    // Create a cell block to store the arguments
-                    let local_cell_block = context.allocate_cell_block(arguments.len());
-
-                    // Move the arguments into the cell block
-                    let cell_block_values = context.cell_block_mut(local_cell_block);
-                    for (idx, arg) in arguments.into_iter().enumerate() {
-                        cell_block_values[idx] = arg;
-                    }
-
-                    // Set up the symbol table by defining each argument in turn (will allocate from 0 if the table is empty)
-                    debug_assert!(frame.symbol_table.len() == 0);
-                    for arg_symbol in argument_symbols {
-                        frame.symbol_table.define_symbol(arg_symbol);
-                    }
-
-                    // This block becomes the first binding
-                    frame.bindings.insert(0, local_cell_block);
+                // Set up the symbol table by defining each argument in turn (will allocate from 0 if the table is empty)
+                debug_assert!(frame.symbol_table.len() == 0);
+                for arg_symbol in argument_symbols {
+                    frame.symbol_table.define_symbol(arg_symbol);
                 }
             }
 
