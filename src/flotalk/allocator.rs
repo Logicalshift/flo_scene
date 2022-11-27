@@ -1,5 +1,6 @@
 use super::class::*;
 use super::reference::*;
+use super::releasable::*;
 
 ///
 /// Typical implementation of the allocator for a TalkClass
@@ -26,7 +27,10 @@ use super::reference::*;
 /// # assert!(allocator.retrieve(handle_2) == &mut 43);
 /// ```
 ///
-pub struct TalkStandardAllocator<TValue> {
+pub struct TalkStandardAllocator<TValue> 
+where
+    TValue: TalkReleasable,
+{
     /// The data store
     data: Vec<Option<TValue>>,
 
@@ -37,7 +41,10 @@ pub struct TalkStandardAllocator<TValue> {
     free_slots: Vec<usize>,
 }
 
-impl<TValue> TalkStandardAllocator<TValue> {
+impl<TValue> TalkStandardAllocator<TValue>
+where
+    TValue: TalkReleasable,
+{
     ///
     /// Creates an allocator with no values in it
     ///
@@ -72,7 +79,7 @@ impl<TValue> TalkStandardAllocator<TValue> {
 
 impl<TValue> TalkClassAllocator for TalkStandardAllocator<TValue> 
 where
-    TValue: Send,
+    TValue: Send + TalkReleasable,
 {
     /// The type of data stored for this class
     type Data = TValue;

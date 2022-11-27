@@ -64,6 +64,18 @@ where
     expression:             Arc<Vec<TalkInstruction<TValue, TSymbol>>>,
 }
 
+impl<TValue, TSymbol> TalkReleasable for SimpleEvaluatorBlock<TValue, TSymbol>
+where
+    TValue:     'static + Send + Sync,
+    TSymbol:    'static + Send + Sync,
+    TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
+    TalkSymbol: for<'a> From<&'a TSymbol>,
+{
+    fn release_in_context(self, context: &TalkContext) {
+        todo!()
+    }
+}
+
 impl<TValue, TSymbol> TalkClassDefinition for SimpleEvaluatorBlockClass<TValue, TSymbol>
 where
     TValue:     'static + Send + Sync,
@@ -71,7 +83,7 @@ where
     TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
-    type Data       = Arc<SimpleEvaluatorBlock<TValue, TSymbol>>;
+    type Data       = SimpleEvaluatorBlock<TValue, TSymbol>;
     type Allocator  = TalkStandardAllocator<Self::Data>;
 
     ///
@@ -155,10 +167,10 @@ where
 
     // Fetch the allocator for this class
     let class       = simple_evaluator_block_class::<TValue, TSymbol>();
-    let allocator   = talk_context.get_callbacks_mut(class).allocator::<TalkStandardAllocator<Arc<SimpleEvaluatorBlock<TValue, TSymbol>>>>().unwrap();
+    let allocator   = talk_context.get_callbacks_mut(class).allocator::<TalkStandardAllocator<SimpleEvaluatorBlock<TValue, TSymbol>>>().unwrap();
 
     // Store the data using the allocator
-    let data_handle = allocator.lock().unwrap().store(Arc::new(data));
+    let data_handle = allocator.lock().unwrap().store(data);
 
     TalkReference(class, data_handle)
 }

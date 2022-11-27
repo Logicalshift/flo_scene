@@ -1,13 +1,17 @@
 use super::allocator::*;
 use super::continuation::*;
 use super::message::*;
+use super::releasable::*;
 
 use std::collections::{HashMap};
 
 ///
 /// The class builder can be used to build a FloTalk class quickly from Rust
 ///
-pub struct TalkClassBuilder<TDataType> {
+pub struct TalkClassBuilder<TDataType> 
+where
+    TDataType: TalkReleasable,
+{
     /// The name of the class that is being built
     name: String,
 
@@ -32,7 +36,10 @@ pub trait TalkIntoInstanceFn<TDataType> {
 ///
 /// Trait implemented by things that can be converted into a class instance function
 ///
-pub trait TalkIntoClassFn<TDataType> {
+pub trait TalkIntoClassFn<TDataType>
+where
+    TDataType: TalkReleasable,
+{
     /// The number of arguments accepted for the message for this instance function
     fn num_arguments(&self) -> usize;
 
@@ -40,7 +47,10 @@ pub trait TalkIntoClassFn<TDataType> {
     fn into_class_fn(self) -> Box<dyn Send + Sync + for<'a> Fn(&'a mut TalkStandardAllocator<TDataType>, TalkMessage) -> TalkContinuation<'static>>;
 }
 
-impl<TDataType> TalkClassBuilder<TDataType> {
+impl<TDataType> TalkClassBuilder<TDataType>
+where
+    TDataType: TalkReleasable,
+{
     ///
     /// Begins building a class
     ///

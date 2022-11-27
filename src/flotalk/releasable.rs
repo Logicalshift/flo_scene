@@ -193,6 +193,7 @@ impl TalkCloneable for TalkValue {
 
 impl TalkReleasable for ()                      { #[inline] fn release_in_context(self, _: &TalkContext) { } }
 impl TalkReleasable for bool                    { #[inline] fn release_in_context(self, _: &TalkContext) { } }
+impl TalkReleasable for usize                   { #[inline] fn release_in_context(self, _: &TalkContext) { } }
 impl TalkReleasable for i64                     { #[inline] fn release_in_context(self, _: &TalkContext) { } }
 impl TalkReleasable for f64                     { #[inline] fn release_in_context(self, _: &TalkContext) { } }
 impl TalkReleasable for char                    { #[inline] fn release_in_context(self, _: &TalkContext) { } }
