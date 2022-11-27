@@ -50,7 +50,7 @@ impl TalkSymbolTable {
     }
 
     ///
-    /// Defines a symbol within this table
+    /// Defines a symbol within this table, assigning it a new cell
     ///
     pub fn define_symbol(&mut self, symbol: impl Into<TalkSymbol>) -> TalkFrameCell {
         let TalkSymbol(sym_id) = symbol.into();
@@ -60,6 +60,15 @@ impl TalkSymbolTable {
 
         self.symbols.insert(sym_id, this_cell);
         TalkFrameCell { frame: 0, cell: this_cell }
+    }
+
+    ///
+    /// Undefines a symbol within this table (its location will not be re-used)
+    ///
+    pub fn undefine_symbol(&mut self, symbol: impl Into<TalkSymbol>) {
+        let TalkSymbol(sym_id) = symbol.into();
+
+        self.symbols.remove(sym_id);
     }
 
     ///
