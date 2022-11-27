@@ -208,11 +208,8 @@ fn assign_local_variable() {
         let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
         let instructions    = expr.value.to_instructions();
 
-        println!("{:?}", instructions);
-
         let result          = runtime.run_with_symbols(|_| vec![("x".into(), TalkValue::Int(21)), ("y".into(), TalkValue::Int(13))], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        println!("{:?}", result);
         assert!(result == TalkValue::Int(42));
     });
 }
@@ -231,7 +228,23 @@ fn overwrite_root_variable() {
         // The expression expands to 'x + y + y', but we change the value of 'y' in the block so we should see '22 + 10 + 10' and not '22 + 13 + 13' or '22 + 10 + 13'
         let result          = runtime.run_with_symbols(|_| vec![("x".into(), TalkValue::Int(22)), ("y".into(), TalkValue::Int(13))], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        println!("{:?}", result);
+        assert!(result == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn overwrite_closure_variable() {
+    let test_source     = "[ | y | y := 10 . [ y := 8 . y ] value + y ] value + y";
+    let runtime         = TalkRuntime::empty();
+
+    executor::block_on(async { 
+        let test_source     = stream::iter(test_source.chars());
+        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
+        let instructions    = expr.value.to_instructions();
+
+        // Should overwrite the 'inner' y here to give us 8 + 8 + 26 (as the outer 'y' has a value of 26)
+        let result          = runtime.run_with_symbols(|_| vec![("x".into(), TalkValue::Int(22)), ("y".into(), TalkValue::Int(26))], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
+
         assert!(result == TalkValue::Int(42));
     });
 }
