@@ -56,6 +56,14 @@ impl TalkReference {
     }
 
     ///
+    /// Retrieves the class for this reference
+    ///
+    #[inline]
+    pub fn class(&self) -> TalkClass {
+        self.0
+    }
+
+    ///
     /// Increases the reference count for this reference. References are freed once the count reaches 0.
     ///
     #[inline]
