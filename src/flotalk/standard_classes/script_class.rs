@@ -84,7 +84,28 @@ impl TalkClassDefinition for TalkScriptClassClass {
     /// Sends a message to the class object itself
     ///
     fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
-        TalkError::MessageNotSupported(message_id).into()
+        if message_id == *TALK_MSG_NEW {
+            // Create a new cell block class
+            // TODO: reuse an existing cell block class
+            let cell_block_class = TalkClass::create(TalkCellBlockClass);
+
+            // Define in a script class object (which is empty for now)
+            let script_class = TalkScriptClass {
+                class_id:           cell_block_class,
+                superclass_id:      None,
+                instance_variables: TalkSymbolTable::empty(),
+            };
+
+            // Store the class using the allocator
+            let script_class = allocator.store(script_class);
+
+            // Result is a reference to the script class (this acts as the class object instead of a TalkClass object)
+            TalkReference(class_id, script_class).into()
+            
+        } else {
+
+            TalkError::MessageNotSupported(message_id).into()
+        }
     }
 
     ///
@@ -93,15 +114,24 @@ impl TalkClassDefinition for TalkScriptClassClass {
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_SUBCLASS {
 
+            TalkError::MessageNotSupported(message_id).into()
+
         } else if message_id == *TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES {
+
+            TalkError::MessageNotSupported(message_id).into()
 
         } else if message_id == *TALK_MSG_ADD_INSTANCE_MESSAGE {
 
+            TalkError::MessageNotSupported(message_id).into()
+
         } else if message_id == *TALK_MSG_ADD_CLASS_MESSAGE {
 
-        }
+            TalkError::MessageNotSupported(message_id).into()
 
-        TalkError::MessageNotSupported(message_id).into()
+        } else {
+
+            TalkError::MessageNotSupported(message_id).into()
+        }
     }
 }
 
