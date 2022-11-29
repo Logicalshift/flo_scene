@@ -47,6 +47,14 @@ impl<'a> TalkContinuation<'a> {
     }
 
     ///
+    /// Creates a 'TalkContinuation::Soon' from a function
+    ///
+    #[inline]
+    pub fn soon(soon: impl 'a + Send + FnOnce(&mut TalkContext) -> TalkContinuation<'static>) -> Self {
+        TalkContinuation::Soon(Box::new(soon))
+    }
+
+    ///
     /// Once this continuation is finished, perform the specified function on the result
     ///
     #[inline]
