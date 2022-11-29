@@ -24,14 +24,15 @@ lazy_static! {
 
     /// `NewClass addClassMessage: #instanceMessage: withAction: [:arg :self :super | arg + 1]` defines a class message that works by sending a message to a block. Instance variables are bound to the block by this call.
     pub static ref TALK_MSG_ADD_CLASS_MESSAGE: TalkMessageSignatureId = ("addClassMessage:", "withAction:").into();
+
+    /// The 'class of classes', used for creating the scriptable classes like 'Object' and its subclasses
+    pub static ref SCRIPT_CLASS_CLASS: TalkClass = TalkClass::create(TalkScriptClassClass);
 }
 
 ///
 /// This class is a factory for other classes: it creates TalkScriptClass objects
 ///
-pub struct TalkScriptClassClass {
-
-}
+pub struct TalkScriptClassClass;
 
 ///
 /// This represents an instance of a talk script class
