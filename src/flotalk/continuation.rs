@@ -1,11 +1,14 @@
+use super::class::*;
 use super::context::*;
 use super::error::*;
 use super::message::*;
+use super::reference::*;
 use super::value::*;
 
 use futures::task::{Poll, Context};
 
 use std::mem;
+use std::sync::*;
 
 ///
 /// Raw functions return a continuation, which specifies how a result may be retrieved
@@ -89,6 +92,38 @@ impl<'a> TalkContinuation<'a> {
                 }))
             }
         }
+    }
+
+    ///
+    /// Creates a continuation that reads the contents of a value (assuming it belongs to the specified allocator)
+    ///
+    #[inline]
+    pub fn read_value<TAllocator, TOutput>(value: TalkValue, read_value: impl 'a + Send + FnOnce(&mut TAllocator::Data) -> TalkContinuation<'static>) -> TalkContinuation<'a>
+    where
+        TAllocator: 'static + TalkClassAllocator,
+        TOutput:    Into<TalkContinuation<'static>>,
+    {
+        TalkContinuation::Soon(Box::new(move |talk_context| {
+            match value {
+                TalkValue::Reference(TalkReference(class_id, data_handle)) => {
+                    // Get the callbacks for the class
+                    let callbacks = talk_context.get_callbacks_mut(class_id);
+                    if let Some(allocator) = callbacks.allocator::<TAllocator>() {
+                        // Retrieve the value of this data handle
+                        let mut allocator   = allocator.lock().unwrap();
+                        let data            = allocator.retrieve(data_handle);
+
+                        // Call the callback to read the data
+                        read_value(data)
+                    } else {
+                        // Not the expected allocator
+                        TalkError::UnexpectedClass.into()
+                    }
+                }
+
+                _ => TalkError::UnexpectedClass.into()
+            }
+        }))
     }
 }
 
