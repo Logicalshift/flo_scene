@@ -466,13 +466,13 @@ impl TalkClass {
     ///
     /// Retrieves the allocator for this class in a context, or None if the definition is not of the right type
     ///
-    pub fn allocator<TClass>(&self, context: &mut TalkContext) -> Option<Arc<Mutex<TClass::Allocator>>>
+    pub fn allocator<TAllocator>(&self, context: &mut TalkContext) -> Option<Arc<Mutex<TAllocator>>>
     where
-        TClass: 'static + TalkClassDefinition
+        TAllocator: 'static + TalkClassAllocator
     {
         let callbacks = context.get_callbacks_mut(*self);
 
-        callbacks.allocator.downcast_ref::<Arc<Mutex<TClass::Allocator>>>()
+        callbacks.allocator.downcast_ref::<Arc<Mutex<TAllocator>>>()
             .map(|defn| Arc::clone(defn))
     }
 }
