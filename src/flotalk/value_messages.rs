@@ -16,6 +16,11 @@ use std::collections::hash_map::{DefaultHasher};
 use std::sync::*;
 
 lazy_static! {
+    // Class protocol message singatures
+    pub static ref TALK_MSG_NEW: TalkMessageSignatureId                         = "new".into();
+}
+
+lazy_static! {
     // Object protocol message signatures
 
     /// Returns true if the two objects are equivalent
