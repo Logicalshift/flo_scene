@@ -66,6 +66,29 @@ impl TalkReleasable for TalkScriptClass {
     }
 }
 
+impl TalkScriptClassClass {
+    ///
+    /// Creates a subclass of a superclass
+    ///
+    fn subclass(&self, our_class_id: TalkClass, superclass: &TalkScriptClass) -> TalkContinuation<'static> {
+        // Read the superclass ID from the class data
+        let new_superclass_id = superclass.class_id;
+
+        // Create a new script class by sending a message to ourselves
+        TalkContinuation::soon(move |context| {
+            // The 'new' message should generate a new script class reference
+            our_class_id.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
+        }).and_then(|new_class_reference| {
+            if let TalkValue::Reference(script_class_reference) = new_class_reference {
+                // Retrieve the value for this class
+                TalkError::NotImplemented.into()
+            } else {
+                TalkError::UnexpectedClass.into()
+            }
+        })
+    }
+}
+
 impl TalkClassDefinition for TalkScriptClassClass {
     /// The type of the data stored by an object of this class
     type Data = TalkScriptClass;
@@ -101,7 +124,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
 
             // Result is a reference to the script class (this acts as the class object instead of a TalkClass object)
             TalkReference(class_id, script_class).into()
-            
+
         } else {
 
             TalkError::MessageNotSupported(message_id).into()
@@ -114,7 +137,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_SUBCLASS {
 
-            TalkError::MessageNotSupported(message_id).into()
+            self.subclass(reference.class(), target)
 
         } else if message_id == *TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES {
 
