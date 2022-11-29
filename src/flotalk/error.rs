@@ -1,3 +1,4 @@
+use super::class::*;
 use super::message::*;
 use super::symbol::*;
 
@@ -41,6 +42,9 @@ pub enum TalkError {
 
     /// A value that was expected to be an array was not an array
     NotAnArray,
+
+    /// A value was of an expected class type
+    UnexpectedClass,
 
     /// A selector was called with the incorrect number of arguments
     WrongNumberOfArguments,
