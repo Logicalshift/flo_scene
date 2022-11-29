@@ -98,7 +98,7 @@ impl<'a> TalkContinuation<'a> {
     /// Creates a continuation that reads the contents of a value (assuming it belongs to the specified allocator)
     ///
     #[inline]
-    pub fn read_value<TClass, TOutput>(value: TalkValue, read_value: impl 'a + Send + FnOnce(&mut TClass::Data) -> TalkContinuation<'static>) -> TalkContinuation<'a>
+    pub fn read_value<TClass, TOutput>(value: TalkValue, read_value: impl 'a + Send + FnOnce(&mut TClass::Data) -> TOutput) -> TalkContinuation<'a>
     where
         TClass:     'static + TalkClassDefinition,
         TOutput:    Into<TalkContinuation<'static>>,
@@ -114,7 +114,7 @@ impl<'a> TalkContinuation<'a> {
                         let data            = allocator.retrieve(data_handle);
 
                         // Call the callback to read the data
-                        read_value(data)
+                        read_value(data).into()
                     } else {
                         // Not the expected allocator
                         TalkError::UnexpectedClass.into()
