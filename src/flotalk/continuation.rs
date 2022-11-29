@@ -45,6 +45,43 @@ impl<'a> TalkContinuation<'a> {
             }
         }
     }
+
+    ///
+    /// Once this continuation is finished, perform the specified function on the result
+    ///
+    #[inline]
+    pub fn and_then(self, and_then: impl 'static + Send + FnOnce(TalkValue) -> TalkContinuation<'static>) -> TalkContinuation<'a> {
+        match self {
+            TalkContinuation::Ready(value)  => and_then(value),
+            TalkContinuation::Soon(soon)    => TalkContinuation::Soon(Box::new(move |context| soon(context).and_then(and_then))),
+
+            TalkContinuation::Later(later)  => {
+                let mut later       = TalkContinuation::Later(later);
+                let mut and_then    = Some(and_then);
+
+                TalkContinuation::Later(Box::new(move |talk_context, future_context| {
+                    // Poll the 'later' value
+                    let mut poll_result = later.poll(talk_context, future_context);
+
+                    if let Poll::Ready(value) = poll_result {
+                        if let Some(and_then) = and_then.take() {
+                            // When it finishes, call the 'and_then' function and update the 'later' value
+                            later       = and_then(value);
+
+                            // Re-poll the new 'later' value and return that as our result
+                            later.poll(talk_context, future_context)
+                        } else {
+                            // Continuation has finished and the value is ready
+                            Poll::Ready(value)
+                        }
+                    } else {
+                        // Still pending
+                        poll_result
+                    }
+                }))
+            }
+        }
+    }
 }
 
 impl<'a, T> From<T> for TalkContinuation<'a>
