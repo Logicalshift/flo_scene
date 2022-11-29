@@ -8,6 +8,7 @@ use crate::flotalk::reference::*;
 use crate::flotalk::releasable::*;
 use crate::flotalk::symbol_table::*;
 use crate::flotalk::value::*;
+use crate::flotalk::value_messages::*;
 
 use smallvec::*;
 
@@ -90,6 +91,16 @@ impl TalkClassDefinition for TalkScriptClassClass {
     /// Sends a message to an instance of this class
     ///
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
+        if message_id == *TALK_MSG_SUBCLASS {
+
+        } else if message_id == *TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES {
+
+        } else if message_id == *TALK_MSG_ADD_INSTANCE_MESSAGE {
+
+        } else if message_id == *TALK_MSG_ADD_CLASS_MESSAGE {
+
+        }
+
         TalkError::MessageNotSupported(message_id).into()
     }
 }
