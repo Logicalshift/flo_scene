@@ -10,3 +10,4 @@
 #[cfg(feature="flotalk")] pub mod queue;
 #[cfg(feature="flotalk")] pub mod context;
 #[cfg(feature="flotalk")] pub mod symbol_table_tests;
+#[cfg(feature="flotalk")] pub mod script_class_tests;
