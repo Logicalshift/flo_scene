@@ -17,7 +17,9 @@ use std::sync::*;
 
 lazy_static! {
     // Class protocol message singatures
+
     pub static ref TALK_MSG_NEW: TalkMessageSignatureId                         = "new".into();
+    pub static ref TALK_MSG_SUPERCLASS: TalkMessageSignatureId                  = "superclass".into();
 }
 
 lazy_static! {
