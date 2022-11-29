@@ -78,13 +78,12 @@ impl TalkScriptClassClass {
         TalkContinuation::soon(move |context| {
             // The 'new' message should generate a new script class reference
             our_class_id.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
-        }).and_then(|new_class_reference| {
-            if let TalkValue::Reference(script_class_reference) = new_class_reference {
-                // Retrieve the value for this class
-                TalkError::NotImplemented.into()
-            } else {
-                TalkError::UnexpectedClass.into()
-            }
+        }).and_then(move |new_class_reference| {
+            // Set the superclass for this class
+            TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class| {
+                script_class.superclass_id = Some(new_superclass_id);
+                new_class_reference
+            })
         })
     }
 }
