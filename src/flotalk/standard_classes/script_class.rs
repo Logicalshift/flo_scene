@@ -40,7 +40,10 @@ pub struct TalkCellBlockClass;
 ///
 /// Allocator that creates context cellblocks when requested
 ///
-pub struct TalkCellBlockAllocator;
+pub struct TalkCellBlockAllocator {
+    /// Used as temporary storage for the 'retrieve' operation
+    tmp_cell_block: TalkCellBlock
+}
 
 impl TalkReleasable for TalkScriptClass {
     fn release_in_context(self, _context: &TalkContext) {
@@ -88,7 +91,7 @@ impl TalkClassDefinition for TalkCellBlockClass {
     /// Creates the allocator for this class
     ///
     fn create_allocator(&self) -> Self::Allocator {
-        TalkCellBlockAllocator
+        TalkCellBlockAllocator { tmp_cell_block: TalkCellBlock(0) }
     }
 
     ///
@@ -113,14 +116,17 @@ impl TalkClassAllocator for TalkCellBlockAllocator {
     ///
     /// Retrieves a reference to the data attached to a handle (panics if the handle has been released)
     ///
+    #[inline]
     fn retrieve<'a>(&'a mut self, handle: TalkDataHandle) -> &'a mut Self::Data {
-        // The result is just the handle, but we can't really return a mutable reference to it
-        todo!();
+        // Set to the temp value inside the allocator, and return that
+        self.tmp_cell_block = TalkCellBlock(handle.0 as _);
+        &mut self.tmp_cell_block
     }
 
     ///
     /// Adds to the reference count for a data handle
     ///
+    #[inline]
     fn add_reference(&mut self, handle: TalkDataHandle, context: &TalkContext) {
         let cell_block = TalkCellBlock(handle.0 as _);
         context.retain_cell_block(cell_block);
@@ -129,6 +135,7 @@ impl TalkClassAllocator for TalkCellBlockAllocator {
     ///
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
+    #[inline]
     fn remove_reference(&mut self, handle: TalkDataHandle, context: &TalkContext) {
         let cell_block = TalkCellBlock(handle.0 as _);
         context.release_cell_block(cell_block);
