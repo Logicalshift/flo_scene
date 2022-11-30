@@ -10,6 +10,14 @@ lazy_static! {
     static ref NEXT_SYMBOL_ID: Mutex<usize>                             = Mutex::new(0);
 }
 
+lazy_static! {
+    /// The 'self' symbol
+    pub static ref TALK_SELF: TalkSymbol = "self".into();
+
+    /// The 'super' symbol
+    pub static ref TALK_SUPER: TalkSymbol = "super".into();
+}
+
 ///
 /// A unique identifier for a FloTalk symbol
 ///
@@ -132,6 +140,23 @@ impl TalkSymbol {
     ///
     pub fn is_keyword(&self) -> bool {
         self.name().chars().last() == Some(':')
+    }
+
+    ///
+    /// If this is a keyword, returns the non-keyword version of this symbol (ie, turns 'foo:' into 'foo'. 'foo' remains as 'foo')
+    ///
+    pub fn keyword_to_symbol(&self) -> TalkSymbol {
+        if self.is_keyword() {
+            // Remove the ':' from teh end of the name
+            let mut non_keyword = self.name().to_string();
+            non_keyword.pop().unwrap();
+
+            // Convert to a symbol
+            non_keyword.into()
+        } else {
+            // Not a keyword, so just return ourselves
+            *self
+        }
     }
 
     ///
