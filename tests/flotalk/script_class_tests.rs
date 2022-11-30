@@ -74,13 +74,14 @@ fn subclass_unsupported() {
         let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
         let instructions    = expr.value.to_instructions();
 
-        //let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
+        println!("{:?}", instructions);
+        let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should generate an error
-        //assert!(match result {
-        //    TalkValue::Error(TalkError::MessageNotSupported(_)) => true,
-        //    _ => false
-        //});
+        assert!(match result {
+            TalkValue::Error(TalkError::MessageNotSupported(_)) => true,
+            _ => false
+        });
     });
 }
 
@@ -100,9 +101,10 @@ fn read_superclass() {
         let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
         let instructions    = expr.value.to_instructions();
 
-        //let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
+        println!("{:?}", instructions);
+        let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Superclass gets us back to 'object'
-        //assert!(result == object);
+        assert!(result == object);
     });
 }
