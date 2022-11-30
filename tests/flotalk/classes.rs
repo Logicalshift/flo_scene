@@ -57,11 +57,11 @@ impl TalkClassAllocator for TestAllocator {
         &mut self.items[handle.0]
     }
 
-    fn add_reference(allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) {
+    fn add_reference(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) {
 
     }
 
-    fn remove_reference(allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) {
+    fn remove_reference(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) {
 
     }
 }

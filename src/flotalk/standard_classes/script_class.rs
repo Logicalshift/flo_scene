@@ -235,7 +235,7 @@ impl TalkClassAllocator for TalkCellBlockAllocator {
     /// Adds to the reference count for a data handle
     ///
     #[inline]
-    fn add_reference(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) {
+    fn add_reference(_allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) {
         let cell_block = TalkCellBlock(handle.0 as _);
         context.retain_cell_block(cell_block);
     }
@@ -244,7 +244,7 @@ impl TalkClassAllocator for TalkCellBlockAllocator {
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
     #[inline]
-    fn remove_reference(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) {
+    fn remove_reference(_allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) {
         let cell_block = TalkCellBlock(handle.0 as _);
         context.release_cell_block(cell_block);
     }
