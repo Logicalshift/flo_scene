@@ -16,6 +16,9 @@ use std::sync::*;
 /// These are defined with the arguments for the message plus a 'super' value pointing at the superclass
 ///
 pub struct TalkClassMessageHandler {
+    /// The number of arguments expected by the message handler
+    pub (super) expected_args: usize,
+
     /// message_handler(class_id, arguments, super, context)
     pub (super) message_handler: Box<dyn Send + Sync + for<'a> Fn(TalkClass, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, TalkOwned<'a, TalkValue>, &'a TalkContext) -> TalkContinuation<'static>>
 }
@@ -27,6 +30,10 @@ pub struct TalkClassMessageHandler {
 /// for the instance variables.
 ///
 pub struct TalkInstanceMessageHandler {
+    /// The number of arguments expected by the message handler
+    pub (super) expected_args: usize,
+
+    /// Binds a symbol table to this block (names the cells in the instance cell block)
     pub (super) bind_message_handler: Box<dyn Send + FnOnce(Arc<Mutex<TalkSymbolTable>>) ->
         Box<dyn Send + Sync + for<'a> Fn(TalkClass, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, TalkOwned<'a, TalkCellBlock>, &'a TalkContext) -> TalkContinuation<'static>>>
 }
