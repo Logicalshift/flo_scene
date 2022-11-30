@@ -170,6 +170,15 @@ impl TalkClassDefinition for TalkScriptClassClass {
 
             TalkError::MessageNotSupported(message_id).into()
 
+        } else if message_id == *TALK_MSG_SUPERCLASS {
+
+            if let Some(superclass) = &target.superclass_script_class {
+                let superclass = superclass.clone();
+                TalkContinuation::soon(move |context| superclass.clone_in_context(context).into())
+            } else {
+                TalkValue::Nil.into()
+            }
+
         } else {
 
             TalkError::MessageNotSupported(message_id).into()
