@@ -67,7 +67,7 @@ pub struct TalkCellBlockAllocator {
 impl TalkReleasable for TalkScriptClass {
     fn release_in_context(mut self, context: &TalkContext) {
         if let Some(superclass) = self.superclass_script_class.take() {
-            superclass.release_in_context(context);
+            superclass.remove_reference(context);
         }
     }
 }
