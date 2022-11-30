@@ -1,3 +1,5 @@
+use super::talk_message_handler::*;
+
 use crate::flotalk::allocator::*;
 use crate::flotalk::class::*;
 use crate::flotalk::context::*;
@@ -134,8 +136,31 @@ where
         *class
     } else {
         let class = TalkClass::create(SimpleEvaluatorBlockClass { value: PhantomData::<TValue>, symbol: PhantomData::<TSymbol> });
-        classes.insert(evaluator_type, class);
 
+        talk_add_class_data_reader::<SimpleEvaluatorBlockClass<TValue, TSymbol>, TalkClassMessageHandler>(
+            |block| {
+                // Clone the properties for this message handler
+                let num_args            = block.accepted_message_id.len();
+                let parent_symbol_table = block.parent_symbol_table.clone();
+                let parent_frames       = block.parent_frames.clone();          // TODO: add/remove references to the frame cells
+                let expression          = block.expression.clone();
+
+                TalkClassMessageHandler {
+                    expected_args:      num_args,
+                    message_handler:    Box::new(move |class_id, args, superclass, context| {
+                        // Make the 'super' value part of the arguments
+                        let mut args        = args;
+                        let mut superclass  = superclass;
+                        args.push(superclass.take());
+
+                        // Evaluate the message
+                        talk_evaluate_simple_with_arguments(Arc::clone(&parent_symbol_table), parent_frames.clone(), args.leak(), Arc::clone(&expression))
+                    })
+                }
+            }
+        );
+
+        classes.insert(evaluator_type, class);
         class
     }
 }
