@@ -51,7 +51,7 @@ pub struct TalkScriptClass {
     superclass_script_class: Option<TalkReference>,
 
     /// The instance variables for this class
-    instance_variables: TalkSymbolTable,
+    instance_variables: Arc<Mutex<TalkSymbolTable>>,
 }
 
 ///
@@ -106,7 +106,7 @@ impl TalkScriptClassClass {
                 script_class.superclass_script_class    = Some(parent_class_2);
 
                 // As this is a subclass, location 0 is a pointer to the superclass
-                script_class.instance_variables.define_symbol(*TALK_SUPER);
+                script_class.instance_variables.lock().unwrap().define_symbol(*TALK_SUPER);
 
                 new_class_reference
             })
@@ -122,9 +122,11 @@ impl TalkScriptClassClass {
         self.subclass(our_class_id, parent_class, superclass).and_then(move |new_class_reference| {
             // Set the symbol table for this class (the symbols in the message signature become the instance variables)
             TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class| {
+                let mut instance_variables = script_class.instance_variables.lock().unwrap();
+
                 match variables {
-                    TalkMessageSignature::Unary(symbol)     => { script_class.instance_variables.define_symbol(symbol); },
-                    TalkMessageSignature::Arguments(args)   => { args.into_iter().for_each(|symbol| { script_class.instance_variables.define_symbol(symbol.keyword_to_symbol()); }); },
+                    TalkMessageSignature::Unary(symbol)     => { instance_variables.define_symbol(symbol); },
+                    TalkMessageSignature::Arguments(args)   => { args.into_iter().for_each(|symbol| { instance_variables.define_symbol(symbol.keyword_to_symbol()); }); },
                 }
 
                 new_class_reference
@@ -161,7 +163,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
                 class_id:                   cell_block_class,
                 superclass_id:              None,
                 superclass_script_class:    None,
-                instance_variables:         TalkSymbolTable::empty(),
+                instance_variables:         Arc::new(Mutex::new(TalkSymbolTable::empty())),
             };
 
             // Store the class using the allocator
