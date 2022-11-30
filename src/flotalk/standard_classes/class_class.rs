@@ -11,6 +11,8 @@ use crate::flotalk::value_messages::*;
 
 use smallvec::*;
 
+use std::sync::*;
+
 // TODO: we could store a pool of classes that can be used to create custom classes in the allocator and make this where new classes are created
 
 lazy_static! {
@@ -79,9 +81,9 @@ impl TalkClassAllocator for TalkClassClassAllocator {
 
     fn retrieve<'a>(&'a mut self, _handle: TalkDataHandle) -> &'a mut Self::Data { &mut self.nothing }
 
-    fn add_reference(&mut self, _handle: TalkDataHandle, _context: &TalkContext) { /* Classes don't count references */ }
+    fn add_reference(allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) { /* Classes don't count references */ }
 
-    fn remove_reference(&mut self, _handle: TalkDataHandle, _context: &TalkContext) { /* Class objects cannot be freed */ }
+    fn remove_reference(allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) { /* Class objects cannot be freed */ }
 }
 
 impl TalkClass {

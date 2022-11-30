@@ -3,6 +3,8 @@ use super::context::*;
 use super::reference::*;
 use super::releasable::*;
 
+use std::sync::*;
+
 ///
 /// Typical implementation of the allocator for a TalkClass
 ///
@@ -97,9 +99,11 @@ where
     /// Adds to the reference count for a data handle
     ///
     #[inline]
-    fn add_reference(&mut self, TalkDataHandle(pos): TalkDataHandle, _: &TalkContext) {
-        if self.reference_counts[pos] > 0 {
-            self.reference_counts[pos] += 1;
+    fn add_reference(allocator: &Arc<Mutex<Self>>, TalkDataHandle(pos): TalkDataHandle, _: &TalkContext) {
+        let mut allocator = allocator.lock().unwrap();
+
+        if allocator.reference_counts[pos] > 0 {
+            allocator.reference_counts[pos] += 1;
         }
     }
 
@@ -107,16 +111,26 @@ where
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
     #[inline]
-    fn remove_reference(&mut self, TalkDataHandle(pos): TalkDataHandle, talk_context: &TalkContext) {
-        if self.reference_counts[pos] > 0 {
-            self.reference_counts[pos] -= 1;
+    fn remove_reference(allocator: &Arc<Mutex<Self>>, TalkDataHandle(pos): TalkDataHandle, talk_context: &TalkContext) {
+        let freed_value = {
+            let mut allocator = allocator.lock().unwrap();
 
-            if self.reference_counts[pos] == 0 {
-                if let Some(data) = self.data[pos].take() {
-                    data.release_in_context(talk_context);
+            if allocator.reference_counts[pos] > 0 {
+                allocator.reference_counts[pos] -= 1;
+
+                if allocator.reference_counts[pos] == 0 {
+                    allocator.free_slots.push(pos);
+                    allocator.data[pos].take()
+                } else {
+                    None
                 }
-                self.free_slots.push(pos);
+            } else {
+                None
             }
+        };
+
+        if let Some(freed_value) = freed_value {
+            freed_value.release_in_context(talk_context);
         }
     }
 }

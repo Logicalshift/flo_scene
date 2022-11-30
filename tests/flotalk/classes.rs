@@ -3,6 +3,8 @@ use flo_scene::flotalk::*;
 use smallvec::*;
 use futures::executor;
 
+use std::sync::*;
+
 pub struct TestClass;
 
 pub struct TestAllocator {
@@ -55,11 +57,11 @@ impl TalkClassAllocator for TestAllocator {
         &mut self.items[handle.0]
     }
 
-    fn add_reference(&mut self, _handle: TalkDataHandle, _context: &TalkContext) {
+    fn add_reference(allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) {
 
     }
 
-    fn remove_reference(&mut self, _handle: TalkDataHandle, _context: &TalkContext) {
+    fn remove_reference(allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) {
 
     }
 }

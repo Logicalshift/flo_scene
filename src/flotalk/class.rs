@@ -220,12 +220,12 @@ pub trait TalkClassAllocator : Send {
     ///
     /// Adds to the reference count for a data handle
     ///
-    fn add_reference(&mut self, handle: TalkDataHandle, context: &TalkContext);
+    fn add_reference(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext);
 
     ///
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
-    fn remove_reference(&mut self, handle: TalkDataHandle, context: &TalkContext);
+    fn remove_reference(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext);
 }
 
 impl TalkClass {
@@ -256,8 +256,7 @@ impl TalkClass {
     ///
     fn callback_add_reference(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()> {
         Box::new(move |data_handle, context| {
-            let mut allocator = allocator.lock().unwrap();
-            allocator.add_reference(data_handle, context)
+            TalkClassAllocator::add_reference(&allocator, data_handle, context);
         })
     }
 
@@ -266,8 +265,7 @@ impl TalkClass {
     ///
     fn callback_remove_reference(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()> {
         Box::new(move |data_handle, context| {
-            let mut allocator = allocator.lock().unwrap();
-            allocator.remove_reference(data_handle, context)
+            TalkClassAllocator::remove_reference(&allocator, data_handle, context);
         })
     }
 

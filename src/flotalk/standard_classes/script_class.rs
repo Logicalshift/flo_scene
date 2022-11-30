@@ -12,6 +12,8 @@ use crate::flotalk::value_messages::*;
 
 use smallvec::*;
 
+use std::sync::*;
+
 lazy_static! {
     /// `NewClass := Object subclass` will define a new class by subclassing Object. The new class will have no instance variables
     pub static ref TALK_MSG_SUBCLASS: TalkMessageSignatureId = "subclass".into();
@@ -233,7 +235,7 @@ impl TalkClassAllocator for TalkCellBlockAllocator {
     /// Adds to the reference count for a data handle
     ///
     #[inline]
-    fn add_reference(&mut self, handle: TalkDataHandle, context: &TalkContext) {
+    fn add_reference(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) {
         let cell_block = TalkCellBlock(handle.0 as _);
         context.retain_cell_block(cell_block);
     }
@@ -242,7 +244,7 @@ impl TalkClassAllocator for TalkCellBlockAllocator {
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
     #[inline]
-    fn remove_reference(&mut self, handle: TalkDataHandle, context: &TalkContext) {
+    fn remove_reference(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) {
         let cell_block = TalkCellBlock(handle.0 as _);
         context.release_cell_block(cell_block);
     }
