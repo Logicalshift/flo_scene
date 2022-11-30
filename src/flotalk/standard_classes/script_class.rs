@@ -81,7 +81,7 @@ impl TalkScriptClassClass {
     ///
     /// The parent_class reference is assumed to not be owned by this function
     ///
-    fn subclass(&self, our_class_id: TalkClass, parent_class: TalkReference, superclass: &TalkScriptClass) -> TalkContinuation<'static> {
+    fn subclass(our_class_id: TalkClass, parent_class: TalkReference, superclass: &TalkScriptClass) -> TalkContinuation<'static> {
         // Read the superclass ID from the class data
         let new_superclass_id = superclass.class_id;
 
@@ -118,8 +118,8 @@ impl TalkScriptClassClass {
     ///
     /// The parent_class reference is assumed to not be owned by this function
     ///
-    fn subclass_with_instance_variables(&self, our_class_id: TalkClass, parent_class: TalkReference, superclass: &TalkScriptClass, variables: TalkMessageSignature) -> TalkContinuation<'static> {
-        self.subclass(our_class_id, parent_class, superclass).and_then(move |new_class_reference| {
+    fn subclass_with_instance_variables(our_class_id: TalkClass, parent_class: TalkReference, superclass: &TalkScriptClass, variables: TalkMessageSignature) -> TalkContinuation<'static> {
+        Self::subclass(our_class_id, parent_class, superclass).and_then(move |new_class_reference| {
             // Set the symbol table for this class (the symbols in the message signature become the instance variables)
             TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class| {
                 let mut instance_variables = script_class.instance_variables.lock().unwrap();
@@ -184,12 +184,12 @@ impl TalkClassDefinition for TalkScriptClassClass {
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_SUBCLASS {
 
-            self.subclass(reference.class(), reference, target)
+            Self::subclass(reference.class(), reference, target)
 
         } else if message_id == *TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES {
 
             match args[0] {
-                TalkValue::Selector(args)   => self.subclass_with_instance_variables(reference.class(), reference, target, args.to_signature()),
+                TalkValue::Selector(args)   => Self::subclass_with_instance_variables(reference.class(), reference, target, args.to_signature()),
                 _                           => TalkError::NotASelector.into(),
             }
 
