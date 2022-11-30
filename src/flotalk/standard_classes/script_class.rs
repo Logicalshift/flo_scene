@@ -44,6 +44,9 @@ pub struct TalkScriptClass {
     /// If this class has a superclass, the ID of that class
     superclass_id: Option<TalkClass>,
 
+    /// If the superclass is a script class, this is the reference to that class
+    superclass_script_class: Option<TalkReference>,
+
     /// The instance variables for this class
     instance_variables: TalkSymbolTable,
 }
@@ -62,8 +65,10 @@ pub struct TalkCellBlockAllocator {
 }
 
 impl TalkReleasable for TalkScriptClass {
-    fn release_in_context(self, _context: &TalkContext) {
-
+    fn release_in_context(mut self, context: &TalkContext) {
+        if let Some(superclass) = self.superclass_script_class.take() {
+            superclass.release_in_context(context);
+        }
     }
 }
 
@@ -71,18 +76,31 @@ impl TalkScriptClassClass {
     ///
     /// Creates a subclass of a superclass
     ///
-    fn subclass(&self, our_class_id: TalkClass, superclass: &TalkScriptClass) -> TalkContinuation<'static> {
+    /// The parent_class reference is assumed to not be owned by this function
+    ///
+    fn subclass(&self, our_class_id: TalkClass, parent_class: TalkReference, superclass: &TalkScriptClass) -> TalkContinuation<'static> {
         // Read the superclass ID from the class data
         let new_superclass_id = superclass.class_id;
 
+        // Need a few copies of the reference
+        let parent_class_1 = parent_class;
+        let parent_class_2 = parent_class_1.clone();
+
         // Create a new script class by sending a message to ourselves
         TalkContinuation::soon(move |context| {
+            // Retain the parent class (need to do this 'soon' as it may be released otherwise)
+            parent_class_1.add_reference(context);
+
             // The 'new' message should generate a new script class reference
             our_class_id.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
         }).and_then(move |new_class_reference| {
             // Set the superclass for this class
+
+            // TODO: if read_value errors, it will leak the parent class
             TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class| {
-                script_class.superclass_id = Some(new_superclass_id);
+                // The script_class will release the superclass when it's released (matching the add_reference above)
+                script_class.superclass_id              = Some(new_superclass_id);
+                script_class.superclass_script_class    = Some(parent_class_2);
                 new_class_reference
             })
         })
@@ -114,9 +132,10 @@ impl TalkClassDefinition for TalkScriptClassClass {
 
             // Define in a script class object (which is empty for now)
             let script_class = TalkScriptClass {
-                class_id:           cell_block_class,
-                superclass_id:      None,
-                instance_variables: TalkSymbolTable::empty(),
+                class_id:                   cell_block_class,
+                superclass_id:              None,
+                superclass_script_class:    None,
+                instance_variables:         TalkSymbolTable::empty(),
             };
 
             // Store the class using the allocator
@@ -137,7 +156,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_SUBCLASS {
 
-            self.subclass(reference.class(), target)
+            self.subclass(reference.class(), reference, target)
 
         } else if message_id == *TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES {
 
