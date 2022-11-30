@@ -6,6 +6,7 @@ use crate::flotalk::error::*;
 use crate::flotalk::message::*;
 use crate::flotalk::reference::*;
 use crate::flotalk::releasable::*;
+use crate::flotalk::symbol::*;
 use crate::flotalk::symbol_table::*;
 use crate::flotalk::value::*;
 use crate::flotalk::value_messages::*;
@@ -103,6 +104,29 @@ impl TalkScriptClassClass {
                 // The script_class will release the superclass when it's released (matching the add_reference above)
                 script_class.superclass_id              = Some(new_superclass_id);
                 script_class.superclass_script_class    = Some(parent_class_2);
+
+                // As this is a subclass, location 0 is a pointer to the superclass
+                script_class.instance_variables.define_symbol(*TALK_SUPER);
+
+                new_class_reference
+            })
+        })
+    }
+
+    ///
+    /// Creates a subclass of a superclass and declares a block of instance variables
+    ///
+    /// The parent_class reference is assumed to not be owned by this function
+    ///
+    fn subclass_with_instance_variables(&self, our_class_id: TalkClass, parent_class: TalkReference, superclass: &TalkScriptClass, variables: TalkMessageSignature) -> TalkContinuation<'static> {
+        self.subclass(our_class_id, parent_class, superclass).and_then(move |new_class_reference| {
+            // Set the symbol table for this class (the symbols in the message signature become the instance variables)
+            TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class| {
+                match variables {
+                    TalkMessageSignature::Unary(symbol)     => { script_class.instance_variables.define_symbol(symbol); },
+                    TalkMessageSignature::Arguments(args)   => { args.into_iter().for_each(|symbol| { script_class.instance_variables.define_symbol(symbol.keyword_to_symbol()); }); },
+                }
+
                 new_class_reference
             })
         })
@@ -162,7 +186,10 @@ impl TalkClassDefinition for TalkScriptClassClass {
 
         } else if message_id == *TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES {
 
-            TalkError::MessageNotSupported(message_id).into()
+            match args[0] {
+                TalkValue::Selector(args)   => self.subclass_with_instance_variables(reference.class(), reference, target, args.to_signature()),
+                _                           => TalkError::NotASelector.into(),
+            }
 
         } else if message_id == *TALK_MSG_ADD_INSTANCE_MESSAGE {
 
