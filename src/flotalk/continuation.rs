@@ -8,7 +8,6 @@ use super::value::*;
 use futures::task::{Poll, Context};
 
 use std::mem;
-use std::sync::*;
 
 ///
 /// Raw functions return a continuation, which specifies how a result may be retrieved
@@ -72,7 +71,7 @@ impl<'a> TalkContinuation<'a> {
 
                 TalkContinuation::Later(Box::new(move |talk_context, future_context| {
                     // Poll the 'later' value
-                    let mut poll_result = later.poll(talk_context, future_context);
+                    let poll_result = later.poll(talk_context, future_context);
 
                     if let Poll::Ready(value) = poll_result {
                         if let Some(and_then) = and_then.take() {
