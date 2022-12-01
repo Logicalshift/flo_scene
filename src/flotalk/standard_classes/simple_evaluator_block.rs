@@ -164,6 +164,47 @@ where
             }
         );
 
+        talk_add_class_data_reader::<SimpleEvaluatorBlockClass<TValue, TSymbol>, TalkInstanceMessageHandler>(
+            |block| {
+                // Clone the properties for this message handler
+                let num_args            = block.accepted_message_id.len();
+                let parent_symbol_table = block.parent_symbol_table.clone();
+                let parent_frames       = block.parent_frames.clone();          // TODO: add/remove references to the frame cells
+                let expression          = block.expression.clone();
+
+                TalkInstanceMessageHandler {
+                    expected_args:          num_args,
+                    bind_message_handler:   Box::new(move |instance_symbol_table| {
+                        let mut instance_symbol_table   = instance_symbol_table.lock().unwrap().clone();
+                        instance_symbol_table.set_parent_frame(Arc::clone(&parent_symbol_table));
+                        let instance_symbol_table       = Arc::new(Mutex::new(instance_symbol_table));
+
+                        Box::new(move |class_id, args, self_cell_block, context| {
+                            // Take ownership of the 'self' cell block
+                            let self_cell_block = self_cell_block.leak();
+
+                            // The instance cell block needs to be the first frame
+                            let mut parent_frames = parent_frames.clone();
+                            parent_frames.insert(0, self_cell_block);
+
+                            // 'self' is also added as the last argument (we assume it's a cell block class here, weird things will happen if it's not)
+                            context.retain_cell_block(self_cell_block);
+                            let mut args = args;
+                            args.push(TalkValue::Reference(TalkReference(class_id, TalkDataHandle(self_cell_block.0 as _))));
+
+                            // Evaluate the message
+                            talk_evaluate_simple_with_arguments(Arc::clone(&instance_symbol_table), parent_frames, args.leak(), Arc::clone(&expression))
+                                .and_then_soon(move |result, context| {
+                                    // The instance frame is also released at this point
+                                    context.release_cell_block(self_cell_block);
+                                    result.into()
+                                })
+                        })
+                    })
+                }
+            }
+        );
+
         classes.insert(evaluator_type, class);
         class
     }
