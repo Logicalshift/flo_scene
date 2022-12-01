@@ -263,6 +263,48 @@ impl TalkClassDefinition for TalkScriptClassClass {
                 TalkValue::Nil.into()
             }
 
+        } else if message_id == *TALK_MSG_NEW {
+
+            let instance_size   = target.instance_variables.lock().unwrap().len();
+            let class_id        = target.class_id;
+
+            if let Some(superclass) = &target.superclass_script_class {
+                let superclass = superclass.clone();
+                TalkContinuation::soon(move |context| {
+                    // Send the 'new' message to the superclass
+                    superclass.add_reference(context);
+                    superclass.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
+                }).and_then_soon(move |superclass, context| {
+                    match superclass {
+                        TalkValue::Error(err)   => err.into(),
+                        _                       => {
+                            // Allocate space for this instance
+                            let cell_block = context.allocate_cell_block(instance_size);
+
+                            // The first value is always a reference to the superclass
+                            context.cell_block_mut(cell_block)[0] = superclass;
+
+                            // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
+                            let handle      = TalkDataHandle(cell_block.0 as _);
+                            let reference   = TalkReference(class_id, handle);
+
+                            TalkValue::Reference(reference).into()
+                        }
+                    }
+                })
+            } else {
+                TalkContinuation::soon(move |context| {
+                    // Allocate space for this instance
+                    let cell_block = context.allocate_cell_block(instance_size);
+
+                    // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
+                    let handle      = TalkDataHandle(cell_block.0 as _);
+                    let reference   = TalkReference(class_id, handle);
+
+                    TalkValue::Reference(reference).into()
+                })
+            }
+
         } else {
 
             TalkError::MessageNotSupported(message_id).into()
