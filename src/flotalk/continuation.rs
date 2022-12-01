@@ -94,6 +94,14 @@ impl<'a> TalkContinuation<'a> {
     }
 
     ///
+    /// Once this continuation is finished, perform the specified function on the result
+    ///
+    #[inline]
+    pub fn and_then_soon(self, and_then: impl 'static + Send + FnOnce(TalkValue, &mut TalkContext) -> TalkContinuation<'static>) -> TalkContinuation<'a> {
+        self.and_then(move |value| TalkContinuation::Soon(Box::new(move |context| and_then(value, context))))
+    }
+
+    ///
     /// Creates a continuation that reads the contents of a value (assuming it belongs to the specified allocator)
     ///
     #[inline]
