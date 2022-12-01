@@ -138,7 +138,8 @@ fn read_superclass() {
 
 #[test]
 fn define_class_method() {
-    let test_source     = "[ 
+    let test_source     = "
+    [ 
         | NewClass | 
         NewClass := Object subclass. 
         NewClass addClassMessage: #foo: withAction: [ :foo :super | foo ].
@@ -193,7 +194,8 @@ fn create_object_instance() {
 
 #[test]
 fn create_subclass_instance() {
-    let test_source     = "[
+    let test_source     = "
+    [
         | NewClass |
         NewClass := Object subclass.
         ^NewClass new
@@ -224,7 +226,8 @@ fn create_subclass_instance() {
 
 #[test]
 fn define_instance_message() {
-    let test_source     = "[ 
+    let test_source     = "
+    [ 
         | NewClass one two | 
         NewClass := Object subclassWithInstanceVariables: #val. 
         NewClass addInstanceMessage: #setVal: withAction: [ :newVal :self | val := newVal ].
