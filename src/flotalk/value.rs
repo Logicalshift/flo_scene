@@ -271,7 +271,21 @@ impl TalkValue {
                 .map_err(|_| TalkError::InvalidIntegerNumber(number.to_string()))
         }
     }
-}
+
+    ///
+    /// Return the data for a reference cast to a target type (if it can be read as that type)
+    ///
+    pub fn read_data_in_context<TTargetData>(&self, context: &mut TalkContext) -> Option<TTargetData> 
+    where
+        TTargetData: 'static,
+    {
+        match self {
+            TalkValue::Reference(reference) => reference.read_data_in_context(context),
+            _                               => None,
+        }
+    }
+
+ }
 
 impl hash::Hash for TalkValue {
     fn hash<H>(&self, state: &mut H)
