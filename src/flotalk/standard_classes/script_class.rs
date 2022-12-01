@@ -1,3 +1,5 @@
+use super::talk_message_handler::*;
+
 use crate::flotalk::allocator::*;
 use crate::flotalk::class::*;
 use crate::flotalk::context::*;
@@ -133,6 +135,29 @@ impl TalkScriptClassClass {
             })
         })
     }
+
+    ///
+    /// Adds a class message that calls the specified block
+    ///
+    fn add_class_message(cell_class_id: TalkClass, selector: TalkMessageSignature, block: TalkOwned<'_, TalkValue>) -> TalkContinuation<'static> {
+        let context         = block.context();
+        let message_handler = block.read_data_in_context::<TalkClassMessageHandler>(context);
+
+        if let Some(message_handler) = message_handler {
+            // Add to the dispatch table for the cell class in the current context
+            TalkContinuation::soon(move |context| {
+                context.get_callbacks_mut(cell_class_id).dispatch_table.define_message(selector, move |class_obj, args, context| {
+                    // TODO: get superclass (rather than using the class_obj here)
+                    (message_handler.message_handler)(cell_class_id, args, class_obj, context)
+                });
+
+                TalkValue::Nil.into()
+            })
+        } else {
+            // Unexpected class
+            TalkError::ExpectedBlockType.into()
+        }
+    }
 }
 
 impl TalkClassDefinition for TalkScriptClassClass {
@@ -199,7 +224,11 @@ impl TalkClassDefinition for TalkScriptClassClass {
 
         } else if message_id == *TALK_MSG_ADD_CLASS_MESSAGE {
 
-            TalkError::MessageNotSupported(message_id).into()
+            let mut args = args;
+            match args[0] {
+                TalkValue::Selector(selector)   => Self::add_class_message(target.class_id, selector.to_signature(), TalkOwned::new(args[1].take(), args.context())),
+                _                               => TalkError::NotASelector.into(),
+            }
 
         } else if message_id == *TALK_MSG_SUPERCLASS {
 
