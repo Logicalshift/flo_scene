@@ -233,8 +233,8 @@ fn define_instance_message() {
         one := NewClass new.
         two := NewClass new.
 
-        one setVal: 12.
-        two setVal: 30.
+        one setVal: 12 .
+        two setVal: 30 .
 
         ^(one getVal) + (two getVal)
     ] value";
