@@ -254,6 +254,6 @@ fn define_instance_message() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should return 42
-        //assert!(result == TalkValue::Int(42));
+        assert!(result == TalkValue::Int(42));
     });
 }

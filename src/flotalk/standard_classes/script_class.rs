@@ -158,6 +158,34 @@ impl TalkScriptClassClass {
             TalkError::ExpectedBlockType.into()
         }
     }
+
+    ///
+    /// Adds an instance message that calls the specified block (which is rebound to the instance variables)
+    ///
+    fn add_instance_message(cell_class_id: TalkClass, selector: TalkMessageSignature, block: TalkOwned<'_, TalkValue>, instance_variables: Arc<Mutex<TalkSymbolTable>>) -> TalkContinuation<'static> {
+        let context         = block.context();
+        let message_handler = block.read_data_in_context::<TalkInstanceMessageHandler>(context);
+
+        if let Some(message_handler) = message_handler {
+            // Bind the message handler
+            let message_handler = (message_handler.bind_message_handler)(instance_variables);
+
+            // Add to the dispatch table for the cell class in the current context
+            TalkContinuation::soon(move |context| {
+                context.get_callbacks_mut(cell_class_id).dispatch_table.define_message(selector, move |cell_reference, args, context| {
+                    let cell_reference  = cell_reference.leak();
+                    let cell_block      = TalkOwned::new(TalkCellBlock(cell_reference.1.0 as _), context);
+
+                    (message_handler)(cell_class_id, args, cell_block, context)
+                });
+
+                TalkValue::Nil.into()
+            })
+        } else {
+            // Unexpected class
+            TalkError::ExpectedBlockType.into()
+        }
+    }
 }
 
 impl TalkClassDefinition for TalkScriptClassClass {
@@ -244,7 +272,11 @@ impl TalkClassDefinition for TalkScriptClassClass {
 
         } else if message_id == *TALK_MSG_ADD_INSTANCE_MESSAGE {
 
-            TalkError::MessageNotSupported(message_id).into()
+            let mut args = args;
+            match args[0] {
+                TalkValue::Selector(selector)   => Self::add_instance_message(target.class_id, selector.to_signature(), TalkOwned::new(args[1].take(), args.context()), Arc::clone(&target.instance_variables)),
+                _                               => TalkError::NotASelector.into(),
+            }
 
         } else if message_id == *TALK_MSG_ADD_CLASS_MESSAGE {
 
