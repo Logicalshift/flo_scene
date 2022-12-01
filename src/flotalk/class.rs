@@ -65,7 +65,7 @@ pub (super) struct TalkClassCallbacks {
 ///
 pub (super) struct TalkClassContextCallbacks {
     /// The dispatch table for this class
-    dispatch_table: TalkMessageDispatchTable<TalkReference>,
+    pub (super) dispatch_table: TalkMessageDispatchTable<TalkReference>,
 
     /// The dispatch table for the class object
     class_dispatch_table: TalkMessageDispatchTable<()>,
