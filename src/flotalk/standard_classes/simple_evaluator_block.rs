@@ -151,7 +151,7 @@ where
                         // Make the 'super' value part of the arguments
                         let mut args        = args;
                         let mut superclass  = superclass;
-                        args.push(superclass.take());
+                        args.push(TalkValue::Reference(superclass.leak()));
 
                         // Evaluate the message
                         talk_evaluate_simple_with_arguments(Arc::clone(&parent_symbol_table), parent_frames.clone(), args.leak(), Arc::clone(&expression))
