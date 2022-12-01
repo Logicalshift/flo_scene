@@ -50,6 +50,13 @@ impl TalkSymbolTable {
     }
 
     ///
+    /// Replaces the parent frame in this symbol table
+    ///
+    pub fn set_parent_frame(&mut self, parent_frame: Arc<Mutex<TalkSymbolTable>>) {
+        self.parent = Some(parent_frame)
+    }
+
+    ///
     /// Defines a symbol within this table, assigning it a new cell (including if the symbol is already bound to something)
     ///
     pub fn define_symbol(&mut self, symbol: impl Into<TalkSymbol>) -> TalkFrameCell {
