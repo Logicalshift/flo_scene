@@ -113,7 +113,7 @@ impl TalkReference {
     ///
     /// Return the data for a reference cast to a target type (if it can be read as that type)
     ///
-    pub fn read_data_in_context<TTargetData>(&self, context: &mut TalkContext) -> Option<TTargetData> 
+    pub fn read_data_in_context<TTargetData>(&self, context: &TalkContext) -> Option<TTargetData> 
     where
         TTargetData: 'static,
     {
