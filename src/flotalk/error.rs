@@ -43,7 +43,10 @@ pub enum TalkError {
     /// A value that was expected to be an array was not an array
     NotAnArray,
 
-    /// A value was of an expected class type
+    /// Expected an object representing a code block
+    ExpectedBlockType,
+
+    /// A value was not of an expected class type
     UnexpectedClass,
 
     /// A selector was called with the incorrect number of arguments
