@@ -120,7 +120,8 @@ impl<'a> TalkContinuation<'a> {
                     }
                 }
 
-                _ => TalkError::UnexpectedClass.into()
+                TalkValue::Error(err)   => err.into(),
+                _                       => TalkError::UnexpectedClass.into()
             }
         }))
     }
