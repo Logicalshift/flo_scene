@@ -260,7 +260,7 @@ fn define_instance_message() {
         | NewClass one two | 
         NewClass := Object subclassWithInstanceVariables: #val. 
         NewClass addInstanceMessage: #setVal: withAction: [ :newVal :self | val := newVal ].
-        NewClass addInstanceMessage: #getVal withAction: [ :newVal :self | val ].
+        NewClass addInstanceMessage: #getVal withAction: [ :self | val ].
 
         one := NewClass new.
         two := NewClass new.
@@ -297,7 +297,7 @@ fn define_instance_message_without_self() {
         | NewClass one two | 
         NewClass := Object subclassWithInstanceVariables: #val. 
         NewClass addInstanceMessage: #setVal: withAction: [ :newVal | val := newVal ].
-        NewClass addInstanceMessage: #getVal withAction: [ :newVal | val ].
+        NewClass addInstanceMessage: #getVal withAction: [ val ].
 
         one := NewClass new.
         two := NewClass new.
