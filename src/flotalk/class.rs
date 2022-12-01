@@ -68,7 +68,7 @@ pub (super) struct TalkClassContextCallbacks {
     pub (super) dispatch_table: TalkMessageDispatchTable<TalkReference>,
 
     /// The dispatch table for the class object
-    class_dispatch_table: TalkMessageDispatchTable<()>,
+    pub (super) class_dispatch_table: TalkMessageDispatchTable<()>,
 
     /// Add to the reference count for a data handle
     add_reference: Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()>,
