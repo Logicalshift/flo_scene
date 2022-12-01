@@ -20,7 +20,7 @@ pub struct TalkClassMessageHandler {
     pub (super) expected_args: usize,
 
     /// message_handler(class_id, arguments, super, context)
-    pub (super) message_handler: Box<dyn Send + Sync + for<'a> Fn(TalkClass, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, TalkOwned<'a, TalkReference>, &'a TalkContext) -> TalkContinuation<'static>>
+    pub (super) message_handler: Box<dyn Send + Sync + for<'a> Fn(TalkClass, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, Option<TalkOwned<'a, TalkReference>>, &'a TalkContext) -> TalkContinuation<'static>>
 }
 
 ///

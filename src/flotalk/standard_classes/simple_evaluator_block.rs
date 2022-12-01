@@ -150,8 +150,12 @@ where
                     message_handler:    Box::new(move |class_id, args, superclass, context| {
                         // Make the 'super' value part of the arguments
                         let mut args        = args;
-                        let mut superclass  = superclass;
-                        args.push(TalkValue::Reference(superclass.leak()));
+
+                        if let Some(mut superclass) = superclass {
+                            args.push(TalkValue::Reference(superclass.leak()));
+                        } else {
+                            args.push(TalkValue::Nil);
+                        }
 
                         // Evaluate the message
                         talk_evaluate_simple_with_arguments(Arc::clone(&parent_symbol_table), parent_frames.clone(), args.leak(), Arc::clone(&expression))
