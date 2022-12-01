@@ -326,3 +326,41 @@ fn define_instance_message_without_self() {
         assert!(result == TalkValue::Int(42));
     });
 }
+
+#[test]
+fn call_self_from_instance_message() {
+    let test_source     = "
+    [ 
+        | NewClass one two | 
+        NewClass := Object subclassWithInstanceVariables: #val. 
+        NewClass addInstanceMessage: #setVal: withAction: [ :newVal :self | val := newVal ].
+        NewClass addInstanceMessage: #getVal withAction: [ :self | val ].
+        NewClass addInstanceMessage: #alsoGetVal withAction: [ :self | self getVal ].
+
+        one := NewClass new.
+        two := NewClass new.
+
+        one setVal: 12 .
+        two setVal: 30 .
+
+        ^(one getVal) + (two alsoGetVal)
+    ] value";
+    let runtime         = TalkRuntime::empty();
+
+    executor::block_on(async { 
+        // Manually create the 'object' in this context (by sending 'new' to the script class class)
+        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+            SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
+        })).await;
+
+        // Run the test script with the 'Object' class defined
+        let test_source     = stream::iter(test_source.chars());
+        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
+        let instructions    = expr.value.to_instructions();
+
+        let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
+
+        // Should return 42
+        assert!(result == TalkValue::Int(42));
+    });
+}
