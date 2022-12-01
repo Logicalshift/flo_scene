@@ -137,35 +137,6 @@ fn read_superclass() {
 }
 
 #[test]
-fn define_class_method() {
-    let test_source     = "
-    [ 
-        | NewClass | 
-        NewClass := Object subclass. 
-        NewClass addClassMessage: #foo: withAction: [ :foo :super | foo ].
-        ^NewClass foo: 42
-    ] value";
-    let runtime         = TalkRuntime::empty();
-
-    executor::block_on(async { 
-        // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
-            SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
-        })).await;
-
-        // Run the test script with the 'Object' class defined
-        let test_source     = stream::iter(test_source.chars());
-        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
-        let instructions    = expr.value.to_instructions();
-
-        let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
-
-        // Should return 42
-        assert!(result == TalkValue::Int(42));
-    });
-}
-
-#[test]
 fn create_object_instance() {
     let test_source     = "Object new";
     let runtime         = TalkRuntime::empty();
@@ -221,6 +192,35 @@ fn create_subclass_instance() {
             TalkValue::Reference(new_object) => new_object.class() != *SCRIPT_CLASS_CLASS,
             _ => false
         });
+    });
+}
+
+#[test]
+fn define_class_method() {
+    let test_source     = "
+    [ 
+        | NewClass | 
+        NewClass := Object subclass. 
+        NewClass addClassMessage: #foo: withAction: [ :foo :super | foo ].
+        ^NewClass foo: 42
+    ] value";
+    let runtime         = TalkRuntime::empty();
+
+    executor::block_on(async { 
+        // Manually create the 'object' in this context (by sending 'new' to the script class class)
+        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+            SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
+        })).await;
+
+        // Run the test script with the 'Object' class defined
+        let test_source     = stream::iter(test_source.chars());
+        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
+        let instructions    = expr.value.to_instructions();
+
+        let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
+
+        // Should return 42
+        assert!(result == TalkValue::Int(42));
     });
 }
 
