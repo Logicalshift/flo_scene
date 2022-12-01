@@ -207,7 +207,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
     ///
     fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_NEW {
-            // Create a new cell block class
+            // Create a new cell block class with no superclass
             // TODO: reuse an existing cell block class
             let cell_block_class = TalkClass::create(TalkCellBlockClass);
 
@@ -261,10 +261,12 @@ impl TalkClassDefinition for TalkScriptClassClass {
         // Predefined messages
         if message_id == *TALK_MSG_SUBCLASS {
 
+            // Create a subclass of this class
             Self::subclass(reference.class(), reference, target)
 
         } else if message_id == *TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES {
 
+            // Create a subclass of this class with different instance variables
             match args[0] {
                 TalkValue::Selector(args)   => Self::subclass_with_instance_variables(reference.class(), reference, target, args.to_signature()),
                 _                           => TalkError::NotASelector.into(),
@@ -272,6 +274,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
 
         } else if message_id == *TALK_MSG_ADD_INSTANCE_MESSAGE {
 
+            // Add an instance message for this class
             let mut args = args;
             match args[0] {
                 TalkValue::Selector(selector)   => Self::add_instance_message(target.class_id, selector.to_signature(), TalkOwned::new(args[1].take(), args.context()), Arc::clone(&target.instance_variables)),
@@ -280,6 +283,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
 
         } else if message_id == *TALK_MSG_ADD_CLASS_MESSAGE {
 
+            // Add a message to the class messages for this class
             let mut args = args;
             match args[0] {
                 TalkValue::Selector(selector)   => Self::add_class_message(target.class_id, selector.to_signature(), TalkOwned::new(args[1].take(), args.context())),
@@ -288,6 +292,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
 
         } else if message_id == *TALK_MSG_SUPERCLASS {
 
+            // Retrieve the superclass for this clas
             if let Some(superclass) = &target.superclass_script_class {
                 let superclass = superclass.clone();
                 TalkContinuation::soon(move |context| superclass.clone_in_context(context).into())
@@ -297,6 +302,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
 
         } else if message_id == *TALK_MSG_NEW {
 
+            // Create a new instance of this class (with empty instance variables)
             let instance_size   = target.instance_variables.lock().unwrap().len();
             let class_id        = target.class_id;
 
