@@ -167,17 +167,9 @@ impl TalkScriptClassClass {
         let message_handler = block.read_data_in_context::<TalkInstanceMessageHandler>(context);
 
         if let Some(message_handler) = message_handler {
-            // Bind the message handler
-            let message_handler = (message_handler.bind_message_handler)(instance_variables);
-
             // Add to the dispatch table for the cell class in the current context
             TalkContinuation::soon(move |context| {
-                context.get_callbacks_mut(cell_class_id).dispatch_table.define_message(selector, move |cell_reference, args, context| {
-                    let cell_reference  = cell_reference.leak();
-                    let cell_block      = TalkOwned::new(TalkCellBlock(cell_reference.1.0 as _), context);
-
-                    (message_handler)(cell_class_id, args, cell_block, context)
-                });
+                (message_handler.define_in_dispatch_table)(&mut context.get_callbacks_mut(cell_class_id).dispatch_table, selector.into(), instance_variables);
 
                 TalkValue::Nil.into()
             })
