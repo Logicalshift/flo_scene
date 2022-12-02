@@ -1,14 +1,7 @@
-use crate::flotalk::class::*;
-use crate::flotalk::continuation::*;
-use crate::flotalk::context::*;
 use crate::flotalk::dispatch_table::*;
 use crate::flotalk::message::*;
 use crate::flotalk::reference::*;
-use crate::flotalk::releasable::*;
 use crate::flotalk::symbol_table::*;
-use crate::flotalk::value::*;
-
-use smallvec::*;
 
 use std::sync::*;
 
@@ -18,11 +11,9 @@ use std::sync::*;
 /// These are defined with the arguments for the message plus a 'super' value pointing at the superclass
 ///
 pub struct TalkClassMessageHandler {
-    /// The number of arguments expected by the message handler
-    pub (super) expected_args: usize,
-
-    /// message_handler(class_id, arguments, super, context)
-    pub (super) message_handler: Box<dyn Send + Sync + for<'a> Fn(TalkClass, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, Option<TalkOwned<'a, TalkReference>>, &'a TalkContext) -> TalkContinuation<'static>>
+    /// Defines this instance message in a dispatch table. The 'self' type is expected to be a reference cell (ie, the data handle should be a reference to a cell block
+    /// with the instance variables in it)
+    pub (super) define_in_dispatch_table: Box<dyn Send + FnOnce(&mut TalkMessageDispatchTable<()>, TalkMessageSignatureId, Option<TalkReference>) -> ()>,
 }
 
 ///

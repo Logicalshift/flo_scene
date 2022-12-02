@@ -140,25 +140,26 @@ where
         talk_add_class_data_reader::<SimpleEvaluatorBlockClass<TValue, TSymbol>, TalkClassMessageHandler>(
             |block| {
                 // Clone the properties for this message handler
-                let num_args            = block.accepted_message_id.len();
                 let parent_symbol_table = block.parent_symbol_table.clone();
                 let parent_frames       = block.parent_frames.clone();          // TODO: add/remove references to the frame cells
                 let expression          = block.expression.clone();
 
                 TalkClassMessageHandler {
-                    expected_args:      num_args,
-                    message_handler:    Box::new(move |class_id, args, superclass, context| {
-                        // Make the 'super' value part of the arguments
-                        let mut args        = args;
+                    define_in_dispatch_table: Box::new(move |dispatch_table, message_signature, superclass| {
+                        dispatch_table.define_message(message_signature, move |_, args, talk_context| {
+                            // Make the 'super' value part of the arguments
+                            let mut args        = args;
 
-                        if let Some(mut superclass) = superclass {
-                            args.push(TalkValue::Reference(superclass.leak()));
-                        } else {
-                            args.push(TalkValue::Nil);
-                        }
+                            if let Some(mut superclass) = superclass.clone() {
+                                superclass.add_reference(talk_context);
+                                args.push(TalkValue::Reference(superclass));
+                            } else {
+                                args.push(TalkValue::Nil);
+                            }
 
-                        // Evaluate the message
-                        talk_evaluate_simple_with_arguments(Arc::clone(&parent_symbol_table), parent_frames.clone(), args.leak(), Arc::clone(&expression))
+                            // Evaluate the message
+                            talk_evaluate_simple_with_arguments(Arc::clone(&parent_symbol_table), parent_frames.clone(), args.leak(), Arc::clone(&expression))
+                        })
                     })
                 }
             }

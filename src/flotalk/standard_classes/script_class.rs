@@ -146,10 +146,8 @@ impl TalkScriptClassClass {
         if let Some(message_handler) = message_handler {
             // Add to the dispatch table for the cell class in the current context
             TalkContinuation::soon(move |context| {
-                context.get_callbacks_mut(cell_class_id).class_dispatch_table.define_message(selector, move |_, args, context| {
-                    // TODO: get superclass (rather than using the class_obj here)
-                    (message_handler.message_handler)(cell_class_id, args, None, context)
-                });
+                // TODO: get superclass here
+                (message_handler.define_in_dispatch_table)(&mut context.get_callbacks_mut(cell_class_id).class_dispatch_table, selector.into(), None);
 
                 TalkValue::Nil.into()
             })
