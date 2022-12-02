@@ -72,10 +72,10 @@ where
     }
 
     ///
-    /// Retrieves the internal value, and no longer releases it when it's dropped
+    /// Retrieves the internal value, and no longer releases it when it's dropped (the caller becomes responsible for managing the lifetime of this value)
     ///
     #[inline]
-    pub (super) fn leak(mut self) -> TReleasable {
+    pub fn leak(mut self) -> TReleasable {
         match self.value.take() {
             Some(value) => value,
             None        => unreachable!(),
