@@ -183,7 +183,7 @@ pub trait TalkClassDefinition : Send + Sync {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static>;
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static>;
 
     ///
     /// Sends a message to an instance of this class
@@ -278,9 +278,7 @@ impl TalkClass {
     {
         definition.default_class_dispatch_table()
             .with_not_supported(move |_: TalkOwned<'_, ()>, message_id, message_args, _talk_context| {
-                let mut allocator   = allocator.lock().unwrap();
-
-                definition.send_class_message(message_id, message_args, class_id, &mut *allocator)
+                definition.send_class_message(message_id, message_args, class_id, &allocator)
             })
     }
 

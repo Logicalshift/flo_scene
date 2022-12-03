@@ -195,7 +195,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_NEW {
 
             // Create a new cell block class with no superclass
@@ -211,7 +211,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
             };
 
             // Store the class using the allocator
-            let script_class = allocator.store(script_class);
+            let script_class = allocator.lock().unwrap().store(script_class);
 
             TalkContinuation::soon(move |talk_context| {
                 // Register the class with the context
@@ -364,7 +364,7 @@ impl TalkClassDefinition for TalkCellBlockClass {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _class_id: TalkClass, _allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _class_id: TalkClass, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
     }
 
