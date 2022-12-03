@@ -8,6 +8,12 @@ use super::value_messages::*;
 use std::sync::*;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+lazy_static! {
+    /// All of the cell block classes that have been registered (we want to re-use class IDs between contexts so that the number of class 
+    /// IDs in existence doesn't keep growing when new contexts are allocated and run scripts)
+    static ref CELL_BLOCK_CLASSES: Mutex<Vec<TalkClass>> = Mutex::new(vec![]);
+}
+
 ///
 /// Class that has been declare
 ///
@@ -41,6 +47,9 @@ pub struct TalkContext {
     /// These are the classes that have been declared in this context that have a separate class object
     cell_block_classes: Vec<TalkContextCellBlockClass>,
 
+    /// The index of the first unused cell block class from the static CELL_BLOCK_CLASSES list (used to reallocate class IDs)
+    next_cell_block_class_idx: usize,
+
     /// These classes are all of type TalkCellBlockClass, and are used for storing instance variables and custom-defined methods for script classes
     available_cell_block_classes: Vec<TalkClass>,
 
@@ -60,6 +69,7 @@ impl TalkContext {
             cell_reference_count:           vec![],
             cell_block_classes:             vec![],
             available_cell_block_classes:   vec![],
+            next_cell_block_class_idx:      0,
             free_cells:                     Mutex::new(vec![]),
         }
     }
@@ -291,8 +301,25 @@ impl TalkContext {
 
             existing_class
         } else {
-            // Create a new cell block class
-            TalkClass::create(TalkCellBlockClass)
+            // Try to use a cell block class that's already in use
+            let mut existing_classes = CELL_BLOCK_CLASSES.lock().unwrap();
+
+            if self.next_cell_block_class_idx < existing_classes.len() {
+                // There are still unused classes in the 'existing' list
+                let class_idx = self.next_cell_block_class_idx;
+                self.next_cell_block_class_idx += 1;
+
+                existing_classes[class_idx]
+            } else {
+                // Create a new cell block class
+                let new_class = TalkClass::create(TalkCellBlockClass);
+
+                // Add to the existing class list
+                existing_classes.push(new_class);
+                self.next_cell_block_class_idx = existing_classes.len();
+
+                new_class
+            }
         }
     }
 
@@ -308,5 +335,24 @@ impl TalkContext {
             class_object:   class_object,
             instance_class: cell_block_instance_class,  
         })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn reuse_cell_block_classes_in_different_contexts() {
+        let mut context_1 = TalkContext::empty();
+        let mut context_2 = TalkContext::empty();
+
+        let class_1 = context_1.empty_cell_block_class();
+        let class_2 = context_2.empty_cell_block_class();
+        let class_3 = context_2.empty_cell_block_class();
+        let class_4 = context_1.empty_cell_block_class();
+
+        assert!(class_1 == class_2);
+        assert!(class_3 == class_4);
     }
 }
