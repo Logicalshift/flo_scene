@@ -233,7 +233,7 @@ where
                 }
 
                 // Create the block, and add it to the stack
-                let block_reference = create_simple_evaluator_block_in_context(context, variables.clone(), bindings, Arc::new(Mutex::new(frame.symbol_table.clone())), Arc::clone(instructions));
+                let block_reference = create_simple_evaluator_block_in_context(context, variables.clone(), bindings, Arc::new(Mutex::new(frame.symbol_table.clone())), Arc::clone(instructions), None);
                 frame.stack.push(TalkValue::Reference(block_reference));
             }
 

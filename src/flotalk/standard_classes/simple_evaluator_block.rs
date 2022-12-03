@@ -62,6 +62,9 @@ where
     /// The cell blocks representing the parent frames
     parent_frames:          Vec<TalkCellBlock>,
 
+    /// A cell block containing the resources needed by this block (eg, data that it needs to load into the stack)
+    resources:              Option<TalkCellBlock>,
+
     /// The expression to evaluate for this block
     expression:             Arc<Vec<TalkInstruction<TValue, TSymbol>>>,
 }
@@ -73,10 +76,14 @@ where
     TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
-    fn release_in_context(self, context: &TalkContext) {
+    fn release_in_context(mut self, context: &TalkContext) {
         // Release any cells referenced by this evaluator block
         for cell_block in self.parent_frames.iter() {
             context.release_cell_block(*cell_block);
+        }
+
+        if let Some(resources) = self.resources.take() {
+            context.release_cell_block(resources);
         }
     }
 }
@@ -218,7 +225,7 @@ where
 /// The parent_frames will be released when this block is freed, so callers need to consider that the cell blocks ownership has been transferred 
 /// to the new object.
 ///
-pub fn create_simple_evaluator_block_in_context<TValue, TSymbol>(talk_context: &mut TalkContext, arguments: Vec<TalkSymbol>, parent_frames: Vec<TalkCellBlock>, parent_symbol_table: Arc<Mutex<TalkSymbolTable>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkReference
+pub fn create_simple_evaluator_block_in_context<TValue, TSymbol>(talk_context: &mut TalkContext, arguments: Vec<TalkSymbol>, parent_frames: Vec<TalkCellBlock>, parent_symbol_table: Arc<Mutex<TalkSymbolTable>>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>, expression_resources: Option<TalkCellBlock>) -> TalkReference
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
@@ -237,6 +244,7 @@ where
         accepted_message_id:    signature.id(),
         parent_symbol_table:    parent_symbol_table,
         parent_frames:          parent_frames,
+        resources:              expression_resources,
         expression:             expression,
     };
 
