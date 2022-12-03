@@ -7,6 +7,17 @@ use std::sync::*;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 ///
+/// Class that has been declare
+///
+pub (super) struct TalkContextCellBlockClass {
+    /// The reference to the parent class for this object (retained when this is created, and for as long as at least one instance exists)
+    class_object: TalkReference,
+
+    /// The TalkCellBlockClass that is used to represent the instances of this class
+    instance_class: TalkClass,
+}
+
+///
 /// A talk context is a self-contained representation of the state of a flotalk interpreter
 ///
 /// Contexts are only accessed on one thread at a time. They're wrapped by a `TalkRuntime`, which deals with
@@ -25,6 +36,12 @@ pub struct TalkContext {
     /// The reference count for each cell block (this allows us to share cell blocks around more easily)
     cell_reference_count: Vec<AtomicU32>,
 
+    /// These are the classes that have been declared in this context that have a separate class object
+    cell_block_classes: Vec<TalkContextCellBlockClass>,
+
+    /// These classes are all of type TalkCellBlockClass, and are used for storing instance variables and custom-defined methods for script classes
+    available_cell_block_classes: Vec<TalkClass>,
+
     /// Values in the 'cells' array that have been freed
     free_cells: Mutex<Vec<usize>>,
 }
@@ -35,11 +52,13 @@ impl TalkContext {
     ///
     pub fn empty() -> TalkContext {
         TalkContext {
-            context_callbacks:      vec![],
-            value_dispatch_tables:  TalkValueDispatchTables::default(),
-            cells:                  vec![],
-            cell_reference_count:   vec![],
-            free_cells:             Mutex::new(vec![]),
+            context_callbacks:              vec![],
+            value_dispatch_tables:          TalkValueDispatchTables::default(),
+            cells:                          vec![],
+            cell_reference_count:           vec![],
+            cell_block_classes:             vec![],
+            available_cell_block_classes:   vec![],
+            free_cells:                     Mutex::new(vec![]),
         }
     }
 
@@ -252,5 +271,19 @@ impl TalkContext {
     #[inline]
     pub fn get_cell_mut(&mut self, TalkCell(TalkCellBlock(block_idx), cell_idx): TalkCell) -> &mut TalkValue {
         &mut self.cells[block_idx as usize][cell_idx as usize]
+    }
+
+    ///
+    /// Associates a class object with its instance classes (used for freeing up the cell block classes when there are no 
+    /// more instances left, and for retaining the class object while instances still exist)
+    ///
+    /// The context will take ownership of the reference, and will free it once there are no more instances of the cell block
+    /// class left.
+    ///
+    pub (super) fn declare_cell_block_class(&mut self, class_object: TalkReference, cell_block_instance_class: TalkClass) {
+        self.cell_block_classes.push(TalkContextCellBlockClass {
+            class_object:   class_object,
+            instance_class: cell_block_instance_class,  
+        })
     }
 }

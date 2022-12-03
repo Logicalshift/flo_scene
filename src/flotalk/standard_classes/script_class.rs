@@ -197,6 +197,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
     ///
     fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_NEW {
+
             // Create a new cell block class with no superclass
             // TODO: reuse an existing cell block class
             let cell_block_class = TalkClass::create(TalkCellBlockClass);
@@ -212,8 +213,14 @@ impl TalkClassDefinition for TalkScriptClassClass {
             // Store the class using the allocator
             let script_class = allocator.store(script_class);
 
-            // Result is a reference to the script class (this acts as the class object instead of a TalkClass object)
-            TalkReference(class_id, script_class).into()
+            TalkContinuation::soon(move |talk_context| {
+                // Register the class with the context
+                let script_class = TalkReference(class_id, script_class);
+                talk_context.declare_cell_block_class(script_class.clone_in_context(talk_context), cell_block_class);
+
+                // Result is a reference to the script class (this acts as the class object instead of a TalkClass object)
+                script_class.into()
+            })
 
         } else {
 
