@@ -10,6 +10,7 @@ use crate::flotalk::reference::*;
 use crate::flotalk::releasable::*;
 use crate::flotalk::symbol::*;
 use crate::flotalk::symbol_table::*;
+use crate::flotalk::sparse_array::*;
 use crate::flotalk::value::*;
 use crate::flotalk::value_messages::*;
 
@@ -46,6 +47,12 @@ pub struct TalkScriptClass {
     /// The ID of the TalkCellBlockClass that this script class is associated with
     class_id: TalkClass,
 
+    /// The resources used by the instance messages (generally just the block)
+    instance_message_resources: TalkSparseArray<SmallVec<[TalkReference; 2]>>,
+
+    /// The resources used by the class messages (generally the block and the superclass)
+    class_message_resources: TalkSparseArray<SmallVec<[TalkReference; 2]>>,
+
     /// If this class has a superclass, the ID of that class
     superclass_id: Option<TalkClass>,
 
@@ -71,9 +78,18 @@ pub struct TalkCellBlockAllocator {
 
 impl TalkReleasable for TalkScriptClass {
     fn release_in_context(mut self, context: &TalkContext) {
+        // Release the superclass
         if let Some(superclass) = self.superclass_script_class.take() {
             superclass.remove_reference(context);
         }
+
+        // Release all the resources used by the messages
+        self.instance_message_resources.iter()
+            .flat_map(|(_, references)| references.iter())
+            .for_each(|reference| reference.remove_reference(context));
+        self.class_message_resources.iter()
+            .flat_map(|(_, references)| references.iter())
+            .for_each(|reference| reference.remove_reference(context));
     }
 }
 
@@ -210,6 +226,8 @@ impl TalkClassDefinition for TalkScriptClassClass {
                     superclass_id:              None,
                     superclass_script_class:    None,
                     instance_variables:         Arc::new(Mutex::new(TalkSymbolTable::empty())),
+                    instance_message_resources: TalkSparseArray::empty(),
+                    class_message_resources:    TalkSparseArray::empty(),
                 };
 
                 // Store the class using the allocator
