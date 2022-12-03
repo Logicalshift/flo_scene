@@ -381,10 +381,9 @@ where
     }
 }
 
-impl Into<usize> for TalkMessageSignatureId {
-    #[inline]
-    fn into(self) -> usize {
-        self.0
+impl From<TalkMessageSignatureId> for usize {
+    fn from(message_sig: TalkMessageSignatureId) -> usize {
+        message_sig.0
     }
 }
 
