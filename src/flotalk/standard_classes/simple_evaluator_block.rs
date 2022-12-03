@@ -159,7 +159,7 @@ where
 
                             if let Some(superclass) = superclass.clone() {
                                 superclass.add_reference(talk_context);
-                                args.push(TalkValue::Reference(superclass));
+                                args.push(superclass);
                             } else {
                                 args.push(TalkValue::Nil);
                             }

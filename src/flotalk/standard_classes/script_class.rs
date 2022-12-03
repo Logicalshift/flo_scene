@@ -163,20 +163,29 @@ impl TalkScriptClass {
         let message_handler = block.read_data_in_context::<TalkClassMessageHandler>(context);
 
         if let Some(message_handler) = message_handler {
+            // Fetch the superclass and retain it
+            let superclass_value = self.superclass_script_class.as_ref().map(|superclass| superclass.clone_in_context(block.context()));
+
             // Keep the block associated with this class
-            let message_id = usize::from(TalkMessageSignatureId::from(&selector));
+            let mut resources   = smallvec![];
+            let message_id      = usize::from(TalkMessageSignatureId::from(&selector));
 
             if let Some(old_resources) = self.instance_message_resources.remove(message_id) {
                 // Clean up any old message that might be stored here
                 old_resources.into_iter().for_each(|reference| reference.remove_reference(block.context()));
             }
 
-            self.class_message_resources.insert(message_id, smallvec![block.leak()]);
+            // Also retain the superclass if it's present
+            if let Some(superclass_value) = &superclass_value {
+                resources.push(superclass_value.clone());
+            }
+
+            resources.push(block.leak());
+            self.class_message_resources.insert(message_id, resources);
 
             // Add to the dispatch table for the cell class in the current context
             TalkContinuation::soon(move |context| {
-                // TODO: get superclass here
-                (message_handler.define_in_dispatch_table)(&mut context.get_callbacks_mut(cell_class_id).class_dispatch_table, selector.into(), None);
+                (message_handler.define_in_dispatch_table)(&mut context.get_callbacks_mut(cell_class_id).class_dispatch_table, selector.into(), superclass_value.clone());
 
                 TalkValue::Nil.into()
             })

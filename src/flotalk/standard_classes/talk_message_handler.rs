@@ -2,6 +2,7 @@ use crate::flotalk::dispatch_table::*;
 use crate::flotalk::message::*;
 use crate::flotalk::reference::*;
 use crate::flotalk::symbol_table::*;
+use crate::flotalk::value::*;
 
 use std::sync::*;
 
@@ -13,7 +14,7 @@ use std::sync::*;
 pub struct TalkClassMessageHandler {
     /// Defines this instance message in a dispatch table. The 'self' type is expected to be a reference cell (ie, the data handle should be a reference to a cell block
     /// with the instance variables in it)
-    pub (super) define_in_dispatch_table: Box<dyn Send + FnOnce(&mut TalkMessageDispatchTable<()>, TalkMessageSignatureId, Option<TalkReference>) -> ()>,
+    pub (super) define_in_dispatch_table: Box<dyn Send + FnOnce(&mut TalkMessageDispatchTable<()>, TalkMessageSignatureId, Option<TalkValue>) -> ()>,
 }
 
 ///
