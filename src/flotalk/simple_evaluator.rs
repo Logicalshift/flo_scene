@@ -334,7 +334,7 @@ where
     // Create the first frame
     let mut wait_state      = TalkWaitState::Run;
     let symbol_table        = TalkSymbolTable::with_parent_frame(parent_symbol_table);      // TODO: makes the cells invalid (frame number is wrong) until LoadArguments is called, which is kind of janky
-    let mut bindings        = parent_frames;
+    let bindings            = parent_frames;
     let mut frame           = TalkFrame { pc: 0, stack: vec![], arguments: Some(arguments), bindings: bindings, symbol_table: symbol_table, earlier_bindings: HashMap::new() };
 
     TalkContinuation::Later(Box::new(move |talk_context, future_context| {

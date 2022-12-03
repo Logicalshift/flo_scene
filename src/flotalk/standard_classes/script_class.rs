@@ -195,7 +195,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_NEW {
             // Create a new cell block class with no superclass
             // TODO: reuse an existing cell block class
@@ -357,14 +357,14 @@ impl TalkClassDefinition for TalkCellBlockClass {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _class_id: TalkClass, _allocator: &mut Self::Allocator) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
     }
 
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _reference: TalkReference, _target: &mut Self::Data) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
     }
 }

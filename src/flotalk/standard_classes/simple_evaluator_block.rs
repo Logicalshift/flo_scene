@@ -157,7 +157,7 @@ where
                             // Make the 'super' value part of the arguments
                             let mut args        = args;
 
-                            if let Some(mut superclass) = superclass.clone() {
+                            if let Some(superclass) = superclass.clone() {
                                 superclass.add_reference(talk_context);
                                 args.push(TalkValue::Reference(superclass));
                             } else {
