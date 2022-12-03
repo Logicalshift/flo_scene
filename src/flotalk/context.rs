@@ -1,5 +1,7 @@
 use super::class::*;
+use super::dispatch_table::*;
 use super::reference::*;
+use super::standard_classes::*;
 use super::value::*;
 use super::value_messages::*;
 
@@ -271,6 +273,27 @@ impl TalkContext {
     #[inline]
     pub fn get_cell_mut(&mut self, TalkCell(TalkCellBlock(block_idx), cell_idx): TalkCell) -> &mut TalkValue {
         &mut self.cells[block_idx as usize][cell_idx as usize]
+    }
+
+    ///
+    /// Creates an empty (clear dispatch table) instance of a cell block class in this context
+    ///
+    /// The TalkClass may have been used before by a cell block class that no longer has any instances or references to it. It may also
+    /// be in use in other contexts elsewhere in the application for classes with a different identity. Cell block classes are useful
+    /// for scripting as the data handle can be directly used as the ID for a TalkCellBlock.
+    ///
+    pub (super) fn empty_cell_block_class(&mut self) -> TalkClass {
+        if let Some(existing_class) = self.available_cell_block_classes.pop() {
+            // Flush the dispatch tables for this class
+            let callbacks                   = self.get_callbacks_mut(existing_class);
+            callbacks.dispatch_table        = TalkMessageDispatchTable::empty();
+            callbacks.class_dispatch_table  = TalkMessageDispatchTable::empty();
+
+            existing_class
+        } else {
+            // Create a new cell block class
+            TalkClass::create(TalkCellBlockClass)
+        }
     }
 
     ///

@@ -198,22 +198,23 @@ impl TalkClassDefinition for TalkScriptClassClass {
     fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_NEW {
 
-            // Create a new cell block class with no superclass
-            // TODO: reuse an existing cell block class
-            let cell_block_class = TalkClass::create(TalkCellBlockClass);
-
-            // Define in a script class object (which is empty for now)
-            let script_class = TalkScriptClass {
-                class_id:                   cell_block_class,
-                superclass_id:              None,
-                superclass_script_class:    None,
-                instance_variables:         Arc::new(Mutex::new(TalkSymbolTable::empty())),
-            };
-
-            // Store the class using the allocator
-            let script_class = allocator.lock().unwrap().store(script_class);
+            let allocator = Arc::clone(allocator);
 
             TalkContinuation::soon(move |talk_context| {
+                // Create a new cell block class with no superclass
+                let cell_block_class = talk_context.empty_cell_block_class();
+
+                // Define in a script class object (which is empty for now)
+                let script_class = TalkScriptClass {
+                    class_id:                   cell_block_class,
+                    superclass_id:              None,
+                    superclass_script_class:    None,
+                    instance_variables:         Arc::new(Mutex::new(TalkSymbolTable::empty())),
+                };
+
+                // Store the class using the allocator
+                let script_class = allocator.lock().unwrap().store(script_class);
+
                 // Register the class with the context
                 let script_class = TalkReference(class_id, script_class);
                 talk_context.declare_cell_block_class(script_class.clone_in_context(talk_context), cell_block_class);
