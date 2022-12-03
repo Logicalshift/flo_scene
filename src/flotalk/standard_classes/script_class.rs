@@ -48,16 +48,16 @@ pub struct TalkScriptClass {
     class_id: TalkClass,
 
     /// The resources used by the instance messages (generally just the block)
-    instance_message_resources: TalkSparseArray<SmallVec<[TalkReference; 2]>>,
+    instance_message_resources: TalkSparseArray<SmallVec<[TalkValue; 2]>>,
 
     /// The resources used by the class messages (generally the block and the superclass)
-    class_message_resources: TalkSparseArray<SmallVec<[TalkReference; 2]>>,
+    class_message_resources: TalkSparseArray<SmallVec<[TalkValue; 2]>>,
 
     /// If this class has a superclass, the ID of that class
     superclass_id: Option<TalkClass>,
 
     /// If the superclass is a script class, this is the reference to that class
-    superclass_script_class: Option<TalkReference>,
+    superclass_script_class: Option<TalkValue>,
 
     /// The instance variables for this class
     instance_variables: Arc<Mutex<TalkSymbolTable>>,
@@ -121,7 +121,7 @@ impl TalkScriptClassClass {
             TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class| {
                 // The script_class will release the superclass when it's released (matching the add_reference above)
                 script_class.superclass_id              = Some(new_superclass_id);
-                script_class.superclass_script_class    = Some(parent_class_2);
+                script_class.superclass_script_class    = Some(TalkValue::Reference(parent_class_2));
 
                 // As this is a subclass, location 0 is a pointer to the superclass
                 script_class.instance_variables.lock().unwrap().define_symbol(*TALK_SUPER);
@@ -163,6 +163,16 @@ impl TalkScriptClass {
         let message_handler = block.read_data_in_context::<TalkClassMessageHandler>(context);
 
         if let Some(message_handler) = message_handler {
+            // Keep the block associated with this class
+            let message_id = usize::from(TalkMessageSignatureId::from(&selector));
+
+            if let Some(old_resources) = self.instance_message_resources.remove(message_id) {
+                // Clean up any old message that might be stored here
+                old_resources.into_iter().for_each(|reference| reference.remove_reference(block.context()));
+            }
+
+            self.class_message_resources.insert(message_id, smallvec![block.leak()]);
+
             // Add to the dispatch table for the cell class in the current context
             TalkContinuation::soon(move |context| {
                 // TODO: get superclass here
@@ -185,6 +195,16 @@ impl TalkScriptClass {
         let message_handler = block.read_data_in_context::<TalkInstanceMessageHandler>(context);
 
         if let Some(message_handler) = message_handler {
+            // Keep the block associated with this class
+            let message_id = usize::from(TalkMessageSignatureId::from(&selector));
+
+            if let Some(old_resources) = self.instance_message_resources.remove(message_id) {
+                // Clean up any old message that might be stored here
+                old_resources.into_iter().for_each(|reference| reference.remove_reference(block.context()));
+            }
+
+            self.instance_message_resources.insert(message_id, smallvec![block.leak()]);
+
             // Add to the dispatch table for the cell class in the current context
             TalkContinuation::soon(move |context| {
                 (message_handler.define_in_dispatch_table)(&mut context.get_callbacks_mut(cell_class_id).dispatch_table, selector.into(), instance_variables);
