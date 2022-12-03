@@ -151,11 +151,14 @@ impl TalkScriptClassClass {
             })
         })
     }
+}
 
+impl TalkScriptClass {
     ///
     /// Adds a class message that calls the specified block
     ///
-    fn add_class_message(cell_class_id: TalkClass, selector: TalkMessageSignature, block: TalkOwned<'_, TalkValue>) -> TalkContinuation<'static> {
+    fn add_class_message(&mut self, selector: TalkMessageSignature, block: TalkOwned<'_, TalkValue>) -> TalkContinuation<'static> {
+        let cell_class_id   = self.class_id;
         let context         = block.context();
         let message_handler = block.read_data_in_context::<TalkClassMessageHandler>(context);
 
@@ -176,7 +179,8 @@ impl TalkScriptClassClass {
     ///
     /// Adds an instance message that calls the specified block (which is rebound to the instance variables)
     ///
-    fn add_instance_message(cell_class_id: TalkClass, selector: TalkMessageSignature, block: TalkOwned<'_, TalkValue>, instance_variables: Arc<Mutex<TalkSymbolTable>>) -> TalkContinuation<'static> {
+    fn add_instance_message(&mut self, selector: TalkMessageSignature, block: TalkOwned<'_, TalkValue>, instance_variables: Arc<Mutex<TalkSymbolTable>>) -> TalkContinuation<'static> {
+        let cell_class_id   = self.class_id;
         let context         = block.context();
         let message_handler = block.read_data_in_context::<TalkInstanceMessageHandler>(context);
 
@@ -293,7 +297,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
             // Add an instance message for this class
             let mut args = args;
             match args[0] {
-                TalkValue::Selector(selector)   => Self::add_instance_message(target.class_id, selector.to_signature(), TalkOwned::new(args[1].take(), args.context()), Arc::clone(&target.instance_variables)),
+                TalkValue::Selector(selector)   => target.add_instance_message(selector.to_signature(), TalkOwned::new(args[1].take(), args.context()), Arc::clone(&target.instance_variables)),
                 _                               => TalkError::NotASelector.into(),
             }
 
@@ -302,7 +306,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
             // Add a message to the class messages for this class
             let mut args = args;
             match args[0] {
-                TalkValue::Selector(selector)   => Self::add_class_message(target.class_id, selector.to_signature(), TalkOwned::new(args[1].take(), args.context())),
+                TalkValue::Selector(selector)   => target.add_class_message(selector.to_signature(), TalkOwned::new(args[1].take(), args.context())),
                 _                               => TalkError::NotASelector.into(),
             }
 
