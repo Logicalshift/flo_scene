@@ -262,7 +262,7 @@ fn call_superclass_from_class_method() {
         NewClass1 addClassMessage: #foo: withAction: [ :foo :super | foo ].
         NewClass2 := NewClass1 subclass.
         NewClass2 addClassMessage: #bar: withAction: [ :bar :super | super foo: bar ].
-        ^NewClass2 foo: 42
+        ^NewClass2 bar: 42
     ] value";
     let runtime         = TalkRuntime::empty();
 
