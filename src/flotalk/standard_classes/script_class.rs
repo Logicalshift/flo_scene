@@ -163,17 +163,13 @@ impl TalkScriptClass {
         let message_handler = block.read_data_in_context::<TalkClassMessageHandler>(context);
 
         if let Some(message_handler) = message_handler {
-            // Fetch the superclass and retain it
-            let superclass_value = self.superclass_script_class.as_ref().map(|superclass| superclass.clone_in_context(block.context()));
+            // Fetch the superclass; we retain it later on
+            let superclass_value    = self.superclass_script_class.clone();
 
             // Keep the block associated with this class
             let mut resources   = smallvec![];
             let message_id      = usize::from(TalkMessageSignatureId::from(&selector));
-
-            if let Some(old_resources) = self.instance_message_resources.remove(message_id) {
-                // Clean up any old message that might be stored here
-                old_resources.into_iter().for_each(|reference| reference.remove_reference(block.context()));
-            }
+            let old_resources   = self.instance_message_resources.remove(message_id);
 
             // Also retain the superclass if it's present
             if let Some(superclass_value) = &superclass_value {
@@ -185,6 +181,18 @@ impl TalkScriptClass {
 
             // Add to the dispatch table for the cell class in the current context
             TalkContinuation::soon(move |context| {
+                // Retain the superclass
+                if let Some(superclass_value) = &superclass_value {
+                    superclass_value.add_reference(context);
+                }
+
+                // Release any old resources
+                if let Some(old_resources) = old_resources {
+                    // Clean up any old message that might be stored here
+                    old_resources.into_iter().for_each(|reference| reference.remove_reference(context));
+                }
+
+                // Define in the dispatch table
                 (message_handler.define_in_dispatch_table)(&mut context.get_callbacks_mut(cell_class_id).class_dispatch_table, selector.into(), superclass_value.clone());
 
                 TalkValue::Nil.into()
