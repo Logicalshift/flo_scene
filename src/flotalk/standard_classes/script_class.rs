@@ -213,17 +213,20 @@ impl TalkScriptClass {
 
         if let Some(message_handler) = message_handler {
             // Keep the block associated with this class
-            let message_id = usize::from(TalkMessageSignatureId::from(&selector));
-
-            if let Some(old_resources) = self.instance_message_resources.remove(message_id) {
-                // Clean up any old message that might be stored here
-                old_resources.into_iter().for_each(|reference| reference.remove_reference(block.context()));
-            }
+            let message_id      = usize::from(TalkMessageSignatureId::from(&selector));
+            let old_resources   = self.instance_message_resources.remove(message_id);
 
             self.instance_message_resources.insert(message_id, smallvec![block.leak()]);
 
             // Add to the dispatch table for the cell class in the current context
             TalkContinuation::soon(move |context| {
+                // Release any old resources
+                if let Some(old_resources) = old_resources {
+                    // Clean up any old message that might be stored here
+                    old_resources.into_iter().for_each(|reference| reference.remove_reference(context));
+                }
+
+                // Define in the dispatch table
                 (message_handler.define_in_dispatch_table)(&mut context.get_callbacks_mut(cell_class_id).dispatch_table, selector.into(), instance_variables);
 
                 TalkValue::Nil.into()
