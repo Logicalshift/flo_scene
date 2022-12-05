@@ -99,7 +99,7 @@ impl TalkScriptClassClass {
     ///
     /// The parent_class reference is assumed to not be owned by this function
     ///
-    fn subclass(our_class_id: TalkClass, parent_class: TalkReference, superclass: &TalkScriptClass) -> TalkContinuation<'static> {
+    fn subclass(script_class_class: TalkClass, parent_class: TalkReference, superclass: &TalkScriptClass) -> TalkContinuation<'static> {
         // Read the superclass ID from the class data
         let new_superclass_id = superclass.class_id;
 
@@ -113,7 +113,7 @@ impl TalkScriptClassClass {
             parent_class_1.add_reference(context);
 
             // The 'new' message should generate a new script class reference
-            our_class_id.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
+            script_class_class.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
         }).and_then(move |new_class_reference| {
             // Set the superclass for this class
 
@@ -127,6 +127,26 @@ impl TalkScriptClassClass {
                 script_class.instance_variables.lock().unwrap().define_symbol(*TALK_SUPER);
 
                 new_class_reference
+            })
+        }).and_then(move |new_class_reference| {
+            // Call the superclass from the new class
+            TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class| {
+                let cell_class_id = script_class.class_id;
+
+                TalkContinuation::soon(move |context| {
+                    // Set the class dispatch table to call the superclass for an unsupported message
+                    let class_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).class_dispatch_table;
+
+                    class_dispatch_table.define_not_supported(move |_, msg, args, context| {
+                        if args.len() == 0 {
+                            new_superclass_id.send_message_in_context(TalkMessage::Unary(msg), context)
+                        } else {
+                            new_superclass_id.send_message_in_context(TalkMessage::WithArguments(msg, args.leak()), context)
+                        }
+                    });
+
+                    new_class_reference.into()
+                })
             })
         })
     }
