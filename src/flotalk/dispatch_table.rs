@@ -143,6 +143,15 @@ where
     }
 
     ///
+    /// Builder method that will set the action to take when an 'unsupported' message is sent to this dispatch table
+    ///
+    /// The default 'not supported' action is to return a MessageNotSupported error
+    ///
+    pub fn define_not_supported(&mut self, not_supported: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) {
+        self.not_supported = Arc::new(not_supported);
+    }
+
+    ///
     /// Returns true if this dispatch table has an entry for the specified message
     ///
     #[inline]
