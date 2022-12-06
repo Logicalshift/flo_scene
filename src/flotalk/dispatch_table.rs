@@ -22,6 +22,9 @@ where
 
     /// The action to take when a message is not supported
     not_supported: Arc<dyn Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>>,
+
+    /// Returns true if the specified message is not in the message action list but should also be considered as supported by this dispatch table (in particular, because the not_supported function implements it)
+    is_also_supported: Arc<dyn Send + Sync + Fn(TalkMessageSignatureId) -> bool>,
 }
 
 impl<TDataType> Clone for TalkMessageDispatchTable<TDataType>
@@ -30,8 +33,9 @@ where
 {
     fn clone(&self) -> Self {
         TalkMessageDispatchTable {
-            message_action: self.message_action.clone(),
-            not_supported:  self.not_supported.clone(),
+            message_action:     self.message_action.clone(),
+            not_supported:      self.not_supported.clone(),
+            is_also_supported:  self.is_also_supported.clone(),
         }
     }
 }
@@ -47,6 +51,7 @@ where
         TalkMessageDispatchTable {
             message_action:     TalkSparseArray::empty(),
             not_supported:      Arc::new(|_, id, _, _| TalkError::MessageNotSupported(id).into()),
+            is_also_supported:  Arc::new(|_| false),
         }
     }
 
@@ -143,7 +148,7 @@ where
     }
 
     ///
-    /// Builder method that will set the action to take when an 'unsupported' message is sent to this dispatch table
+    /// Set the action to take when an 'unsupported' message is sent to this dispatch table
     ///
     /// The default 'not supported' action is to return a MessageNotSupported error
     ///
@@ -152,11 +157,24 @@ where
     }
 
     ///
+    /// Set a function to determine if a message that is not in the main message table is supported by this table
+    ///
+    /// This is useful to make `responds_to()` return true for messages that are not in the dispatch table but are enabled by the 'not supported' callback.
+    ///
+    pub fn define_is_also_supported(&mut self, is_also_supported: impl 'static + Send + Sync + Fn(TalkMessageSignatureId) -> bool) {
+        self.is_also_supported = Arc::new(is_also_supported);
+    }
+
+    ///
     /// Returns true if this dispatch table has an entry for the specified message
     ///
     #[inline]
     pub fn responds_to(&self, message_id: impl Into<TalkMessageSignatureId>) -> bool {
         let message_id = message_id.into();
-        self.message_action.get(message_id.into()).is_some()
+        if self.message_action.get(message_id.into()).is_some() {
+            true
+        } else {
+            (self.is_also_supported)(message_id)
+        }
     }
 }
