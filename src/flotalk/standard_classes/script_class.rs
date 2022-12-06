@@ -381,10 +381,7 @@ impl TalkScriptClass {
                         TalkMessage::WithArguments(message_id, args)
                     };
 
-                    return TalkContinuation::soon(move |talk_context| {
-                        let class_dispatch_table  = &talk_context.get_callbacks(class_id).unwrap().class_dispatch_table;
-                        class_dispatch_table.send_message((), message, talk_context)
-                    })
+                    return class_dispatch_table.send_message((), message, talk_context);
                 }
             }
 
