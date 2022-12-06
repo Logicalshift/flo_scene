@@ -135,13 +135,20 @@ impl TalkScriptClassClass {
 
                 TalkContinuation::soon(move |context| {
                     // Set the class dispatch table to call the superclass for an unsupported message
-                    let class_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).class_dispatch_table;
+                    let instance_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).dispatch_table;
 
-                    class_dispatch_table.define_not_supported(move |_, msg, args, context| {
+                    instance_dispatch_table.define_not_supported(move |cell_block_reference, msg, args, context| {
+                        // As we know that the 'cell block' reference is has cell block handle, we can convert the data handle directly to a CellBlock
+                        let cell_block = TalkCellBlock(cell_block_reference.1.0 as _);
+
+                        // For classes with a superclass, the first value in the cell block is the superclass reference
+                        let superclass_ref = &context.cell_block(cell_block)[0];
+                        let superclass_ref = superclass_ref.clone_in_context(context);
+
                         if args.len() == 0 {
-                            new_superclass_id.send_message_in_context(TalkMessage::Unary(msg), context)
+                            superclass_ref.send_message_in_context(TalkMessage::Unary(msg), context)
                         } else {
-                            new_superclass_id.send_message_in_context(TalkMessage::WithArguments(msg, args.leak()), context)
+                            superclass_ref.send_message_in_context(TalkMessage::WithArguments(msg, args.leak()), context)
                         }
                     });
 
