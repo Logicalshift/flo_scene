@@ -118,7 +118,7 @@ impl TalkScriptClassClass {
             // Set the superclass for this class
 
             // TODO: if read_value errors, it will leak the parent class
-            TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class| {
+            TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class, _| {
                 // The script_class will release the superclass when it's released (matching the add_reference above)
                 script_class.superclass_id              = Some(new_superclass_id);
                 script_class.superclass_script_class    = Some(TalkValue::Reference(parent_class_2));
@@ -130,7 +130,7 @@ impl TalkScriptClassClass {
             })
         }).and_then(move |new_class_reference| {
             // Call the superclass from the new class
-            TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class| {
+            TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class, _| {
                 let cell_class_id = script_class.class_id;
 
                 TalkContinuation::soon(move |context| {
@@ -166,7 +166,7 @@ impl TalkScriptClassClass {
     fn subclass_with_instance_variables(our_class_id: TalkClass, parent_class: TalkReference, superclass: &TalkScriptClass, variables: TalkMessageSignature) -> TalkContinuation<'static> {
         Self::subclass(our_class_id, parent_class, superclass).and_then(move |new_class_reference| {
             // Set the symbol table for this class (the symbols in the message signature become the instance variables)
-            TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class| {
+            TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class, _| {
                 let mut instance_variables = script_class.instance_variables.lock().unwrap();
 
                 match variables {
@@ -357,7 +357,51 @@ impl TalkScriptClass {
 
             TalkError::MessageNotSupported(message_id).into()
         }
-    }                                                                                                                          
+    }
+
+    ///
+    /// Attempts to send a class message to this class or its superclass
+    ///
+    fn send_class_message(original_target: TalkReference, reference: TalkReference, class_id: TalkClass, message_id: TalkMessageSignatureId, args: SmallVec<[TalkValue; 4]>) -> TalkContinuation<'static> {
+        // TODO: this is a bit twisty so we could probably do with some better helper methods to clarify things
+        // This first tries to send to the dispatch table for the 'class_id' class
+        // If that fails, it tries to read the superclass and tries again
+        // If there's no superclass we then move to using a standard method from the original target
+        TalkContinuation::soon(move |talk_context| {
+            // Get the dispatch table for the current class ID
+            let class_dispatch_table = talk_context.get_callbacks(class_id).map(|callbacks| &callbacks.class_dispatch_table);
+
+            // Try to dispatch to this table
+            if let Some(class_dispatch_table) = class_dispatch_table {
+                if class_dispatch_table.responds_to(message_id) {
+                    // If the class dispatch table responds to the message, forward it there instead
+                    let message = if args.len() == 0 {
+                        TalkMessage::Unary(message_id)
+                    } else {
+                        TalkMessage::WithArguments(message_id, args)
+                    };
+
+                    return TalkContinuation::soon(move |talk_context| {
+                        let class_dispatch_table  = &talk_context.get_callbacks(class_id).unwrap().class_dispatch_table;
+                        class_dispatch_table.send_message((), message, talk_context)
+                    })
+                }
+            }
+
+            // Try to dispatch to the superclass
+            TalkContinuation::read_value::<TalkScriptClassClass, _>(TalkValue::Reference(reference), move |script_class, _| {
+                if let (Some(superclass_id), Some(TalkValue::Reference(superclass_reference))) = (&script_class.superclass_id, &script_class.superclass_script_class) {
+                    // Try to send to the original class
+                    Self::send_class_message(original_target, superclass_reference.clone(), superclass_id.clone(), message_id, args)
+                } else {
+                    // Not found (or with a non-script class superclass): process against the original message
+                    TalkContinuation::read_value::<TalkScriptClassClass, _>(TalkValue::Reference(original_target.clone()), move |script_class, talk_context| {
+                        script_class.process_standard_message(message_id, TalkOwned::new(args, talk_context), original_target)
+                    })
+                }
+            })
+        })
+    }
 }
 
 impl TalkClassDefinition for TalkScriptClassClass {
@@ -417,6 +461,9 @@ impl TalkClassDefinition for TalkScriptClassClass {
     /// Sends a message to an instance of this class
     ///
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
+        // First iterate through the superclasses until we find the result we need
+        let class_id = target.class_id;
+
         // Try to send to the dispatch table for the cell class
         let context         = args.context();
         let class_id        = target.class_id;
