@@ -458,32 +458,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
     /// Sends a message to an instance of this class
     ///
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
-        // First iterate through the superclasses until we find the result we need
-        let class_id = target.class_id;
-
-        // Try to send to the dispatch table for the cell class
-        let context         = args.context();
-        let class_id        = target.class_id;
-        let dispatch_table  = context.get_callbacks(class_id).map(|callbacks| &callbacks.class_dispatch_table);
-
-        // TODO: also check the superclass for class methods
-        if let Some(dispatch_table) = dispatch_table {
-            if dispatch_table.responds_to(message_id) {
-                // If the class dispatch table responds to the message, forward it there instead
-                let message = if args.len() == 0 {
-                    TalkMessage::Unary(message_id)
-                } else {
-                    TalkMessage::WithArguments(message_id, args.leak())
-                };
-
-                return TalkContinuation::soon(move |context| {
-                    let dispatch_table  = &context.get_callbacks(class_id).unwrap().class_dispatch_table;
-                    dispatch_table.send_message((), message, context)
-                })
-            }
-        }
-
-        target.process_standard_message(message_id, args, reference)
+        TalkScriptClass::send_class_message(reference.clone(), reference.clone(), target.class_id, message_id, args.leak())
     }
 }
 
