@@ -263,6 +263,101 @@ impl TalkScriptClass {
             TalkError::ExpectedBlockType.into()
         }
     }
+
+    ///
+    /// Processes a standard class message directed at a script class
+    ///
+    fn process_standard_message(&mut self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference) -> TalkContinuation<'static> {
+        // Predefined messages
+        if message_id == *TALK_MSG_SUBCLASS {
+
+            // Create a subclass of this class
+            TalkScriptClassClass::subclass(reference.class(), reference, self)
+
+        } else if message_id == *TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES {
+
+            // Create a subclass of this class with different instance variables
+            match args[0] {
+                TalkValue::Selector(args)   => TalkScriptClassClass::subclass_with_instance_variables(reference.class(), reference, self, args.to_signature()),
+                _                           => TalkError::NotASelector.into(),
+            }
+
+        } else if message_id == *TALK_MSG_ADD_INSTANCE_MESSAGE {
+
+            // Add an instance message for this class
+            let mut args = args;
+            match args[0] {
+                TalkValue::Selector(selector)   => self.add_instance_message(selector.to_signature(), TalkOwned::new(args[1].take(), args.context()), Arc::clone(&self.instance_variables)),
+                _                               => TalkError::NotASelector.into(),
+            }
+
+        } else if message_id == *TALK_MSG_ADD_CLASS_MESSAGE {
+
+            // Add a message to the class messages for this class
+            let mut args = args;
+            match args[0] {
+                TalkValue::Selector(selector)   => self.add_class_message(selector.to_signature(), TalkOwned::new(args[1].take(), args.context())),
+                _                               => TalkError::NotASelector.into(),
+            }
+
+        } else if message_id == *TALK_MSG_SUPERCLASS {
+
+            // Retrieve the superclass for this clas
+            if let Some(superclass) = &self.superclass_script_class {
+                let superclass = superclass.clone();
+                TalkContinuation::soon(move |context| superclass.clone_in_context(context).into())
+            } else {
+                TalkValue::Nil.into()
+            }
+
+        } else if message_id == *TALK_MSG_NEW {
+
+            // Create a new instance of this class (with empty instance variables)
+            let instance_size   = self.instance_variables.lock().unwrap().len();
+            let class_id        = self.class_id;
+
+            if let Some(superclass) = &self.superclass_script_class {
+                let superclass = superclass.clone();
+                TalkContinuation::soon(move |context| {
+                    // Send the 'new' message to the superclass
+                    superclass.add_reference(context);
+                    superclass.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
+                }).and_then_soon(move |superclass, context| {
+                    match superclass {
+                        TalkValue::Error(err)   => err.into(),
+                        _                       => {
+                            // Allocate space for this instance
+                            let cell_block = context.allocate_cell_block(instance_size);
+
+                            // The first value is always a reference to the superclass
+                            context.cell_block_mut(cell_block)[0] = superclass;
+
+                            // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
+                            let handle      = TalkDataHandle(cell_block.0 as _);
+                            let reference   = TalkReference(class_id, handle);
+
+                            TalkValue::Reference(reference).into()
+                        }
+                    }
+                })
+            } else {
+                TalkContinuation::soon(move |context| {
+                    // Allocate space for this instance
+                    let cell_block = context.allocate_cell_block(instance_size);
+
+                    // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
+                    let handle      = TalkDataHandle(cell_block.0 as _);
+                    let reference   = TalkReference(class_id, handle);
+
+                    TalkValue::Reference(reference).into()
+                })
+            }
+
+        } else {
+
+            TalkError::MessageNotSupported(message_id).into()
+        }
+    }                                                                                                                          
 }
 
 impl TalkClassDefinition for TalkScriptClassClass {
@@ -344,96 +439,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
             }
         }
 
-
-        // Predefined messages
-        if message_id == *TALK_MSG_SUBCLASS {
-
-            // Create a subclass of this class
-            Self::subclass(reference.class(), reference, target)
-
-        } else if message_id == *TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES {
-
-            // Create a subclass of this class with different instance variables
-            match args[0] {
-                TalkValue::Selector(args)   => Self::subclass_with_instance_variables(reference.class(), reference, target, args.to_signature()),
-                _                           => TalkError::NotASelector.into(),
-            }
-
-        } else if message_id == *TALK_MSG_ADD_INSTANCE_MESSAGE {
-
-            // Add an instance message for this class
-            let mut args = args;
-            match args[0] {
-                TalkValue::Selector(selector)   => target.add_instance_message(selector.to_signature(), TalkOwned::new(args[1].take(), args.context()), Arc::clone(&target.instance_variables)),
-                _                               => TalkError::NotASelector.into(),
-            }
-
-        } else if message_id == *TALK_MSG_ADD_CLASS_MESSAGE {
-
-            // Add a message to the class messages for this class
-            let mut args = args;
-            match args[0] {
-                TalkValue::Selector(selector)   => target.add_class_message(selector.to_signature(), TalkOwned::new(args[1].take(), args.context())),
-                _                               => TalkError::NotASelector.into(),
-            }
-
-        } else if message_id == *TALK_MSG_SUPERCLASS {
-
-            // Retrieve the superclass for this clas
-            if let Some(superclass) = &target.superclass_script_class {
-                let superclass = superclass.clone();
-                TalkContinuation::soon(move |context| superclass.clone_in_context(context).into())
-            } else {
-                TalkValue::Nil.into()
-            }
-
-        } else if message_id == *TALK_MSG_NEW {
-
-            // Create a new instance of this class (with empty instance variables)
-            let instance_size   = target.instance_variables.lock().unwrap().len();
-            let class_id        = target.class_id;
-
-            if let Some(superclass) = &target.superclass_script_class {
-                let superclass = superclass.clone();
-                TalkContinuation::soon(move |context| {
-                    // Send the 'new' message to the superclass
-                    superclass.add_reference(context);
-                    superclass.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
-                }).and_then_soon(move |superclass, context| {
-                    match superclass {
-                        TalkValue::Error(err)   => err.into(),
-                        _                       => {
-                            // Allocate space for this instance
-                            let cell_block = context.allocate_cell_block(instance_size);
-
-                            // The first value is always a reference to the superclass
-                            context.cell_block_mut(cell_block)[0] = superclass;
-
-                            // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
-                            let handle      = TalkDataHandle(cell_block.0 as _);
-                            let reference   = TalkReference(class_id, handle);
-
-                            TalkValue::Reference(reference).into()
-                        }
-                    }
-                })
-            } else {
-                TalkContinuation::soon(move |context| {
-                    // Allocate space for this instance
-                    let cell_block = context.allocate_cell_block(instance_size);
-
-                    // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
-                    let handle      = TalkDataHandle(cell_block.0 as _);
-                    let reference   = TalkReference(class_id, handle);
-
-                    TalkValue::Reference(reference).into()
-                })
-            }
-
-        } else {
-
-            TalkError::MessageNotSupported(message_id).into()
-        }
+        target.process_standard_message(message_id, args, reference)
     }
 }
 
