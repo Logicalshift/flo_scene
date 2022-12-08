@@ -4,6 +4,7 @@
 //! `flotalk` is a scripting language for `flo_scene`, based on SmallTalk-80.
 //!
 
+mod macros;
 mod instruction;
 mod expression;
 mod parser;
@@ -32,6 +33,7 @@ mod symbol_table;
 
 pub mod sparse_array;
 
+pub use self::macros::*;
 pub use self::instruction::*;
 pub use self::expression::*;
 pub use self::parser::*;
