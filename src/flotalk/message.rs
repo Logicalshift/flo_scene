@@ -59,6 +59,17 @@ pub enum TalkMessage {
 ///
 pub struct TalkSendMessage(pub TalkValue, pub TalkMessage);
 
+///
+/// Trait implemented by types that can be converted to and from `TalkMessage`s
+///
+pub trait TalkMessageType {
+    /// Converts a message to an object of this type
+    fn from_message(message: TalkMessage, context: &TalkContext) -> Self;
+
+    /// Converts an object of this type to a message
+    fn to_message(&self, context: &mut TalkContext) -> TalkMessage;
+}
+
 impl TalkMessage {
     ///
     /// The signature ID of this message
