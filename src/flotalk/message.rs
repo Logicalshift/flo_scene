@@ -163,9 +163,7 @@ impl TalkMessage {
             TalkMessage::WithArguments(_, args) => { context.release_values(args); }
         }
     }
-}
 
-impl TalkMessage {
     ///
     /// Converts a message to its signature
     ///
