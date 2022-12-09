@@ -1,4 +1,5 @@
 use super::context::*;
+use super::error::*;
 use super::expression::*;
 use super::symbol::*;
 use super::value::*;
@@ -64,7 +65,7 @@ pub struct TalkSendMessage(pub TalkValue, pub TalkMessage);
 ///
 pub trait TalkMessageType {
     /// Converts a message to an object of this type
-    fn from_message(message: TalkMessage, context: &TalkContext) -> Self;
+    fn from_message(message: TalkMessage, context: &TalkContext) -> Result<Self, TalkError>;
 
     /// Converts an object of this type to a message
     fn to_message(&self, context: &mut TalkContext) -> TalkMessage;
