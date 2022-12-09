@@ -16,6 +16,7 @@ mod context;
 mod class;
 mod reference;
 mod message;
+mod message_converters;
 mod continuation;
 mod runtime;
 mod error;
