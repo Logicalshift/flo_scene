@@ -2,6 +2,7 @@ use super::context::*;
 use super::error::*;
 use super::message::*;
 use super::reference::*;
+use super::releasable::*;
 use super::value::*;
 
 use std::sync::*;
@@ -13,8 +14,8 @@ lazy_static! {
 
 
 impl TalkMessageType for () {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
-        if let TalkMessage::Unary(_any_message) = message {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
+        if let TalkMessage::Unary(_any_message) = &*message {
             Ok(())
         } else {
             Err(TalkError::MessageNotSupported(message.signature_id()))
@@ -27,18 +28,24 @@ impl TalkMessageType for () {
 }
 
 impl TalkMessageType for TalkReference {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
-        if let TalkMessage::WithArguments(signature, mut args) = message {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, context: &'a TalkContext) -> Result<Self, TalkError> {
+        let signature = message.signature_id();
+
+        if let TalkMessage::WithArguments(_, mut args) = message.leak() {
             if args.len() == 1 {
                 match args[0].take() {
                     TalkValue::Reference(reference) => Ok(reference),
-                    _                               => Err(TalkError::NotAReference),
+                    _                               => {
+                        args.release_in_context(context);
+                        Err(TalkError::NotAReference)
+                    },
                 }
             } else {
+                args.release_in_context(context);
                 Err(TalkError::MessageNotSupported(signature))
             }
         } else {
-            Err(TalkError::MessageNotSupported(message.signature_id()))
+            Err(TalkError::MessageNotSupported(signature))
         }
     }
 
@@ -48,7 +55,7 @@ impl TalkMessageType for TalkReference {
 }
 
 impl TalkMessageType for TalkValue {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         unimplemented!()
     }
 
@@ -58,7 +65,7 @@ impl TalkMessageType for TalkValue {
 }
 
 impl TalkMessageType for bool {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         unimplemented!()
     }
 
@@ -68,7 +75,7 @@ impl TalkMessageType for bool {
 }
 
 impl TalkMessageType for i32 {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         unimplemented!()
     }
 
@@ -78,7 +85,7 @@ impl TalkMessageType for i32 {
 }
 
 impl TalkMessageType for i64 {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         unimplemented!()
     }
 
@@ -88,7 +95,7 @@ impl TalkMessageType for i64 {
 }
 
 impl TalkMessageType for f32 {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         unimplemented!()
     }
 
@@ -98,7 +105,7 @@ impl TalkMessageType for f32 {
 }
 
 impl TalkMessageType for f64 {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         unimplemented!()
     }
 
@@ -108,7 +115,7 @@ impl TalkMessageType for f64 {
 }
 
 impl TalkMessageType for &str {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         unimplemented!()
     }
 
@@ -118,7 +125,7 @@ impl TalkMessageType for &str {
 }
 
 impl TalkMessageType for String {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         unimplemented!()
     }
 
@@ -128,7 +135,7 @@ impl TalkMessageType for String {
 }
 
 impl TalkMessageType for Arc<String> {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         unimplemented!()
     }
 
@@ -138,7 +145,7 @@ impl TalkMessageType for Arc<String> {
 }
 
 impl TalkMessageType for char {
-    fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         unimplemented!()
     }
 
