@@ -63,7 +63,7 @@ pub struct TalkSendMessage(pub TalkValue, pub TalkMessage);
 ///
 /// Trait implemented by types that can be converted to and from `TalkMessage`s
 ///
-pub trait TalkMessageType {
+pub trait TalkMessageType : Sized {
     /// Converts a message to an object of this type
     fn from_message(message: TalkMessage, context: &TalkContext) -> Result<Self, TalkError>;
 
