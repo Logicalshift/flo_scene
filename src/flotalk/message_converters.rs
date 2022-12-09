@@ -30,6 +30,7 @@ impl TalkMessageType for () {
 }
 
 impl TalkMessageType for TalkReference {
+    /// Note: the reference must be released by the caller
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, context: &'a TalkContext) -> Result<Self, TalkError> {
         let signature = message.signature_id();
 
@@ -57,12 +58,24 @@ impl TalkMessageType for TalkReference {
 }
 
 impl TalkMessageType for TalkValue {
-    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
-        unimplemented!()
+    /// Note: the reference must be released by the caller
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, context: &'a TalkContext) -> Result<Self, TalkError> {
+        let signature = message.signature_id();
+
+        if let TalkMessage::WithArguments(_, mut args) = message.leak() {
+            if args.len() == 1 {
+                Ok(args[0].take())
+            } else {
+                args.release_in_context(context);
+                Err(TalkError::MessageNotSupported(signature))
+            }
+        } else {
+            Err(TalkError::MessageNotSupported(signature))
+        }
     }
 
-    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
-        unimplemented!()
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![self.clone_in_context(context)]), context)
     }
 }
 
