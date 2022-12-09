@@ -5,6 +5,8 @@ use super::reference::*;
 use super::releasable::*;
 use super::value::*;
 
+use smallvec::*;
+
 use std::sync::*;
 
 lazy_static! {
@@ -22,8 +24,8 @@ impl TalkMessageType for () {
         }
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
-        TalkMessage::Unary(*VALUE_MSG)
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::Unary(*VALUE_MSG), context)
     }
 }
 
@@ -49,8 +51,8 @@ impl TalkMessageType for TalkReference {
         }
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
-        unimplemented!()
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Reference(self.clone_in_context(context))]), context)
     }
 }
 
@@ -59,7 +61,7 @@ impl TalkMessageType for TalkValue {
         unimplemented!()
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
+    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
         unimplemented!()
     }
 }
@@ -69,7 +71,7 @@ impl TalkMessageType for bool {
         unimplemented!()
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
+    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
         unimplemented!()
     }
 }
@@ -79,7 +81,7 @@ impl TalkMessageType for i32 {
         unimplemented!()
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
+    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
         unimplemented!()
     }
 }
@@ -89,7 +91,7 @@ impl TalkMessageType for i64 {
         unimplemented!()
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
+    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
         unimplemented!()
     }
 }
@@ -99,7 +101,7 @@ impl TalkMessageType for f32 {
         unimplemented!()
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
+    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
         unimplemented!()
     }
 }
@@ -109,7 +111,7 @@ impl TalkMessageType for f64 {
         unimplemented!()
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
+    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
         unimplemented!()
     }
 }
@@ -119,7 +121,7 @@ impl TalkMessageType for &str {
         unimplemented!()
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
+    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
         unimplemented!()
     }
 }
@@ -129,7 +131,7 @@ impl TalkMessageType for String {
         unimplemented!()
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
+    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
         unimplemented!()
     }
 }
@@ -139,7 +141,7 @@ impl TalkMessageType for Arc<String> {
         unimplemented!()
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
+    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
         unimplemented!()
     }
 }
@@ -149,7 +151,7 @@ impl TalkMessageType for char {
         unimplemented!()
     }
 
-    fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
+    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
         unimplemented!()
     }
 }

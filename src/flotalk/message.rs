@@ -66,10 +66,10 @@ pub struct TalkSendMessage(pub TalkValue, pub TalkMessage);
 ///
 pub trait TalkMessageType : Sized {
     /// Converts a message to an object of this type
-    fn from_message(message: TalkMessage, context: &TalkContext) -> Result<Self, TalkError>;
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, context: &'a TalkContext) -> Result<Self, TalkError>;
 
     /// Converts an object of this type to a message
-    fn to_message(&self, context: &mut TalkContext) -> TalkMessage;
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage>;
 }
 
 ///
