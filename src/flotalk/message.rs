@@ -71,6 +71,44 @@ pub trait TalkMessageType : Sized {
     fn to_message(&self, context: &mut TalkContext) -> TalkMessage;
 }
 
+///
+/// A message signature describes a message
+///
+/// Signatures are usually used to generate message IDs, though they can be used for introspection of arbitrary messages.
+///
+/// ```
+/// # use flo_scene::flotalk::*;
+/// let signature   = TalkMessageSignature::unary("message");
+/// let id          = signature.id();
+/// let num_args    = signature.len();      // == 0
+/// # assert!(num_args == 0);
+/// ```
+///
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TalkMessageSignature {
+    Unary(TalkSymbol),
+    Arguments(SmallVec<[TalkSymbol; 4]>),
+}
+
+///
+/// A unique ID for a message signature
+///
+/// Every message in FloTalk is mapped to a unique ID, which can be used as a means to quickly match a message against its action. An important
+/// property of this is that every message ID has a fixed number of arguments, so it's generally not necessary to inspect signatures at runtime.
+///
+/// IDs are generated from signatures, but there are some convenience methods for converting other types into IDs.
+///
+/// ```
+/// # use flo_scene::flotalk::*;
+/// let message_id: TalkMessageSignatureId  = ("arg1:", "arg2:").into();
+/// let signature: TalkMessageSignature     = message_id.to_signature();
+/// let num_args                            = signature.len();          // == 2
+/// # debug_assert!(num_args == 2);
+/// ```
+///
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TalkMessageSignatureId(usize);
+
 impl TalkMessage {
     ///
     /// The signature ID of this message
@@ -126,44 +164,6 @@ impl TalkMessage {
         }
     }
 }
-
-///
-/// A message signature describes a message
-///
-/// Signatures are usually used to generate message IDs, though they can be used for introspection of arbitrary messages.
-///
-/// ```
-/// # use flo_scene::flotalk::*;
-/// let signature   = TalkMessageSignature::unary("message");
-/// let id          = signature.id();
-/// let num_args    = signature.len();      // == 0
-/// # assert!(num_args == 0);
-/// ```
-///
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum TalkMessageSignature {
-    Unary(TalkSymbol),
-    Arguments(SmallVec<[TalkSymbol; 4]>),
-}
-
-///
-/// A unique ID for a message signature
-///
-/// Every message in FloTalk is mapped to a unique ID, which can be used as a means to quickly match a message against its action. An important
-/// property of this is that every message ID has a fixed number of arguments, so it's generally not necessary to inspect signatures at runtime.
-///
-/// IDs are generated from signatures, but there are some convenience methods for converting other types into IDs.
-///
-/// ```
-/// # use flo_scene::flotalk::*;
-/// let message_id: TalkMessageSignatureId  = ("arg1:", "arg2:").into();
-/// let signature: TalkMessageSignature     = message_id.to_signature();
-/// let num_args                            = signature.len();          // == 2
-/// # debug_assert!(num_args == 2);
-/// ```
-///
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TalkMessageSignatureId(usize);
 
 impl TalkMessage {
     ///
