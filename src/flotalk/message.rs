@@ -1,6 +1,7 @@
 use super::context::*;
 use super::error::*;
 use super::expression::*;
+use super::releasable::*;
 use super::symbol::*;
 use super::value::*;
 
@@ -172,6 +173,16 @@ impl TalkMessage {
         match self {
             TalkMessage::Unary(id)                  => id.to_signature(),
             TalkMessage::WithArguments(id, _args)   => id.to_signature()
+        }
+    }
+}
+
+impl TalkReleasable for TalkMessage {
+    #[inline]
+    fn release_in_context(self, context: &TalkContext) {
+        match self {
+            TalkMessage::Unary(_)               => { }
+            TalkMessage::WithArguments(_, args) => args.release_in_context(context)
         }
     }
 }
