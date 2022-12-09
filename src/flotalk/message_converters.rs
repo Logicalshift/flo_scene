@@ -28,7 +28,18 @@ impl TalkMessageType for () {
 
 impl TalkMessageType for TalkReference {
     fn from_message(message: TalkMessage, _context: &TalkContext) -> Result<Self, TalkError> {
-        unimplemented!()
+        if let TalkMessage::WithArguments(signature, args) = message {
+            if args.len() == 1 {
+                match args[0] {
+                    TalkValue::Reference(reference) => Ok(reference),
+                    _                               => Err(TalkError::NotAReference),
+                }
+            } else {
+                Err(TalkError::MessageNotSupported(signature))
+            }
+        } else {
+            Err(TalkError::MessageNotSupported(message.signature_id()))
+        }
     }
 
     fn to_message(&self, _context: &mut TalkContext) -> TalkMessage {
