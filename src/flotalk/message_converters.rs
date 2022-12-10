@@ -79,92 +79,121 @@ impl TalkMessageType for TalkValue {
     }
 }
 
+#[inline]
+fn read_argument(msg: &TalkMessage) -> Result<&TalkValue, TalkError> {
+    if let TalkMessage::WithArguments(_, args) = msg {
+        if args.len() == 1 {
+            Ok(&args[0])
+        } else {
+            Err(TalkError::MessageNotSupported(msg.signature_id()))
+        }
+    } else {
+        Err(TalkError::MessageNotSupported(msg.signature_id()))
+    }
+}
+
 impl TalkMessageType for bool {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
-        unimplemented!()
+        match read_argument(&*message)? {
+            TalkValue::Bool(val)    => Ok(*val),
+            _                       => Err(TalkError::NotABoolean),
+        }
     }
 
-    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
-        unimplemented!()
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Bool(*self)]), context)
     }
 }
 
 impl TalkMessageType for i32 {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
-        unimplemented!()
+        match read_argument(&*message)? {
+            TalkValue::Int(val)     => Ok(*val as _),
+            _                       => Err(TalkError::NotABoolean),
+        }
     }
 
-    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
-        unimplemented!()
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Int(*self as _)]), context)
     }
 }
 
 impl TalkMessageType for i64 {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
-        unimplemented!()
+        match read_argument(&*message)? {
+            TalkValue::Int(val)     => Ok(*val as _),
+            _                       => Err(TalkError::NotABoolean),
+        }
     }
 
-    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
-        unimplemented!()
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Int(*self as _)]), context)
     }
 }
 
 impl TalkMessageType for f32 {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
-        unimplemented!()
+        match read_argument(&*message)? {
+            TalkValue::Int(val)     => Ok(*val as _),
+            TalkValue::Float(val)   => Ok(*val as _),
+            _                       => Err(TalkError::NotABoolean),
+        }
     }
 
-    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
-        unimplemented!()
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Float(*self as _)]), context)
     }
 }
 
 impl TalkMessageType for f64 {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
-        unimplemented!()
+        match read_argument(&*message)? {
+            TalkValue::Int(val)     => Ok(*val as _),
+            TalkValue::Float(val)   => Ok(*val as _),
+            _                       => Err(TalkError::NotABoolean),
+        }
     }
 
-    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
-        unimplemented!()
-    }
-}
-
-impl TalkMessageType for &str {
-    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
-        unimplemented!()
-    }
-
-    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
-        unimplemented!()
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Float(*self as _)]), context)
     }
 }
 
 impl TalkMessageType for String {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
-        unimplemented!()
+        match read_argument(&*message)? {
+            TalkValue::String(val)  => Ok((**val).clone()),
+            _                       => Err(TalkError::NotABoolean),
+        }
     }
 
-    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
-        unimplemented!()
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::String(Arc::new(self.clone()))]), context)
     }
 }
 
 impl TalkMessageType for Arc<String> {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
-        unimplemented!()
+        match read_argument(&*message)? {
+            TalkValue::String(val)  => Ok(val.clone()),
+            _                       => Err(TalkError::NotABoolean),
+        }
     }
 
-    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
-        unimplemented!()
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::String(self.clone())]), context)
     }
 }
 
 impl TalkMessageType for char {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
-        unimplemented!()
+        match read_argument(&*message)? {
+            TalkValue::Character(val)   => Ok(*val),
+            _                           => Err(TalkError::NotABoolean),
+        }
     }
 
-    fn to_message<'a>(&self, _context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
-        unimplemented!()
+    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Character(*self)]), context)
     }
 }
