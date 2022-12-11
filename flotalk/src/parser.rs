@@ -375,7 +375,7 @@ where
 
                 if let Some(chr) = self.peek().await {
                     // 'foo:bar:' parses as the selector 'foo: bar:'
-                    if !is_letter(chr) {
+                    if !is_letter(chr) && chr != ':' {
                         break;
                     }
                 } else {
