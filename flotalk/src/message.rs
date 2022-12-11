@@ -422,3 +422,50 @@ impl fmt::Debug for TalkMessageSignatureId {
         self.to_signature().fmt(fmt)
     }
 }
+
+///
+/// Single-parameter messages can be treated as TalkValues
+///
+impl TryFrom<TalkMessage> for TalkValue {
+    type Error = TalkError;
+
+    fn try_from(message: TalkMessage) -> Result<Self, TalkError> {
+        match message {
+            TalkMessage::Unary(_)                   => Err(TalkError::WrongNumberOfArguments),
+            TalkMessage::WithArguments(_, mut args) => {
+                if args.len() == 1 {
+                    Ok(args[0].take())
+                } else {
+                    Err(TalkError::WrongNumberOfArguments)
+                }
+            }
+        }
+    }
+}
+
+///
+/// Single-parameter messages can be treated as TalkValues
+///
+impl TalkValueType for &TalkMessage {
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        match self {
+            TalkMessage::Unary(_)               => Err(TalkError::WrongNumberOfArguments),
+            TalkMessage::WithArguments(_, args) => {
+                if args.len() == 1 {
+                    Ok(TalkOwned::new(args[0].clone_in_context(context), context))
+                } else {
+                    Err(TalkError::WrongNumberOfArguments)
+                }
+            }
+        }
+    }
+}
+
+///
+/// Single-parameter messages can be treated as TalkValues
+///
+impl TalkValueType for TalkMessage {
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(TalkValue::try_from(self)?, context))
+    }
+}

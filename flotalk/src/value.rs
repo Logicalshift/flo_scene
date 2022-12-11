@@ -19,6 +19,19 @@ use std::mem;
 use std::hash;
 
 ///
+/// Trait implemented by types that can be converted into a TalkValue
+///
+/// It's valid to implement `From<T>` alongside this trait, or this trait by itself: this trait is useful for the case where
+/// the conversion requires the use of the context or can generate an error.
+///
+pub trait TalkValueType {
+    ///
+    /// Tries to convert this item into a TalkValue
+    ///
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError>;
+}
+
+///
 /// The result of a FloTalk message
 ///
 /// Note that clonign a value does not increase the reference count for any data that's referenced. Use `clone_in_context()` for that.
@@ -399,5 +412,124 @@ impl TryFrom<TalkLiteral> for TalkValue {
 
     fn try_from(literal: TalkLiteral) -> Result<Self, TalkError> {
         TalkValue::try_from(&literal)
+    }
+}
+
+impl TalkValueType for () {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for TalkReference {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for bool {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for i32 {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for i64 {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for f32 {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for f64 {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for &str {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for String {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for Arc<String> {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for &Arc<String> {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for char {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for TalkNumber {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for TalkError {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(self.into(), context))
+    }
+}
+
+impl TalkValueType for &TalkLiteral {
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        Ok(TalkOwned::new(TalkValue::try_from(self)?, context))
+    }
+}
+
+impl<T> TalkValueType for Vec<T>
+where
+    T : TalkValueType,
+{
+    #[inline]
+    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+        let array = self.into_iter()
+            .map(|val| val.try_into_talk_value(context).map(|val| val.leak()))
+            .collect::<Result<Vec<_>, TalkError>>()?;
+
+        Ok(TalkOwned::new(TalkValue::Array(array), context))
     }
 }
