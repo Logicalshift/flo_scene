@@ -1,36 +1,10 @@
-[package]
-name            = "flo_scene"
-version         = "0.1.0"
-edition         = "2021"
-authors         = ["Andrew Hunter"]
-license         = "Apache-2.0"
-readme          = "README.md"
-repository      = "https://github.com/Logicalshift/flo_scene"
-description     = "Entity-messaging system for composing large programs from small programs"
-categories      = [ "concurrency", "data-structures" ]
-keywords        = [ "message-queue" ]
-
-[features]
-default         = [ "timer", "logging", "properties", "test-scene", "flotalk" ] 
-test-scene      = [ "futures-timer" ]
-timer           = [ "futures-timer" ]
-logging         = [ "log" ]
-properties      = [ "flo_binding", "flo_rope", "flo_stream", "lazy_static" ]
-flotalk         = [ "flo_stream", "lazy_static", "smallvec", "rand" ]
-
-[dependencies]
-futures         = "0.3"
-uuid            = { version = "1.0", features = [ "v4" ] }
-desync          = "0.9"
-futures-timer   = { version = "3.0", optional = true }
-flo_stream      = { version = "0.7", optional = true }
-flo_binding     = { version = "3.0", optional = true }
-flo_rope        = { version = "0.2", optional = true }
-log             = { version = "0.4", optional = true }
-lazy_static     = { version = "1.4", optional = true }
-smallvec        = { version = "1.10", optional = true }
-rand            = { version = "0.8", optional = true }
+[workspace]
+members     = [
+    "scene", 
+]
 
 [patch.crates-io]
-flo_binding     = { git = "https://github.com/Logicalshift/flo_binding", branch = "v3.0" }
-desync          = { git = "https://github.com/Logicalshift/desync", branch = "v0.9" }
+flo_scene               = { path = "./scene" }
+
+flo_binding             = { git = "https://github.com/Logicalshift/flo_binding", branch = "v3.0" }
+desync                  = { git = "https://github.com/Logicalshift/desync", branch = "v0.9" }
