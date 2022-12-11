@@ -40,6 +40,7 @@ lazy_static! {
 /// let message = TalkMessage::WithArguments(("arg1:", "arg2:").into(), smallvec![42.into(), "String".into()]);
 /// ```
 ///
+#[derive(Clone, PartialEq)]
 pub enum TalkMessage {
     /// A message with no arguments
     Unary(TalkMessageSignatureId),
@@ -420,6 +421,38 @@ impl fmt::Debug for TalkMessageSignature {
 impl fmt::Debug for TalkMessageSignatureId {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         self.to_signature().fmt(fmt)
+    }
+}
+
+impl fmt::Debug for TalkMessage {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            TalkMessage::Unary(signature_id)                => signature_id.fmt(fmt),
+            TalkMessage::WithArguments(signature_id, args)  => {
+                // Fetch the symbols making up the arguments
+                let signature = signature_id.to_signature();
+
+                let arg_symbols = match &signature {
+                    TalkMessageSignature::Unary(_)          => vec![],
+                    TalkMessageSignature::Arguments(args)   => args.iter().collect::<Vec<_>>(),
+                };
+
+                // Convert each argument to a message
+                for idx in 0..args.len() {
+                    if idx != 0 {
+                        fmt.write_str(" ")?;
+                    }
+
+                    if idx > arg_symbols.len() {
+                        fmt.write_fmt(format_args!("?: {:?}", args[idx]))?;
+                    } else {
+                        fmt.write_fmt(format_args!("{:?} {:?}", arg_symbols[idx], args[idx]))?;
+                    }
+                }
+
+                Ok(())
+            }
+        }
     }
 }
 
