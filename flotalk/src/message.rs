@@ -28,14 +28,14 @@ lazy_static! {
 /// Messages can be either unary (a call with no arguments):
 ///
 /// ```
-/// # use flo_scene::flotalk::*;
+/// # use flo_talk::*;
 /// let message = TalkMessage::Unary("message".into());
 /// ```
 ///
 /// Or they can supply some arguments, where the number of arguments must match the message signature ID:
 ///
 /// ```
-/// # use flo_scene::flotalk::*;
+/// # use flo_talk::*;
 /// # use smallvec::*;
 /// let message = TalkMessage::WithArguments(("arg1:", "arg2:").into(), smallvec![42.into(), "String".into()]);
 /// ```
@@ -54,7 +54,7 @@ pub enum TalkMessage {
 /// This is commonly used to create a continuation that will send the specified message:
 ///
 /// ```
-/// # use flo_scene::flotalk::*;
+/// # use flo_talk::*;
 /// # let some_value = TalkValue::Nil;
 /// let continuation = TalkContinuation::from(TalkSendMessage(some_value, TalkMessage::Unary("value".into())));
 /// ```
@@ -78,7 +78,7 @@ pub trait TalkMessageType : Sized {
 /// Signatures are usually used to generate message IDs, though they can be used for introspection of arbitrary messages.
 ///
 /// ```
-/// # use flo_scene::flotalk::*;
+/// # use flo_talk::*;
 /// let signature   = TalkMessageSignature::unary("message");
 /// let id          = signature.id();
 /// let num_args    = signature.len();      // == 0
@@ -100,7 +100,7 @@ pub enum TalkMessageSignature {
 /// IDs are generated from signatures, but there are some convenience methods for converting other types into IDs.
 ///
 /// ```
-/// # use flo_scene::flotalk::*;
+/// # use flo_talk::*;
 /// let message_id: TalkMessageSignatureId  = ("arg1:", "arg2:").into();
 /// let signature: TalkMessageSignature     = message_id.to_signature();
 /// let num_args                            = signature.len();          // == 2

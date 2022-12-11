@@ -13,14 +13,14 @@ use std::sync::*;
 /// Create a new allocator:
 ///
 /// ```
-/// # use flo_scene::flotalk::*;
+/// # use flo_talk::*;
 /// let allocator = TalkStandardAllocator::<usize>::empty();
 /// ```
 ///
 /// Store a value in the allocator (for example, from a 'new' class method)
 ///
 /// ```
-/// # use flo_scene::flotalk::*;
+/// # use flo_talk::*;
 /// # let mut allocator = TalkStandardAllocator::<usize>::empty();
 /// let handle = allocator.store(42);
 /// # let handle_2 = allocator.store(43);
