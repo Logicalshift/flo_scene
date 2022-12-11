@@ -7,6 +7,7 @@ members     = [
 [patch.crates-io]
 flo_scene               = { path = "./scene" }
 flo_talk                = { path = "./flotalk" }
+flo_talk_macros         = { path = "./flotalk_macros" }
 
 flo_binding             = { git = "https://github.com/Logicalshift/flo_binding", branch = "v3.0" }
 desync                  = { git = "https://github.com/Logicalshift/desync", branch = "v0.9" }

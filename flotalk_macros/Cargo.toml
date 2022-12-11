@@ -1,20 +1,16 @@
 [package]
-name            = "flo_talk"
+name            = "flo_talk_macros"
 version         = "0.1.0"
 edition         = "2021"
 authors         = ["Andrew Hunter"]
 license         = "Apache-2.0"
 readme          = "README.md"
 repository      = "https://github.com/Logicalshift/flo_scene"
-description     = "A scripting language for message passing applications, derived from SmallTalk and designed for use with the flo_scene crate"
+description     = "Macros for the flotalk language"
 categories      = [ "concurrency", "data-structures" ]
 keywords        = [ "flotalk", "smalltalk", "scripting" ]
 
-[dependencies]
-flo_talk_macros = "0.1"
-flo_stream      = "0.7"
+[lib]
+proc-macro      = true
 
-futures         = "0.3"
-lazy_static     = "1.4"
-smallvec        = "1.10"
-rand            = "0.8"
+[dependencies]

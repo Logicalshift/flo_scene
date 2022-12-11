@@ -73,11 +73,16 @@ name = "flo_talk"
 version = "0.1.0"
 dependencies = [
  "flo_stream",
+ "flo_talk_macros",
  "futures",
  "lazy_static",
  "rand",
  "smallvec",
 ]
+
+[[package]]
+name = "flo_talk_macros"
+version = "0.1.0"
 
 [[package]]
 name = "futures"
