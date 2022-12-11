@@ -70,7 +70,7 @@ pub trait TalkMessageType : Sized {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, context: &'a TalkContext) -> Result<Self, TalkError>;
 
     /// Converts an object of this type to a message
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage>;
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage>;
 }
 
 ///

@@ -24,7 +24,7 @@ impl TalkMessageType for () {
         }
     }
 
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::Unary(*VALUE_MSG), context)
     }
 }
@@ -52,7 +52,7 @@ impl TalkMessageType for TalkReference {
         }
     }
 
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Reference(self.clone_in_context(context))]), context)
     }
 }
@@ -74,7 +74,7 @@ impl TalkMessageType for TalkValue {
         }
     }
 
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![self.clone_in_context(context)]), context)
     }
 }
@@ -100,7 +100,7 @@ impl TalkMessageType for bool {
         }
     }
 
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Bool(*self)]), context)
     }
 }
@@ -113,7 +113,7 @@ impl TalkMessageType for i32 {
         }
     }
 
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Int(*self as _)]), context)
     }
 }
@@ -126,7 +126,7 @@ impl TalkMessageType for i64 {
         }
     }
 
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Int(*self as _)]), context)
     }
 }
@@ -140,7 +140,7 @@ impl TalkMessageType for f32 {
         }
     }
 
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Float(*self as _)]), context)
     }
 }
@@ -154,7 +154,7 @@ impl TalkMessageType for f64 {
         }
     }
 
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Float(*self as _)]), context)
     }
 }
@@ -167,7 +167,7 @@ impl TalkMessageType for String {
         }
     }
 
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::String(Arc::new(self.clone()))]), context)
     }
 }
@@ -180,7 +180,7 @@ impl TalkMessageType for Arc<String> {
         }
     }
 
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::String(self.clone())]), context)
     }
 }
@@ -193,7 +193,7 @@ impl TalkMessageType for char {
         }
     }
 
-    fn to_message<'a>(&self, context: &'a mut TalkContext) -> TalkOwned<'a, TalkMessage> {
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Character(*self)]), context)
     }
 }
