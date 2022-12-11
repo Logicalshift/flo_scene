@@ -1,4 +1,4 @@
-use flo_scene::flotalk::*;
+use flo_talk::*;
 
 use futures::prelude::*;
 use futures::pin_mut;

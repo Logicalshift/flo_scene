@@ -1,4 +1,4 @@
-use flo_scene::flotalk::*;
+use flo_talk::*;
 
 use futures::stream;
 use futures::executor;

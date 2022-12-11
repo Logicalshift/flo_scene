@@ -1,4 +1,4 @@
-use flo_scene::flotalk::*;
+use flo_talk::*;
 
 use smallvec::*;
 use futures::executor;

@@ -99,7 +99,6 @@
 //!
 
 #[cfg(any(feature="properties", feature="flotalk"))] #[macro_use] extern crate lazy_static;
-#[cfg(any(feature="flotalk"))] #[macro_use] extern crate smallvec;
 
 mod error;
 mod scene;
@@ -134,4 +133,4 @@ pub use self::standard_components::*;
 #[cfg(feature="test-scene")] pub use self::ergonomics::test;
 #[cfg(feature="properties")] pub use flo_binding as binding;
 #[cfg(feature="properties")] pub use flo_rope as rope;
-#[cfg(feature="flotalk")] pub mod flotalk;
+#[cfg(feature="flotalk")] pub use flo_talk as flotalk;

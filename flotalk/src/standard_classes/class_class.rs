@@ -1,13 +1,13 @@
-use crate::flotalk::class::*;
-use crate::flotalk::context::*;
-use crate::flotalk::continuation::*;
-use crate::flotalk::dispatch_table::*;
-use crate::flotalk::error::*;
-use crate::flotalk::message::*;
-use crate::flotalk::reference::*;
-use crate::flotalk::releasable::*;
-use crate::flotalk::value::*;
-use crate::flotalk::value_messages::*;
+use crate::class::*;
+use crate::context::*;
+use crate::continuation::*;
+use crate::dispatch_table::*;
+use crate::error::*;
+use crate::message::*;
+use crate::reference::*;
+use crate::releasable::*;
+use crate::value::*;
+use crate::value_messages::*;
 
 use smallvec::*;
 

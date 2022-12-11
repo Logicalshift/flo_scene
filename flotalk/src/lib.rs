@@ -4,6 +4,8 @@
 //! `flotalk` is a scripting language for `flo_scene`, based on SmallTalk-80.
 //!
 
+#[macro_use] extern crate lazy_static;
+
 mod macros;
 mod instruction;
 mod expression;

@@ -1,0 +1,18 @@
+[package]
+name            = "flo_talk"
+version         = "0.1.0"
+edition         = "2021"
+authors         = ["Andrew Hunter"]
+license         = "Apache-2.0"
+readme          = "README.md"
+repository      = "https://github.com/Logicalshift/flo_scene"
+description     = "A scripting language for message passing applications, derived from SmallTalk and designed for use with the flo_scene crate"
+categories      = [ "concurrency", "data-structures" ]
+keywords        = [ "flotalk", "smalltalk", "scripting" ]
+
+[dependencies]
+futures         = "0.3"
+flo_stream      = "0.7"
+lazy_static     = "1.4"
+smallvec        = "1.10"
+rand            = "0.8"

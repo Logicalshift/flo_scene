@@ -1,4 +1,4 @@
-use flo_scene::flotalk::sparse_array::*;
+use flo_talk::sparse_array::*;
 
 #[test]
 fn retrieve_nothing() {

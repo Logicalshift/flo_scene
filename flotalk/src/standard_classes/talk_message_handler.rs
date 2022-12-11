@@ -1,8 +1,8 @@
-use crate::flotalk::dispatch_table::*;
-use crate::flotalk::message::*;
-use crate::flotalk::reference::*;
-use crate::flotalk::symbol_table::*;
-use crate::flotalk::value::*;
+use crate::dispatch_table::*;
+use crate::message::*;
+use crate::reference::*;
+use crate::symbol_table::*;
+use crate::value::*;
 
 use std::sync::*;
 

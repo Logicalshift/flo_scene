@@ -1,18 +1,18 @@
 use super::talk_message_handler::*;
 
-use crate::flotalk::allocator::*;
-use crate::flotalk::class::*;
-use crate::flotalk::context::*;
-use crate::flotalk::continuation::*;
-use crate::flotalk::error::*;
-use crate::flotalk::message::*;
-use crate::flotalk::reference::*;
-use crate::flotalk::releasable::*;
-use crate::flotalk::symbol::*;
-use crate::flotalk::symbol_table::*;
-use crate::flotalk::sparse_array::*;
-use crate::flotalk::value::*;
-use crate::flotalk::value_messages::*;
+use crate::allocator::*;
+use crate::class::*;
+use crate::context::*;
+use crate::continuation::*;
+use crate::error::*;
+use crate::message::*;
+use crate::reference::*;
+use crate::releasable::*;
+use crate::symbol::*;
+use crate::symbol_table::*;
+use crate::sparse_array::*;
+use crate::value::*;
+use crate::value_messages::*;
 
 use smallvec::*;
 

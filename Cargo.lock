@@ -49,12 +49,11 @@ dependencies = [
  "flo_binding",
  "flo_rope",
  "flo_stream",
+ "flo_talk",
  "futures",
  "futures-timer",
  "lazy_static",
  "log",
- "rand",
- "smallvec",
  "uuid",
 ]
 
@@ -66,6 +65,17 @@ checksum = "0a7246db09b6a924fb11fedc1e33c34e6d5d0ba3c95a87cd2994f9581cf5a470"
 dependencies = [
  "futures",
  "lazy_static",
+ "smallvec",
+]
+
+[[package]]
+name = "flo_talk"
+version = "0.1.0"
+dependencies = [
+ "flo_stream",
+ "futures",
+ "lazy_static",
+ "rand",
  "smallvec",
 ]
 

@@ -1,4 +1,4 @@
-use flo_scene::flotalk::*;
+use flo_talk::*;
 
 #[test]
 fn allocate_cells() {
