@@ -3,15 +3,15 @@ use futures::future;
 use futures::task;
 use futures::task::{Waker, Poll};
 
+use once_cell::sync::{Lazy};
+
 use std::cell::*;
 use std::collections::{VecDeque};
 use std::ops::{Deref, DerefMut};
 use std::sync::*;
 use std::sync::atomic::{Ordering, AtomicUsize};
 
-lazy_static! {
-    static ref NEXT_TICKET_ID: AtomicUsize = AtomicUsize::new(0); 
-}
+static NEXT_TICKET_ID: Lazy<AtomicUsize> = Lazy::new(|| AtomicUsize::new(0));
 
 ///
 /// A ticket is a unique identifier for a lock that's waiting to be created

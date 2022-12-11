@@ -1,22 +1,20 @@
 use super::parser::*;
 
+use once_cell::sync::{Lazy};
+
 use std::collections::{HashMap};
 use std::fmt;
 use std::sync::*;
 
-lazy_static! {
-    static ref SYMBOL_VALUES: Mutex<HashMap<&'static str, TalkSymbol>>  = Mutex::new(HashMap::new());
-    static ref SYMBOL_NAMES: Mutex<HashMap<TalkSymbol, &'static str>>   = Mutex::new(HashMap::new());
-    static ref NEXT_SYMBOL_ID: Mutex<usize>                             = Mutex::new(0);
-}
+static SYMBOL_VALUES: Lazy<Mutex<HashMap<&'static str, TalkSymbol>>>    = Lazy::new(|| Mutex::new(HashMap::new()));
+static SYMBOL_NAMES: Lazy<Mutex<HashMap<TalkSymbol, &'static str>>>     = Lazy::new(|| Mutex::new(HashMap::new()));
+static NEXT_SYMBOL_ID: Lazy<Mutex<usize>>                               = Lazy::new(|| Mutex::new(0));
 
-lazy_static! {
-    /// The 'self' symbol
-    pub static ref TALK_SELF: TalkSymbol = "self".into();
+/// The 'self' symbol
+pub static TALK_SELF: Lazy<TalkSymbol> = Lazy::new(|| "self".into());
 
-    /// The 'super' symbol
-    pub static ref TALK_SUPER: TalkSymbol = "super".into();
-}
+/// The 'super' symbol
+pub static TALK_SUPER: Lazy<TalkSymbol> = Lazy::new(|| "super".into());
 
 ///
 /// A unique identifier for a FloTalk symbol

@@ -3,6 +3,8 @@ use super::location::*;
 use super::message::*;
 use super::symbol::*;
 
+use once_cell::sync::{Lazy};
+
 use std::sync::*;
 
 ///
@@ -169,10 +171,7 @@ impl TalkExpression {
     pub fn to_instructions(self) -> Vec<TalkInstruction<TalkLiteral, TalkSymbol>> {
         use TalkExpression::*;
 
-        lazy_static! {
-            /// Temporary storage used to store the 'primary' in a cascaded expression
-            static ref CASCADE_PRIMARY_RESULT: TalkSymbol = TalkSymbol::new_unnamed(); 
-        }
+        static CASCADE_PRIMARY_RESULT: Lazy<TalkSymbol> = Lazy::new(|| TalkSymbol::new_unnamed());
 
         match self {
             Empty                               => vec![TalkInstruction::LoadNil],

@@ -6,14 +6,12 @@ use super::releasable::*;
 use super::value::*;
 
 use smallvec::*;
+use once_cell::sync::{Lazy};
 
 use std::sync::*;
 
-lazy_static! {
-    static ref VALUE_MSG: TalkMessageSignatureId        = "value".into();
-    static ref VALUE_COLON_MSG: TalkMessageSignatureId  = "value:".into();
-}
-
+static VALUE_MSG: Lazy<TalkMessageSignatureId>        = Lazy::new(|| "value".into());
+static VALUE_COLON_MSG: Lazy<TalkMessageSignatureId>  = Lazy::new(|| "value:".into());
 
 impl TalkMessageType for () {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {

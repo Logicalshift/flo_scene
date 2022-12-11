@@ -15,19 +15,18 @@ use crate::symbol_table::*;
 use crate::value::*;
 
 use smallvec::*;
+use once_cell::sync::{Lazy};
 
 use std::any::{TypeId};
 use std::collections::{HashMap};
 use std::marker::{PhantomData};
 use std::sync::*;
 
-lazy_static! {
-    /// Maps the type IDs of the value and symbol type to the TalkClass that implements the SimpleEvaluatorClass for that ID type
-    static ref SIMPLE_EVALUATOR_CLASS: Mutex<HashMap<(TypeId, TypeId), TalkClass>> = Mutex::new(HashMap::new());
+/// Maps the type IDs of the value and symbol type to the TalkClass that implements the SimpleEvaluatorClass for that ID type
+static SIMPLE_EVALUATOR_CLASS: Lazy<Mutex<HashMap<(TypeId, TypeId), TalkClass>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
-    static ref VALUE_SYMBOL: TalkSymbol         = TalkSymbol::from("value");
-    static ref VALUE_COLON_SYMBOL: TalkSymbol   = TalkSymbol::from("value:");
-}
+static VALUE_SYMBOL: Lazy<TalkSymbol>       = Lazy::new(|| TalkSymbol::from("value"));
+static VALUE_COLON_SYMBOL: Lazy<TalkSymbol> = Lazy::new(|| TalkSymbol::from("value:"));
 
 ///
 /// Class that represents a block evaluated by the simple evaluator

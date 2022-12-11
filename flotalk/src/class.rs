@@ -10,6 +10,7 @@ use super::value_messages::*;
 
 use futures::prelude::*;
 use smallvec::*;
+use once_cell::sync::{Lazy};
 
 use std::any::*;
 use std::cell::*;
@@ -33,20 +34,20 @@ use std::collections::{HashMap};
 // of something, then it's more likely that FloTalk is being misused in that situation.
 //
 
-lazy_static! {
-    /// The ID to assign to the next class that is created
-    static ref NEXT_CLASS_ID: Mutex<usize>                                      = Mutex::new(0);
+/// The ID to assign to the next class that is created
+static NEXT_CLASS_ID: Lazy<Mutex<usize>>                                        = Lazy::new(|| Mutex::new(0));
 
-    /// A vector containing the boxed class definitions (as an Arc<TClassDefinition>), indexed by class ID
-    static ref CLASS_DEFINITIONS: Mutex<Vec<Option<Box<dyn Send + Any>>>>       = Mutex::new(vec![]);
+/// A vector containing the boxed class definitions (as an Arc<TClassDefinition>), indexed by class ID
+static CLASS_DEFINITIONS: Lazy<Mutex<Vec<Option<Box<dyn Send + Any>>>>>         = Lazy::new(|| Mutex::new(vec![]));
 
-    /// A vector containing the callbacks for each class, indexed by class ID (callbacks can be used without knowing the underlying types)
-    static ref CLASS_CALLBACKS: Mutex<Vec<Option<&'static TalkClassCallbacks>>> = Mutex::new(vec![]);
+/// A vector containing the callbacks for each class, indexed by class ID (callbacks can be used without knowing the underlying types)
+static CLASS_CALLBACKS: Lazy<Mutex<Vec<Option<&'static TalkClassCallbacks>>>>   = Lazy::new(|| Mutex::new(vec![]));
 
-    /// A hashmap containing data conversions for fetching the values stored for a particular class (class definition type -> target type -> converter function)
-    /// The converter function returns a Box<Any> that contains an Option<TargetType> (we use an option so the result can be extracted from the box)
-    static ref CLASS_DATA_READERS: Mutex<HashMap<TypeId, HashMap<TypeId, Box<dyn Send + Fn(&mut Box<dyn Any>) -> Box<dyn Any>>>>> = Mutex::new(HashMap::new());
-}
+/// A hashmap containing data conversions for fetching the values stored for a particular class (class definition type -> target type -> converter function)
+/// The converter function returns a Box<Any> that contains an Option<TargetType> (we use an option so the result can be extracted from the box)
+static CLASS_DATA_READERS: Lazy<Mutex<HashMap<TypeId, HashMap<TypeId, Box<dyn Send + Fn(&mut Box<dyn Any>) -> Box<dyn Any>>>>>>
+    = Lazy::new(|| Mutex::new(HashMap::new()));
+
 
 thread_local! {
     static LOCAL_CLASS_CALLBACKS: RefCell<Vec<Option<&'static TalkClassCallbacks>>> = RefCell::new(vec![]);

@@ -75,7 +75,7 @@ dependencies = [
  "flo_stream",
  "flo_talk_macros",
  "futures",
- "lazy_static",
+ "once_cell",
  "rand",
  "smallvec",
 ]

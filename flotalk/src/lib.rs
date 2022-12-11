@@ -4,8 +4,6 @@
 //! `flotalk` is a scripting language for `flo_scene`, based on SmallTalk-80.
 //!
 
-#[macro_use] extern crate lazy_static;
-
 #[allow(unused_imports)]
 #[macro_use] extern crate flo_talk_macros;
 
@@ -62,3 +60,4 @@ pub use self::read_write_queue::*;
 pub use self::symbol_table::*;
 
 #[doc(hidden)] pub use flo_talk_macros::*;
+#[doc(hidden)] pub use once_cell;

@@ -6,21 +6,20 @@ use super::symbol::*;
 use super::value::*;
 
 use smallvec::*;
+use once_cell::sync::{Lazy};
 
 use std::fmt;
 use std::sync::*;
 use std::collections::{HashMap};
 
-lazy_static! {
-    /// The ID to assign to the next message signature
-    static ref NEXT_SIGNATURE_ID: Mutex<usize>                                                  = Mutex::new(0);
+/// The ID to assign to the next message signature
+static NEXT_SIGNATURE_ID: Lazy<Mutex<usize>>                                                  = Lazy::new(|| Mutex::new(0));
 
-    /// Maps between signatures and their IDs
-    static ref ID_FOR_SIGNATURE: Mutex<HashMap<TalkMessageSignature, TalkMessageSignatureId>>   = Mutex::new(HashMap::new());
+/// Maps between signatures and their IDs
+static ID_FOR_SIGNATURE: Lazy<Mutex<HashMap<TalkMessageSignature, TalkMessageSignatureId>>>   = Lazy::new(|| Mutex::new(HashMap::new()));
 
-    /// Maps between IDs and signatures
-    static ref SIGNATURE_FOR_ID: Mutex<HashMap<TalkMessageSignatureId, TalkMessageSignature>>   = Mutex::new(HashMap::new());
-}
+/// Maps between IDs and signatures
+static SIGNATURE_FOR_ID: Lazy<Mutex<HashMap<TalkMessageSignatureId, TalkMessageSignature>>>   = Lazy::new(|| Mutex::new(HashMap::new()));
 
 ///
 /// Represents a FloTalk message

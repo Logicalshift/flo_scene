@@ -5,14 +5,14 @@ use super::standard_classes::*;
 use super::value::*;
 use super::value_messages::*;
 
+use once_cell::sync::{Lazy};
+
 use std::sync::*;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-lazy_static! {
-    /// All of the cell block classes that have been registered (we want to re-use class IDs between contexts so that the number of class 
-    /// IDs in existence doesn't keep growing when new contexts are allocated and run scripts)
-    static ref CELL_BLOCK_CLASSES: Mutex<Vec<TalkClass>> = Mutex::new(vec![]);
-}
+/// All of the cell block classes that have been registered (we want to re-use class IDs between contexts so that the number of class 
+/// IDs in existence doesn't keep growing when new contexts are allocated and run scripts)
+static CELL_BLOCK_CLASSES: Lazy<Mutex<Vec<TalkClass>>> = Lazy::new(|| Mutex::new(vec![]));
 
 ///
 /// Class that has been declare

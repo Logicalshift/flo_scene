@@ -15,25 +15,24 @@ use crate::value::*;
 use crate::value_messages::*;
 
 use smallvec::*;
+use once_cell::sync::{Lazy};
 
 use std::sync::*;
 
-lazy_static! {
-    /// `NewClass := Object subclass` will define a new class by subclassing Object. The new class will have no instance variables
-    pub static ref TALK_MSG_SUBCLASS: TalkMessageSignatureId = "subclass".into();
+/// `NewClass := Object subclass` will define a new class by subclassing Object. The new class will have no instance variables
+pub static TALK_MSG_SUBCLASS: Lazy<TalkMessageSignatureId> = Lazy::new(|| "subclass".into());
 
-    /// `NewClass := Object subclassWithInstanceVariables: #foo:bar:` will create a new class by subclassing object, with the instance variables 'foo' and 'bar'
-    pub static ref TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES: TalkMessageSignatureId = "subclassWithInstanceVariables:".into();
+/// `NewClass := Object subclassWithInstanceVariables: #foo:bar:` will create a new class by subclassing object, with the instance variables 'foo' and 'bar'
+pub static TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES: Lazy<TalkMessageSignatureId> = Lazy::new(|| "subclassWithInstanceVariables:".into());
 
-    /// `NewClass addInstanceMessage: #instanceMessage: withAction: [:arg :self :super | arg + 1]` defines an instance message that works by sending a message to a block
-    pub static ref TALK_MSG_ADD_INSTANCE_MESSAGE: TalkMessageSignatureId = ("addInstanceMessage:", "withAction:").into();
+/// `NewClass addInstanceMessage: #instanceMessage: withAction: [:arg :self :super | arg + 1]` defines an instance message that works by sending a message to a block
+pub static TALK_MSG_ADD_INSTANCE_MESSAGE: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("addInstanceMessage:", "withAction:").into());
 
-    /// `NewClass addClassMessage: #instanceMessage: withAction: [:arg :self :super | arg + 1]` defines a class message that works by sending a message to a block. Instance variables are bound to the block by this call.
-    pub static ref TALK_MSG_ADD_CLASS_MESSAGE: TalkMessageSignatureId = ("addClassMessage:", "withAction:").into();
+/// `NewClass addClassMessage: #instanceMessage: withAction: [:arg :self :super | arg + 1]` defines a class message that works by sending a message to a block. Instance variables are bound to the block by this call.
+pub static TALK_MSG_ADD_CLASS_MESSAGE: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("addClassMessage:", "withAction:").into());
 
-    /// The 'class of classes', used for creating the scriptable classes like 'Object' and its subclasses
-    pub static ref SCRIPT_CLASS_CLASS: TalkClass = TalkClass::create(TalkScriptClassClass);
-}
+/// The 'class of classes', used for creating the scriptable classes like 'Object' and its subclasses
+pub static SCRIPT_CLASS_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkScriptClassClass));
 
 ///
 /// This class is a factory for other classes: it creates TalkScriptClass objects

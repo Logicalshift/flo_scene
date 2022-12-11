@@ -10,15 +10,13 @@ use crate::value::*;
 use crate::value_messages::*;
 
 use smallvec::*;
+use once_cell::sync::{Lazy};
 
 use std::sync::*;
 
 // TODO: we could store a pool of classes that can be used to create custom classes in the allocator and make this where new classes are created
 
-lazy_static! {
-    static ref CLASS_CLASS: TalkClass = TalkClass::create(TalkClassClass);
-
-}
+static CLASS_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkClassClass));
 
 ///
 /// The class representing a FloTalk class
