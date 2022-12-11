@@ -1,6 +1,7 @@
 #[macro_use] extern crate quote;
 
 use proc_macro::{TokenStream};
+use proc_macro2;
 use proc_macro2::{Span};
 use syn;
 use syn::{Ident, Generics, Data, DataEnum, DataStruct};
@@ -11,7 +12,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 ///
 /// Creates a static value for a symbol with a unique ID
 ///
-fn symbol_static(name: &str) -> (TokenStream, Ident) {
+fn symbol_static(name: &str) -> (proc_macro2::TokenStream, Ident) {
     // All symbol types have a unique ID (we call them SYMBOL_x later on)
     static NEXT_SYMBOL_ID: Lazy<AtomicU64> = Lazy::new(|| { AtomicU64::new(0) });
 
@@ -23,7 +24,32 @@ fn symbol_static(name: &str) -> (TokenStream, Ident) {
 
     // Create the declaration, using the version of once_cell linked from flo_talk
     let declaration = quote! { 
-        static #symbol_id: ::flo_talk::once_cell::Lazy<::flo_talk::TalkSymbol> = ::flo_talk::once_cell::Lazy::new(|| ::flo_talk::TalkSymbol::from(#name))
+        static #symbol_id: ::flo_talk::once_cell::sync::Lazy<::flo_talk::TalkSymbol> = ::flo_talk::once_cell::sync::Lazy::new(|| ::flo_talk::TalkSymbol::from(#name));
+    };
+
+    (declaration.into(), symbol_id)
+}
+
+///
+/// Creates a static value for a message signature
+///
+fn message_signature_static(symbols: Vec<&str>) -> (proc_macro2::TokenStream, Ident) {
+    // All symbol types have a unique ID (we call them MSG_SIG_X later on)
+    static NEXT_MESSAGE_ID: Lazy<AtomicU64> = Lazy::new(|| { AtomicU64::new(0) });
+
+    // Assign a new ID to this symbol
+    let next_id = NEXT_MESSAGE_ID.fetch_add(1, Ordering::Relaxed);
+
+    // Create an ident for this symbol
+    let symbol_id = Ident::new(&format!("MSG_SIG_{}", next_id), Span::call_site());
+
+    // Create the declaration, using the version of once_cell linked from flo_talk
+    let declaration = quote! { 
+        static #symbol_id: ::flo_talk::once_cell::sync::Lazy<::flo_talk::TalkMessageSignatureId> = ::flo_talk::once_cell::sync::Lazy::new(|| 
+            vec![
+                #(::flo_talk::TalkSymbol::from(#symbols)),*
+            ].into()
+        );
     };
 
     (declaration.into(), symbol_id)
@@ -35,11 +61,15 @@ fn symbol_static(name: &str) -> (TokenStream, Ident) {
 fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
+    let msg = message_signature_static(vec!["test1:", "test2:"]).0;
+
     // An enum value like 'Int(i64)' is converted to a message 'withInt: 64'
     let talk_message_type = quote! {
         impl #impl_generics ::flo_talk::TalkMessageType for #name #where_clause {
             /// Converts a message to an object of this type
             fn from_message<'a>(message: ::flo_talk::TalkOwned<'a, ::flo_talk::TalkMessage>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+                #msg
+
                 todo!()
             }
 
