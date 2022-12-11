@@ -9,7 +9,6 @@
 #[allow(unused_imports)]
 #[macro_use] extern crate flo_talk_macros;
 
-mod macros;
 mod instruction;
 mod expression;
 mod parser;
@@ -39,7 +38,6 @@ mod symbol_table;
 
 pub mod sparse_array;
 
-pub use self::macros::*;
 pub use self::instruction::*;
 pub use self::expression::*;
 pub use self::parser::*;
