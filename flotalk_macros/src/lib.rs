@@ -105,7 +105,7 @@ fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
             field_count     = unnamed_fields.unnamed.len();
             let field_names = (0..field_count).into_iter().map(|idx| Ident::new(&format!("v{}", idx), variant.span()));
 
-            quote_spanned! { variant.span() => #name::#variant_name(#(#field_names)*,) }
+            quote_spanned! { variant.span() => #name::#variant_name(#(#field_names),*) }
         }
 
         Fields::Unit => {
@@ -130,7 +130,7 @@ fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
         quote_spanned! { variant.span() => #match_fields => {
                 #signature
 
-                ::flo_talk::TalkMessage::WithArguments(*#signature_ident, smallvec![#(#field_names)*.try_into_talk_value(context).unwrap().leak(),])
+                ::flo_talk::TalkMessage::WithArguments(*#signature_ident, smallvec![#(#field_names.try_into_talk_value(context).unwrap().leak()),*])
             }
          }
     }
@@ -161,7 +161,7 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
                 use ::flo_talk::{TalkValueType};
 
                 let message = match self {
-                    #(#to_message_arms)*,
+                    #(#to_message_arms),*
                 };
 
                 TalkOwned::new(message, context)
