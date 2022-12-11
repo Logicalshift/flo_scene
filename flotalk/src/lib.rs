@@ -61,3 +61,4 @@ pub use self::symbol_table::*;
 
 #[doc(hidden)] pub use flo_talk_macros::*;
 #[doc(hidden)] pub use once_cell;
+#[doc(hidden)] pub use smallvec;
