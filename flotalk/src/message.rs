@@ -188,6 +188,20 @@ impl TalkReleasable for TalkMessage {
     }
 }
 
+impl TalkCloneable for TalkMessage {
+    ///
+    /// Creates a copy of this value in the specified context
+    ///
+    /// This will copy this value and increase its reference count
+    ///
+    fn clone_in_context(&self, context: &TalkContext) -> Self {
+        match self {
+            TalkMessage::Unary(sig)                 => TalkMessage::Unary(*sig),
+            TalkMessage::WithArguments(sig, args)   => TalkMessage::WithArguments(*sig, args.iter().map(|arg| arg.clone_in_context(context)).collect())
+        }
+    }
+}
+
 impl TalkMessageSignature {
     ///
     /// Returns the ID for this signature
