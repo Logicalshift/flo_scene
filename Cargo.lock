@@ -83,6 +83,10 @@ dependencies = [
 [[package]]
 name = "flo_talk_macros"
 version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "futures"
