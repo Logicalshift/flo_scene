@@ -40,7 +40,7 @@ lazy_static! {
 /// let message = TalkMessage::WithArguments(("arg1:", "arg2:").into(), smallvec![42.into(), "String".into()]);
 /// ```
 ///
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Hash)]
 pub enum TalkMessage {
     /// A message with no arguments
     Unary(TalkMessageSignatureId),
@@ -154,6 +154,16 @@ impl TalkMessage {
         }
 
         TalkMessage::WithArguments(TalkMessageSignature::Arguments(signature_symbols).id(), argument_values)
+    }
+
+    ///
+    /// Releases all the references contained in this message
+    ///
+    pub fn add_reference(&self, context: &TalkContext) {
+        match self {
+            TalkMessage::Unary(_)               => { }
+            TalkMessage::WithArguments(_, args) => { args.iter().for_each(|arg| arg.add_reference(context)); }
+        }
     }
 
     ///
