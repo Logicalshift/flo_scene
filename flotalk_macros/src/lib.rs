@@ -1,8 +1,33 @@
 #[macro_use] extern crate quote;
 
 use proc_macro::{TokenStream};
+use proc_macro2::{Span};
 use syn;
 use syn::{Ident, Generics, Data, DataEnum, DataStruct};
+
+use once_cell::sync::{Lazy};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+///
+/// Creates a static value for a symbol with a unique ID
+///
+fn symbol_static(name: &str) -> (TokenStream, Ident) {
+    // All symbol types have a unique ID (we call them SYMBOL_x later on)
+    static NEXT_SYMBOL_ID: Lazy<AtomicU64> = Lazy::new(|| { AtomicU64::new(0) });
+
+    // Assign a new ID to this symbol
+    let next_id = NEXT_SYMBOL_ID.fetch_add(1, Ordering::Relaxed);
+
+    // Create an ident for this symbol
+    let symbol_id = Ident::new(&format!("SYMBOL_{}", next_id), Span::call_site());
+
+    // Create the declaration, using the version of once_cell linked from flo_talk
+    let declaration = quote! { 
+        static #symbol_id: ::flo_talk::once_cell::Lazy<::flo_talk::TalkSymbol> = ::flo_talk::once_cell::Lazy::new(|| ::flo_talk::TalkSymbol::from(#name))
+    };
+
+    (declaration.into(), symbol_id)
+}
 
 ///
 /// Creates the code to implement TalkMessageType for an enum
