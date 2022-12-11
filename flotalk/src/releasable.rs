@@ -186,6 +186,7 @@ impl TalkCloneable for TalkValue {
             Symbol(symbol)          => Symbol(*symbol),
             Selector(symbol)        => Selector(*symbol),
             Array(array)            => Array(array.iter().map(|val| val.clone_in_context(context)).collect()),
+            Message(msg)            => Message(Box::new(msg.clone_in_context(context))),
             Error(error)            => Error(error.clone()),
         }
     }
@@ -226,6 +227,15 @@ impl TalkCloneable for TalkReference {
             callbacks.add_reference(self.1, context);
         }
         clone
+    }
+}
+
+impl<T> TalkReleasable for Box<T>
+where
+    T: TalkReleasable
+{
+    #[inline] fn release_in_context(self, context: &TalkContext) {
+        (*self).release_in_context(context)
     }
 }
 

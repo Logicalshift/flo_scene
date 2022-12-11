@@ -34,7 +34,7 @@ pub trait TalkValueType {
 ///
 /// The result of a FloTalk message
 ///
-/// Note that clonign a value does not increase the reference count for any data that's referenced. Use `clone_in_context()` for that.
+/// Note that cloning a value does not increase the reference count for any data that's referenced. Use `clone_in_context()` for that.
 ///
 #[derive(Clone, PartialEq, Debug)]
 pub enum TalkValue {
@@ -67,6 +67,9 @@ pub enum TalkValue {
 
     /// An array of values
     Array(Vec<TalkValue>),
+
+    /// A message
+    Message(Box<TalkMessage>),
 
     /// An error
     Error(TalkError),
@@ -166,6 +169,7 @@ impl TalkValue {
             Selector(selector_value)    => context.value_dispatch_tables.selector_dispatch.send_message(selector_value, message, context),
             Array(array_value)          => context.value_dispatch_tables.array_dispatch.send_message(array_value, message, context),
             Error(error)                => context.value_dispatch_tables.error_dispatch.send_message(error, message, context),
+            Message(msg)                => context.value_dispatch_tables.message_dispatch.send_message(msg, message, context),
 
             Reference(reference)        => reference.send_message_in_context(message, context),
         }
@@ -217,6 +221,7 @@ impl TalkValue {
 
             Reference(reference)    => reference.add_reference(context),
             Array(values)           => values.iter().for_each(|val| val.add_reference(context)),
+            Message(msg)            => msg.add_reference(context),
         }
     }
 
@@ -240,6 +245,7 @@ impl TalkValue {
 
             Reference(reference)    => reference.remove_reference(context),
             Array(values)           => values.iter().for_each(|val| val.remove_reference(context)),
+            Message(msg)            => msg.release_in_context(context),
         }
     }
 
@@ -318,6 +324,7 @@ impl hash::Hash for TalkValue {
             Array(array_value)          => { 8.hash(state); array_value.hash(state); }
             Error(error)                => { 9.hash(state); error.hash(state); }
             Reference(reference)        => { 10.hash(state); reference.hash(state); }
+            Message(message_value)      => { 11.hash(state); message_value.hash(state); }
         }
     }
 }

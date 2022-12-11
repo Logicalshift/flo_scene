@@ -366,6 +366,7 @@ pub struct TalkValueDispatchTables {
     pub (super) symbol_dispatch:    TalkMessageDispatchTable<TalkSymbol>,
     pub (super) selector_dispatch:  TalkMessageDispatchTable<TalkMessageSignatureId>,
     pub (super) array_dispatch:     TalkMessageDispatchTable<Vec<TalkValue>>,
+    pub (super) message_dispatch:   TalkMessageDispatchTable<Box<TalkMessage>>,
     pub (super) error_dispatch:     TalkMessageDispatchTable<TalkError>,
 }
 
@@ -381,6 +382,7 @@ impl Default for TalkValueDispatchTables {
             symbol_dispatch:    TalkMessageDispatchTable::empty(),
             selector_dispatch:  TalkMessageDispatchTable::empty(),
             array_dispatch:     TalkMessageDispatchTable::empty(),
+            message_dispatch:   TalkMessageDispatchTable::empty(),
             error_dispatch:     TalkMessageDispatchTable::empty(),
         }
     }
@@ -403,6 +405,7 @@ impl TalkValue {
             TalkValue::Symbol(_val)             => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Selector(_val)           => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Array(_val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Message(_val)            => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Error(_err)              => TalkError::MessageNotSupported(message.signature_id()).into(),
         }
     }
