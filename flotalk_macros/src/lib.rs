@@ -177,6 +177,10 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
 
                 Ok(TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context))
             }
+
+            fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<'a, TalkValue>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+                todo!()
+            }
         }
     };
 

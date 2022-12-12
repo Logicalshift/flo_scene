@@ -1,6 +1,7 @@
 use super::context::*;
 use super::error::*;
 use super::message::*;
+use super::number::*;
 use super::reference::*;
 use super::releasable::*;
 use super::value::*;
@@ -107,7 +108,8 @@ impl TalkMessageType for i32 {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::Int(val)     => Ok(*val as _),
-            _                       => Err(TalkError::NotABoolean),
+            TalkValue::Float(val)   => Ok(*val as _),
+            _                       => Err(TalkError::NotAnInteger),
         }
     }
 
@@ -120,7 +122,8 @@ impl TalkMessageType for i64 {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::Int(val)     => Ok(*val as _),
-            _                       => Err(TalkError::NotABoolean),
+            TalkValue::Float(val)   => Ok(*val as _),
+            _                       => Err(TalkError::NotAnInteger),
         }
     }
 
@@ -134,7 +137,7 @@ impl TalkMessageType for f32 {
         match read_argument(&*message)? {
             TalkValue::Int(val)     => Ok(*val as _),
             TalkValue::Float(val)   => Ok(*val as _),
-            _                       => Err(TalkError::NotABoolean),
+            _                       => Err(TalkError::NotAFloat),
         }
     }
 
@@ -148,7 +151,7 @@ impl TalkMessageType for f64 {
         match read_argument(&*message)? {
             TalkValue::Int(val)     => Ok(*val as _),
             TalkValue::Float(val)   => Ok(*val as _),
-            _                       => Err(TalkError::NotABoolean),
+            _                       => Err(TalkError::NotAFloat),
         }
     }
 
@@ -157,11 +160,28 @@ impl TalkMessageType for f64 {
     }
 }
 
+impl TalkMessageType for TalkNumber {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
+        match read_argument(&*message)? {
+            TalkValue::Int(val)     => Ok(TalkNumber::Int(*val)),
+            TalkValue::Float(val)   => Ok(TalkNumber::Float(*val)),
+            _                       => Err(TalkError::NotANumber),
+        }
+    }
+
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
+        match self {
+            TalkNumber::Int(val)    => TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Int(*val)]), context),
+            TalkNumber::Float(val)  => TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Float(*val)]), context),
+        }
+    }
+}
+
 impl TalkMessageType for String {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::String(val)  => Ok((**val).clone()),
-            _                       => Err(TalkError::NotABoolean),
+            _                       => Err(TalkError::NotAString),
         }
     }
 
@@ -174,7 +194,7 @@ impl TalkMessageType for Arc<String> {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::String(val)  => Ok(val.clone()),
-            _                       => Err(TalkError::NotABoolean),
+            _                       => Err(TalkError::NotAString),
         }
     }
 
@@ -187,11 +207,24 @@ impl TalkMessageType for char {
     fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::Character(val)   => Ok(*val),
-            _                           => Err(TalkError::NotABoolean),
+            _                           => Err(TalkError::NotACharacter),
         }
     }
 
     fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
         TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Character(*self)]), context)
+    }
+}
+
+impl TalkMessageType for TalkError {
+    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, _context: &'a TalkContext) -> Result<Self, TalkError> {
+        match read_argument(&*message)? {
+            TalkValue::Error(val)   => Ok(val.clone()),
+            _                       => Err(TalkError::NotAnError),
+        }
+    }
+
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage> {
+        TalkOwned::new(TalkMessage::WithArguments(*VALUE_COLON_MSG, smallvec![TalkValue::Error(self.clone())]), context)
     }
 }

@@ -493,17 +493,26 @@ impl TryFrom<TalkMessage> for TalkValue {
 ///
 /// Single-parameter messages can be treated as TalkValues
 ///
-impl TalkValueType for &TalkMessage {
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(TalkValue::Message(Box::new(self.clone_in_context(context))), context))
-    }
-}
-
-///
-/// Single-parameter messages can be treated as TalkValues
-///
 impl TalkValueType for TalkMessage {
     fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
         Ok(TalkOwned::new(TalkValue::try_from(self)?, context))
+    }
+
+    #[inline]
+    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+        match &*value {
+            TalkValue::Message(msg) => {
+                let msg = value.leak();
+                if let TalkValue::Message(msg) = msg {
+                    let msg = *msg;
+                    msg.add_reference(context);
+                    Ok(msg)
+                } else {
+                    unreachable!()
+                }
+            }
+
+            _                       => Err(TalkError::NotAMessage)
+        }
     }
 }
