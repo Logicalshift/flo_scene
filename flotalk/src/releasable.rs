@@ -239,6 +239,28 @@ where
     }
 }
 
+impl<T> TalkReleasable for Option<T>
+where
+    T: TalkReleasable
+{
+    #[inline] fn release_in_context(self, context: &TalkContext) {
+        if let Some(to_release) = self {
+            to_release.release_in_context(context)
+        }
+    }
+}
+
+impl<T, E> TalkReleasable for Result<T, E>
+where
+    T: TalkReleasable
+{
+    #[inline] fn release_in_context(self, context: &TalkContext) {
+        if let Ok(to_release) = self {
+            to_release.release_in_context(context)
+        }
+    }
+}
+
 impl<TReleasable> TalkReleasable for Vec<TReleasable>
 where
     TReleasable:        TalkReleasable,
