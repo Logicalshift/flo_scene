@@ -492,8 +492,9 @@ impl From<TalkMessage> for TalkValue {
 /// Single-parameter messages can be treated as TalkValues
 ///
 impl TalkValueType for TalkMessage {
-    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
-        TalkOwned::new(TalkValue::from(self), context)
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        let message = self.clone_in_context(context);
+        TalkOwned::new(TalkValue::from(message), context)
     }
 
     #[inline]

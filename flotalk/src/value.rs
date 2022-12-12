@@ -28,7 +28,7 @@ pub trait TalkValueType : Sized {
     ///
     /// Tries to convert this item into a TalkValue
     ///
-    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue>;
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue>;
 
     ///
     /// Tries to convert a TalkValue into this item
@@ -364,6 +364,10 @@ impl From<f64> for TalkValue {
 
 impl From<&str> for TalkValue {
     fn from(val: &str) -> TalkValue { TalkValue::String(Arc::new(val.into())) }
+}
+
+impl From<&String> for TalkValue {
+    fn from(val: &String) -> TalkValue { TalkValue::String(Arc::new(val.clone())) }
 }
 
 impl From<String> for TalkValue {

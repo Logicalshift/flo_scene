@@ -301,7 +301,7 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
     // We also implement the TalkValueType trait for things that can be messages (they create message objects)
     let talk_value_type = quote! {
         impl #impl_generics ::flo_talk::TalkValueType for #name #where_clause {
-            fn into_talk_value<'a>(self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue> {
+            fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue> {
                 use flo_talk::{TalkOwned, TalkValue};
 
                 TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context)
