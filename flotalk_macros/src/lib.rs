@@ -4,10 +4,11 @@ use proc_macro::{TokenStream};
 use proc_macro2::{TokenStream as TokenStream2};
 use proc_macro2::{Span};
 use syn;
-use syn::{Ident, Generics, Data, DataEnum, DataStruct, Variant, Fields};
+use syn::{Ident, Generics, Data, DataEnum, DataStruct, Variant, Fields, Field};
 use syn::spanned::Spanned;
 
 use once_cell::sync::{Lazy};
+use std::iter;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 ///
@@ -57,12 +58,47 @@ fn message_signature_static(symbols: Vec<String>) -> (TokenStream2, Ident) {
 }
 
 ///
+/// Returns the message parameter name to use for a named field
+///
+fn name_for_field(field: &Field) -> String {
+    let field_ident = field.ident.as_ref().expect("Fields to have a name");
+    field_ident.to_string()
+}
+
+///
+/// Returns the message parameter name to use for a named field, with the first letter capitalised
+///
+fn capitalized_name_for_field(field: &Field) -> String {
+    let lowercase       = name_for_field(field);
+    let mut name_chrs   = lowercase.chars();
+
+    if let Some(first_chr) = name_chrs.next() {
+        first_chr.to_uppercase()
+            .chain(name_chrs)
+            .collect()
+    } else {
+        String::new()
+    }
+}
+
+///
 /// Creates the strings that make up the message signature for a list of fields
 ///
 fn signature_for_fields(parent_name: &Ident, fields: &Fields) -> Vec<String> {
     match fields {
         Fields::Named(named_fields) => {
-            todo!()
+            if named_fields.named.len() == 0 {
+                // If there are no fields, this works the same as a unit type
+                vec![format!("with{}", parent_name.to_string())]
+            } else {
+                // If there are fields, we create a 'withStructuredFieldOne:fieldTwo:fieldThree:' type message signature
+                let first_field     = format!("with{}{}:", parent_name.to_string(), capitalized_name_for_field(&named_fields.named[0]));
+                let other_fields    = named_fields.named.iter().skip(1).map(|field| format!("{}:", name_for_field(field)));
+
+                iter::once(first_field)
+                    .chain(other_fields)
+                    .collect()
+            }
         }
 
         Fields::Unnamed(unnamed_fields) => {
@@ -74,7 +110,7 @@ fn signature_for_fields(parent_name: &Ident, fields: &Fields) -> Vec<String> {
                 let first_field     = format!("with{}:", parent_name.to_string());
                 let other_fields    = (1..(unnamed_fields.unnamed.len())).into_iter().map(|_| ":".to_string());
 
-                vec![first_field].into_iter()
+                iter::once(first_field)
                     .chain(other_fields)
                     .collect()
             }
@@ -99,7 +135,17 @@ fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
     // We call the values in the fields v0, v1, v2, etc
     let field_count;
     let match_fields = match &variant.fields {
-        Fields::Named(named_fields) => { todo!() }
+        Fields::Named(named_fields) => {
+            field_count = named_fields.named.len();
+            let fields  = named_fields.named.iter().enumerate()
+                .map(|(idx, field)| {
+                    let field_ident = field.ident.as_ref().expect("Fields to have a name");
+                    let value_ident = Ident::new(&format!("v{}", idx), field.span());
+                    quote_spanned! { field.span() => #field_ident: #value_ident }
+                });
+
+            quote_spanned! { variant.span() => #name::#variant_name { #(#fields),* } }
+        }
 
         Fields::Unnamed(unnamed_fields) => { 
             field_count     = unnamed_fields.unnamed.len();
@@ -148,10 +194,22 @@ fn enum_variant_from_message(name: &Ident, variant: &Variant) -> TokenStream2 {
 
     let has_args;
     let create_variant = match &variant.fields {
-        Fields::Named(named_fileds) => { todo!() }
+        Fields::Named(named_fields) => { 
+            has_args = named_fields.named.len() > 0;
+
+            // Convert each field to its own type from a talk value (taken from _args)
+            let fields = named_fields.named.iter().enumerate()
+                .map(|(arg_num, field)| {
+                    let ty          = &field.ty;
+                    let field_ident = field.ident.as_ref().expect("Fields to have a name");
+                    quote_spanned! { field.span() => #field_ident: #ty::try_from_talk_value(TalkOwned::new(_args[#arg_num].take(), _context), _context)? }
+                });
+
+            quote_spanned! { variant.span() => Ok(#name::#variant_name { #(#fields),* }) }
+        }
 
         Fields::Unnamed(unnamed_fields) => {
-            has_args = true;
+            has_args = unnamed_fields.unnamed.len() > 0;
 
             // Convert each field to its own type from a talk value (taken from _args)
             let fields = unnamed_fields.unnamed.iter().enumerate()
@@ -284,7 +342,7 @@ pub fn derive_talk_message(struct_or_enum: TokenStream) -> TokenStream {
 
     // Encode as a enum or a struct type (unions are not supported)
     match &struct_or_enum.data {
-        Data::Struct(struct_data)   => todo!(),
+        Data::Struct(struct_data)   => todo!("Structures"),
         Data::Enum(enum_data)       => derive_enum_message(&struct_or_enum.ident, &struct_or_enum.generics, enum_data),
         Data::Union(_)              => panic!("Only structs or enums can have the TalkMessageType trait applied to them")
     }
