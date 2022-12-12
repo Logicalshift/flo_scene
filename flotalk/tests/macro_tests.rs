@@ -2,9 +2,18 @@ use flo_talk::*;
 
 #[derive(TalkMessageType, PartialEq)]
 enum TestEnum {
+    Unary,
     Int(i64),
     Float(f64),
     ManyInts(i64, i64),
+}
+
+#[test]
+fn test_enum_unary_to_message() {
+    let mut context         = TalkContext::empty();
+    let unary_as_message    = TestEnum::Unary.to_message(&context);
+
+    assert!(unary_as_message.signature_id() == "withUnary".into());
 }
 
 #[test]
@@ -29,6 +38,15 @@ fn test_enum_many_ints_to_message() {
     let int_as_message  = TestEnum::ManyInts(1, 2).to_message(&context);
 
     assert!(int_as_message.signature_id() == ("withManyInts:", ":").into());
+}
+
+#[test]
+fn test_enum_unary_from_message() {
+    let mut context         = TalkContext::empty();
+    let unary_as_message    = TestEnum::Unary.to_message(&context);
+    let unary_as_unary      = TestEnum::from_message(unary_as_message, &context).unwrap();
+
+    assert!(unary_as_unary == TestEnum::Unary);
 }
 
 #[test]
