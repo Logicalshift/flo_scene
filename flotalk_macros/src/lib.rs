@@ -179,7 +179,17 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
             }
 
             fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<'a, TalkValue>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
-                todo!()
+                let value = value.map(|val| {
+                    match val {
+                        ::flo_talk::TalkValue::Message(msg) => Some(*msg),
+                        _                                   => { val.release_in_context(context); None }
+                    }
+                });
+
+                match value.leak() {
+                    Some(msg)   => Self::from_message(TalkOwned::new(msg, context), context),
+                    None        => Err(TalkError::NotAMessage)
+                }
             }
         }
     };
