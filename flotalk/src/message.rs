@@ -479,9 +479,6 @@ impl fmt::Debug for TalkMessage {
     }
 }
 
-///
-/// Single-parameter messages can be treated as TalkValues
-///
 impl From<TalkMessage> for TalkValue {
     fn from(message: TalkMessage) -> TalkValue {
         TalkValue::Message(Box::new(message))
