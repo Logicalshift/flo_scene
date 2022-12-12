@@ -15,6 +15,12 @@ enum TestEnum {
     EmptyStructured { },
 }
 
+#[derive(TalkMessageType, PartialEq)]
+enum TestEnumRecursive {
+    Int(i64),
+    AnotherEnum(TestEnum, i64),   
+}
+
 #[test]
 fn test_enum_unary_to_message() {
     let context             = TalkContext::empty();
@@ -133,4 +139,22 @@ fn test_enum_empty_unstructured_from_message() {
     let back_to_enum        = TestEnum::from_message(unary_as_message, &context).unwrap();
 
     assert!(back_to_enum == TestEnum::EmptyUnstructured());
+}
+
+#[test]
+fn test_enum_recursive_from_message_1() {
+    let context         = TalkContext::empty();
+    let message         = TestEnumRecursive::AnotherEnum(TestEnum::ManyInts(1, 2), 42).to_message(&context);
+    let back_to_enum    = TestEnumRecursive::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == TestEnumRecursive::AnotherEnum(TestEnum::ManyInts(1, 2), 42));
+}
+
+#[test]
+fn test_enum_recursive_from_message_2() {
+    let context         = TalkContext::empty();
+    let message         = TestEnumRecursive::AnotherEnum(TestEnum::Int(1), 42).to_message(&context);
+    let back_to_enum    = TestEnumRecursive::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == TestEnumRecursive::AnotherEnum(TestEnum::Int(1), 42));
 }
