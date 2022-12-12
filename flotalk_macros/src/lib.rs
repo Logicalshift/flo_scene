@@ -130,7 +130,7 @@ fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
         quote_spanned! { variant.span() => #match_fields => {
                 #signature
 
-                ::flo_talk::TalkMessage::WithArguments(*#signature_ident, smallvec![#(#field_names.try_into_talk_value(context).unwrap().leak()),*])
+                ::flo_talk::TalkMessage::WithArguments(*#signature_ident, smallvec![#(#field_names.into_talk_value(context).leak()),*])
             }
          }
     }
@@ -172,10 +172,10 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
     // We also implement the TalkValueType trait for things that can be messages (they create message objects)
     let talk_value_type = quote! {
         impl #impl_generics ::flo_talk::TalkValueType for #name #where_clause {
-            fn try_into_talk_value<'a>(self, context: &'a ::flo_talk::TalkContext) -> Result<::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue>, ::flo_talk::TalkError> {
+            fn into_talk_value<'a>(self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue> {
                 use flo_talk::{TalkOwned, TalkValue};
 
-                Ok(TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context))
+                TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context)
             }
 
             fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<'a, TalkValue>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {

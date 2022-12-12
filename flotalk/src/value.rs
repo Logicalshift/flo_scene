@@ -28,7 +28,7 @@ pub trait TalkValueType : Sized {
     ///
     /// Tries to convert this item into a TalkValue
     ///
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError>;
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue>;
 
     ///
     /// Tries to convert a TalkValue into this item

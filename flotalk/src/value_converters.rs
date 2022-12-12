@@ -10,8 +10,8 @@ use std::sync::*;
 
 impl TalkValueType for () {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -34,8 +34,8 @@ impl TalkValueType for () {
 
 impl TalkValueType for TalkReference {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -66,8 +66,8 @@ impl TalkValueType for TalkReference {
 
 impl TalkValueType for bool {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -90,8 +90,8 @@ impl TalkValueType for bool {
 
 impl TalkValueType for i32 {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -115,8 +115,8 @@ impl TalkValueType for i32 {
 
 impl TalkValueType for i64 {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -140,8 +140,8 @@ impl TalkValueType for i64 {
 
 impl TalkValueType for f32 {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -165,8 +165,8 @@ impl TalkValueType for f32 {
 
 impl TalkValueType for f64 {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -190,8 +190,8 @@ impl TalkValueType for f64 {
 
 impl TalkValueType for String {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -214,8 +214,8 @@ impl TalkValueType for String {
 
 impl TalkValueType for Arc<String> {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -238,8 +238,8 @@ impl TalkValueType for Arc<String> {
 
 impl TalkValueType for char {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -262,8 +262,8 @@ impl TalkValueType for char {
 
 impl TalkValueType for TalkNumber {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -287,8 +287,8 @@ impl TalkValueType for TalkNumber {
 
 impl TalkValueType for TalkError {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(self.into(), context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(self.into(), context)
     }
 
     #[inline]
@@ -314,12 +314,12 @@ where
     T : TalkValueType + Sized,
 {
     #[inline]
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
         let array = self.into_iter()
-            .map(|val| val.try_into_talk_value(context).map(|val| val.leak()))
-            .collect::<Result<Vec<_>, TalkError>>()?;
+            .map(|val| val.into_talk_value(context).leak())
+            .collect::<Vec<_>>();
 
-        Ok(TalkOwned::new(TalkValue::Array(array), context))
+        TalkOwned::new(TalkValue::Array(array), context)
     }
 
     #[inline]

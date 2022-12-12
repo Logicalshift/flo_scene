@@ -482,11 +482,9 @@ impl fmt::Debug for TalkMessage {
 ///
 /// Single-parameter messages can be treated as TalkValues
 ///
-impl TryFrom<TalkMessage> for TalkValue {
-    type Error = TalkError;
-
-    fn try_from(message: TalkMessage) -> Result<Self, TalkError> {
-        Ok(TalkValue::Message(Box::new(message)))
+impl From<TalkMessage> for TalkValue {
+    fn from(message: TalkMessage) -> TalkValue {
+        TalkValue::Message(Box::new(message))
     }
 }
 
@@ -494,8 +492,8 @@ impl TryFrom<TalkMessage> for TalkValue {
 /// Single-parameter messages can be treated as TalkValues
 ///
 impl TalkValueType for TalkMessage {
-    fn try_into_talk_value<'a>(self, context: &'a TalkContext) -> Result<TalkOwned<'a, TalkValue>, TalkError> {
-        Ok(TalkOwned::new(TalkValue::try_from(self)?, context))
+    fn into_talk_value<'a>(self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+        TalkOwned::new(TalkValue::from(self), context)
     }
 
     #[inline]
