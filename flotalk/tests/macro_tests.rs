@@ -1,4 +1,5 @@
 use flo_talk::*;
+use smallvec::*;
 
 #[derive(TalkMessageType, PartialEq)]
 enum TestEnum {
@@ -6,6 +7,11 @@ enum TestEnum {
     Int(i64),
     Float(f64),
     ManyInts(i64, i64),
+
+    //Structured {
+    //    one: i64,
+    //    two: i64,
+    //}
 }
 
 #[test]
@@ -50,9 +56,19 @@ fn test_enum_unary_from_message() {
 }
 
 #[test]
-fn test_enum_int_from_message() {
+fn test_enum_int_from_message_1() {
     let mut context     = TalkContext::empty();
     let int_as_message  = TestEnum::Int(42).to_message(&context);
+    let int_as_int      = TestEnum::from_message(int_as_message, &context).unwrap();
+
+    assert!(int_as_int == TestEnum::Int(42));
+}
+
+#[test]
+fn test_enum_int_from_message_2() {
+    let mut context     = TalkContext::empty();
+    let int_as_message  = TalkMessage::WithArguments("withInt:".into(), smallvec![42.into()]);
+    let int_as_message  = TalkOwned::new(int_as_message, &context);
     let int_as_int      = TestEnum::from_message(int_as_message, &context).unwrap();
 
     assert!(int_as_int == TestEnum::Int(42));
