@@ -7,11 +7,10 @@ enum TestEnum {
     Int(i64),
     Float(f64),
     ManyInts(i64, i64),
-
-    //Structured {
-    //    one: i64,
-    //    two: i64,
-    //}
+    Structured {
+        one: i64,
+        two: i64,
+    },
 }
 
 #[test]
@@ -44,6 +43,14 @@ fn test_enum_many_ints_to_message() {
     let int_as_message  = TestEnum::ManyInts(1, 2).to_message(&context);
 
     assert!(int_as_message.signature_id() == ("withManyInts:", ":").into());
+}
+
+#[test]
+fn test_enum_structured_to_message() {
+    let mut context             = TalkContext::empty();
+    let structured_as_message   = TestEnum::Structured { one: 1, two: 2 }.to_message(&context);
+
+    assert!(structured_as_message.signature_id() == ("withStructuredOne:", "two:").into());
 }
 
 #[test]
@@ -81,4 +88,13 @@ fn test_enum_many_ints_from_message() {
     let int_as_int      = TestEnum::from_message(int_as_message, &context).unwrap();
 
     assert!(int_as_int == TestEnum::ManyInts(1, 2));
+}
+
+#[test]
+fn test_enum_structured_from_message() {
+    let mut context                 = TalkContext::empty();
+    let structured_as_message       = TestEnum::Structured { one: 1, two: 2 }.to_message(&context);
+    let structured_as_structured    = TestEnum::from_message(structured_as_message, &context).unwrap();
+
+    assert!(structured_as_structured == TestEnum::Structured { one: 1, two: 2 });
 }
