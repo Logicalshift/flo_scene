@@ -497,7 +497,7 @@ impl TalkValueType for TalkMessage {
     #[inline]
     fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
-            TalkValue::Message(msg) => {
+            TalkValue::Message(_) => {
                 let msg = value.leak();
                 if let TalkValue::Message(msg) = msg {
                     let msg = *msg;
