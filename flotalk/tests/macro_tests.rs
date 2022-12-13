@@ -16,6 +16,11 @@ enum TestEnum {
 }
 
 #[derive(TalkMessageType, PartialEq)]
+enum TestEnumGeneric<T: TalkValueType> {
+    Val(T),
+}
+
+#[derive(TalkMessageType, PartialEq)]
 enum TestEnumRecursive {
     Int(i64),
     AnotherEnum(TestEnum, i64),   
@@ -168,4 +173,13 @@ fn test_enum_recursive_from_message_2() {
     let back_to_enum    = TestEnumRecursive::from_message(message, &context).unwrap();
 
     assert!(back_to_enum == TestEnumRecursive::AnotherEnum(TestEnum::Int(1), 42));
+}
+
+#[test]
+fn test_enum_generic_from_message() {
+    let context         = TalkContext::empty();
+    let message         = TestEnumGeneric::Val(42i64).to_message(&context);
+    let back_to_enum    = TestEnumGeneric::<f64>::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == TestEnumGeneric::Val(42.0f64));
 }

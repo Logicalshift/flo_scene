@@ -317,7 +317,7 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
 
     // An enum value like 'Int(i64)' is converted to a message 'withInt: 64'
     let talk_message_type = quote! {
-        impl #impl_generics ::flo_talk::TalkMessageType for #name #where_clause {
+        impl #impl_generics ::flo_talk::TalkMessageType for #name #ty_generics #where_clause {
             /// Converts a message to an object of this type
             fn from_message<'a>(message: ::flo_talk::TalkOwned<'a, ::flo_talk::TalkMessage>, _context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
                 let mut message             = message;
@@ -356,7 +356,7 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
 
     // We also implement the TalkValueType trait for things that can be messages (they create message objects)
     let talk_value_type = quote! {
-        impl #impl_generics ::flo_talk::TalkValueType for #name #where_clause {
+        impl #impl_generics ::flo_talk::TalkValueType for #name #ty_generics #where_clause {
             fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue> {
                 use flo_talk::{TalkOwned, TalkValue};
 
