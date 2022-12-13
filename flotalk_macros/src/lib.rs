@@ -557,7 +557,84 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
 /// Creates the code to implement TalkMessageType and TalkValueType for a struct
 ///
 fn derive_struct_message(name: &Ident, generics: &Generics, data: &DataStruct) -> TokenStream {
-    todo!()
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    // Create the 'to_message' call
+    let to_message = struct_to_message(name, data);
+
+    // Create the main 'from_message' call
+    let from_message = struct_from_message(name, data);
+
+    // Create 0 or 1 alternative matching style (depends on the struct)
+    let from_message_alternates = struct_from_message_alternate(name, data).into_iter().collect::<Vec<_>>();
+
+    // A struct like `struct Foo { bar: i64 baz: i64}` is converted to a message `withFooBar:baz:`
+    let talk_message_type = quote! {
+        impl #impl_generics ::flo_talk::TalkMessageType for #name #ty_generics #where_clause {
+            /// Converts a message to an object of this type
+            fn from_message<'a>(message: ::flo_talk::TalkOwned<'a, ::flo_talk::TalkMessage>, _context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+                let mut message             = message;
+                let (signature_id, _args)   = {
+                    use ::flo_talk::smallvec::*;
+                    use ::flo_talk::TalkMessage;
+
+                    match &mut *message {
+                        TalkMessage::Unary(sig)                 => (sig, None),
+                        TalkMessage::WithArguments(sig, args)   => (sig, Some(args))
+                    }
+                };
+
+                #from_message
+
+                let _first_symbol = signature_id.to_signature().first_symbol();
+
+                #(#from_message_alternates)*
+
+                Err(TalkError::MessageNotSupported(*signature_id))
+            }
+
+            /// Converts an object of this type to a message
+            fn to_message<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkMessage> {
+                use ::flo_talk::smallvec::*;
+                use ::flo_talk::{TalkValueType};
+
+                #to_message
+
+                TalkOwned::new(message, context)
+            }
+        }
+    };
+
+    // We also implement the TalkValueType trait for things that can be messages (they create message objects)
+    let talk_value_type = quote! {
+        impl #impl_generics ::flo_talk::TalkValueType for #name #ty_generics #where_clause {
+            fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue> {
+                use flo_talk::{TalkOwned, TalkValue};
+
+                TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context)
+            }
+
+            fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<'a, TalkValue>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+                let value = value.map(|val| {
+                    match val {
+                        ::flo_talk::TalkValue::Message(msg) => Some(*msg),
+                        _                                   => { val.release_in_context(context); None }
+                    }
+                });
+
+                match value.leak() {
+                    Some(msg)   => Self::from_message(TalkOwned::new(msg, context), context),
+                    None        => Err(TalkError::NotAMessage)
+                }
+            }
+        }
+    };
+
+    // Final result is bopth items
+    quote! {
+        #talk_message_type
+        #talk_value_type
+    }.into()
 }
 
 ///
