@@ -304,6 +304,16 @@ impl TalkMessageSignature {
     }
 
     ///
+    /// Returns the symbol at the start of this signature
+    ///
+    pub fn first_symbol(&self) -> TalkSymbol {
+        match self {
+            TalkMessageSignature::Unary(symbol)     => *symbol,
+            TalkMessageSignature::Arguments(args)   => args[0],
+        }
+    }
+
+    ///
     /// Number of arguments in this message signature
     ///
     pub fn len(&self) -> usize {

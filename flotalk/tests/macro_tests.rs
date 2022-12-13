@@ -98,7 +98,7 @@ fn test_enum_int_from_message_1() {
 #[test]
 fn test_enum_int_from_message_2() {
     let context         = TalkContext::empty();
-    let int_as_message  = TalkMessage::WithArguments("withInt:".into(), smallvec![42.into()]);
+    let int_as_message  = TalkMessage::with_arguments(vec![("withInt:", 42)]);
     let int_as_message  = TalkOwned::new(int_as_message, &context);
     let int_as_int      = TestEnum::from_message(int_as_message, &context).unwrap();
 
@@ -109,6 +109,17 @@ fn test_enum_int_from_message_2() {
 fn test_enum_many_ints_from_message() {
     let context         = TalkContext::empty();
     let int_as_message  = TestEnum::ManyInts(1, 2).to_message(&context);
+    let int_as_int      = TestEnum::from_message(int_as_message, &context).unwrap();
+
+    assert!(int_as_int == TestEnum::ManyInts(1, 2));
+}
+
+#[test]
+fn test_enum_many_ints_from_message_alternative() {
+    // For 'unnamed' structs, any message starting with the same first symbol can be used
+    let context         = TalkContext::empty();
+    let int_as_message  = TalkMessage::with_arguments(vec![("withManyInts:", 1), ("another:", 2)]);
+    let int_as_message  = TalkOwned::new(int_as_message, &context);
     let int_as_int      = TestEnum::from_message(int_as_message, &context).unwrap();
 
     assert!(int_as_int == TestEnum::ManyInts(1, 2));

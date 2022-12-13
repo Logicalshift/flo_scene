@@ -185,6 +185,8 @@ fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
 ///
 /// Creates a match arm for a 'from_message' for an enum variant
 ///
+/// Expects 'signature_id' to contain the MessageSignatureId and '_args' to contain the arguments
+///
 fn enum_variant_from_message(name: &Ident, variant: &Variant) -> TokenStream2 {
     // Get the signature
     let signature                       = signature_for_fields(&variant.ident, &variant.fields);
@@ -248,6 +250,51 @@ fn enum_variant_from_message(name: &Ident, variant: &Variant) -> TokenStream2 {
 }
 
 ///
+/// Creates a match arm for a 'from_message' for an enum variant, with alternate matching
+///
+/// Expects '_first_symbol' to contain the initial symbol for the message, and '_args' to contain the arguments, returns None if there
+/// are no alternatives
+///
+fn enum_variant_from_message_alternate(name: &Ident, variant: &Variant) -> Option<TokenStream2> {
+    // For 'unnamed' enum variants, we also support any message where the first symbol matches (so you can give these messages any name)
+    let signature                       = signature_for_fields(&variant.ident, &variant.fields);
+    if signature.len() < 2 { return None; }
+    let (symbol, symbol_ident)          = symbol_static(&signature[0]);
+
+    let variant_name                    = &variant.ident;
+
+    let create_variant = match &variant.fields {
+        Fields::Named(named_fields) => { return None; }
+        Fields::Unit                => { return None; }
+
+        Fields::Unnamed(unnamed_fields) => {
+            if unnamed_fields.unnamed.len() == 0 {
+                return None;
+            }
+
+            // Convert each field to its own type from a talk value (taken from _args)
+            let fields = unnamed_fields.unnamed.iter().enumerate()
+                .map(|(arg_num, field)| {
+                    let ty = &field.ty;
+                    quote_spanned! { field.span() => #ty::try_from_talk_value(TalkOwned::new(_args[#arg_num].take(), _context), _context)? }
+                });
+
+            // Return result is from converting all the arguments
+            quote_spanned! { variant.span() => Ok(#name::#variant_name(#(#fields),*)) }
+        }
+    };
+
+    // Match against this signature ID and return the result of creating the value if it does match
+    Some(quote_spanned! { variant.span() =>
+        #symbol
+        if _first_symbol == *#symbol_ident {
+            let mut _args = _args.unwrap();
+            return #create_variant;
+        }
+    })
+}
+
+///
 /// Creates the code to implement TalkMessageType for an enum
 ///
 fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> TokenStream {
@@ -261,6 +308,11 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
     // Create match arms for each variants for the 'from_message' call
     let from_message_arms = data.variants.iter()
         .map(|variant| enum_variant_from_message(name, variant))
+        .collect::<Vec<_>>();
+
+    // Create match arms for each variants for the 'from_message' call
+    let from_message_variant_arms = data.variants.iter()
+        .flat_map(|variant| enum_variant_from_message_alternate(name, variant))
         .collect::<Vec<_>>();
 
     // An enum value like 'Int(i64)' is converted to a message 'withInt: 64'
@@ -280,6 +332,10 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
                 };
 
                 #(#from_message_arms)*
+
+                let _first_symbol = signature_id.to_signature().first_symbol();
+
+                #(#from_message_variant_arms)*
 
                 Err(TalkError::MessageNotSupported(*signature_id))
             }
