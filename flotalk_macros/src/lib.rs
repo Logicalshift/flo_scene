@@ -233,8 +233,7 @@ fn struct_to_message(name: &Ident, data_struct: &DataStruct) -> TokenStream2 {
         quote_spanned! { data_struct.fields.span() =>
             #signature
             let #match_fields = self;
-
-            ::flo_talk::TalkMessage::WithArguments(*#signature_ident, smallvec![#(#field_names.into_talk_value(context).leak()),*])
+            let message       = ::flo_talk::TalkMessage::WithArguments(*#signature_ident, smallvec![#(#field_names.into_talk_value(context).leak()),*]);
          }
     }
 }
