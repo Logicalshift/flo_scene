@@ -183,17 +183,75 @@ fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
 }
 
 ///
+/// Creates a match arm for 'to_message' for a struct
+///
+fn struct_to_message(name: &Ident, data_struct: &DataStruct) -> TokenStream2 {
+    // Get the signature
+    let signature                       = signature_for_fields(name, &data_struct.fields);
+    let (signature, signature_ident)    = message_signature_static(signature);
+
+    // We call the values in the fields v0, v1, v2, etc
+    let field_count;
+    let match_fields = match &data_struct.fields {
+        Fields::Named(named_fields) => {
+            field_count = named_fields.named.len();
+            let fields  = named_fields.named.iter().enumerate()
+                .map(|(idx, field)| {
+                    let field_ident = field.ident.as_ref().expect("Fields to have a name");
+                    let value_ident = Ident::new(&format!("v{}", idx), field.span());
+                    quote_spanned! { field.span() => #field_ident: #value_ident }
+                });
+
+            quote_spanned! { data_struct.fields.span() => #name { #(#fields),* } }
+        }
+
+        Fields::Unnamed(unnamed_fields) => { 
+            field_count     = unnamed_fields.unnamed.len();
+            let field_names = (0..field_count).into_iter().map(|idx| Ident::new(&format!("v{}", idx), data_struct.fields.span()));
+
+            quote_spanned! { data_struct.fields.span() => #name(#(#field_names),*) }
+        }
+
+        Fields::Unit => {
+            field_count = 0;
+            quote_spanned! { data_struct.fields.span() => #name }
+        }
+    };
+
+    // Create the match arm
+    if field_count == 0 {
+        // Unary message
+        quote_spanned! { data_struct.fields.span() =>
+            #signature
+
+            ::flo_talk::TalkMessage::Unary(*#signature_ident)
+        }
+    } else {
+        // Multiple-argument message
+        let field_names = (0..field_count).into_iter().map(|idx| Ident::new(&format!("v{}", idx), data_struct.fields.span()));
+
+        quote_spanned! { data_struct.fields.span() =>
+            #signature
+            let #match_fields = self;
+
+            ::flo_talk::TalkMessage::WithArguments(*#signature_ident, smallvec![#(#field_names.into_talk_value(context).leak()),*])
+         }
+    }
+}
+
+///
 /// Creates a match arm for a 'from_message' for an enum variant
 ///
 /// Expects 'signature_id' to contain the MessageSignatureId and '_args' to contain the arguments
 ///
 fn enum_variant_from_message(name: &Ident, variant: &Variant) -> TokenStream2 {
-    // Get the signature
+    // Convert the enum variant to a signature, and store that signature in a static variable
     let signature                       = signature_for_fields(&variant.ident, &variant.fields);
     let (signature, signature_ident)    = message_signature_static(signature);
 
     let variant_name                    = &variant.ident;
 
+    // Create the code to construct this variant
     let has_args;
     let create_variant = match &variant.fields {
         Fields::Named(named_fields) => { 
@@ -295,7 +353,116 @@ fn enum_variant_from_message_alternate(name: &Ident, variant: &Variant) -> Optio
 }
 
 ///
-/// Creates the code to implement TalkMessageType for an enum
+/// Creates a match arm for a 'from_message' for a structure
+///
+/// Expects 'signature_id' to contain the MessageSignatureId and '_args' to contain the arguments
+///
+fn struct_from_message(name: &Ident, data_struct: &DataStruct) -> TokenStream2 {
+    // Convert the structure to a signature, and store that signature in a static variable
+    let signature                       = signature_for_fields(name, &data_struct.fields);
+    let (signature, signature_ident)    = message_signature_static(signature);
+
+    // Create the code to construct this structure
+    let has_args;
+    let create_struct = match &data_struct.fields {
+        Fields::Named(named_fields) => { 
+            has_args = named_fields.named.len() > 0;
+
+            // Convert each field to its own type from a talk value (taken from _args)
+            let fields = named_fields.named.iter().enumerate()
+                .map(|(arg_num, field)| {
+                    let ty          = &field.ty;
+                    let field_ident = field.ident.as_ref().expect("Fields to have a name");
+                    quote_spanned! { field.span() => #field_ident: #ty::try_from_talk_value(TalkOwned::new(_args[#arg_num].take(), _context), _context)? }
+                });
+
+            quote_spanned! { data_struct.fields.span() => Ok(#name { #(#fields),* }) }
+        }
+
+        Fields::Unnamed(unnamed_fields) => {
+            has_args = unnamed_fields.unnamed.len() > 0;
+
+            // Convert each field to its own type from a talk value (taken from _args)
+            let fields = unnamed_fields.unnamed.iter().enumerate()
+                .map(|(arg_num, field)| {
+                    let ty = &field.ty;
+                    quote_spanned! { field.span() => #ty::try_from_talk_value(TalkOwned::new(_args[#arg_num].take(), _context), _context)? }
+                });
+
+            // Return result is from converting all the arguments
+            quote_spanned! { data_struct.fields.span() => Ok(#name(#(#fields),*)) }
+        }
+
+        Fields::Unit => {
+            has_args = false;
+            quote_spanned! { data_struct.fields.span() => Ok(#name) }
+        }
+    };
+
+    // Match against this signature ID and return the result of creating the value if it does match
+    if has_args {
+        quote_spanned! { data_struct.fields.span() =>
+            #signature
+            if *signature_id == *#signature_ident {
+                let mut _args = _args.unwrap();
+                return #create_struct;
+            }
+        }
+    } else {
+        quote_spanned! { data_struct.fields.span() =>
+            #signature
+            if *signature_id == *#signature_ident {
+                return #create_struct;
+            }
+        }
+    }
+}
+
+///
+/// Creates a match arm for a 'from_message' for a structure, with alternate matching
+///
+/// Expects '_first_symbol' to contain the initial symbol for the message, and '_args' to contain the arguments, returns None if there
+/// are no alternatives
+///
+fn struct_from_message_alternate(name: &Ident, data_struct: &DataStruct) -> Option<TokenStream2> {
+    // For 'unnamed' structures, we also support any message where the first symbol matches (so you can give these messages any name)
+    let signature                       = signature_for_fields(name, &data_struct.fields);
+    if signature.len() < 2 { return None; }
+    let (symbol, symbol_ident)          = symbol_static(&signature[0]);
+
+    let create_struct = match &data_struct.fields {
+        Fields::Named(_)    => { return None; }
+        Fields::Unit        => { return None; }
+
+        Fields::Unnamed(unnamed_fields) => {
+            if unnamed_fields.unnamed.len() == 0 {
+                return None;
+            }
+
+            // Convert each field to its own type from a talk value (taken from _args)
+            let fields = unnamed_fields.unnamed.iter().enumerate()
+                .map(|(arg_num, field)| {
+                    let ty = &field.ty;
+                    quote_spanned! { field.span() => #ty::try_from_talk_value(TalkOwned::new(_args[#arg_num].take(), _context), _context)? }
+                });
+
+            // Return result is from converting all the arguments
+            quote_spanned! { data_struct.fields.span() => Ok(#name(#(#fields),*)) }
+        }
+    };
+
+    // Match against this signature ID and return the result of creating the value if it does match
+    Some(quote_spanned! { data_struct.fields.span() =>
+        #symbol
+        if _first_symbol == *#symbol_ident {
+            let mut _args = _args.unwrap();
+            return #create_struct;
+        }
+    })
+}
+
+///
+/// Creates the code to implement TalkMessageType and TalkValueType for an enum
 ///
 fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -387,6 +554,13 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
 }
 
 ///
+/// Creates the code to implement TalkMessageType and TalkValueType for a struct
+///
+fn derive_struct_message(name: &Ident, generics: &Generics, data: &DataStruct) -> TokenStream {
+    todo!()
+}
+
+///
 /// Implements the `#[derive(TalkMessageType)]` attribute
 ///
 /// This attribute can be applied to types to automatically implement the `TalkMessageType` and `TalkValueType` traits
@@ -398,7 +572,7 @@ pub fn derive_talk_message(struct_or_enum: TokenStream) -> TokenStream {
 
     // Encode as a enum or a struct type (unions are not supported)
     match &struct_or_enum.data {
-        Data::Struct(struct_data)   => todo!("Structures"),
+        Data::Struct(struct_data)   => derive_struct_message(&struct_or_enum.ident, &struct_or_enum.generics, struct_data),
         Data::Enum(enum_data)       => derive_enum_message(&struct_or_enum.ident, &struct_or_enum.generics, enum_data),
         Data::Union(_)              => panic!("Only structs or enums can have the TalkMessageType trait applied to them")
     }
