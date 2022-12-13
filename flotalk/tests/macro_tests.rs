@@ -183,3 +183,43 @@ fn test_enum_generic_from_message() {
 
     assert!(back_to_enum == TestEnumGeneric::Val(42.0f64));
 }
+
+#[test]
+fn test_named_struct_from_message() {
+    #[derive(TalkMessageType, PartialEq)]
+    struct Test {
+        foo: i64,
+        bar: i64,
+    }
+
+    let context         = TalkContext::empty();
+    let message         = Test { foo: 1, bar: 2 }.to_message(&context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test { foo: 1, bar: 2 });
+}
+
+#[test]
+fn test_unnamed_struct_from_message() {
+    #[derive(TalkMessageType, PartialEq)]
+    struct Test(i64, i64);
+
+    let context         = TalkContext::empty();
+    let message         = Test(1, 2).to_message(&context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test(1, 2));
+}
+
+#[test]
+fn test_unnamed_struct_alternate_from_message() {
+    #[derive(TalkMessageType, PartialEq)]
+    struct Test(i64, i64);
+
+    let context         = TalkContext::empty();
+    let message         = TalkMessage::with_arguments(vec![("withTest:", 1), ("andAlso:", 2)]);
+    let message         = TalkOwned::new(message, &context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test(1, 2));
+}
