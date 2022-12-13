@@ -200,6 +200,22 @@ fn test_named_struct_from_message() {
 }
 
 #[test]
+fn test_named_struct_from_constructed_message() {
+    #[derive(TalkMessageType, PartialEq)]
+    struct Test {
+        foo: i64,
+        bar: i64,
+    }
+
+    let context         = TalkContext::empty();
+    let message         = TalkMessage::with_arguments(vec![("withTestFoo:", 1), ("bar:", 2)]);
+    let message         = TalkOwned::new(message, &context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test { foo: 1, bar: 2 });
+}
+
+#[test]
 fn test_unnamed_struct_from_message() {
     #[derive(TalkMessageType, PartialEq)]
     struct Test(i64, i64);
