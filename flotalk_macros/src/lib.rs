@@ -264,8 +264,8 @@ fn enum_variant_from_message_alternate(name: &Ident, variant: &Variant) -> Optio
     let variant_name                    = &variant.ident;
 
     let create_variant = match &variant.fields {
-        Fields::Named(named_fields) => { return None; }
-        Fields::Unit                => { return None; }
+        Fields::Named(_)    => { return None; }
+        Fields::Unit        => { return None; }
 
         Fields::Unnamed(unnamed_fields) => {
             if unnamed_fields.unnamed.len() == 0 {
