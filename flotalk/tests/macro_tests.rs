@@ -200,6 +200,21 @@ fn test_named_struct_from_message() {
 }
 
 #[test]
+fn test_generic_named_struct_from_message() {
+    #[derive(TalkMessageType, PartialEq)]
+    struct Test<T: TalkValueType> {
+        foo: T,
+        bar: T,
+    }
+
+    let context         = TalkContext::empty();
+    let message         = Test { foo: 1, bar: 2 }.to_message(&context);
+    let back_to_enum    = Test::<i64>::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test { foo: 1, bar: 2 });
+}
+
+#[test]
 fn test_named_struct_from_constructed_message() {
     #[derive(TalkMessageType, PartialEq)]
     struct Test {
@@ -235,6 +250,18 @@ fn test_single_field_unnamed_struct_from_message() {
     let context         = TalkContext::empty();
     let message         = Test(42).to_message(&context);
     let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test(42));
+}
+
+#[test]
+fn test_generic_field_unnamed_struct_from_message() {
+    #[derive(TalkMessageType, PartialEq)]
+    struct Test<T: TalkValueType>(T);
+
+    let context         = TalkContext::empty();
+    let message         = Test(42).to_message(&context);
+    let back_to_enum    = Test::<i64>::from_message(message, &context).unwrap();
 
     assert!(back_to_enum == Test(42));
 }
@@ -292,7 +319,7 @@ fn test_single_field_struct_in_enum_decode_from_message() {
     #[derive(TalkMessageType, PartialEq)]
     enum TestEnum { Val(Test) };
 
-    // Don't need to encode the struct as a message when it only has one field
+    // Optionally, the parameter can be encoded as a message as well as the raw value
     let context         = TalkContext::empty();
     let test_message    = Test(42).to_message(&context);
     let message         = TalkMessage::with_arguments(vec![("withVal:", test_message.leak())]);
