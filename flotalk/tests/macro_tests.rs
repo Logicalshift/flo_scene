@@ -228,6 +228,18 @@ fn test_unnamed_struct_from_message() {
 }
 
 #[test]
+fn test_single_field_unnamed_struct_from_message() {
+    #[derive(TalkMessageType, PartialEq)]
+    struct Test(i64);
+
+    let context         = TalkContext::empty();
+    let message         = Test(42).to_message(&context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test(42));
+}
+
+#[test]
 fn test_unnamed_struct_alternate_from_message() {
     #[derive(TalkMessageType, PartialEq)]
     struct Test(i64, i64);
@@ -238,4 +250,54 @@ fn test_unnamed_struct_alternate_from_message() {
     let back_to_enum    = Test::from_message(message, &context).unwrap();
 
     assert!(back_to_enum == Test(1, 2));
+}
+
+#[test]
+fn test_single_field_struct_in_enum_encode_decode() {
+    #[derive(TalkMessageType, PartialEq)]
+    struct Test(i64);
+
+    #[derive(TalkMessageType, PartialEq)]
+    enum TestEnum { Val(Test) };
+
+    let context         = TalkContext::empty();
+    let message         = TestEnum::Val(Test(42)).to_message(&context);
+    let back_to_enum    = TestEnum::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == TestEnum::Val(Test(42)));
+}
+
+#[test]
+fn test_single_field_struct_in_enum_decode() {
+    #[derive(TalkMessageType, PartialEq)]
+    struct Test(i64);
+
+    #[derive(TalkMessageType, PartialEq)]
+    enum TestEnum { Val(Test) };
+
+    // Don't need to encode the struct as a message when it only has one field
+    let context         = TalkContext::empty();
+    let message         = TalkMessage::with_arguments(vec![("withVal:", 42)]);
+    let message         = TalkOwned::new(message, &context);
+    let back_to_enum    = TestEnum::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == TestEnum::Val(Test(42)));
+}
+
+#[test]
+fn test_single_field_struct_in_enum_decode_from_message() {
+    #[derive(TalkMessageType, PartialEq)]
+    struct Test(i64);
+
+    #[derive(TalkMessageType, PartialEq)]
+    enum TestEnum { Val(Test) };
+
+    // Don't need to encode the struct as a message when it only has one field
+    let context         = TalkContext::empty();
+    let test_message    = Test(42).to_message(&context);
+    let message         = TalkMessage::with_arguments(vec![("withVal:", test_message.leak())]);
+    let message         = TalkOwned::new(message, &context);
+    let back_to_enum    = TestEnum::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == TestEnum::Val(Test(42)));
 }

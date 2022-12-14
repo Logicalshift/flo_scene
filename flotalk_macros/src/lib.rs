@@ -605,25 +605,77 @@ fn derive_struct_message(name: &Ident, generics: &Generics, data: &DataStruct) -
     };
 
     // We also implement the TalkValueType trait for things that can be messages (they create message objects)
-    let talk_value_type = quote! {
-        impl #impl_generics ::flo_talk::TalkValueType for #name #ty_generics #where_clause {
-            fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue> {
-                use flo_talk::{TalkOwned, TalkValue};
+    let talk_value_type = if data.fields.len() == 1 {
+        // Structs with one field can be decoded as a message or as a single value, and are preferentially encoded as a single value
+        let (fetch_field, field_ty, create_struct) = match &data.fields {
+            Fields::Named(named_fields)  => {
+                let field_name      = named_fields.named[0].ident.as_ref().expect("Fields to have a name");
+                let ty              = &named_fields.named[0].ty;
+                let fetch_field     = quote! { self.#field_name };
+                let create_struct   = quote! { #name { #field_name: field_value }};
 
-                TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context)
+                (fetch_field, ty, create_struct)
             }
 
-            fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<'a, TalkValue>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
-                let value = value.map(|val| {
-                    match val {
-                        ::flo_talk::TalkValue::Message(msg) => Some(*msg),
-                        _                                   => { val.release_in_context(context); None }
-                    }
-                });
+            Fields::Unnamed(unnamed_fields) => {
+                let ty              = &unnamed_fields.unnamed[0].ty;
+                let fetch_field     = quote! { self.0 };
+                let create_struct   = quote! { #name(field_value) };
 
-                match value.leak() {
-                    Some(msg)   => Self::from_message(TalkOwned::new(msg, context), context),
-                    None        => Err(TalkError::NotAMessage)
+                (fetch_field, ty, create_struct)
+            }
+
+            Fields::Unit => { unreachable!() }
+        };
+
+        quote! {
+            impl #impl_generics ::flo_talk::TalkValueType for #name #ty_generics #where_clause {
+                #[inline]
+                fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue> {
+                    #fetch_field.into_talk_value(context)
+                }
+
+                fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<'a, TalkValue>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+                    if let Ok(field_value) = #field_ty::try_from_talk_value(TalkOwned::new(value.clone_in_context(context), context), context) {
+                        Ok(#create_struct)
+                    } else {
+                        let value = value.map(|val| {
+                            match val {
+                                ::flo_talk::TalkValue::Message(msg) => Some(*msg),
+                                _                                   => { val.release_in_context(context); None }
+                            }
+                        });
+
+                        match value.leak() {
+                            Some(msg)   => Self::from_message(TalkOwned::new(msg, context), context),
+                            None        => Err(TalkError::NotAMessage)
+                        }
+                    }
+                }
+            }
+        }
+    } else { 
+        // Structs with more than one field can only be decoded as a message
+        quote! {
+            impl #impl_generics ::flo_talk::TalkValueType for #name #ty_generics #where_clause {
+                fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue> {
+                    use flo_talk::{TalkOwned, TalkValue};
+
+                    TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context)
+                }
+
+                fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<'a, TalkValue>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+                    let value = value.map(|val| {
+                        match val {
+                            ::flo_talk::TalkValue::Message(msg) => Some(*msg),
+                            _                                   => { val.release_in_context(context); None }
+                        }
+                    });
+
+                    match value.leak() {
+                        Some(msg)   => Self::from_message(TalkOwned::new(msg, context), context),
+                        None        => Err(TalkError::NotAMessage)
+                    }
                 }
             }
         }
