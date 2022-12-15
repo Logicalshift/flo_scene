@@ -285,7 +285,7 @@ fn test_single_field_struct_in_enum_encode_decode() {
     struct Test(i64);
 
     #[derive(TalkMessageType, PartialEq)]
-    enum TestEnum { Val(Test) };
+    enum TestEnum { Val(Test) }
 
     let context         = TalkContext::empty();
     let message         = TestEnum::Val(Test(42)).to_message(&context);
@@ -300,7 +300,7 @@ fn test_single_field_struct_in_enum_decode() {
     struct Test(i64);
 
     #[derive(TalkMessageType, PartialEq)]
-    enum TestEnum { Val(Test) };
+    enum TestEnum { Val(Test) }
 
     // Don't need to encode the struct as a message when it only has one field
     let context         = TalkContext::empty();
@@ -317,7 +317,7 @@ fn test_single_field_struct_in_enum_decode_from_message() {
     struct Test(i64);
 
     #[derive(TalkMessageType, PartialEq)]
-    enum TestEnum { Val(Test) };
+    enum TestEnum { Val(Test) }
 
     // Optionally, the parameter can be encoded as a message as well as the raw value
     let context         = TalkContext::empty();
@@ -330,11 +330,11 @@ fn test_single_field_struct_in_enum_decode_from_message() {
 }
 
 #[test]
-fn test_custom_message_enum() {
+fn test_custom_message_enum_1() {
     #[derive(TalkMessageType, PartialEq)]
     enum Test {
         #[message("foo:")]
-        CustomMessage(i64)
+        CustomMessage(i64),
     }
 
     let context         = TalkContext::empty();
@@ -344,3 +344,67 @@ fn test_custom_message_enum() {
 
     assert!(back_to_enum == Test::CustomMessage(42));
 }
+
+#[test]
+fn test_custom_message_enum_2() {
+    #[derive(TalkMessageType, PartialEq)]
+    enum Test {
+        #[message("foo:")]
+        CustomMessage1(i64),
+
+        #[message("foo:bar:")]
+        CustomMessage2(i64, i64)
+    }
+
+    let context         = TalkContext::empty();
+    let message         = TalkMessage::with_arguments(vec![("foo:", 1), ("bar:", 2)]);
+    let message         = TalkOwned::new(message, &context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test::CustomMessage2(1, 2));
+}
+
+#[test]
+fn test_custom_message_enum_3() {
+    #[derive(TalkMessageType, PartialEq)]
+    enum Test {
+        #[message("foo:")]
+        CustomMessage1(i64),
+
+        #[message("foo:bar:")]
+        CustomMessage2(i64, i64),
+
+        #[message("foo:baz:")]
+        CustomMessage3(i64, i64),
+    }
+
+    let context         = TalkContext::empty();
+    let message         = TalkMessage::with_arguments(vec![("foo:", 1), ("bar:", 2)]);
+    let message         = TalkOwned::new(message, &context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test::CustomMessage2(1, 2));
+}
+
+#[test]
+fn test_custom_message_enum_4() {
+    #[derive(TalkMessageType, PartialEq)]
+    enum Test {
+        #[message("foo:")]
+        CustomMessage1(i64),
+
+        #[message("foo:bar:")]
+        CustomMessage2(i64, i64),
+
+        #[message("foo:baz:")]
+        CustomMessage3(i64, i64),
+    }
+
+    let context         = TalkContext::empty();
+    let message         = TalkMessage::with_arguments(vec![("foo:", 1), ("baz:", 2)]);
+    let message         = TalkOwned::new(message, &context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test::CustomMessage3(1, 2));
+}
+

@@ -4,7 +4,7 @@ use proc_macro::{TokenStream};
 use proc_macro2::{TokenStream as TokenStream2};
 use proc_macro2::{Span};
 use syn;
-use syn::{Ident, Generics, Data, DataEnum, DataStruct, Variant, Fields, Field};
+use syn::{Ident, Generics, Data, DataEnum, DataStruct, Variant, Fields, Field, Attribute};
 use syn::spanned::Spanned;
 
 use once_cell::sync::{Lazy};
@@ -84,7 +84,24 @@ fn capitalized_name_for_field(field: &Field) -> String {
 ///
 /// Creates the strings that make up the message signature for a list of fields
 ///
-fn signature_for_fields(parent_name: &Ident, fields: &Fields) -> Vec<String> {
+fn signature_for_fields(parent_name: &Ident, fields: &Fields, attributes: Option<&Vec<Attribute>>) -> Vec<String> {
+    let num_fields = fields.len();
+
+    // Try to derive the name from the attributes
+    for attr in attributes.iter().flat_map(|attrs| attrs.iter()) {
+        if attr.path.is_ident("message") {
+            let signature = decode_message(attr);
+
+            if signature.len() != num_fields {
+                // TODO: error handling
+                panic!("#[message()] attribute used on a variant with {} fields, but there are {} fields in the supplied signature", num_fields, signature.len());
+            }
+
+            return signature;
+        }
+    }
+
+    // Derive the name from the fields
     match fields {
         Fields::Named(named_fields) => {
             if named_fields.named.len() == 0 {
@@ -127,7 +144,7 @@ fn signature_for_fields(parent_name: &Ident, fields: &Fields) -> Vec<String> {
 ///
 fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
     // Get the signature
-    let signature                       = signature_for_fields(&variant.ident, &variant.fields);
+    let signature                       = signature_for_fields(&variant.ident, &variant.fields, Some(&variant.attrs));
     let (signature, signature_ident)    = message_signature_static(signature);
 
     let variant_name                    = &variant.ident;
@@ -187,7 +204,7 @@ fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
 ///
 fn struct_to_message(name: &Ident, data_struct: &DataStruct) -> TokenStream2 {
     // Get the signature
-    let signature                       = signature_for_fields(name, &data_struct.fields);
+    let signature                       = signature_for_fields(name, &data_struct.fields, None);
     let (signature, signature_ident)    = message_signature_static(signature);
 
     // We call the values in the fields v0, v1, v2, etc
@@ -245,7 +262,7 @@ fn struct_to_message(name: &Ident, data_struct: &DataStruct) -> TokenStream2 {
 ///
 fn enum_variant_from_message(name: &Ident, variant: &Variant) -> TokenStream2 {
     // Convert the enum variant to a signature, and store that signature in a static variable
-    let signature                       = signature_for_fields(&variant.ident, &variant.fields);
+    let signature                       = signature_for_fields(&variant.ident, &variant.fields, Some(&variant.attrs));
     let (signature, signature_ident)    = message_signature_static(signature);
 
     let variant_name                    = &variant.ident;
@@ -314,7 +331,7 @@ fn enum_variant_from_message(name: &Ident, variant: &Variant) -> TokenStream2 {
 ///
 fn enum_variant_from_message_alternate(name: &Ident, variant: &Variant) -> Option<TokenStream2> {
     // For 'unnamed' enum variants, we also support any message where the first symbol matches (so you can give these messages any name)
-    let signature                       = signature_for_fields(&variant.ident, &variant.fields);
+    let signature                       = signature_for_fields(&variant.ident, &variant.fields, Some(&variant.attrs));
     if signature.len() < 2 { return None; }
     let (symbol, symbol_ident)          = symbol_static(&signature[0]);
 
@@ -358,7 +375,7 @@ fn enum_variant_from_message_alternate(name: &Ident, variant: &Variant) -> Optio
 ///
 fn struct_from_message(name: &Ident, data_struct: &DataStruct) -> TokenStream2 {
     // Convert the structure to a signature, and store that signature in a static variable
-    let signature                       = signature_for_fields(name, &data_struct.fields);
+    let signature                       = signature_for_fields(name, &data_struct.fields, None);
     let (signature, signature_ident)    = message_signature_static(signature);
 
     // Create the code to construct this structure
@@ -425,7 +442,7 @@ fn struct_from_message(name: &Ident, data_struct: &DataStruct) -> TokenStream2 {
 ///
 fn struct_from_message_alternate(name: &Ident, data_struct: &DataStruct) -> Option<TokenStream2> {
     // For 'unnamed' structures, we also support any message where the first symbol matches (so you can give these messages any name)
-    let signature                       = signature_for_fields(name, &data_struct.fields);
+    let signature                       = signature_for_fields(name, &data_struct.fields, None);
     if signature.len() < 2 { return None; }
     let (symbol, symbol_ident)          = symbol_static(&signature[0]);
 
@@ -686,6 +703,18 @@ fn derive_struct_message(name: &Ident, generics: &Generics, data: &DataStruct) -
         #talk_message_type
         #talk_value_type
     }.into()
+}
+
+///
+/// Decodes the message from a 'message' attribute
+///
+fn decode_message(attribute: &Attribute) -> Vec<String> {
+    // Message should be of the form #[message(foo)]
+    let message_string: syn::LitStr = attribute.parse_args().unwrap();
+    let message_string              = message_string.value();
+
+    // Split into message components
+    message_string.split_inclusive(':').map(|component| component.to_string()).collect()
 }
 
 ///
