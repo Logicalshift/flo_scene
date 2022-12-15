@@ -90,11 +90,12 @@ fn signature_for_fields(parent_name: &Ident, fields: &Fields, attributes: Option
     // Try to derive the name from the attributes
     for attr in attributes.iter().flat_map(|attrs| attrs.iter()) {
         if attr.path.is_ident("message") {
-            let signature = decode_message(attr);
+            let signature       = decode_message(attr);
+            let signature_len   = if signature.len() == 1 && !signature[0].ends_with(":") { 0 } else { signature.len() };
 
-            if signature.len() != num_fields {
+            if signature_len != num_fields {
                 // TODO: error handling
-                panic!("#[message()] attribute used on a variant with {} fields, but there are {} fields in the supplied signature", num_fields, signature.len());
+                panic!("#[message()] attribute used on a variant with {} fields, but there are {} fields in the supplied signature", num_fields, signature_len);
             }
 
             return signature;

@@ -408,3 +408,25 @@ fn test_custom_message_enum_4() {
     assert!(back_to_enum == Test::CustomMessage3(1, 2));
 }
 
+#[test]
+fn test_custom_message_enum_5() {
+    #[derive(TalkMessageType, PartialEq)]
+    enum Test {
+        #[message("foo")]
+        CustomMessage1,
+
+        #[message("foo:bar:")]
+        CustomMessage2(i64, i64),
+
+        #[message("foo:baz:")]
+        CustomMessage3(i64, i64),
+    }
+
+    let context         = TalkContext::empty();
+    let message         = TalkMessage::unary("foo");
+    let message         = TalkOwned::new(message, &context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test::CustomMessage1);
+}
+
