@@ -328,3 +328,19 @@ fn test_single_field_struct_in_enum_decode_from_message() {
 
     assert!(back_to_enum == TestEnum::Val(Test(42)));
 }
+
+#[test]
+fn test_custom_message_enum() {
+    #[derive(TalkMessageType, PartialEq)]
+    enum Test {
+        #[message("foo:")]
+        CustomMessage(i64)
+    }
+
+    let context         = TalkContext::empty();
+    let message         = TalkMessage::with_arguments(vec![("foo:", 42)]);
+    let message         = TalkOwned::new(message, &context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test::CustomMessage(42));
+}

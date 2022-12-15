@@ -693,7 +693,7 @@ fn derive_struct_message(name: &Ident, generics: &Generics, data: &DataStruct) -
 ///
 /// This attribute can be applied to types to automatically implement the `TalkMessageType` and `TalkValueType` traits
 ///
-#[proc_macro_derive(TalkMessageType)]
+#[proc_macro_derive(TalkMessageType, attributes(message))]
 pub fn derive_talk_message(struct_or_enum: TokenStream) -> TokenStream {
     // Use syn to parse the tokens
     let struct_or_enum: syn::DeriveInput = syn::parse(struct_or_enum).unwrap();
