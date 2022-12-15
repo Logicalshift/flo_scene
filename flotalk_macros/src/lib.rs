@@ -203,9 +203,9 @@ fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
 ///
 /// Creates a match arm for 'to_message' for a struct
 ///
-fn struct_to_message(name: &Ident, data_struct: &DataStruct) -> TokenStream2 {
+fn struct_to_message(name: &Ident, data_struct: &DataStruct, attributes: &Vec<Attribute>) -> TokenStream2 {
     // Get the signature
-    let signature                       = signature_for_fields(name, &data_struct.fields, None);
+    let signature                       = signature_for_fields(name, &data_struct.fields, Some(attributes));
     let (signature, signature_ident)    = message_signature_static(signature);
 
     // We call the values in the fields v0, v1, v2, etc
@@ -374,9 +374,9 @@ fn enum_variant_from_message_alternate(name: &Ident, variant: &Variant) -> Optio
 ///
 /// Expects 'signature_id' to contain the MessageSignatureId and '_args' to contain the arguments
 ///
-fn struct_from_message(name: &Ident, data_struct: &DataStruct) -> TokenStream2 {
+fn struct_from_message(name: &Ident, data_struct: &DataStruct, attributes: &Vec<Attribute>) -> TokenStream2 {
     // Convert the structure to a signature, and store that signature in a static variable
-    let signature                       = signature_for_fields(name, &data_struct.fields, None);
+    let signature                       = signature_for_fields(name, &data_struct.fields, Some(attributes));
     let (signature, signature_ident)    = message_signature_static(signature);
 
     // Create the code to construct this structure
@@ -573,14 +573,14 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
 ///
 /// Creates the code to implement TalkMessageType and TalkValueType for a struct
 ///
-fn derive_struct_message(name: &Ident, generics: &Generics, data: &DataStruct) -> TokenStream {
+fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Attribute>, data: &DataStruct) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // Create the 'to_message' call
-    let to_message = struct_to_message(name, data);
+    let to_message = struct_to_message(name, data, attributes);
 
     // Create the main 'from_message' call
-    let from_message = struct_from_message(name, data);
+    let from_message = struct_from_message(name, data, attributes);
 
     // Create 0 or 1 alternative matching style (depends on the struct)
     let from_message_alternates = struct_from_message_alternate(name, data).into_iter().collect::<Vec<_>>();
@@ -730,7 +730,7 @@ pub fn derive_talk_message(struct_or_enum: TokenStream) -> TokenStream {
 
     // Encode as a enum or a struct type (unions are not supported)
     match &struct_or_enum.data {
-        Data::Struct(struct_data)   => derive_struct_message(&struct_or_enum.ident, &struct_or_enum.generics, struct_data),
+        Data::Struct(struct_data)   => derive_struct_message(&struct_or_enum.ident, &struct_or_enum.generics, &struct_or_enum.attrs, struct_data),
         Data::Enum(enum_data)       => derive_enum_message(&struct_or_enum.ident, &struct_or_enum.generics, enum_data),
         Data::Union(_)              => panic!("Only structs or enums can have the TalkMessageType trait applied to them")
     }

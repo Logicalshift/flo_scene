@@ -430,3 +430,17 @@ fn test_custom_message_enum_5() {
     assert!(back_to_enum == Test::CustomMessage1);
 }
 
+#[test]
+fn test_custom_message_struct() {
+    #[derive(TalkMessageType, PartialEq)]
+    #[message("test:")]
+    struct Test(i64);
+
+    let context         = TalkContext::empty();
+    let message         = TalkMessage::with_arguments(vec![("test:", 42)]);
+    let message         = TalkOwned::new(message, &context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test(42));
+}
+
