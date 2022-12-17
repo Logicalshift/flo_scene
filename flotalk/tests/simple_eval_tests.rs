@@ -7,15 +7,11 @@ use std::sync::*;
 
 #[test]
 fn evaluate_number() {
-    let test_source     = "42";
-    let runtime         = TalkRuntime::empty();
+    let test_source = TalkScript::from("42");
+    let runtime     = TalkRuntime::empty();
 
     executor::block_on(async { 
-        let test_source     = stream::iter(test_source.chars());
-        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
-        let instructions    = expr.value.to_instructions();
-
-        let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
+        let result = runtime.run(test_source).await;
 
         assert!(result == TalkValue::Int(42));
     });
