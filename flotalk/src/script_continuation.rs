@@ -1,5 +1,4 @@
 use super::continuation::*;
-use super::instruction::*;
 use super::expression::*;
 use super::parser::*;
 use super::simple_evaluator::*;
@@ -62,7 +61,7 @@ pub fn continuation_from_script<'a>(script: impl Into<TalkScript>) -> TalkContin
             let eval_symbol_block = talk_context.allocate_cell_block(1);
 
             // Evaluate the expression, then release the cell blocks
-            talk_evaluate_simple(eval_symbol_table, vec![root_symbol_block.clone(), eval_symbol_block.clone()], instructions)
+            talk_evaluate_simple(eval_symbol_table, vec![eval_symbol_block.clone(), root_symbol_block.clone()], instructions)
                 .and_then(move |result| {
                     TalkContinuation::soon(move |talk_context| {
                         talk_context.release_cell_block(root_symbol_block);
