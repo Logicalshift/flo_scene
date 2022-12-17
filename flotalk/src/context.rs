@@ -1,7 +1,10 @@
 use super::class::*;
 use super::dispatch_table::*;
 use super::reference::*;
+use super::releasable::*;
 use super::standard_classes::*;
+use super::symbol::*;
+use super::symbol_table::*;
 use super::value::*;
 use super::value_messages::*;
 
@@ -55,6 +58,12 @@ pub struct TalkContext {
 
     /// Values in the 'cells' array that have been freed
     free_cells: Mutex<Vec<usize>>,
+
+    /// The cell block containing the values for the root symbol table
+    root_cell_block: TalkCellBlock,
+
+    /// The 'root' symbol table, which can be used for binding symbols when they have no symbol table of their own
+    root_symbol_table: Arc<Mutex<TalkSymbolTable>>,
 }
 
 impl TalkContext {
@@ -65,12 +74,14 @@ impl TalkContext {
         TalkContext {
             context_callbacks:              vec![],
             value_dispatch_tables:          TalkValueDispatchTables::default(),
-            cells:                          vec![],
-            cell_reference_count:           vec![],
+            cells:                          vec![Box::new([])],
+            cell_reference_count:           vec![AtomicU32::new(1)],
             cell_block_classes:             vec![],
             available_cell_block_classes:   vec![],
             next_cell_block_class_idx:      0,
             free_cells:                     Mutex::new(vec![]),
+            root_cell_block:                TalkCellBlock(0),
+            root_symbol_table:              Arc::new(Mutex::new(TalkSymbolTable::empty())),
         }
     }
 
@@ -335,6 +346,74 @@ impl TalkContext {
             class_object:   class_object,
             instance_class: cell_block_instance_class,  
         })
+    }
+
+    ///
+    /// Returns the shared root symbol table for this context
+    ///
+    #[inline]
+    pub fn root_symbol_table(&self) -> Arc<Mutex<TalkSymbolTable>> {
+        self.root_symbol_table.clone()
+    }
+
+    ///
+    /// Retrieves the cell block containing the values for the root symbol table
+    ///
+    #[inline]
+    pub fn root_symbol_table_cell_block<'a>(&'a self) -> TalkOwned<'a, TalkCellBlock> {
+        let cell_block = self.root_cell_block.clone();
+        self.retain_cell_block(cell_block);
+        TalkOwned::new(cell_block, self)
+    }
+
+    ///
+    /// Replaces the existing root symbol table with a new empty one
+    ///
+    pub fn create_empty_root_symbol_table(&mut self) {
+        // Create a new symbol table
+        self.root_symbol_table = Arc::new(Mutex::new(TalkSymbolTable::empty()));
+
+        // Free the old cell block and replace it with a new empty one
+        self.release_cell_block(self.root_cell_block);
+        self.root_cell_block = self.allocate_cell_block(128);
+    }
+
+    ///
+    /// Sets the value of a symbol in the root symbol table (defining it if necessary)
+    ///
+    pub fn set_root_symbol_value<'a>(&mut self, symbol: impl Into<TalkSymbol>, new_value: TalkOwned<'a, TalkValue>) {
+        // Define a new cell or retrieve the existing cell for the symbol
+        let symbol_index = {
+            let symbol                  = symbol.into();
+            let mut root_symbol_table   = self.root_symbol_table.lock().unwrap();
+            let symbol_index            = if let Some(existing_symbol) = root_symbol_table.symbol(symbol) { existing_symbol } else { root_symbol_table.define_symbol(symbol) };
+
+            symbol_index
+        };
+        let symbol_index = symbol_index.cell as usize;
+
+        // Make sure that there are enough cells defined
+        let root_cell_block = self.cell_block(self.root_cell_block);
+
+        if root_cell_block.len() <= symbol_index {
+            // Decide how big to make the new root cell block
+            let mut new_size = root_cell_block.len();
+            while new_size <= symbol_index {
+                new_size *= 2;
+                if new_size == 0 { new_size = 128 }
+            }
+
+            // Resize the cell block
+            self.resize_cell_block(self.root_cell_block, new_size);
+        }
+
+        // Re-fetch the root cell block
+        let root_cell_block = self.cell_block_mut(self.root_cell_block);
+
+        // Release any existing value and store the new value
+        let old_value = root_cell_block[symbol_index].take();
+        root_cell_block[symbol_index] = new_value.leak();
+        old_value.release_in_context(self);
     }
 }
 
