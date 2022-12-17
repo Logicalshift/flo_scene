@@ -34,6 +34,7 @@ mod releasable;
 mod standard_classes;
 mod read_write_queue;
 mod symbol_table;
+mod script_continuation;
 
 pub mod sparse_array;
 
@@ -60,6 +61,7 @@ pub use self::releasable::*;
 pub use self::standard_classes::*;
 pub use self::read_write_queue::*;
 pub use self::symbol_table::*;
+pub use self::script_continuation::*;
 
 #[doc(hidden)] pub use flo_talk_macros::*;
 #[doc(hidden)] pub use once_cell;
