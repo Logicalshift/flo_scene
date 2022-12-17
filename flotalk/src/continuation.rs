@@ -5,6 +5,7 @@ use super::message::*;
 use super::reference::*;
 use super::value::*;
 
+use futures::prelude::*;
 use futures::task::{Poll, Context};
 
 use std::mem;
@@ -54,6 +55,56 @@ impl<'a> TalkContinuation<'a> {
     #[inline]
     pub fn soon(soon: impl 'a + Send + FnOnce(&mut TalkContext) -> TalkContinuation<'static>) -> Self {
         TalkContinuation::Soon(Box::new(soon))
+    }
+
+    ///
+    /// Creates a 'TalkContinuation::Later' from a function
+    ///
+    #[inline]
+    pub fn later(later: impl 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>) -> Self {
+        TalkContinuation::Later(Box::new(later))
+    }
+
+    ///
+    /// Creates a TalkContinuation from a future
+    ///
+    #[inline]
+    pub fn future(future: impl 'a + Send + Unpin + Future<Output=TalkValue>) -> Self {
+        let mut future = future;
+        Self::later(move |_, ctxt| future.poll_unpin(ctxt))
+    }
+
+    ///
+    /// Creates a TalkContinuation from a future
+    ///
+    #[inline]
+    pub fn future_soon<'b: 'a>(future: impl 'a + Send + Unpin + Future<Output=TalkContinuation<'b>>) -> Self {
+        let mut next_continuation   = None;
+        let mut future              = future;
+
+        Self::later(move |talk_context, future_context| {
+            loop {
+                next_continuation = match next_continuation.take() {
+                    Some(TalkContinuation::Ready(value))    => { return Poll::Ready(value); },
+                    Some(TalkContinuation::Soon(soon_fn))   => { Some((soon_fn)(talk_context)) }
+                    Some(TalkContinuation::Later(later_fn)) => {
+                        let mut later_fn    = later_fn;
+                        let poll_result     = later_fn(talk_context, future_context);
+                        next_continuation   = Some(TalkContinuation::Later(later_fn));
+                        return poll_result;
+                    } 
+
+                    None                                    => {
+                        let poll_result = future.poll_unpin(future_context);
+
+                        match poll_result {
+                            Poll::Pending                   => { return Poll::Pending; },
+                            Poll::Ready(new_continuation)   => Some(new_continuation),
+                        }
+                    }
+                }
+            }
+        })
     }
 
     ///
