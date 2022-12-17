@@ -227,16 +227,15 @@ fn overwrite_root_variable() {
 
 #[test]
 fn overwrite_closure_variable() {
-    let test_source     = "[ | y | y := 10 . [ y := 8 . y ] value + y ] value + y";
-    let runtime         = TalkRuntime::empty();
+    let test_source = TalkScript::from("[ | y | y := 10 . [ y := 8 . y ] value + y ] value + y");
+    let runtime     = TalkRuntime::empty();
 
     executor::block_on(async { 
-        let test_source     = stream::iter(test_source.chars());
-        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
-        let instructions    = expr.value.to_instructions();
+        runtime.set_root_symbol_value("x", 22).await;
+        runtime.set_root_symbol_value("y", 26).await;
 
         // Should overwrite the 'inner' y here to give us 8 + 8 + 26 (as the outer 'y' has a value of 26)
-        let result          = runtime.run_with_symbols(|_| vec![("x".into(), TalkValue::Int(22)), ("y".into(), TalkValue::Int(26))], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
+        let result = runtime.run(test_source).await;
 
         assert!(result == TalkValue::Int(42));
     });
