@@ -381,7 +381,7 @@ impl TalkContext {
     ///
     /// Sets the value of a symbol in the root symbol table (defining it if necessary)
     ///
-    pub fn set_root_symbol_value<'a>(&mut self, symbol: impl Into<TalkSymbol>, new_value: TalkOwned<'a, TalkValue>) {
+    pub fn set_root_symbol_value<'a>(&mut self, symbol: impl Into<TalkSymbol>, new_value: TalkValue) {
         // Define a new cell or retrieve the existing cell for the symbol
         let symbol_index = {
             let symbol                  = symbol.into();
@@ -412,7 +412,7 @@ impl TalkContext {
 
         // Release any existing value and store the new value
         let old_value = root_cell_block[symbol_index].take();
-        root_cell_block[symbol_index] = new_value.leak();
+        root_cell_block[symbol_index] = new_value;
         old_value.release_in_context(self);
     }
 }

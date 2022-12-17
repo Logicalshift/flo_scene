@@ -113,6 +113,26 @@ impl TalkRuntime {
     }
 
     ///
+    /// Replaces the existing root symbol table with a new empty one
+    ///
+    pub async fn create_empty_root_symbol_table(&self) {
+        self.run(TalkContinuation::soon(|talk_context| {
+            talk_context.create_empty_root_symbol_table();
+            ().into()
+        })).await;
+    }
+
+    ///
+    /// Sets the value of a symbol in the root symbol table (defining it if necessary)
+    ///
+    pub async fn set_root_symbol_value<'a>(&self, symbol: impl Send + Into<TalkSymbol>, new_value: impl Send + Into<TalkValue>) {
+        self.run(TalkContinuation::soon(move |talk_context| {
+            talk_context.set_root_symbol_value(symbol, new_value.into());
+            ().into()
+        })).await;
+    }
+
+    ///
     /// Runs a continuation or a script using this runtime
     ///
     #[inline]
