@@ -1,4 +1,5 @@
 use super::message::*;
+use super::parse_error::*;
 use super::symbol::*;
 
 ///
@@ -8,6 +9,9 @@ use super::symbol::*;
 pub enum TalkError {
     // TODO: Error described by a FloTalk object
     // Object(TalkReference),
+
+    /// Error with parsing a script
+    ParseError(TalkParseError),
 
     /// Something is not implemented
     NotImplemented,
@@ -74,4 +78,10 @@ pub enum TalkError {
 
     /// A symbol was used that's not bound to any value
     UnboundSymbol(TalkSymbol),
+}
+
+impl From<TalkParseError> for TalkError {
+    fn from(parse_error: TalkParseError) -> TalkError {
+        TalkError::ParseError(parse_error)
+    }
 }
