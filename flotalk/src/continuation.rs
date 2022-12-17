@@ -69,8 +69,11 @@ impl<'a> TalkContinuation<'a> {
     /// Creates a TalkContinuation from a future
     ///
     #[inline]
-    pub fn future(future: impl 'a + Send + Unpin + Future<Output=TalkValue>) -> Self {
-        let mut future = future;
+    pub fn future<TFuture>(future: TFuture) -> Self
+    where
+        TFuture: 'a + Send + Future<Output=TalkValue>,
+    {
+        let mut future = Box::pin(future);
         Self::later(move |_, ctxt| future.poll_unpin(ctxt))
     }
 
@@ -78,9 +81,12 @@ impl<'a> TalkContinuation<'a> {
     /// Creates a TalkContinuation from a future
     ///
     #[inline]
-    pub fn future_soon<'b: 'a>(future: impl 'a + Send + Unpin + Future<Output=TalkContinuation<'b>>) -> Self {
+    pub fn future_soon<'b: 'a, TFuture>(future: TFuture) -> Self 
+    where
+        TFuture: 'a + Send + Future<Output=TalkContinuation<'b>>,
+    {
         let mut next_continuation   = None;
-        let mut future              = future;
+        let mut future              = Box::pin(future);
 
         Self::later(move |talk_context, future_context| {
             loop {
