@@ -164,10 +164,10 @@ impl TalkRuntime {
     /// Generates a symbol table, then runs a continuation with it
     ///
     #[inline]
-    pub fn run_with_symbols<'a>(&'a self, symbol_table: impl 'a + Send + FnOnce(&mut TalkContext) -> Vec<(TalkSymbol, TalkValue)>, continuation: impl 'a + Send + FnOnce(Arc<Mutex<TalkSymbolTable>>, Vec<TalkCellBlock>) -> TalkContinuation<'static>) -> impl 'a + Send + Future<Output=TalkValue> {
+    pub fn run_with_symbols<'a>(&'a self, create_symbol_table: impl 'a + Send + FnOnce(&mut TalkContext) -> Vec<(TalkSymbol, TalkValue)>, create_continuation: impl 'a + Send + FnOnce(Arc<Mutex<TalkSymbolTable>>, Vec<TalkCellBlock>) -> TalkContinuation<'static>) -> impl 'a + Send + Future<Output=TalkValue> {
         let continuation = TalkContinuation::Soon(Box::new(move |talk_context| {
             // Ask for the symbol table
-            let symbols             = symbol_table(talk_context);
+            let symbols             = create_symbol_table(talk_context);
 
             // Create a cell block to contain the symbols
             let cell_block          = talk_context.allocate_cell_block(symbols.len());
@@ -182,7 +182,7 @@ impl TalkRuntime {
 
             // Run the continuation with our new table
             // TODO: release the cell block when the continuation returns
-            continuation(Arc::new(Mutex::new(symbol_table)), vec![cell_block])
+            create_continuation(Arc::new(Mutex::new(symbol_table)), vec![cell_block])
         }));
 
         self.run(continuation)
