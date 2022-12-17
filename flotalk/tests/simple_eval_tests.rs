@@ -179,15 +179,12 @@ fn retrieve_argument() {
 
 #[test]
 fn retrieve_root_value() {
-    let test_source     = "x";
+    let test_source     = TalkScript::from("x");
     let runtime         = TalkRuntime::empty();
 
     executor::block_on(async { 
-        let test_source     = stream::iter(test_source.chars());
-        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
-        let instructions    = expr.value.to_instructions();
-
-        let result          = runtime.run_with_symbols(|_| vec![("x".into(), TalkValue::Int(42))], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
+        runtime.set_root_symbol_value("x", 42).await;
+        let result = runtime.run(test_source).await;
 
         assert!(result == TalkValue::Int(42));
     });
