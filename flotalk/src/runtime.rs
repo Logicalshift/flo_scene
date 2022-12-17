@@ -47,7 +47,7 @@ impl TalkRuntime {
     ///
     pub fn send_message<'a>(&'a self, value: &'a TalkValue, message: TalkMessage) -> impl 'a + Send + Future<Output=TalkValue> {
         async move {
-            self.run_continuation(TalkContinuation::Soon(Box::new(move |talk_context| {
+            self.run(TalkContinuation::Soon(Box::new(move |talk_context| {
                 let value = value.clone_in_context(talk_context);
                 value.send_message_in_context(message, talk_context)
             }))).await
@@ -61,7 +61,7 @@ impl TalkRuntime {
     ///
     pub fn release_value<'a>(&'a self, value: TalkValue) -> impl 'a + Send + Future<Output=()> {
         async move {
-            self.run_continuation(TalkContinuation::Soon(Box::new(move |talk_context| {
+            self.run(TalkContinuation::Soon(Box::new(move |talk_context| {
                 value.remove_reference(talk_context);
                 TalkValue::Nil.into()
             }))).await;
@@ -113,10 +113,12 @@ impl TalkRuntime {
     }
 
     ///
-    /// Runs a continuation on this runtime
+    /// Runs a continuation or a script using this runtime
     ///
     #[inline]
-    pub fn run_continuation<'a>(&self, continuation: TalkContinuation<'a>) -> impl 'a + Send + Future<Output=TalkValue> {
+    pub fn run<'a>(&self, continuation: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + Future<Output=TalkValue> {
+        let continuation = continuation.into();
+
         enum NowLater<T> {
             Now(TalkValue),
             Later(T),
@@ -183,6 +185,6 @@ impl TalkRuntime {
             continuation(Arc::new(Mutex::new(symbol_table)), vec![cell_block])
         }));
 
-        self.run_continuation(continuation)
+        self.run(continuation)
     }
 }

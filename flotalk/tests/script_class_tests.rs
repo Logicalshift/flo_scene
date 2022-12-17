@@ -12,7 +12,7 @@ fn unsupported_message() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -38,7 +38,7 @@ fn create_subclass() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -65,7 +65,7 @@ fn create_subclass_with_instance_variables() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -92,7 +92,7 @@ fn subclass_unsupported() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -119,7 +119,7 @@ fn read_superclass() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -143,7 +143,7 @@ fn create_object_instance() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -175,7 +175,7 @@ fn create_subclass_instance() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -208,7 +208,7 @@ fn define_class_method() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -237,7 +237,7 @@ fn define_class_method_with_anonymous_param() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -268,7 +268,7 @@ fn call_superclass_method() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -297,7 +297,7 @@ fn define_class_method_without_super() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -328,7 +328,7 @@ fn call_superclass_from_class_method() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -365,7 +365,7 @@ fn define_instance_message() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -403,7 +403,7 @@ fn call_instance_message_in_superclass() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -441,7 +441,7 @@ fn replace_instance_message() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -482,7 +482,7 @@ fn call_superclass_from_instance_method() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -519,7 +519,7 @@ fn define_instance_message_without_self() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 
@@ -557,7 +557,7 @@ fn call_self_from_instance_message() {
 
     executor::block_on(async { 
         // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run_continuation(TalkContinuation::soon(|talk_context| {
+        let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
 

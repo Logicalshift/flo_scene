@@ -436,7 +436,7 @@ impl TalkClass {
     pub fn send_message<'a>(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl 'a + Future<Output=TalkValue> {
         let class = *self;
 
-        runtime.run_continuation(TalkContinuation::<'a>::Soon(Box::new(move |talk_context| {
+        runtime.run(TalkContinuation::<'a>::Soon(Box::new(move |talk_context| {
             let continuation = class.send_message_in_context(message, talk_context);
             continuation
         })))
