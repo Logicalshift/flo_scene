@@ -121,3 +121,28 @@ where
         class
     }
 }
+
+///
+/// Creates a sender object and a receiver stream for a specific item type
+///
+pub fn create_talk_sender<'a, TItem>(talk_context: &'a mut TalkContext) -> (TalkOwned<'a, TalkReference>, impl Send + Stream<Item=TItem>)
+where
+    TItem: 'static + Send + TalkMessageType,
+{
+    // Get the class to create and the allocator
+    let sender_class    = talk_sender_class::<TItem>();
+    let allocator       = talk_context.get_callbacks_mut(sender_class).allocator::<TalkStandardAllocator<TalkSender<TItem>>>().unwrap();
+
+    // Create a sender and a receiver
+    let (send, receive) = mpsc::channel(1);
+
+    // Create the sender and store it using the allocator
+    let sender              = TalkSender { sender: Arc::new(lock::Mutex::new(send)) };
+    let sender_data_handle  = allocator.lock().unwrap().store(sender);
+
+    // Generate the result
+    let sender              = TalkReference(sender_class, sender_data_handle);
+    let sender              = TalkOwned::new(sender, talk_context);
+
+    (sender, receive)
+}
