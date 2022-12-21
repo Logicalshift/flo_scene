@@ -51,11 +51,17 @@ fn receive_values_from_script_via_stream() {
     executor::block_on(async {
         let runtime = TalkRuntime::empty();
         #[derive(TalkMessageType, PartialEq)]
-        enum HelloWorld { #[message("helloWorld")] Hello, #[message("goodbye")] Goodbye }
+        enum HelloWorld { #[message("helloWorld")] Hello, #[message("say:")] Say(String), #[message("goodbye")] Goodbye }
         
-        let mut hello_world = runtime.stream_from::<HelloWorld>(TalkScript::from("[ :output | output helloWorld. output goodbye. ]"));
+        let mut hello_world = runtime.stream_from::<HelloWorld>(TalkScript::from("
+            [ :output | 
+                output helloWorld. 
+                output say: 'Test'. 
+                output goodbye. 
+            ]"));
 
         assert!(hello_world.next().await == Some(Ok(HelloWorld::Hello)));
+        assert!(hello_world.next().await == Some(Ok(HelloWorld::Say("Test".into()))));
         assert!(hello_world.next().await == Some(Ok(HelloWorld::Goodbye)));
         assert!(hello_world.next().await == None);
     });
