@@ -137,16 +137,60 @@ impl TalkRuntime {
     ///
     /// Evaluates a continuation, then sends a stream of messages to the resulting value.
     ///
-    /// The future will return once all of the messages in the stream have been consumed, indicating the value of the original continuation.
-    /// The stream will not be consumed if the original continuation produces an error
+    /// The future will return once all of the messages in the stream have been consumed. The stream will not be consumed if the original continuation produces 
+    /// an error. If any of the messages generate an error, the rest of the stream will be discarded.
     ///
-    pub fn stream_to<'a, TStream>(&self, create_receiver: impl Into<TalkContinuation<'a>>, stream: TStream) -> impl 'a + Send + Future<Output=TalkValue> 
+    pub fn stream_to<'a, TStream>(&'a self, create_receiver: impl Into<TalkContinuation<'a>>, stream: TStream) -> impl 'a + Send + Future<Output=Result<(), TalkError>> 
     where
         TStream:        'a + Send + Stream,
-        TStream::Item:  TalkMessageType,
+        TStream::Item:  Send + TalkMessageType,
     {
+        let create_receiver = create_receiver.into();
+
         async move {
-            unimplemented!()
+            let mut stream = Box::pin(stream);
+
+            // Fetch the value representing the targets of the messages
+            let target = self.run(create_receiver).await;
+
+            // Stop if the target produces an error
+            if let TalkValue::Error(error) = &target {
+                let error = error.clone();
+                target.release_in_context(&*self.context.lock().await);
+                return Err(error);
+            }
+
+            // Read from the stream and send to the target
+            while let Some(msg) = stream.next().await {
+                // Create a continuation to send the message
+                let send_message = {
+                    let context         = self.context.lock().await;
+                    let msg             = msg.to_message(&*context);
+                    let continuation    = target.clone_in_context(&*context).send_message_in_context(msg.leak(), &*context);
+                    continuation
+                };
+
+                // Send to the script
+                let result = self.run(send_message).await;
+
+                // Stop early if there was an error
+                if let TalkValue::Error(error) = &result {
+                    let error = error.clone();
+
+                    result.release_in_context(&*self.context.lock().await);
+                    target.release_in_context(&*self.context.lock().await);
+
+                    return Err(error);
+                }
+
+                // Release the resulting value
+                result.release_in_context(&*self.context.lock().await);
+            }
+
+            // Stream was consumed
+            target.release_in_context(&*self.context.lock().await);
+
+            Ok(())
         }
     }
 
