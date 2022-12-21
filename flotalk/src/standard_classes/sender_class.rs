@@ -9,13 +9,18 @@ use crate::releasable::*;
 use crate::value::*;
 
 use smallvec::*;
+use once_cell::sync::{Lazy};
 
 use futures::prelude::*;
 use futures::channel::mpsc;
 use futures::lock;
 
+use std::any::{TypeId};
 use std::marker::{PhantomData};
+use std::collections::{HashMap};
 use std::sync::*;
+
+static SENDER_CLASS: Lazy<Mutex<HashMap<TypeId, TalkClass>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 ///
 /// The sender class is a class that sends all of its messages to a stream
@@ -92,5 +97,27 @@ where
                 Ok(item)    => TalkContinuation::future(async move { sender.lock().await.send(item).await; TalkValue::Nil })
             }
         })
+    }
+}
+
+///
+/// Retrieves (or creates) the TalkClass corresponding to a `TalkSenderClass<TItem>` (ie, a class that writes messages of that
+/// type to a stream)
+///
+pub (crate) fn talk_sender_class<TItem>() -> TalkClass 
+where
+    TItem: 'static + Send + TalkMessageType,
+{
+    let mut sender_classes = SENDER_CLASS.lock().unwrap();
+
+    if let Some(class) = sender_classes.get(&TypeId::of::<TItem>()) {
+        // This class was already created/registered
+        *class
+    } else {
+        // This item type hasn't been seen before: register a new class and return it
+        let class = TalkClass::create(TalkSenderClass::<TItem> { sender: PhantomData });
+        sender_classes.insert(TypeId::of::<TItem>(), class);
+
+        class
     }
 }
