@@ -135,7 +135,6 @@ impl TalkRuntime {
     ///
     /// Runs a continuation or a script using this runtime
     ///
-    #[inline]
     pub fn run<'a>(&self, continuation: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + Future<Output=TalkValue> {
         let continuation = continuation.into();
 
@@ -183,7 +182,6 @@ impl TalkRuntime {
     ///
     /// Generates a symbol table, then runs a continuation with it
     ///
-    #[inline]
     pub fn run_with_symbols<'a>(&'a self, create_symbol_table: impl 'a + Send + FnOnce(&mut TalkContext) -> Vec<(TalkSymbol, TalkValue)>, create_continuation: impl 'a + Send + FnOnce(Arc<Mutex<TalkSymbolTable>>, Vec<TalkCellBlock>) -> TalkContinuation<'static>) -> impl 'a + Send + Future<Output=TalkValue> {
         let continuation = TalkContinuation::Soon(Box::new(move |talk_context| {
             // Ask for the symbol table
