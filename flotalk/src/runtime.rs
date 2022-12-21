@@ -4,10 +4,12 @@ use super::error::*;
 use super::message::*;
 use super::reference::*;
 use super::releasable::*;
+use super::standard_classes::*;
 use super::symbol::*;
 use super::symbol_table::*;
 use super::value::*;
 
+use once_cell::sync::{Lazy};
 use futures::prelude::*;
 use futures::future;
 use futures::lock;
@@ -205,18 +207,80 @@ impl TalkRuntime {
     /// # use flo_talk::*;
     /// # let runtime = TalkRuntime::empty();
     /// #[derive(TalkMessageType)]
-    /// enum HelloWorld { #[message("helloWorld")] Hello, #[message("goodbye")] Goodbye };
+    /// enum HelloWorld { #[message("helloWorld")] Hello, #[message("goodbye")] Goodbye }
     ///
     /// let mut hello_world = runtime.stream_from::<HelloWorld>(TalkScript::from("[ :output | output helloWorld. output goodbye. ]"));
     /// ```
     ///
-    pub fn stream_from<'a, TStreamItem>(&self, receive_target: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + TryStream<Ok=TStreamItem, Error=TalkError>
+    pub fn stream_from<'a, TStreamItem>(&'a self, receive_target: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + Stream<Item=Result<TStreamItem, TalkError>> + TryStream<Ok=TStreamItem, Error=TalkError>
     where
-        TStreamItem: 'a + Send + TalkMessageType,
+        TStreamItem: 'static + Send + TalkMessageType,
     {
+        use futures::future::{Either};
+        static VALUE_COLON_MSG: Lazy<TalkSymbol>  = Lazy::new(|| "value:".into());
+
+        let context         = Arc::clone(&self.context);
+        let receive_target  = receive_target.into();
+
         generator_stream(move |yield_value| {
             async move {
-                unimplemented!()
+                // Create the sender object and the receiver stream
+                let (sender, receiver)  = {
+                    let mut context         = context.lock().await;
+                    let (sender, receiver)  = create_talk_sender::<TStreamItem>(&mut *context);
+                    (sender.leak(), receiver)
+                };
+
+                // Evaluate the value that we'll send the sender object to
+                let receive_target = self.run(receive_target).await;
+                if let TalkValue::Error(err) = &receive_target {
+                    // Stop early if the target is an error
+                    sender.release_in_context(&*context.lock().await);
+                    yield_value(Err(err.clone())).await;
+                    return;
+                }
+
+                // Start sending the 'value:' message (this runs in parallel with our relay code)
+                let send_message = receive_target.send_message_in_context(TalkMessage::with_arguments(vec![(*VALUE_COLON_MSG, sender)]), &*context.lock().await);
+                let send_message = self.run(send_message);
+
+                // Create a future to relay results from the output to the stream
+                let relay_message = async move {
+                    let mut receiver = receiver;
+
+                    while let Some(item) = receiver.next().await {
+                        yield_value(Ok(item)).await;
+                    }
+                };
+
+                // Run until both futures finish, or abort early if send_message errors out
+                match future::select(Box::pin(send_message), Box::pin(relay_message)).await {
+                    Either::Left((send_message_result, relay_message)) => {
+                        // The send_message call returned before the relay finished
+                        if let TalkValue::Error(err) = &send_message_result {
+                            // Abort early and report the error
+                            // yield_value(Err(err.clone())); -- TODO
+                            send_message_result.release_in_context(&*context.lock().await);
+                            return;
+                        } else {
+                            // Otherwise, release the result and wait for the relay to finish
+                            send_message_result.release_in_context(&*context.lock().await);
+                            relay_message.await;
+                        }
+                    }
+
+                    Either::Right((_, send_message)) => {
+                        // The relay finished but the send_message call is still going. Close the stream once the call finishes
+                        let send_message_result = send_message.await;
+
+                        if let TalkValue::Error(err) = &send_message_result {
+                            // In spite of the stream being finished at this point, send_message errored anyway, so we'll report that
+                            // yield_value(Err(err.clone())); -- TODO
+                            send_message_result.release_in_context(&*context.lock().await);
+                            return;
+                        }
+                    }
+                }
             }
         })
     }

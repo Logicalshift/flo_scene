@@ -40,8 +40,23 @@ fn send_values_to_script_stream() {
 
         assert!(stream_result.is_ok());
 
-        // 'x' should have the value '42'
+        // 'x' should have the value '42' (26 + 16)
         let new_x_value = runtime.run(TalkScript::from("x")).await;
         assert!(new_x_value == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn receive_values_from_script_via_stream() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        #[derive(TalkMessageType, PartialEq)]
+        enum HelloWorld { #[message("helloWorld")] Hello, #[message("goodbye")] Goodbye }
+        
+        let mut hello_world = runtime.stream_from::<HelloWorld>(TalkScript::from("[ :output | output helloWorld. output goodbye. ]"));
+
+        assert!(hello_world.next().await == Some(Ok(HelloWorld::Hello)));
+        assert!(hello_world.next().await == Some(Ok(HelloWorld::Goodbye)));
+        assert!(hello_world.next().await == None);
     });
 }
