@@ -13,6 +13,8 @@ use futures::future;
 use futures::lock;
 use futures::task::{Poll, Context};
 
+use flo_stream::*;
+
 use std::sync::*;
 
 // TODO: write and upgrade to a 'fair' mutex that processing wakeups in the order that they happen
@@ -133,12 +135,12 @@ impl TalkRuntime {
     }
 
     ///
-    /// Evaluates a continuation, then sends a stream of messages to the resulting value
+    /// Evaluates a continuation, then sends a stream of messages to the resulting value.
     ///
     /// The future will return once all of the messages in the stream have been consumed, indicating the value of the original continuation.
     /// The stream will not be consumed if the original continuation produces an error
     ///
-    pub fn stream_to<'a, TStream>(&self, continuation: impl Into<TalkContinuation<'a>>, stream: TStream) -> impl 'a + Send + Future<Output=TalkValue> 
+    pub fn stream_to<'a, TStream>(&self, create_receiver: impl Into<TalkContinuation<'a>>, stream: TStream) -> impl 'a + Send + Future<Output=TalkValue> 
     where
         TStream:        'a + Send + Stream,
         TStream::Item:  TalkMessageType,
@@ -146,6 +148,33 @@ impl TalkRuntime {
         async move {
             unimplemented!()
         }
+    }
+
+    ///
+    /// Evaluates a continuation, then sends the message `value: output` to the result, where 'output' is an object that sends all its message to the
+    /// returned stream. Opposite of `stream_to`.
+    ///
+    /// This seems complicated, but really is pretty simple to use in practice - just use  a block with a parameter:
+    ///
+    /// ```no_run
+    /// # #[macro_use] extern crate flo_talk_macros;
+    /// # use flo_talk::*;
+    /// # let runtime = TalkRuntime::empty();
+    /// #[derive(TalkMessageType)]
+    /// enum HelloWorld { #[message("helloWorld")] Hello, #[message("goodbye")] Goodbye };
+    ///
+    /// let mut hello_world = runtime.stream_from::<HelloWorld>(TalkScript::from("[ :output | output helloWorld. output goodbye. ]"));
+    /// ```
+    ///
+    pub fn stream_from<'a, TStreamItem>(&self, receive_target: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + TryStream<Ok=TStreamItem, Error=TalkError>
+    where
+        TStreamItem: 'a + Send + TalkMessageType,
+    {
+        generator_stream(move |yield_value| {
+            async move {
+                unimplemented!()
+            }
+        })
     }
 
     ///
