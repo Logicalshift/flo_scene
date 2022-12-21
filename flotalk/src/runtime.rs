@@ -133,6 +133,22 @@ impl TalkRuntime {
     }
 
     ///
+    /// Evaluates a continuation, then sends a stream of messages to the resulting value
+    ///
+    /// The future will return once all of the messages in the stream have been consumed, indicating the value of the original continuation.
+    /// The stream will not be consumed if the original continuation produces an error
+    ///
+    pub fn stream_to<'a, TStream>(&self, continuation: impl Into<TalkContinuation<'a>>, stream: TStream) -> impl 'a + Send + Future<Output=TalkValue> 
+    where
+        TStream:        'a + Send + Stream,
+        TStream::Item:  TalkMessageType,
+    {
+        async move {
+            unimplemented!()
+        }
+    }
+
+    ///
     /// Runs a continuation or a script using this runtime
     ///
     pub fn run<'a>(&self, continuation: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + Future<Output=TalkValue> {
