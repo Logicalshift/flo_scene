@@ -2,6 +2,7 @@ use super::class::*;
 use super::context::*;
 use super::continuation::*;
 use super::message::*;
+use super::releasable::*;
 use super::runtime::*;
 use super::value::*;
 
@@ -106,7 +107,8 @@ impl TalkReference {
     ///
     /// Sends a message to this object
     ///
-    pub fn send_message(self, message: TalkMessage, runtime: &TalkRuntime) -> impl Future<Output=TalkValue> {
+    #[inline]
+    pub fn send_message(self, message: TalkMessage, runtime: &TalkRuntime) -> impl Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
         runtime.run(self.send_message_later(message))
     }
 

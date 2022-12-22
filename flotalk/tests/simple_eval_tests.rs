@@ -13,7 +13,7 @@ fn evaluate_number() {
     executor::block_on(async { 
         let result = runtime.run(test_source).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -29,7 +29,7 @@ fn add_numbers() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -45,7 +45,7 @@ fn equal_numbers() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Bool(true));
+        assert!(*result == TalkValue::Bool(true));
     });
 }
 
@@ -61,7 +61,7 @@ fn divide_numbers() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -77,7 +77,7 @@ fn and_success() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Bool(true));
+        assert!(*result == TalkValue::Bool(true));
     });
 }
 
@@ -93,7 +93,7 @@ fn and_failure_rhs() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Bool(false));
+        assert!(*result == TalkValue::Bool(false));
     });
 }
 
@@ -109,7 +109,7 @@ fn if_true_if_false_when_true() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -125,7 +125,7 @@ fn if_true_if_false_when_false() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -141,7 +141,7 @@ fn if_false_if_true_when_true() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -157,7 +157,7 @@ fn and_failure_lhs() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Bool(false));
+        assert!(*result == TalkValue::Bool(false));
     });
 }
 
@@ -173,7 +173,7 @@ fn retrieve_argument() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -186,7 +186,7 @@ fn retrieve_root_value() {
         runtime.set_root_symbol_value("x", 42).await;
         let result = runtime.run(test_source).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -203,7 +203,7 @@ fn assign_local_variable() {
 
         let result          = runtime.run_with_symbols(|_| vec![("x".into(), TalkValue::Int(21)), ("y".into(), TalkValue::Int(13))], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -221,7 +221,7 @@ fn overwrite_root_variable() {
         // The expression expands to 'x + y + y', but we change the value of 'y' in the block so we should see '22 + 10 + 10' and not '22 + 13 + 13' or '22 + 10 + 13'
         let result          = runtime.run_with_symbols(|_| vec![("x".into(), TalkValue::Int(22)), ("y".into(), TalkValue::Int(13))], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -237,7 +237,7 @@ fn overwrite_closure_variable() {
         // Should overwrite the 'inner' y here to give us 8 + 8 + 26 (as the outer 'y' has a value of 26)
         let result = runtime.run(test_source).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -253,7 +253,7 @@ fn call_block() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -269,7 +269,7 @@ fn call_block_with_arguments() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -285,7 +285,7 @@ fn perform_message() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -301,7 +301,7 @@ fn perform_message_with() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -317,6 +317,6 @@ fn responds_to_responds_to() {
 
         let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
-        assert!(result == TalkValue::Bool(true));
+        assert!(*result == TalkValue::Bool(true));
     });
 }

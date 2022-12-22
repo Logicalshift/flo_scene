@@ -65,7 +65,7 @@ impl TalkRuntime {
     ///
     /// Sends a message to a value using this runtime
     ///
-    pub fn send_message<'a>(&'a self, value: &'a TalkValue, message: TalkMessage) -> impl 'a + Send + Future<Output=TalkValue> {
+    pub fn send_message<'a>(&'a self, value: &'a TalkValue, message: TalkMessage) -> impl 'a + Send + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
         async move {
             self.run(TalkContinuation::Soon(Box::new(move |talk_context| {
                 let value = value.clone_in_context(talk_context);
@@ -172,7 +172,7 @@ impl TalkRuntime {
             let target = self.run(create_receiver).await;
 
             // Stop if the target produces an error
-            if let TalkValue::Error(error) = &target {
+            if let TalkValue::Error(error) = &*target {
                 let error = error.clone();
                 target.release_in_context(&*self.context.lock().await);
                 return Err(error);
@@ -192,7 +192,7 @@ impl TalkRuntime {
                 let result = self.run(send_message).await;
 
                 // Stop early if there was an error
-                if let TalkValue::Error(error) = &result {
+                if let TalkValue::Error(error) = &*result {
                     let error = error.clone();
 
                     result.release_in_context(&*self.context.lock().await);
@@ -249,7 +249,7 @@ impl TalkRuntime {
 
                 // Evaluate the value that we'll send the sender object to
                 let receive_target = self.run(receive_target).await;
-                if let TalkValue::Error(err) = &receive_target {
+                if let TalkValue::Error(err) = &*receive_target {
                     // Stop early if the target is an error
                     sender.release_in_context(&*context.lock().await);
                     yield_value(Err(err.clone())).await;
@@ -257,7 +257,7 @@ impl TalkRuntime {
                 }
 
                 // Start sending the 'value:' message (this runs in parallel with our relay code)
-                let send_message = receive_target.send_message_in_context(TalkMessage::with_arguments(vec![(*VALUE_COLON_MSG, sender)]), &*context.lock().await);
+                let send_message = receive_target.leak().send_message_in_context(TalkMessage::with_arguments(vec![(*VALUE_COLON_MSG, sender)]), &*context.lock().await);
                 let send_message = self.run(send_message);
 
                 // Create a future to relay results from the output to the stream
@@ -273,7 +273,7 @@ impl TalkRuntime {
                 match future::select(Box::pin(send_message), Box::pin(relay_message)).await {
                     Either::Left((send_message_result, relay_message)) => {
                         // The send_message call returned before the relay finished
-                        if let TalkValue::Error(err) = &send_message_result {
+                        if let TalkValue::Error(err) = &*send_message_result {
                             // Abort early and report the error
                             // yield_value(Err(err.clone())); -- TODO
                             send_message_result.release_in_context(&*context.lock().await);
@@ -289,7 +289,7 @@ impl TalkRuntime {
                         // The relay finished but the send_message call is still going. Close the stream once the call finishes
                         let send_message_result = send_message.await;
 
-                        if let TalkValue::Error(err) = &send_message_result {
+                        if let TalkValue::Error(err) = &*send_message_result {
                             // In spite of the stream being finished at this point, send_message errored anyway, so we'll report that
                             // yield_value(Err(err.clone())); -- TODO
                             send_message_result.release_in_context(&*context.lock().await);
@@ -304,7 +304,7 @@ impl TalkRuntime {
     ///
     /// Runs a continuation or a script using this runtime
     ///
-    pub fn run<'a>(&self, continuation: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + Future<Output=TalkValue> {
+    pub fn run<'a>(&self, continuation: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
         // Start running the continuation
         let continuation = continuation.into();
 
@@ -349,6 +349,9 @@ impl TalkRuntime {
         let mut released_values = vec![];
         mem::swap(&mut *self.waiting_for_release.lock().unwrap(), &mut released_values);
 
+        let waiting_for_release = Arc::clone(&self.waiting_for_release);
+        let owner               = TalkOwnedByRuntime { released_values: waiting_for_release };
+
         async move {
             // Release anything that is waiting before starting the new continuation
             if !released_values.is_empty() {
@@ -359,8 +362,8 @@ impl TalkRuntime {
 
             // Either return the value stored in the continuation or await the continuation
             match now_later {
-                NowLater::Now(value)    => value,
-                NowLater::Later(later)  => later.await,
+                NowLater::Now(value)    => TalkOwned::new(value, owner),
+                NowLater::Later(later)  => TalkOwned::new(later.await, owner),
             }
         }
     }
@@ -368,7 +371,7 @@ impl TalkRuntime {
     ///
     /// Generates a symbol table, then runs a continuation with it
     ///
-    pub fn run_with_symbols<'a>(&'a self, create_symbol_table: impl 'a + Send + FnOnce(&mut TalkContext) -> Vec<(TalkSymbol, TalkValue)>, create_continuation: impl 'a + Send + FnOnce(Arc<Mutex<TalkSymbolTable>>, Vec<TalkCellBlock>) -> TalkContinuation<'static>) -> impl 'a + Send + Future<Output=TalkValue> {
+    pub fn run_with_symbols<'a>(&'a self, create_symbol_table: impl 'a + Send + FnOnce(&mut TalkContext) -> Vec<(TalkSymbol, TalkValue)>, create_continuation: impl 'a + Send + FnOnce(Arc<Mutex<TalkSymbolTable>>, Vec<TalkCellBlock>) -> TalkContinuation<'static>) -> impl 'a + Send + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
         let continuation = TalkContinuation::Soon(Box::new(move |talk_context| {
             // Ask for the symbol table
             let symbols             = create_symbol_table(talk_context);

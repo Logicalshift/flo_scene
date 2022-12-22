@@ -433,7 +433,7 @@ impl TalkClass {
     ///
     /// Sends a message to this class
     ///
-    pub fn send_message<'a>(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl 'a + Future<Output=TalkValue> {
+    pub fn send_message<'a>(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl 'a + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
         let class = *self;
 
         runtime.run(TalkContinuation::<'a>::Soon(Box::new(move |talk_context| {

@@ -24,7 +24,7 @@ fn send_values_to_script_stream() {
         let object = runtime.run(TalkContinuation::soon(|talk_context| {
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
         })).await;
-        runtime.set_root_symbol_value("Object", object).await;
+        runtime.set_root_symbol_value("Object", object.leak()).await;
 
         // Declare a class to handle the 'setValue' and 'addValue' messages and use that as the target of the stream
         let stream_values   = vec![Message::SetValue(26), Message::AddValue(16)];
@@ -42,7 +42,7 @@ fn send_values_to_script_stream() {
 
         // 'x' should have the value '42' (26 + 16)
         let new_x_value = runtime.run(TalkScript::from("x")).await;
-        assert!(new_x_value == TalkValue::Int(42));
+        assert!(*new_x_value == TalkValue::Int(42));
     });
 }
 

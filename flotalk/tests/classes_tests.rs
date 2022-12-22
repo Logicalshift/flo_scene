@@ -86,7 +86,7 @@ pub fn send_new_message() {
         test_class.send_message(TalkMessage::unary("new"), &runtime).await
     });
 
-    assert!(new_result == TalkValue::Reference(TalkReference::from_handle(test_class, TalkDataHandle(0))));
+    assert!(*new_result == TalkValue::Reference(TalkReference::from_handle(test_class, TalkDataHandle(0))));
 }
 
 #[test]
@@ -100,9 +100,9 @@ pub fn send_instance_messages() {
         let addone_result   = runtime.send_message(&instance, TalkMessage::unary("addOne")).await;
         let final_value     = runtime.send_message(&instance, TalkMessage::unary("getValue")).await;
 
-        assert!(initial_value == TalkValue::Int(42));
-        assert!(addone_result == TalkValue::Nil);
-        assert!(final_value == TalkValue::Int(43))
+        assert!(*initial_value == TalkValue::Int(42));
+        assert!(*addone_result == TalkValue::Nil);
+        assert!(*final_value == TalkValue::Int(43))
     });
 }
 

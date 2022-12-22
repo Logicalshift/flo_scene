@@ -24,7 +24,7 @@ fn unsupported_message() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should generate an error
-        assert!(match result {
+        assert!(match &*result {
             TalkValue::Error(TalkError::MessageNotSupported(_)) => true,
             _ => false
         });
@@ -50,8 +50,8 @@ fn create_subclass() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Must generate a new class, using the SCRIPT_CLASS_CLASS
-        assert!(result != object);
-        assert!(match result {
+        assert!(*result != *object);
+        assert!(match &*result {
             TalkValue::Reference(new_class) => new_class.class() == *SCRIPT_CLASS_CLASS,
             _ => false
         });
@@ -77,8 +77,8 @@ fn create_subclass_with_instance_variables() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Must generate a new class, using the SCRIPT_CLASS_CLASS
-        assert!(result != object);
-        assert!(match result {
+        assert!(*result != *object);
+        assert!(match &*result {
             TalkValue::Reference(new_class) => new_class.class() == *SCRIPT_CLASS_CLASS,
             _ => false
         });
@@ -105,7 +105,7 @@ fn subclass_unsupported() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should generate an error
-        assert!(match result {
+        assert!(match &*result {
             TalkValue::Error(TalkError::MessageNotSupported(_)) => true,
             _ => false
         });
@@ -132,7 +132,7 @@ fn read_superclass() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Superclass gets us back to 'object'
-        assert!(result == object);
+        assert!(*result == *object);
     });
 }
 
@@ -155,8 +155,8 @@ fn create_object_instance() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Must generate a new class, using the SCRIPT_CLASS_CLASS
-        assert!(result != object);
-        assert!(match result {
+        assert!(*result != *object);
+        assert!(match &*result {
             TalkValue::Reference(new_object) => new_object.class() != *SCRIPT_CLASS_CLASS,
             _ => false
         });
@@ -187,8 +187,8 @@ fn create_subclass_instance() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Must generate a new class, using the SCRIPT_CLASS_CLASS
-        assert!(result != object);
-        assert!(match result {
+        assert!(*result != *object);
+        assert!(match &*result {
             TalkValue::Reference(new_object) => new_object.class() != *SCRIPT_CLASS_CLASS,
             _ => false
         });
@@ -220,7 +220,7 @@ fn define_class_method() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should return 42
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -250,7 +250,7 @@ fn define_class_method_with_anonymous_param() {
 
         // Should return 42
         println!("{:?}", result);
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -280,7 +280,7 @@ fn call_superclass_method() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should return 42
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -309,7 +309,7 @@ fn define_class_method_without_super() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should return 42
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -340,7 +340,7 @@ fn call_superclass_from_class_method() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should return 42
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -377,7 +377,7 @@ fn define_instance_message() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should return 42
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -415,7 +415,7 @@ fn call_instance_message_in_superclass() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should return 42
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -453,7 +453,7 @@ fn replace_instance_message() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should return 42
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -494,7 +494,7 @@ fn call_superclass_from_instance_method() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should return 42
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -531,7 +531,7 @@ fn define_instance_message_without_self() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should return 42
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
@@ -569,6 +569,6 @@ fn call_self_from_instance_message() {
         let result          = runtime.run_with_symbols(|_| vec![("Object".into(), object.clone())], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
 
         // Should return 42
-        assert!(result == TalkValue::Int(42));
+        assert!(*result == TalkValue::Int(42));
     });
 }

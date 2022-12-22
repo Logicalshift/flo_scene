@@ -8,6 +8,7 @@ use super::value::*;
 
 use smallvec::*;
 
+use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::*;
 
@@ -203,6 +204,20 @@ where
         match &mut self.value {
             Some(value) => value,
             None        => unreachable!()
+        }
+    }
+}
+
+impl<TReleasable, TOwner> fmt::Debug for TalkOwned<TReleasable, TOwner>
+where
+    TReleasable:    TalkReleasable + fmt::Debug,
+    TOwner:         TalkReleasableOwner<TReleasable>,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        if let Some(value) = &self.value {
+            fmt.write_fmt(format_args!("{:?}", value))
+        } else {
+            fmt.write_fmt(format_args!("<< RELEASED >>"))
         }
     }
 }
