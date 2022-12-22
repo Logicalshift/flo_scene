@@ -29,6 +29,14 @@ pub (super) struct TalkContextCellBlockClass {
 }
 
 ///
+/// Storage for a 'cell block', a set of values (used for frames and instance variables)
+///
+struct TalkCellBlockStore {
+    /// The values in this cell block
+    values: Box<[TalkValue]>,
+}
+
+///
 /// A talk context is a self-contained representation of the state of a flotalk interpreter
 ///
 /// Contexts are only accessed on one thread at a time. They're wrapped by a `TalkRuntime`, which deals with
@@ -42,7 +50,7 @@ pub struct TalkContext {
     pub (super) value_dispatch_tables: TalkValueDispatchTables,
 
     /// Storage cells that make up the heap for the interpreter
-    cells: Vec<Box<[TalkValue]>>,
+    cells: Vec<TalkCellBlockStore>,
 
     /// The reference count for each cell block (this allows us to share cell blocks around more easily)
     cell_reference_count: Vec<AtomicU32>,
@@ -74,7 +82,7 @@ impl TalkContext {
         TalkContext {
             context_callbacks:              vec![],
             value_dispatch_tables:          TalkValueDispatchTables::default(),
-            cells:                          vec![Box::new([])],
+            cells:                          vec![TalkCellBlockStore { values: Box::new([]) }],
             cell_reference_count:           vec![AtomicU32::new(1)],
             cell_block_classes:             vec![],
             available_cell_block_classes:   vec![],
@@ -174,6 +182,9 @@ impl TalkContext {
     pub fn allocate_cell_block(&mut self, count: usize) -> TalkCellBlock {
         // Crete a new block of nil cells
         let new_block = (0..count).into_iter().map(|_| TalkValue::Nil).collect::<Vec<_>>().into_boxed_slice();
+        let new_block = TalkCellBlockStore { 
+            values: new_block,
+        };
 
         // Store at the end of the list of cells or add a new item to the list
         if let Some(idx) = self.free_cells.lock().unwrap().pop() {
@@ -195,11 +206,14 @@ impl TalkContext {
         use std::mem;
 
         // Create an empty block
-        let mut new_block: Box<[TalkValue]> = Box::new([]);
+        let new_block: Box<[TalkValue]> = Box::new([]);
+        let mut new_block               = TalkCellBlockStore {
+            values: new_block,
+        };
 
         // Convert the existing block back to a vec
         mem::swap(&mut self.cells[idx as usize], &mut new_block);
-        let mut new_block = new_block.to_vec();
+        let mut new_block = new_block.values.to_vec();
 
         // Reserve space for the new cells
         if new_size > new_block.len() {
@@ -217,7 +231,10 @@ impl TalkContext {
         }
 
         // Convert back to a slice
-        let mut new_block = new_block.into_boxed_slice();
+        let new_block       = new_block.into_boxed_slice();
+        let mut new_block   = TalkCellBlockStore {
+            values: new_block,
+        };
 
         // Put back in to the cells
         mem::swap(&mut self.cells[idx as usize], &mut new_block);
@@ -254,7 +271,7 @@ impl TalkContext {
             // The old cells are left behind (as we can't mutate them here) but we reduce their reference count too. References may start to point at invalid values.
             // Once the cells are reallocated using allocate_cell_block, their contents are finally fully freed
             let freed_cells = &self.cells[idx as usize];
-            self.release_cell_contents(freed_cells);
+            self.release_cell_contents(&freed_cells.values);
 
             self.free_cells.lock().unwrap().push(idx as _);
 
@@ -269,7 +286,7 @@ impl TalkContext {
     ///
     #[inline]
     pub fn cell_block(&self, TalkCellBlock(idx): TalkCellBlock) -> &[TalkValue] {
-        &self.cells[idx as usize]
+        &self.cells[idx as usize].values
     }
 
     ///
@@ -277,7 +294,7 @@ impl TalkContext {
     ///
     #[inline]
     pub fn cell_block_mut(&mut self, TalkCellBlock(idx): TalkCellBlock) -> &mut [TalkValue] {
-        &mut self.cells[idx as usize]
+        &mut self.cells[idx as usize].values
     }
 
     ///
@@ -285,7 +302,7 @@ impl TalkContext {
     ///
     #[inline]
     pub fn get_cell(&self, TalkCell(TalkCellBlock(block_idx), cell_idx): TalkCell) -> &TalkValue {
-        &self.cells[block_idx as usize][cell_idx as usize]
+        &self.cells[block_idx as usize].values[cell_idx as usize]
     }
 
     ///
@@ -293,7 +310,7 @@ impl TalkContext {
     ///
     #[inline]
     pub fn get_cell_mut(&mut self, TalkCell(TalkCellBlock(block_idx), cell_idx): TalkCell) -> &mut TalkValue {
-        &mut self.cells[block_idx as usize][cell_idx as usize]
+        &mut self.cells[block_idx as usize].values[cell_idx as usize]
     }
 
     ///
