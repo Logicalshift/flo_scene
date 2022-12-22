@@ -32,6 +32,16 @@ pub trait TalkCloneable {
 }
 
 ///
+/// Trait implemented by something that can own a TalkReleasable
+///
+pub trait TalkReleasableOwner<TOwned: TalkReleasable> {
+    ///
+    /// Reduces the reference count for a variable
+    ///
+    fn release_value(&self, value: TOwned);
+}
+
+///
 /// A value that will be released when dropped
 ///
 pub struct TalkOwned<'a, TReleasable>
@@ -40,6 +50,16 @@ where
 {
     context:    &'a TalkContext,
     value:      Option<TReleasable>
+}
+
+impl<'a, TReleasable> TalkReleasableOwner<TReleasable> for &'a TalkContext
+where
+    TReleasable: TalkReleasable,
+{
+    #[inline]
+    fn release_value(&self, value: TReleasable) {
+        value.release_in_context(*self)
+    }
 }
 
 impl<'a, TReleasable> TalkOwned<'a, TReleasable>
