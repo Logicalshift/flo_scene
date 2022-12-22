@@ -22,11 +22,26 @@ use std::sync::*;
 // TODO: write and upgrade to a 'fair' mutex that processing wakeups in the order that they happen
 
 ///
+/// An owner for `TalkValues` that belong to a runtime
+///
+/// Runtime values like this are released the next time a runtime is asked to perform an action
+///
+#[derive(Clone)]
+pub struct TalkOwnedByRuntime {
+    /// Values that are waiting for release from the runtime
+    released_values: Arc<Mutex<Vec<TalkValue>>>,
+}
+
+///
 /// A `TalkRuntime` is used to run continuations inside a `TalkContext` (it wraps a TalkContext,
 /// and schedules continuations on them)
 ///
 pub struct TalkRuntime {
-    pub (crate) context: Arc<lock::Mutex<TalkContext>>
+    /// The context that this runtime is managing
+    pub (crate) context: Arc<lock::Mutex<TalkContext>>,
+
+    /// Values generated previously by the runtime that are waiting to be released
+    waiting_for_release: Arc<Mutex<Vec<TalkValue>>>,
 }
 
 impl TalkRuntime {
@@ -35,7 +50,8 @@ impl TalkRuntime {
     ///
     pub fn with_context(context: TalkContext) -> TalkRuntime {
         TalkRuntime {
-            context: Arc::new(lock::Mutex::new(context))
+            context:                Arc::new(lock::Mutex::new(context)),
+            waiting_for_release:    Arc::new(Mutex::new(vec![])),
         }
     }
 
@@ -289,6 +305,7 @@ impl TalkRuntime {
     /// Runs a continuation or a script using this runtime
     ///
     pub fn run<'a>(&self, continuation: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + Future<Output=TalkValue> {
+        // Start running the continuation
         let continuation = continuation.into();
 
         enum NowLater<T> {
@@ -296,6 +313,7 @@ impl TalkRuntime {
             Later(T),
         }
 
+        // Action depends on the continuation
         let now_later = match continuation {
             TalkContinuation::Ready(value)  => NowLater::Now(value),
             TalkContinuation::Later(later)  => NowLater::Later(self.run_continuation_later(later)),
@@ -324,7 +342,22 @@ impl TalkRuntime {
             },
         };
 
+        // Take this opportunity to obtain the context and release any values that were previously returned
+        use std::mem;
+
+        let context             = self.context.clone();
+        let mut released_values = vec![];
+        mem::swap(&mut *self.waiting_for_release.lock().unwrap(), &mut released_values);
+
         async move {
+            // Release anything that is waiting before starting the new continuation
+            if !released_values.is_empty() {
+                let context = context.lock().await;
+                released_values.into_iter().for_each(|val| val.release_in_context(&*context));
+            }
+            mem::drop(context);
+
+            // Either return the value stored in the continuation or await the continuation
             match now_later {
                 NowLater::Now(value)    => value,
                 NowLater::Later(later)  => later.await,
@@ -357,5 +390,12 @@ impl TalkRuntime {
         }));
 
         self.run(continuation)
+    }
+}
+
+impl TalkReleasableOwner<TalkValue> for TalkOwnedByRuntime {
+    fn release_value(&self, value: TalkValue) {
+        // Add to the list of released values, to be freed up later
+        self.released_values.lock().unwrap().push(value);
     }
 }
