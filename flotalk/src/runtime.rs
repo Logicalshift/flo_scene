@@ -156,9 +156,10 @@ impl TalkRuntime {
     /// Evaluates a continuation, then sends a stream of messages to the resulting value.
     ///
     /// The future will return once all of the messages in the stream have been consumed. The stream will not be consumed if the original continuation produces 
-    /// an error. If any of the messages generate an error, the rest of the stream will be discarded.
+    /// an error. If any of the messages generate an error, the rest of the stream will be discarded. The return value is the value that the messages were sent
+    /// to.
     ///
-    pub fn stream_to<'a, TStream>(&'a self, create_receiver: impl Into<TalkContinuation<'a>>, stream: TStream) -> impl 'a + Send + Future<Output=Result<(), TalkError>> 
+    pub fn stream_to<'a, TStream>(&'a self, create_receiver: impl Into<TalkContinuation<'a>>, stream: TStream) -> impl 'a + Send + Future<Output=Result<TalkOwned<TalkValue, TalkOwnedByRuntime>, TalkError>> 
     where
         TStream:        'a + Send + Stream,
         TStream::Item:  Send + TalkMessageType,
@@ -174,7 +175,6 @@ impl TalkRuntime {
             // Stop if the target produces an error
             if let TalkValue::Error(error) = &*target {
                 let error = error.clone();
-                target.release_in_context(&*self.context.lock().await);
                 return Err(error);
             }
 
@@ -194,21 +194,11 @@ impl TalkRuntime {
                 // Stop early if there was an error
                 if let TalkValue::Error(error) = &*result {
                     let error = error.clone();
-
-                    result.release_in_context(&*self.context.lock().await);
-                    target.release_in_context(&*self.context.lock().await);
-
                     return Err(error);
                 }
-
-                // Release the resulting value
-                result.release_in_context(&*self.context.lock().await);
             }
 
-            // Stream was consumed
-            target.release_in_context(&*self.context.lock().await);
-
-            Ok(())
+            Ok(target)
         }
     }
 
