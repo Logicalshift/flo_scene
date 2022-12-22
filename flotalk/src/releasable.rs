@@ -222,6 +222,18 @@ where
     }
 }
 
+impl<TReleasable, TOwner> TalkReleasable for TalkOwned<TReleasable, TOwner>
+where
+    TReleasable:    TalkReleasable + fmt::Debug,
+    TOwner:         TalkReleasableOwner<TReleasable>,
+{
+    fn release_in_context(mut self, context: &TalkContext) {
+        if let Some(value) = self.value.take() {
+            value.release_in_context(context);
+        }
+    }
+}
+
 impl TalkReleasable for TalkValue {
     ///
     /// Decreases the reference count of this value by 1
