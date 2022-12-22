@@ -66,10 +66,10 @@ pub struct TalkSendMessage(pub TalkValue, pub TalkMessage);
 ///
 pub trait TalkMessageType : Sized {
     /// Converts a message to an object of this type
-    fn from_message<'a>(message: TalkOwned<'a, TalkMessage>, context: &'a TalkContext) -> Result<Self, TalkError>;
+    fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError>;
 
     /// Converts an object of this type to a message
-    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkMessage>;
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkMessage, &'a TalkContext>;
 }
 
 ///
@@ -499,13 +499,13 @@ impl From<TalkMessage> for TalkValue {
 /// Single-parameter messages can be treated as TalkValues
 ///
 impl TalkValueType for TalkMessage {
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         let message = self.clone_in_context(context);
         TalkOwned::new(TalkValue::from(message), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Message(_) => {
                 let msg = value.leak();

@@ -42,14 +42,25 @@ pub trait TalkReleasableOwner<TOwned: TalkReleasable> {
 }
 
 ///
+/// Trait implemented by something that can own a TalkReleasable
+///
+pub trait TalkCloningOwner<TOwned> {
+    ///
+    /// Creates a clone of this value using the context of this owner
+    ///
+    fn clone_value(&self, value: &TOwned) -> TOwned;
+}
+
+///
 /// A value that will be released when dropped
 ///
-pub struct TalkOwned<'a, TReleasable>
+pub struct TalkOwned<TReleasable, TOwner>
 where
-    TReleasable: TalkReleasable
+    TReleasable:    TalkReleasable,
+    TOwner:         TalkReleasableOwner<TReleasable>,
 {
-    context:    &'a TalkContext,
-    value:      Option<TReleasable>
+    owner: TOwner,
+    value: Option<TReleasable>
 }
 
 impl<'a, TReleasable> TalkReleasableOwner<TReleasable> for &'a TalkContext
@@ -62,18 +73,39 @@ where
     }
 }
 
-impl<'a, TReleasable> TalkOwned<'a, TReleasable>
+impl<'a, TReleasable> TalkCloningOwner<TReleasable> for &'a TalkContext
 where
-    TReleasable: TalkReleasable
+    TReleasable: TalkCloneable,
+{
+    #[inline]
+    fn clone_value(&self, value: &TReleasable) -> TReleasable {
+        value.clone_in_context(*self)
+    }
+}
+
+impl<'a, TReleasable> TalkReleasableOwner<TReleasable> for &'a mut TalkContext
+where
+    TReleasable: TalkReleasable,
+{
+    #[inline]
+    fn release_value(&self, value: TReleasable) {
+        value.release_in_context(*self)
+    }
+}
+
+impl<TReleasable, TOwner> TalkOwned<TReleasable, TOwner>
+where
+    TReleasable:    TalkReleasable,
+    TOwner:         TalkReleasableOwner<TReleasable>,
 {
     ///
     /// Creates a new TalkOwned object
     ///
     #[inline]
-    pub fn new(value: TReleasable, context: &'a TalkContext) -> TalkOwned<'a, TReleasable> {
+    pub fn new(value: TReleasable, owner: TOwner) -> TalkOwned<TReleasable, TOwner> {
         TalkOwned {
-            context:    context, 
-            value:      Some(value),
+            owner: owner, 
+            value: Some(value),
         }
     }
 
@@ -81,13 +113,14 @@ where
     /// Changes the type/value of the internal value without releasing it
     ///
     #[inline]
-    pub fn map<TTargetType>(mut self, map_fn: impl FnOnce(TReleasable) -> TTargetType) -> TalkOwned<'a, TTargetType>
+    pub fn map<TTargetType>(mut self, map_fn: impl FnOnce(TReleasable) -> TTargetType) -> TalkOwned<TTargetType, TOwner>
     where
-        TTargetType: TalkReleasable 
+        TTargetType:    TalkReleasable,
+        TOwner:         TalkReleasableOwner<TTargetType> + Clone,
     {
         TalkOwned {
-            context:    self.context,
-            value:      Some((map_fn)(self.value.take().unwrap()))
+            owner: self.owner.clone(),
+            value: Some((map_fn)(self.value.take().unwrap()))
         }
     }
 
@@ -101,45 +134,53 @@ where
             None        => unreachable!(),
         }
     }
+}
 
+impl<'a, TReleasable> TalkOwned<TReleasable, &'a TalkContext>
+where
+    TReleasable:    TalkReleasable,
+{
     ///
     /// Returns the context for this 'owned' item
     ///
-    pub fn context(&self) -> &TalkContext {
-        self.context
+    pub fn context(&self) -> &'a TalkContext {
+        self.owner
     }
 }
 
-impl<'a, TReleasable> Drop for TalkOwned<'a, TReleasable>
+impl<TReleasable, TOwner> Drop for TalkOwned<TReleasable, TOwner>
 where
-    TReleasable: TalkReleasable
+    TReleasable:    TalkReleasable,
+    TOwner:         TalkReleasableOwner<TReleasable>,
 {
     #[inline]
     fn drop(&mut self) {
         if let Some(value) = self.value.take() {
-            value.release_in_context(self.context);
+            self.owner.release_value(value);
         }
     }
 }
 
-impl<'a, TReleasable> Clone for TalkOwned<'a, TReleasable>
+impl<TReleasable, TOwner> Clone for TalkOwned<TReleasable, TOwner>
 where
-    TReleasable: TalkReleasable + TalkCloneable
+    TReleasable:    TalkReleasable,
+    TOwner:         TalkReleasableOwner<TReleasable> + TalkCloningOwner<TReleasable> + Clone,
 {
     fn clone(&self) -> Self {
         match &self.value {
             Some(value) => TalkOwned {
-                context:    self.context,
-                value:      Some(value.clone_in_context(self.context)),
+                owner: self.owner.clone(),
+                value: Some(self.owner.clone_value(value)),
             },
             None        => unreachable!()
         }
     }
 }
 
-impl<'a, TReleasable> Deref for TalkOwned<'a, TReleasable>
+impl<TReleasable, TOwner> Deref for TalkOwned<TReleasable, TOwner>
 where
-    TReleasable: TalkReleasable
+    TReleasable:    TalkReleasable,
+    TOwner:         TalkReleasableOwner<TReleasable>,
 {
     type Target = TReleasable;
 
@@ -152,9 +193,10 @@ where
     }
 }
 
-impl<'a, TReleasable> DerefMut for TalkOwned<'a, TReleasable>
+impl<TReleasable, TOwner> DerefMut for TalkOwned<TReleasable, TOwner>
 where
-    TReleasable: TalkReleasable
+    TReleasable:    TalkReleasable,
+    TOwner:         TalkReleasableOwner<TReleasable>,
 {
     #[inline]
     fn deref_mut(&mut self) -> &mut TReleasable {

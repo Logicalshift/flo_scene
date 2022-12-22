@@ -184,12 +184,12 @@ pub trait TalkClassDefinition : Send + Sync {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static>;
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static>;
 
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static>;
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static>;
 
     ///
     /// Generates default dispatch table for an instance of this class
@@ -243,7 +243,7 @@ impl TalkClass {
         TClass: 'static + TalkClassDefinition,
     {
         class_definition.default_instance_dispatch_table()
-            .with_not_supported(move |reference: TalkOwned<'_, TalkReference>, message_id, message_args, _talk_context| {
+            .with_not_supported(move |reference: TalkOwned<TalkReference, &'_ TalkContext>, message_id, message_args, _talk_context| {
                 let data_handle     = reference.1;
                 let mut allocator   = allocator.lock().unwrap();
                 let data            = allocator.retrieve(data_handle);
@@ -278,7 +278,7 @@ impl TalkClass {
         TClass: 'static + TalkClassDefinition,
     {
         definition.default_class_dispatch_table()
-            .with_not_supported(move |_: TalkOwned<'_, ()>, message_id, message_args, _talk_context| {
+            .with_not_supported(move |_: TalkOwned<(), &'_ TalkContext>, message_id, message_args, _talk_context| {
                 definition.send_class_message(message_id, message_args, class_id, &allocator)
             })
     }

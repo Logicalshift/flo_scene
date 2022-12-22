@@ -503,7 +503,7 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
     let talk_message_type = quote! {
         impl #impl_generics ::flo_talk::TalkMessageType for #name #ty_generics #where_clause {
             /// Converts a message to an object of this type
-            fn from_message<'a>(message: ::flo_talk::TalkOwned<'a, ::flo_talk::TalkMessage>, _context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+            fn from_message<'a>(message: ::flo_talk::TalkOwned<::flo_talk::TalkMessage, &'a ::flo_talk::TalkContext>, _context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
                 let mut message             = message;
                 let (signature_id, _args)   = {
                     use ::flo_talk::smallvec::*;
@@ -525,7 +525,7 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
             }
 
             /// Converts an object of this type to a message
-            fn to_message<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkMessage> {
+            fn to_message<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<::flo_talk::TalkMessage, &'a ::flo_talk::TalkContext> {
                 use ::flo_talk::smallvec::*;
                 use ::flo_talk::{TalkValueType};
 
@@ -541,13 +541,13 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
     // We also implement the TalkValueType trait for things that can be messages (they create message objects)
     let talk_value_type = quote! {
         impl #impl_generics ::flo_talk::TalkValueType for #name #ty_generics #where_clause {
-            fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue> {
+            fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext> {
                 use flo_talk::{TalkOwned, TalkValue};
 
                 TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context)
             }
 
-            fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<'a, TalkValue>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+            fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
                 let value = value.map(|val| {
                     match val {
                         ::flo_talk::TalkValue::Message(msg) => Some(*msg),
@@ -589,7 +589,7 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
     let talk_message_type = quote! {
         impl #impl_generics ::flo_talk::TalkMessageType for #name #ty_generics #where_clause {
             /// Converts a message to an object of this type
-            fn from_message<'a>(message: ::flo_talk::TalkOwned<'a, ::flo_talk::TalkMessage>, _context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+            fn from_message<'a>(message: ::flo_talk::TalkOwned<::flo_talk::TalkMessage, &'a ::flo_talk::TalkContext>, _context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
                 let mut message             = message;
                 let (signature_id, _args)   = {
                     use ::flo_talk::smallvec::*;
@@ -611,7 +611,7 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
             }
 
             /// Converts an object of this type to a message
-            fn to_message<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkMessage> {
+            fn to_message<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<::flo_talk::TalkMessage, &'a ::flo_talk::TalkContext> {
                 use ::flo_talk::smallvec::*;
                 use ::flo_talk::{TalkValueType};
 
@@ -649,11 +649,11 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
         quote! {
             impl #impl_generics ::flo_talk::TalkValueType for #name #ty_generics #where_clause {
                 #[inline]
-                fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue> {
+                fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext> {
                     #fetch_field.into_talk_value(context)
                 }
 
-                fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<'a, TalkValue>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+                fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
                     if let Ok(field_value) = #field_ty::try_from_talk_value(TalkOwned::new(value.clone_in_context(context), context), context) {
                         Ok(#create_struct)
                     } else {
@@ -676,13 +676,13 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
         // Structs with more than one field can only be decoded as a message
         quote! {
             impl #impl_generics ::flo_talk::TalkValueType for #name #ty_generics #where_clause {
-                fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<'a, ::flo_talk::TalkValue> {
+                fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext> {
                     use flo_talk::{TalkOwned, TalkValue};
 
                     TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context)
                 }
 
-                fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<'a, TalkValue>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+                fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
                     let value = value.map(|val| {
                         match val {
                             ::flo_talk::TalkValue::Message(msg) => Some(*msg),

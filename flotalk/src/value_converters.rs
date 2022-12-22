@@ -10,12 +10,12 @@ use std::sync::*;
 
 impl TalkValueType for () {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         TalkOwned::new((*self).into(), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Nil          => Ok(()),
             TalkValue::Message(_)   => {
@@ -34,13 +34,13 @@ impl TalkValueType for () {
 
 impl TalkValueType for TalkReference {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         let reference = self.clone_in_context(context);
         TalkOwned::new(TalkValue::Reference(reference), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Reference(_)     => {
                 let reference = value.leak();
@@ -67,12 +67,12 @@ impl TalkValueType for TalkReference {
 
 impl TalkValueType for bool {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         TalkOwned::new((*self).into(), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Bool(val)    => Ok(*val as _),
             TalkValue::Message(_)   => {
@@ -91,12 +91,12 @@ impl TalkValueType for bool {
 
 impl TalkValueType for i32 {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         TalkOwned::new((*self).into(), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Int(val)     => Ok(*val as _),
             TalkValue::Float(val)   => Ok(*val as _),
@@ -116,12 +116,12 @@ impl TalkValueType for i32 {
 
 impl TalkValueType for i64 {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         TalkOwned::new((*self).into(), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Int(val)     => Ok(*val as _),
             TalkValue::Float(val)   => Ok(*val as _),
@@ -141,12 +141,12 @@ impl TalkValueType for i64 {
 
 impl TalkValueType for f32 {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         TalkOwned::new((*self).into(), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Int(val)     => Ok(*val as _),
             TalkValue::Float(val)   => Ok(*val as _),
@@ -166,12 +166,12 @@ impl TalkValueType for f32 {
 
 impl TalkValueType for f64 {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         TalkOwned::new((*self).into(), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Int(val)     => Ok(*val as _),
             TalkValue::Float(val)   => Ok(*val as _),
@@ -191,12 +191,12 @@ impl TalkValueType for f64 {
 
 impl TalkValueType for String {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         TalkOwned::new(self.into(), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::String(val)  => Ok((**val).clone()),
             TalkValue::Message(_)   => {
@@ -215,12 +215,12 @@ impl TalkValueType for String {
 
 impl TalkValueType for Arc<String> {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         TalkOwned::new(self.into(), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::String(val)  => Ok(val.clone()),
             TalkValue::Message(_)   => {
@@ -239,12 +239,12 @@ impl TalkValueType for Arc<String> {
 
 impl TalkValueType for char {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         TalkOwned::new((*self).into(), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Character(val)   => Ok(*val as _),
             TalkValue::Message(_)       => {
@@ -263,12 +263,12 @@ impl TalkValueType for char {
 
 impl TalkValueType for TalkNumber {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         TalkOwned::new((*self).into(), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Int(val)     => Ok(TalkNumber::Int(*val)),
             TalkValue::Float(val)   => Ok(TalkNumber::Float(*val)),
@@ -288,12 +288,12 @@ impl TalkValueType for TalkNumber {
 
 impl TalkValueType for TalkError {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         TalkOwned::new(self.clone().into(), context)
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Error(err)   => Ok(err.clone()),
             TalkValue::Message(_)   => {
@@ -315,7 +315,7 @@ where
     T : TalkValueType + Sized,
 {
     #[inline]
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue> {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         let array = self.iter()
             .map(|val| val.into_talk_value(context).leak())
             .collect::<Vec<_>>();
@@ -324,7 +324,7 @@ where
     }
 
     #[inline]
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError> {
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         match &*value {
             TalkValue::Array(vals)  => {
                 let mut result = vec![];

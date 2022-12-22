@@ -360,7 +360,7 @@ impl TalkContext {
     /// Retrieves the cell block containing the values for the root symbol table
     ///
     #[inline]
-    pub fn root_symbol_table_cell_block<'a>(&'a self) -> TalkOwned<'a, TalkCellBlock> {
+    pub fn root_symbol_table_cell_block<'a>(&'a self) -> TalkOwned<TalkCellBlock, &'a TalkContext> {
         let cell_block = self.root_cell_block.clone();
         self.retain_cell_block(cell_block);
         TalkOwned::new(cell_block, self)

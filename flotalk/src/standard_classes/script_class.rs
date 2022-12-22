@@ -183,7 +183,7 @@ impl TalkScriptClass {
     ///
     /// Adds a class message that calls the specified block
     ///
-    fn add_class_message(&mut self, selector: TalkMessageSignature, block: TalkOwned<'_, TalkValue>) -> TalkContinuation<'static> {
+    fn add_class_message(&mut self, selector: TalkMessageSignature, block: TalkOwned<TalkValue, &'_ TalkContext>) -> TalkContinuation<'static> {
         let cell_class_id   = self.class_id;
         let context         = block.context();
         let message_handler = block.read_data_in_context::<TalkClassMessageHandler>(context);
@@ -232,7 +232,7 @@ impl TalkScriptClass {
     ///
     /// Adds an instance message that calls the specified block (which is rebound to the instance variables)
     ///
-    fn add_instance_message(&mut self, selector: TalkMessageSignature, block: TalkOwned<'_, TalkValue>, instance_variables: Arc<Mutex<TalkSymbolTable>>) -> TalkContinuation<'static> {
+    fn add_instance_message(&mut self, selector: TalkMessageSignature, block: TalkOwned<TalkValue, &'_ TalkContext>, instance_variables: Arc<Mutex<TalkSymbolTable>>) -> TalkContinuation<'static> {
         let cell_class_id   = self.class_id;
         let context         = block.context();
         let message_handler = block.read_data_in_context::<TalkInstanceMessageHandler>(context);
@@ -266,7 +266,7 @@ impl TalkScriptClass {
     ///
     /// Processes a standard class message directed at a script class
     ///
-    fn process_standard_message(&mut self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference) -> TalkContinuation<'static> {
+    fn process_standard_message(&mut self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference) -> TalkContinuation<'static> {
         // Predefined messages
         if message_id == *TALK_MSG_SUBCLASS {
 
@@ -417,7 +417,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_NEW {
 
             let allocator = Arc::clone(allocator);
@@ -456,7 +456,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
         TalkScriptClass::send_class_message(reference.clone(), reference.clone(), target.class_id, message_id, args.leak())
     }
 }
@@ -478,14 +478,14 @@ impl TalkClassDefinition for TalkCellBlockClass {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _class_id: TalkClass, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _class_id: TalkClass, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
     }
 
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _reference: TalkReference, _target: &mut Self::Data) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _reference: TalkReference, _target: &mut Self::Data) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
     }
 }

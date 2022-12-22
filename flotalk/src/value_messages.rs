@@ -179,7 +179,7 @@ pub static TALK_MSG_TRUNCATE_TO: Lazy<TalkMessageSignatureId>                 = 
 /// Implements the various 'perform:with:' selectors
 ///
 #[inline]
-fn perform(mut val: TalkOwned<'_, TalkValue>, mut args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, context: &TalkContext) -> TalkContinuation<'static> {
+fn perform(mut val: TalkOwned<TalkValue, &'_ TalkContext>, mut args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
     // First argument is the selector
     if let TalkValue::Selector(selector) = args[0] {
         // Remove the first argument to create the arguments for the message
@@ -195,7 +195,7 @@ fn perform(mut val: TalkOwned<'_, TalkValue>, mut args: TalkOwned<'_, SmallVec<[
 /// Implements the 'perform:withArguments:' selector
 ///
 #[inline]
-fn perform_with_arguments(mut val: TalkOwned<'_, TalkValue>, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, context: &TalkContext) -> TalkContinuation<'static> {
+fn perform_with_arguments(mut val: TalkOwned<TalkValue, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
     // First argument is the selector, and second argument is the array
     match (&args[0], &args[1]) {
         (TalkValue::Selector(selector), TalkValue::Array(perform_args)) => {
@@ -218,7 +218,7 @@ fn perform_with_arguments(mut val: TalkOwned<'_, TalkValue>, args: TalkOwned<'_,
 }
 
 #[inline]
-fn responds_to(val: TalkOwned<'_, TalkValue>, args: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, context: &TalkContext) -> TalkContinuation<'static> {
+fn responds_to(val: TalkOwned<TalkValue, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
     use TalkValue::*;
 
     match (&*val, &args[0]) {
@@ -249,7 +249,7 @@ fn responds_to(val: TalkOwned<'_, TalkValue>, args: TalkOwned<'_, SmallVec<[Talk
 /// The default message dispatcher for 'any' type
 ///
 pub static TALK_DISPATCH_ANY: Lazy<TalkMessageDispatchTable<TalkValue>> = Lazy::new(|| TalkMessageDispatchTable::empty()
-    .with_message(*TALK_BINARY_EQUALS,                  |val: TalkOwned<'_, TalkValue>, args, _| *val == args[0])
+    .with_message(*TALK_BINARY_EQUALS,                  |val: TalkOwned<TalkValue, &'_ TalkContext>, args, _| *val == args[0])
     .with_message(*TALK_BINARY_EQUALS_EQUALS,           |val, args, _| *val == args[0])
     .with_message(*TALK_BINARY_TILDE_EQUALS,            |val, args, _| *val != args[0])
     .with_message(*TALK_BINARY_TILDE_TILDE,             |val, args, _| *val != args[0])
@@ -284,7 +284,7 @@ pub static TALK_DISPATCH_ANY: Lazy<TalkMessageDispatchTable<TalkValue>> = Lazy::
 ///
 pub static TALK_DISPATCH_BOOLEAN: Lazy<TalkMessageDispatchTable<bool>> = Lazy::new(|| TalkMessageDispatchTable::empty()
     .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |bool_value| TalkValue::Bool(bool_value))
-    .with_message(*TALK_BINARY_AND,             |val: TalkOwned<'_, bool>, args, _| Ok::<_, TalkError>(*val & args[0].try_as_bool()?))
+    .with_message(*TALK_BINARY_AND,             |val: TalkOwned<bool, &'_ TalkContext>, args, _| Ok::<_, TalkError>(*val & args[0].try_as_bool()?))
     .with_message(*TALK_BINARY_OR,              |val, args, _| Ok::<_, TalkError>(*val | args[0].try_as_bool()?))
     .with_message(*TALK_MSG_AND,                |val, mut args, context| if !*val { TalkContinuation::from(false) } else { args[0].take().send_message_in_context(TalkMessage::Unary(*TALK_MSG_VALUE), context) })
     .with_message(*TALK_MSG_OR,                 |val, mut args, context| if *val { TalkContinuation::from(true) } else { args[0].take().send_message_in_context(TalkMessage::Unary(*TALK_MSG_VALUE), context) })
@@ -302,7 +302,7 @@ pub static TALK_DISPATCH_BOOLEAN: Lazy<TalkMessageDispatchTable<bool>> = Lazy::n
 ///
 pub static TALK_DISPATCH_NUMBER: Lazy<TalkMessageDispatchTable<TalkNumber>> = Lazy::new(|| TalkMessageDispatchTable::empty()
     .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |number_value| TalkValue::from(number_value))
-    .with_message(*TALK_BINARY_ADD,             |val: TalkOwned<'_, TalkNumber>, args, _| Ok::<_, TalkError>(*val + args[0].try_as_number()?))
+    .with_message(*TALK_BINARY_ADD,             |val: TalkOwned<TalkNumber, &'_ TalkContext>, args, _| Ok::<_, TalkError>(*val + args[0].try_as_number()?))
     .with_message(*TALK_BINARY_SUB,             |val, args, _| Ok::<_, TalkError>(*val - args[0].try_as_number()?))
     .with_message(*TALK_BINARY_MUL,             |val, args, _| Ok::<_, TalkError>(*val * args[0].try_as_number()?))
     .with_message(*TALK_BINARY_DIV,             |val, args, _| Ok::<_, TalkError>(*val / args[0].try_as_number()?))

@@ -67,14 +67,14 @@ where
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, _arguments: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _class_id: TalkClass, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, _arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _class_id: TalkClass, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
     }
 
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, arguments: TalkOwned<'_, SmallVec<[TalkValue; 4]>>, _reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
         // Turn the arguments back into a message
         let message = if arguments.len() == 0 {
             TalkMessage::Unary(message_id)
@@ -88,7 +88,7 @@ where
         // Create a continuation that sends the message
         TalkContinuation::soon(move |context| {
             // Convert the message to the stream
-            let message = TalkOwned::new(message, context);
+            let message = TalkOwned::new(message, &*context);
             let item    = TItem::from_message(message, context);
 
             // Result is an error if we can't convert the message, or a continuation that sends to the sender
@@ -125,7 +125,7 @@ where
 ///
 /// Creates a sender object and a receiver stream for a specific item type
 ///
-pub fn create_talk_sender<'a, TItem>(talk_context: &'a mut TalkContext) -> (TalkOwned<'a, TalkReference>, impl Send + Stream<Item=TItem>)
+pub fn create_talk_sender<'a, TItem>(talk_context: &'a mut TalkContext) -> (TalkOwned<TalkReference, &'a TalkContext>, impl Send + Stream<Item=TItem>)
 where
     TItem: 'static + Send + TalkMessageType,
 {
@@ -142,7 +142,7 @@ where
 
     // Generate the result
     let sender              = TalkReference(sender_class, sender_data_handle);
-    let sender              = TalkOwned::new(sender, talk_context);
+    let sender              = TalkOwned::new(sender, &*talk_context);
 
     (sender, receive)
 }

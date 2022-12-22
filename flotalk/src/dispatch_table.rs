@@ -18,10 +18,10 @@ where
     TDataType: TalkReleasable
 {
     /// The action to take for a particular message type
-    message_action: TalkSparseArray<Arc<dyn Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>>>,
+    message_action: TalkSparseArray<Arc<dyn Send + Sync + for<'a> Fn(TalkOwned<TDataType, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static>>>,
 
     /// The action to take when a message is not supported
-    not_supported: Arc<dyn Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>>,
+    not_supported: Arc<dyn Send + Sync + for<'a> Fn(TalkOwned<TDataType, &'a TalkContext>, TalkMessageSignatureId, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static>>,
 
     /// Returns true if the specified message is not in the message action list but should also be considered as supported by this dispatch table (in particular, because the not_supported function implements it)
     is_also_supported: Arc<dyn Send + Sync + Fn(TalkMessageSignatureId) -> bool>,
@@ -58,7 +58,7 @@ where
     ///
     /// Builder method that can be used to initialise a dispatch table alongside its messages
     ///
-    pub fn with_message<TResult>(mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TResult) -> Self 
+    pub fn with_message<TResult>(mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TDataType, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TResult) -> Self 
     where
         TResult: Into<TalkContinuation<'static>>,
     {
@@ -72,7 +72,7 @@ where
     ///
     /// The default 'not supported' action is to return a MessageNotSupported error
     ///
-    pub fn with_not_supported(mut self, not_supported: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) -> Self {
+    pub fn with_not_supported(mut self, not_supported: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TDataType, &'a TalkContext>, TalkMessageSignatureId, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static>) -> Self {
         self.not_supported = Arc::new(not_supported);
 
         self
@@ -143,7 +143,7 @@ where
     ///
     /// Defines the action for a message
     ///
-    pub fn define_message(&mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) {
+    pub fn define_message(&mut self, message: impl Into<TalkMessageSignatureId>, action: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TDataType, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static>) {
         self.message_action.insert(message.into().into(), Arc::new(action));
     }
 
@@ -152,7 +152,7 @@ where
     ///
     /// The default 'not supported' action is to return a MessageNotSupported error
     ///
-    pub fn define_not_supported(&mut self, not_supported: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<'a, TDataType>, TalkMessageSignatureId, TalkOwned<'a, SmallVec<[TalkValue; 4]>>, &'a TalkContext) -> TalkContinuation<'static>) {
+    pub fn define_not_supported(&mut self, not_supported: impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TDataType, &'a TalkContext>, TalkMessageSignatureId, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static>) {
         self.not_supported = Arc::new(not_supported);
     }
 

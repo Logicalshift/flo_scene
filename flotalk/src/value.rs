@@ -28,12 +28,12 @@ pub trait TalkValueType : Sized {
     ///
     /// Tries to convert this item into a TalkValue
     ///
-    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<'a, TalkValue>;
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext>;
 
     ///
     /// Tries to convert a TalkValue into this item
     ///
-    fn try_from_talk_value<'a>(value: TalkOwned<'a, TalkValue>, context: &'a TalkContext) -> Result<Self, TalkError>;
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError>;
 }
 
 ///
@@ -187,7 +187,7 @@ impl TalkValue {
     /// selector. This will check, and only send the message if the arguments match.
     ///
     #[inline]
-    pub (super) fn perform_message_in_context<'a>(self, message_id: TalkMessageSignatureId, arguments: TalkOwned<'a, SmallVec<[TalkValue; 4]>>, context: &'a TalkContext) -> TalkContinuation<'static> {
+    pub (super) fn perform_message_in_context<'a>(self, message_id: TalkMessageSignatureId, arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, context: &'a TalkContext) -> TalkContinuation<'static> {
         if message_id.len() != arguments.len() {
             // Selector does not match the arguments
             TalkError::WrongNumberOfArguments.into()
