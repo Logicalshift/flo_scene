@@ -242,7 +242,7 @@ fn struct_to_message(name: &Ident, data_struct: &DataStruct, attributes: &Vec<At
         quote_spanned! { data_struct.fields.span() =>
             #signature
 
-            ::flo_talk::TalkMessage::Unary(*#signature_ident)
+            let message = ::flo_talk::TalkMessage::Unary(*#signature_ident);
         }
     } else {
         // Multiple-argument message
