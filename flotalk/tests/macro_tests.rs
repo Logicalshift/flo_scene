@@ -444,3 +444,41 @@ fn test_custom_message_struct() {
     assert!(back_to_enum == Test(42));
 }
 
+#[test]
+fn test_empty_struct_1() {
+    #[derive(TalkMessageType, PartialEq)]
+    #[message("test")]
+    struct Test;
+
+    let context         = TalkContext::empty();
+    let message         = Test.to_message(&context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test);
+}
+
+#[test]
+fn test_empty_struct_2() {
+    #[derive(TalkMessageType, PartialEq)]
+    #[message("test")]
+    struct Test();
+
+    let context         = TalkContext::empty();
+    let message         = Test().to_message(&context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test());
+}
+
+#[test]
+fn test_empty_struct_3() {
+    #[derive(TalkMessageType, PartialEq)]
+    #[message("test")]
+    struct Test { }
+
+    let context         = TalkContext::empty();
+    let message         = Test { }.to_message(&context);
+    let back_to_enum    = Test::from_message(message, &context).unwrap();
+
+    assert!(back_to_enum == Test { });
+}
