@@ -266,11 +266,9 @@ impl TalkRuntime {
                         if let TalkValue::Error(err) = &*send_message_result {
                             // Abort early and report the error
                             // yield_value(Err(err.clone())); -- TODO
-                            send_message_result.release_in_context(&*context.lock().await);
                             return;
                         } else {
                             // Otherwise, release the result and wait for the relay to finish
-                            send_message_result.release_in_context(&*context.lock().await);
                             relay_message.await;
                         }
                     }
@@ -282,7 +280,6 @@ impl TalkRuntime {
                         if let TalkValue::Error(err) = &*send_message_result {
                             // In spite of the stream being finished at this point, send_message errored anyway, so we'll report that
                             // yield_value(Err(err.clone())); -- TODO
-                            send_message_result.release_in_context(&*context.lock().await);
                             return;
                         }
                     }
