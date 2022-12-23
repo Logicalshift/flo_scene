@@ -407,6 +407,45 @@ pub static TALK_DISPATCH_NUMBER: Lazy<TalkMessageDispatchTable<TalkNumber>> = La
     );
 
 ///
+/// Converts a message signature ID to a message
+///
+fn selector_as_message(selector: TalkMessageSignatureId) -> TalkContinuation<'static> {
+    if selector.len() != 0 {
+        TalkError::WrongNumberOfArguments.into()
+    } else {
+        TalkValue::Message(Box::new(TalkMessage::Unary(selector))).into()
+    }
+}
+
+///
+/// Converts a message signature ID to a message
+///
+fn selector_as_message_with_args(selector: TalkMessageSignatureId, arguments: SmallVec<[TalkValue; 4]>) -> TalkContinuation<'static> {
+    if selector.len() != arguments.len() {
+        TalkError::WrongNumberOfArguments.into()
+    } else if arguments.len() == 0 {
+        TalkValue::Message(Box::new(TalkMessage::Unary(selector))).into()
+    } else {
+        TalkValue::Message(Box::new(TalkMessage::WithArguments(selector, arguments))).into()
+    }
+}
+///
+/// The default message dispatcher for selectors (message signatures)
+///
+pub static TALK_DISPATCH_SELECTOR: Lazy<TalkMessageDispatchTable<TalkMessageSignatureId>> = Lazy::new(|| TalkMessageDispatchTable::empty()
+    .with_message(*TALK_MSG_AS_MESSAGE,         |val: TalkOwned<TalkMessageSignatureId, &'_ TalkContext>, _, _| selector_as_message(val.leak()))
+    .with_message(*TALK_MSG_WITH,               |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
+    .with_message(*TALK_MSG_WITH_WITH,          |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
+    .with_message(*TALK_MSG_WITH_WITH_WITH,     |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
+    .with_message(*TALK_MSG_WITH4,              |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
+    .with_message(*TALK_MSG_WITH5,              |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
+    .with_message(*TALK_MSG_WITH6,              |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
+    .with_message(*TALK_MSG_WITH7,              |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
+    .with_message(*TALK_MSG_WITH8,              |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
+    // .with_message(*TALK_MSG_WITHARGUMENTS,      |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
+    );
+
+///
 /// Message dispatch tables for the raw values types
 ///
 pub struct TalkValueDispatchTables {
@@ -433,7 +472,7 @@ impl Default for TalkValueDispatchTables {
             string_dispatch:    TalkMessageDispatchTable::empty(),
             character_dispatch: TalkMessageDispatchTable::empty(),
             symbol_dispatch:    TalkMessageDispatchTable::empty(),
-            selector_dispatch:  TalkMessageDispatchTable::empty(),
+            selector_dispatch:  TALK_DISPATCH_SELECTOR.clone(),
             array_dispatch:     TalkMessageDispatchTable::empty(),
             message_dispatch:   TalkMessageDispatchTable::empty(),
             error_dispatch:     TalkMessageDispatchTable::empty(),
