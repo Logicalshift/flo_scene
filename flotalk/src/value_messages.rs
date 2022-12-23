@@ -461,10 +461,44 @@ pub static TALK_DISPATCH_SELECTOR: Lazy<TalkMessageDispatchTable<TalkMessageSign
     .with_message(*TALK_MSG_WITHARGUMENTS,      |val, mut args, context| selector_as_message_from_array(val.leak(), args[0].take(), context))
     );
 
+///
+/// Implements the `matchesSelector:` message
+///
+fn message_matches_selector(msg: &TalkMessage, selector: &TalkValue) -> bool {
+    if &TalkValue::Selector(msg.signature_id()) == selector {
+        true
+    } else {
+        false
+    }
+}
+
+///
+/// Implements the `selectorStartsWith:` message
+///
+fn message_selector_starts_with(msg: &TalkMessage, starts_with: &TalkValue) -> bool {
+    let message_signature = msg.signature_id().to_signature();
+
+    if let TalkValue::Selector(starts_with) = starts_with {
+        use TalkMessageSignature::*;
+
+        // Get the initial signature
+        let starts_with = starts_with.to_signature();
+
+        match (message_signature, starts_with) {
+            (Unary(symbol_1), Unary(symbol_2))      => symbol_1 == symbol_2,
+            (Arguments(args_1), Arguments(args_2))  => args_1.iter().take(args_2.len()).eq(args_2.iter()),
+            _                                       => false,
+        }
+    } else {
+        // Not a selector
+        false
+    }
+}
+
 pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
     .with_message(*TALK_MSG_SELECTOR,                       |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkValue::Selector(val.signature_id()))
-    .with_message(*TALK_MSG_MATCHES_SELECTOR,               |_, _, _| TalkError::NotImplemented)
-    .with_message(*TALK_MSG_SELECTOR_STARTS_WITH,           |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_MATCHES_SELECTOR,               |val, args, _| message_matches_selector(&**val, &args[0]))
+    .with_message(*TALK_MSG_SELECTOR_STARTS_WITH,           |val, args, _| message_selector_starts_with(&**val, &args[0]))
     .with_message(*TALK_MSG_MESSAGE_AFTER,                  |_, _, _| TalkError::NotImplemented)
     .with_message(*TALK_MSG_MESSAGE_COMBINED_WITH,          |_, _, _| TalkError::NotImplemented)
     .with_message(*TALK_MSG_ARGUMENT_AT,                    |_, _, _| TalkError::NotImplemented)
