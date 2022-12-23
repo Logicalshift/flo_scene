@@ -461,6 +461,10 @@ pub static TALK_DISPATCH_SELECTOR: Lazy<TalkMessageDispatchTable<TalkMessageSign
     .with_message(*TALK_MSG_WITHARGUMENTS,      |val, mut args, context| selector_as_message_from_array(val.leak(), args[0].take(), context))
     );
 
+pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
+    //.with_message(*TALK_MSG_SELECTOR,           |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkValue::Selector(val.signature_id()).into())
+    );
+
 ///
 /// Message dispatch tables for the raw values types
 ///
@@ -490,7 +494,7 @@ impl Default for TalkValueDispatchTables {
             symbol_dispatch:    TalkMessageDispatchTable::empty(),
             selector_dispatch:  TALK_DISPATCH_SELECTOR.clone(),
             array_dispatch:     TalkMessageDispatchTable::empty(),
-            message_dispatch:   TalkMessageDispatchTable::empty(),
+            message_dispatch:   TALK_DISPATCH_MESSAGE.clone(),
             error_dispatch:     TalkMessageDispatchTable::empty(),
         }
     }
@@ -511,9 +515,9 @@ impl TalkValue {
             TalkValue::String(_val)             => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Character(_val)          => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Symbol(_val)             => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Selector(_val)           => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Selector(selector)       => TALK_DISPATCH_SELECTOR.send_message(selector, message, context),
             TalkValue::Array(_val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Message(_val)            => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Message(target)          => TALK_DISPATCH_MESSAGE.send_message(target, message, context),
             TalkValue::Error(_err)              => TalkError::MessageNotSupported(message.signature_id()).into(),
         }
     }
