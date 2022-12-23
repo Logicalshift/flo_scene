@@ -175,6 +175,67 @@ pub static TALK_MSG_TO_DO: Lazy<TalkMessageSignatureId>                       = 
 pub static TALK_MSG_TRUNCATED: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| "truncated".into());
 pub static TALK_MSG_TRUNCATE_TO: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| ("truncateTo:").into());
 
+
+// FloTalk selector protocol messages
+
+/// `#signature asMessage` - creates a unary message value from a signature
+pub static TALK_MSG_AS_MESSAGE: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| "asMessage".into());
+
+/// `#signature: with: 42` - creates a message with an argument from a signature
+pub static TALK_MSG_WITH: Lazy<TalkMessageSignatureId>                        = Lazy::new(|| "with:".into());
+
+/// `#signature:two: with: 1 with: 2` - creates a message with some arguments from a signature
+pub static TALK_MSG_WITH_WITH: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("with:", "with:").into());
+
+/// `#signature:two:three: with: 1 with: 2 with: 3` - creates a message with some arguments from a signature
+pub static TALK_MSG_WITH_WITH_WITH: Lazy<TalkMessageSignatureId>              = Lazy::new(|| ("with:", "with:", "with:").into());
+
+/// `#signature:two:three:four: with: 1 with: 2 with: 3 with: 4` - creates a message with some arguments from a signature
+pub static TALK_MSG_WITH4: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| ("with:", "with:", "with:", "with:").into());
+
+/// `#signature:two:three:four:five: with: 1 with: 2 with: 3 with: 4 with: 5` - creates a message with some arguments from a signature
+pub static TALK_MSG_WITH5: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| vec!["with:", "with:", "with:", "with:", "with:"].into());
+
+/// `#signature:two:three:four:five:six: with: 1 with: 2 with: 3 with: 4 with: 5 with: 6` - creates a message with some arguments from a signature
+pub static TALK_MSG_WITH6: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| vec!["with:", "with:", "with:", "with:", "with:", "with:"].into());
+
+/// `#signature:two:three:four:five:six:seven: with: 1 with: 2 with: 3 with: 4 with: 5 with: 6 with: 7` - creates a message with some arguments from a signature
+pub static TALK_MSG_WITH7: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| vec!["with:", "with:", "with:", "with:", "with:", "with:", "with:"].into());
+
+/// `#signature:two:three:four:five:six:seven:eight: with: 1 with: 2 with: 3 with: 4 with: 5 with: 6 with: 7 with: 8` - creates a message with some arguments from a signature
+pub static TALK_MSG_WITH8: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| vec!["with:", "with:", "with:", "with:", "with:", "with:", "with:", "with:"].into());
+
+/// `#signature:two: withArguments: #(1 2)` - creates a message with an argument from a signature
+pub static TALK_MSG_WITHARGUMENTS: Lazy<TalkMessageSignatureId>               = Lazy::new(|| "withArguments:".into());
+
+
+// FloTalk message protocol messages
+
+/// `msg matchesSignature: #signature` - true if a message object has a particular signature
+pub static TALK_MSG_MATCHES_SIGNATURE: Lazy<TalkMessageSignatureId>           = Lazy::new(|| "matchesSignature:".into());
+
+/// `msg signatureStartsWith: #signature:with:` - true if a message object has a particular signature
+pub static TALK_MSG_SIGNATURE_STARTS_WITH: Lazy<TalkMessageSignatureId>       = Lazy::new(|| "signatureStartsWith:".into());
+
+/// `msg messageAfter: #signature:withArg:` - creates a new message by removing the arguments matched by a signature from the start of a message
+pub static TALK_MSG_MESSAGE_AFTER: Lazy<TalkMessageSignatureId>               = Lazy::new(|| "messageAfter:".into());
+
+/// `msg messageCombinedWith: anotherMsg` - creates a new message by appending the signature of the 'other' message to the existing message
+pub static TALK_MSG_MESSAGE_COMBINED_WITH: Lazy<TalkMessageSignatureId>       = Lazy::new(|| "messageCombinedWith:".into());
+
+/// `msg argumentAt: 1` - retrieves the message argument at the specified position
+pub static TALK_MSG_ARGUMENT_AT: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| "argumentAt:".into());
+
+/// `msg arguments` - retrieves the arguments of a message as an array
+pub static TALK_MSG_ARGUMENTS: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| "arguments".into());
+
+/// `msg signature` - retrieves the signature of a message
+pub static TALK_MSG_SIGNATURE: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| "signature".into());
+
+/// `msg ifMatches: #signature: do: [ :arg | something ]` - if the message matches a signature, perform an action using the arguments
+pub static TALK_MSG_IFMATCHES_DO: Lazy<TalkMessageSignatureId>                = Lazy::new(|| ("ifMatches:", "do:").into());
+
+
 ///
 /// Implements the various 'perform:with:' selectors
 ///
