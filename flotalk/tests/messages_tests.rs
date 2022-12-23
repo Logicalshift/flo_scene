@@ -195,7 +195,13 @@ fn selector_message_combined_with() {
         let msg     = runtime.run(TalkScript::from("(#someMessage:two: withArguments: #(1 2)) messageCombinedWith: (#three:four: with: 3 with: 4)")).await;
 
         println!("{:?}", msg);
-        assert!(*msg == TalkValue::Message(Box::new(TalkMessage::with_arguments(vec![("someMessage:", 1), ("two", 2), ("three:", 3), ("four:", 4)]))));
+
+        if let TalkValue::Message(msg) = &*msg {
+            println!("{:?}", msg.signature());
+            assert!(msg.signature().id() == ("someMessage:", "two:", "three:", "four:").into());
+        }
+
+        assert!(*msg == TalkValue::Message(Box::new(TalkMessage::with_arguments(vec![("someMessage:", 1), ("two:", 2), ("three:", 3), ("four:", 4)]))));
     })
 }
 

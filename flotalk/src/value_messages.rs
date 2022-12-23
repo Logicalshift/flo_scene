@@ -476,7 +476,7 @@ fn message_matches_selector(msg: &TalkMessage, selector: &TalkValue) -> bool {
 /// Implements the `selectorStartsWith:` message
 ///
 fn message_selector_starts_with(msg: &TalkMessage, starts_with: &TalkValue) -> bool {
-    let message_signature = msg.signature_id().to_signature();
+    let message_signature = msg.signature();
 
     if let TalkValue::Selector(starts_with) = starts_with {
         use TalkMessageSignature::*;
@@ -496,11 +496,11 @@ fn message_selector_starts_with(msg: &TalkMessage, starts_with: &TalkValue) -> b
 }
 
 ///
-/// Implements the `selectorStartsWith:` message
+/// Implements the `messageAfter:` message
 ///
 fn message_after(msg: &TalkMessage, selector: &TalkValue, context: &TalkContext) -> TalkValue {
     // Fetch the message signature
-    let message_signature = msg.signature_id().to_signature();
+    let message_signature = msg.signature();
 
     if let TalkValue::Selector(selector) = selector {
         use TalkMessageSignature::*;
@@ -541,12 +541,55 @@ fn message_after(msg: &TalkMessage, selector: &TalkValue, context: &TalkContext)
     }
 }
 
+
+///
+/// Implements the `messageCombinedWith:` message
+///
+fn message_combined_with(first_message: &TalkMessage, second_message: &TalkValue, context: &TalkContext) -> TalkValue {
+    let first_selector = first_message.signature();
+
+    if let TalkValue::Message(second_message) = second_message {
+        use TalkMessageSignature::*;
+
+        // Get the initial signature
+        let second_selector = second_message.signature();
+
+        // Combine to create a new signature
+        let combined_signature = match (first_selector, second_selector) {
+            (Arguments(first), Arguments(second))   => Arguments(first.iter().copied().chain(second.iter().copied()).collect()),
+            (Unary(_), Arguments(second))           => Arguments(second.clone()),
+            (Arguments(first), Unary(_))            => Arguments(first.clone()),
+            (Unary(first), Unary(_))                => Unary(first),
+        };
+
+        // Clone and combine the arguments
+        use TalkMessage::{WithArguments};
+        let combined_arguments = match (first_message, &**second_message) {
+            (WithArguments(_, first), WithArguments(_, second)) => first.iter().chain(second.iter()).map(|arg| arg.clone_in_context(context)).collect(),
+            (WithArguments(_, first), _)                        => first.iter().map(|arg| arg.clone_in_context(context)).collect(),
+            (_, WithArguments(_, second))                       => second.iter().map(|arg| arg.clone_in_context(context)).collect(),
+            _                                                   => smallvec![],
+        };
+
+        // Create a new message as the result
+        let combined_message = if combined_arguments.len() > 0 {
+            TalkMessage::WithArguments(combined_signature.into(), combined_arguments)
+        } else {
+            TalkMessage::Unary(combined_signature.into())
+        };
+
+        TalkValue::Message(Box::new(combined_message))
+    } else {
+        TalkError::NotAMessage.into()
+    }
+}
+
 pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
     .with_message(*TALK_MSG_SELECTOR,                       |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkValue::Selector(val.signature_id()))
     .with_message(*TALK_MSG_MATCHES_SELECTOR,               |val, args, _| message_matches_selector(&**val, &args[0]))
     .with_message(*TALK_MSG_SELECTOR_STARTS_WITH,           |val, args, _| message_selector_starts_with(&**val, &args[0]))
     .with_message(*TALK_MSG_MESSAGE_AFTER,                  |val, args, context| message_after(&**val, &args[0], context))
-    .with_message(*TALK_MSG_MESSAGE_COMBINED_WITH,          |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_MESSAGE_COMBINED_WITH,          |val, args, context| message_combined_with(&**val, &args[0], context))
     .with_message(*TALK_MSG_ARGUMENT_AT,                    |_, _, _| TalkError::NotImplemented)
     .with_message(*TALK_MSG_ARGUMENTS,                      |_, _, _| TalkError::NotImplemented)
     .with_message(*TALK_MSG_IFMATCHES_DO,                   |_, _, _| TalkError::NotImplemented)
