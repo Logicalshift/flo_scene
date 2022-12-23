@@ -462,7 +462,16 @@ pub static TALK_DISPATCH_SELECTOR: Lazy<TalkMessageDispatchTable<TalkMessageSign
     );
 
 pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
-    .with_message(*TALK_MSG_SELECTOR,           |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkContinuation::Ready(TalkValue::Selector(val.signature_id())))
+    .with_message(*TALK_MSG_SELECTOR,                       |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkValue::Selector(val.signature_id()))
+    .with_message(*TALK_MSG_MATCHES_SELECTOR,               |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_SELECTOR_STARTS_WITH,           |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_MESSAGE_AFTER,                  |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_MESSAGE_COMBINED_WITH,          |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_ARGUMENT_AT,                    |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_ARGUMENTS,                      |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_IFMATCHES_DO,                   |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_IFMATCHES_DO_IF_DOES_NOT_MATCH, |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_IFDOESNOTMATCH_DO,              |_, _, _| TalkError::NotImplemented)
     );
 
 ///
