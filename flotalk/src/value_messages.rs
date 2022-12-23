@@ -413,6 +413,37 @@ pub static TALK_DISPATCH_NUMBER: Lazy<TalkMessageDispatchTable<TalkNumber>> = La
     );
 
 ///
+/// Returns the message signature ID for the `value:value:` type message with the specified number of arguments
+///
+/// `0` arguments will produce the unary message `value`. `1` will produce `value:`. `2` will produce `value:value:`
+/// and so on.
+///
+pub fn value_message_signature(num_arguments: usize) -> TalkMessageSignatureId {
+    static CACHE: Lazy<Mutex<Vec<TalkMessageSignatureId>>> = Lazy::new(|| Mutex::new(vec![]));
+
+    let mut cache = CACHE.lock().unwrap();
+
+    if cache.len() > num_arguments {
+        // Use the version previously generated
+        cache[num_arguments]
+    } else {
+        // Generate message signatures up until the required number of arguments
+        while cache.len() <= num_arguments {
+            let signature = if cache.len() == 0 {
+                TalkMessageSignature::Unary("value".into())
+            } else {
+                TalkMessageSignature::Arguments((0..cache.len()).into_iter().map(|_| TalkSymbol::from("value:")).collect())
+            };
+
+            cache.push(signature.into());
+        }
+
+        // Value will now be in the cache
+        cache[num_arguments]
+    }
+}
+
+///
 /// Converts a message signature ID to a message
 ///
 fn selector_as_message(selector: TalkMessageSignatureId) -> TalkContinuation<'static> {
@@ -624,6 +655,24 @@ fn message_arguments(msg: &TalkMessage, context: &TalkContext) -> TalkValue {
     }
 }
 
+///
+/// Implements the 'ifMatches:do:' message
+///
+fn message_if_matches_do(msg: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, selector: &TalkValue, do_if_matches: TalkOwned<TalkValue, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
+    if message_matches_selector(&**msg, selector) {
+        // Send a message to the 'do' value using the message arguments
+        let value_signature = value_message_signature(msg.len());
+        let arguments       = msg.leak().to_arguments();
+
+        let do_message      = if arguments.len() == 0 { TalkMessage::Unary(value_signature) } else { TalkMessage::WithArguments(value_signature, arguments) };
+
+        do_if_matches.leak().send_message_in_context(do_message, context)
+    } else {
+        // Result is nil if the message does not match
+        TalkValue::Nil.into()
+    }
+}
+
 pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
     .with_message(*TALK_MSG_SELECTOR,                       |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkValue::Selector(val.signature_id()))
     .with_message(*TALK_MSG_MATCHES_SELECTOR,               |val, args, _| message_matches_selector(&**val, &args[0]))
@@ -632,7 +681,7 @@ pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>
     .with_message(*TALK_MSG_MESSAGE_COMBINED_WITH,          |val, args, context| message_combined_with(&**val, &args[0], context))
     .with_message(*TALK_MSG_ARGUMENT_AT,                    |val, args, context| message_argument_at(&**val, &args[0], context))
     .with_message(*TALK_MSG_ARGUMENTS,                      |val, _, context| message_arguments(&**val, context))
-    .with_message(*TALK_MSG_IFMATCHES_DO,                   |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_IFMATCHES_DO,                   |val, mut args, context| { let do_if_matches = TalkOwned::new(args[1].take(), context); message_if_matches_do(val, &args[0], do_if_matches, context) })
     .with_message(*TALK_MSG_IFMATCHES_DO_IF_DOES_NOT_MATCH, |_, _, _| TalkError::NotImplemented)
     .with_message(*TALK_MSG_IFDOESNOTMATCH_DO,              |_, _, _| TalkError::NotImplemented)
     );
