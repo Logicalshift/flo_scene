@@ -495,11 +495,57 @@ fn message_selector_starts_with(msg: &TalkMessage, starts_with: &TalkValue) -> b
     }
 }
 
+///
+/// Implements the `selectorStartsWith:` message
+///
+fn message_after(msg: &TalkMessage, selector: &TalkValue, context: &TalkContext) -> TalkValue {
+    // Fetch the message signature
+    let message_signature = msg.signature_id().to_signature();
+
+    if let TalkValue::Selector(selector) = selector {
+        use TalkMessageSignature::*;
+
+        // Get the initial signature
+        let selector = selector.to_signature();
+
+        match (message_signature, selector) {
+            (Unary(symbol_1), Unary(symbol_2))      => if symbol_1 == symbol_2 { TalkValue::Nil } else { TalkError::DoesNotMatch.into() },
+            (Arguments(args_1), Arguments(args_2))  => {
+                if args_1.iter().take(args_2.len()).eq(args_2.iter()) {
+                    if args_1.len() == args_2.len() {
+                        // If all of the arguments match, the result is 'nil'
+                        TalkValue::Nil
+                    } else {
+                        // Otherwise, strip arguments from the message to build a new message
+                        let remaining_symbols = args_1.iter().skip(args_2.len());
+                        let remaining_values  = match msg {
+                            TalkMessage::Unary(_)                   => { unreachable!() }
+                            TalkMessage::WithArguments(_, msg_args) => { msg_args.iter().skip(args_2.len()) }
+                        };
+
+                        let new_message_signature   = TalkMessageSignature::Arguments(remaining_symbols.cloned().collect());
+                        let remaining_values        = remaining_values.map(|val| val.clone_in_context(context));
+                        let remaining_message       = TalkMessage::WithArguments(new_message_signature.into(), remaining_values.collect());
+
+                        TalkValue::Message(Box::new(remaining_message))
+                    }
+                } else {
+                    TalkError::DoesNotMatch.into()
+                }
+            },
+            _                                       => TalkError::DoesNotMatch.into(),
+        }
+    } else {
+        // Not a selector
+        TalkError::NotASelector.into()
+    }
+}
+
 pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
     .with_message(*TALK_MSG_SELECTOR,                       |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkValue::Selector(val.signature_id()))
     .with_message(*TALK_MSG_MATCHES_SELECTOR,               |val, args, _| message_matches_selector(&**val, &args[0]))
     .with_message(*TALK_MSG_SELECTOR_STARTS_WITH,           |val, args, _| message_selector_starts_with(&**val, &args[0]))
-    .with_message(*TALK_MSG_MESSAGE_AFTER,                  |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_MESSAGE_AFTER,                  |val, args, context| message_after(&**val, &args[0], context))
     .with_message(*TALK_MSG_MESSAGE_COMBINED_WITH,          |_, _, _| TalkError::NotImplemented)
     .with_message(*TALK_MSG_ARGUMENT_AT,                    |_, _, _| TalkError::NotImplemented)
     .with_message(*TALK_MSG_ARGUMENTS,                      |_, _, _| TalkError::NotImplemented)

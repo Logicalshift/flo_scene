@@ -67,6 +67,9 @@ pub enum TalkError {
     /// A selector was called with the incorrect number of arguments
     WrongNumberOfArguments,
 
+    /// An item (such as a selector) failed to match its expected pattern
+    DoesNotMatch,
+
     /// A value that looked like a floating point number could not be interpreted as such
     InvalidFloatingPointNumber(String),
 

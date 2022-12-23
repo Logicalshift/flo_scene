@@ -167,6 +167,28 @@ fn selector_message_after() {
 }
 
 #[test]
+fn selector_message_after_match_all() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        let msg     = runtime.run(TalkScript::from("(#someMessage:two:three:four: withArguments: #(1 2 3 4)) messageAfter: #someMessage:two:three:four:")).await;
+
+        println!("{:?}", msg);
+        assert!(*msg == TalkValue::Nil);
+    })
+}
+
+#[test]
+fn selector_message_after_match_unary() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        let msg     = runtime.run(TalkScript::from("(#unaryMessage asMessage) messageAfter: #unaryMessage")).await;
+
+        println!("{:?}", msg);
+        assert!(*msg == TalkValue::Nil);
+    })
+}
+
+#[test]
 fn selector_message_combined_with() {
     executor::block_on(async {
         let runtime = TalkRuntime::empty();
