@@ -93,7 +93,7 @@ pub static TALK_MSG_PERFORM_WITH7: Lazy<TalkMessageSignatureId>               = 
 pub static TALK_MSG_PERFORM_WITH8: Lazy<TalkMessageSignatureId>               = Lazy::new(|| vec!["perform:", "with:", "with:", "with:", "with:", "with:", "with:", "with:", "with:"].into());
 
 /// Performs the specified selector on the object, with the specified arguments
-pub static TALK_MSG_PERFORM_WITH_ARGUMENTS: Lazy<TalkMessageSignatureId>      = Lazy::new(|| ("perform:", "withAruments:").into());
+pub static TALK_MSG_PERFORM_WITH_ARGUMENTS: Lazy<TalkMessageSignatureId>      = Lazy::new(|| ("perform:", "withArguments:").into());
 
 /// Writes a description of the object to a stream
 pub static TALK_MSG_PRINT_ON: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| ("printOn:").into());
