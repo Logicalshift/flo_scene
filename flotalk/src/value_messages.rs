@@ -658,15 +658,25 @@ fn message_arguments(msg: &TalkMessage, context: &TalkContext) -> TalkValue {
 ///
 /// Implements the 'ifMatches:do:' message
 ///
-fn message_if_matches_do(msg: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, selector: &TalkValue, do_if_matches: TalkOwned<TalkValue, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
+#[inline]
+fn message_if_matches_do(msg: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, selector: &TalkValue, do_if_matches: Option<TalkOwned<TalkValue, &'_ TalkContext>>, do_if_does_not_match: Option<TalkOwned<TalkValue, &'_ TalkContext>>, context: &TalkContext) -> TalkContinuation<'static> {
     if message_matches_selector(&**msg, selector) {
-        // Send a message to the 'do' value using the message arguments
-        let value_signature = value_message_signature(msg.len());
-        let arguments       = msg.leak().to_arguments();
+        if let Some(do_if_matches) = do_if_matches {
+            // Send a message to the 'do' value using the message arguments
+            let value_signature = value_message_signature(msg.len());
+            let arguments       = msg.leak().to_arguments();
 
-        let do_message      = if arguments.len() == 0 { TalkMessage::Unary(value_signature) } else { TalkMessage::WithArguments(value_signature, arguments) };
+            let do_message      = if arguments.len() == 0 { TalkMessage::Unary(value_signature) } else { TalkMessage::WithArguments(value_signature, arguments) };
 
-        do_if_matches.leak().send_message_in_context(do_message, context)
+            do_if_matches.leak().send_message_in_context(do_message, context)
+        } else {
+            // Result is nil if there's no 'do' part
+            TalkValue::Nil.into()
+        }
+    } else if let Some(do_if_does_not_match) = do_if_does_not_match {
+        // Send a message to the 'do if not matched' part
+        let no_match_message = TalkMessage::Unary(*TALK_MSG_VALUE);
+        do_if_does_not_match.leak().send_message_in_context(no_match_message, context)
     } else {
         // Result is nil if the message does not match
         TalkValue::Nil.into()
@@ -681,9 +691,9 @@ pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>
     .with_message(*TALK_MSG_MESSAGE_COMBINED_WITH,          |val, args, context| message_combined_with(&**val, &args[0], context))
     .with_message(*TALK_MSG_ARGUMENT_AT,                    |val, args, context| message_argument_at(&**val, &args[0], context))
     .with_message(*TALK_MSG_ARGUMENTS,                      |val, _, context| message_arguments(&**val, context))
-    .with_message(*TALK_MSG_IFMATCHES_DO,                   |val, mut args, context| { let do_if_matches = TalkOwned::new(args[1].take(), context); message_if_matches_do(val, &args[0], do_if_matches, context) })
-    .with_message(*TALK_MSG_IFMATCHES_DO_IF_DOES_NOT_MATCH, |_, _, _| TalkError::NotImplemented)
-    .with_message(*TALK_MSG_IFDOESNOTMATCH_DO,              |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_IFMATCHES_DO,                   |val, mut args, context| { let do_if_matches = TalkOwned::new(args[1].take(), context); message_if_matches_do(val, &args[0], Some(do_if_matches), None, context) })
+    .with_message(*TALK_MSG_IFMATCHES_DO_IF_DOES_NOT_MATCH, |val, mut args, context| { let do_if_matches = TalkOwned::new(args[1].take(), context); let do_if_does_not_match = TalkOwned::new(args[2].take(), context); message_if_matches_do(val, &args[0], Some(do_if_matches), Some(do_if_does_not_match), context) })
+    .with_message(*TALK_MSG_IFDOESNOTMATCH_DO,              |val, mut args, context| { let do_if_does_not_match = TalkOwned::new(args[1].take(), context); message_if_matches_do(val, &args[0], None, Some(do_if_does_not_match), context) })
     );
 
 ///
