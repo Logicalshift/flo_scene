@@ -462,7 +462,7 @@ pub static TALK_DISPATCH_SELECTOR: Lazy<TalkMessageDispatchTable<TalkMessageSign
     );
 
 pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
-    //.with_message(*TALK_MSG_SELECTOR,           |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkValue::Selector(val.signature_id()).into())
+    .with_message(*TALK_MSG_SELECTOR,           |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkContinuation::Ready(TalkValue::Selector(val.signature_id())))
     );
 
 ///
