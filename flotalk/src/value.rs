@@ -128,6 +128,7 @@ impl TalkValue {
         match self {
             TalkValue::Nil                  => Err(TalkError::IsNil),
             TalkValue::Int(num)             => Ok(*num),
+            TalkValue::Float(num)           => Ok(*num as i64),
             _                               => Err(TalkError::NotAnInteger)
         }
     }

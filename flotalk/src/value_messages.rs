@@ -584,14 +584,54 @@ fn message_combined_with(first_message: &TalkMessage, second_message: &TalkValue
     }
 }
 
+///
+/// Implements the 'argumentAt:' message
+///
+fn message_argument_at(msg: &TalkMessage, argument_pos: &TalkValue, context: &TalkContext) -> TalkValue {
+    // Get the index for the argument
+    let argument_pos = match argument_pos.try_as_int() {
+        Ok(val)     => val,
+        Err(err)    => { return err.into(); }
+    };
+
+    if argument_pos < 0 {
+        return TalkError::WrongNumberOfArguments.into();
+    }
+
+    let argument_pos = argument_pos as usize;
+
+    // Retrieve/clone the argument that is at the specified position in the message
+    match msg {
+        TalkMessage::Unary(_)               => TalkError::WrongNumberOfArguments.into(),
+        TalkMessage::WithArguments(_, args) => {
+            if argument_pos < args.len() {
+                args[argument_pos].clone_in_context(context)
+            } else {
+                TalkError::WrongNumberOfArguments.into()
+            }
+        }
+    }
+}
+
+///
+/// Implements the 'arguments' message
+///
+fn message_arguments(msg: &TalkMessage, context: &TalkContext) -> TalkValue {
+    // Retrieve/clone the argument that is at the specified position in the message
+    match msg {
+        TalkMessage::Unary(_)               => TalkValue::Array(vec![]),
+        TalkMessage::WithArguments(_, args) => TalkValue::Array(args.iter().map(|arg| arg.clone_in_context(context)).collect()),
+    }
+}
+
 pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
     .with_message(*TALK_MSG_SELECTOR,                       |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkValue::Selector(val.signature_id()))
     .with_message(*TALK_MSG_MATCHES_SELECTOR,               |val, args, _| message_matches_selector(&**val, &args[0]))
     .with_message(*TALK_MSG_SELECTOR_STARTS_WITH,           |val, args, _| message_selector_starts_with(&**val, &args[0]))
     .with_message(*TALK_MSG_MESSAGE_AFTER,                  |val, args, context| message_after(&**val, &args[0], context))
     .with_message(*TALK_MSG_MESSAGE_COMBINED_WITH,          |val, args, context| message_combined_with(&**val, &args[0], context))
-    .with_message(*TALK_MSG_ARGUMENT_AT,                    |_, _, _| TalkError::NotImplemented)
-    .with_message(*TALK_MSG_ARGUMENTS,                      |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_ARGUMENT_AT,                    |val, args, context| message_argument_at(&**val, &args[0], context))
+    .with_message(*TALK_MSG_ARGUMENTS,                      |val, _, context| message_arguments(&**val, context))
     .with_message(*TALK_MSG_IFMATCHES_DO,                   |_, _, _| TalkError::NotImplemented)
     .with_message(*TALK_MSG_IFMATCHES_DO_IF_DOES_NOT_MATCH, |_, _, _| TalkError::NotImplemented)
     .with_message(*TALK_MSG_IFDOESNOTMATCH_DO,              |_, _, _| TalkError::NotImplemented)
