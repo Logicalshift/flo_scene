@@ -156,6 +156,16 @@ impl TalkMessage {
     }
 
     ///
+    /// Returns the number of arguments in this message
+    ///
+    pub fn len(&self) -> usize {
+        match self {
+            TalkMessage::Unary(_)               => 0,
+            TalkMessage::WithArguments(_, args) => args.len(),
+        }
+    }
+
+    ///
     /// Retains all the references contained in this message
     ///
     pub fn retain(&self, context: &TalkContext) {
