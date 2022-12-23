@@ -212,10 +212,10 @@ pub static TALK_MSG_WITHARGUMENTS: Lazy<TalkMessageSignatureId>               = 
 // FloTalk message protocol messages
 
 /// `msg matchesSignature: #signature` - true if a message object has a particular signature
-pub static TALK_MSG_MATCHES_SIGNATURE: Lazy<TalkMessageSignatureId>           = Lazy::new(|| "matchesSignature:".into());
+pub static TALK_MSG_MATCHES_SELECTOR: Lazy<TalkMessageSignatureId>            = Lazy::new(|| "matchesSelector:".into());
 
 /// `msg signatureStartsWith: #signature:with:` - true if a message object has a particular signature
-pub static TALK_MSG_SIGNATURE_STARTS_WITH: Lazy<TalkMessageSignatureId>       = Lazy::new(|| "signatureStartsWith:".into());
+pub static TALK_MSG_SELECTOR_STARTS_WITH: Lazy<TalkMessageSignatureId>        = Lazy::new(|| "selectorStartsWith:".into());
 
 /// `msg messageAfter: #signature:withArg:` - creates a new message by removing the arguments matched by a signature from the start of a message
 pub static TALK_MSG_MESSAGE_AFTER: Lazy<TalkMessageSignatureId>               = Lazy::new(|| "messageAfter:".into());
@@ -230,10 +230,16 @@ pub static TALK_MSG_ARGUMENT_AT: Lazy<TalkMessageSignatureId>                 = 
 pub static TALK_MSG_ARGUMENTS: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| "arguments".into());
 
 /// `msg signature` - retrieves the signature of a message
-pub static TALK_MSG_SIGNATURE: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| "signature".into());
+pub static TALK_MSG_SELECTOR: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| "selector".into());
 
 /// `msg ifMatches: #signature: do: [ :arg | something ]` - if the message matches a signature, perform an action using the arguments
 pub static TALK_MSG_IFMATCHES_DO: Lazy<TalkMessageSignatureId>                = Lazy::new(|| ("ifMatches:", "do:").into());
+
+/// `msg ifMatches: #signature: do: [ :arg | something ]` - if the message matches a signature, perform an action using the arguments
+pub static TALK_MSG_IFMATCHES_DO_IF_DOES_NOT_MATCH: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("ifMatches:", "do:", "ifDoesNotMatch:").into());
+
+/// `msg ifMatches: #signature: do: [ :arg | something ]` - if the message matches a signature, perform an action using the arguments
+pub static TALK_MSG_IFDOESNOTMATCH_DO: Lazy<TalkMessageSignatureId>           = Lazy::new(|| ("ifDoesNotMatch:", "do:").into());
 
 
 ///
