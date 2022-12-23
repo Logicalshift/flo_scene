@@ -66,3 +66,14 @@ fn argument_signature_to_message_2() {
         assert!(*msg == TalkValue::Message(Box::new(TalkMessage::with_arguments(vec![("signature:", 1), ("other:", 2)]))));
     })
 }
+
+#[test]
+fn argument_signature_to_message_3() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        let msg     = runtime.run(TalkScript::from("#signature:other: withArguments: #(1 2)")).await;
+
+        println!("{:?}", msg);
+        assert!(*msg == TalkValue::Message(Box::new(TalkMessage::with_arguments(vec![("signature:", 1), ("other:", 2)]))));
+    })
+}

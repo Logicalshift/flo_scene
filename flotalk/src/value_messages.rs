@@ -410,10 +410,19 @@ pub static TALK_DISPATCH_NUMBER: Lazy<TalkMessageDispatchTable<TalkNumber>> = La
 /// Converts a message signature ID to a message
 ///
 fn selector_as_message(selector: TalkMessageSignatureId) -> TalkContinuation<'static> {
-    if selector.len() != 0 {
-        TalkError::WrongNumberOfArguments.into()
-    } else {
-        TalkValue::Message(Box::new(TalkMessage::Unary(selector))).into()
+    selector_as_message_with_args(selector, smallvec![])
+}
+
+///
+/// Converts a message signature ID to a message
+///
+fn selector_as_message_from_array(selector: TalkMessageSignatureId, args_array: TalkValue, context: &TalkContext) -> TalkContinuation<'static> {
+    match args_array {
+        TalkValue::Array(values)    => selector_as_message_with_args(selector, values.into_iter().collect()),
+        _                           => {
+            args_array.release_in_context(context);
+            TalkError::NotAnArray.into()
+        }
     }
 }
 
@@ -429,6 +438,7 @@ fn selector_as_message_with_args(selector: TalkMessageSignatureId, arguments: Sm
         TalkValue::Message(Box::new(TalkMessage::WithArguments(selector, arguments))).into()
     }
 }
+
 ///
 /// The default message dispatcher for selectors (message signatures)
 ///
@@ -442,7 +452,7 @@ pub static TALK_DISPATCH_SELECTOR: Lazy<TalkMessageDispatchTable<TalkMessageSign
     .with_message(*TALK_MSG_WITH6,              |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
     .with_message(*TALK_MSG_WITH7,              |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
     .with_message(*TALK_MSG_WITH8,              |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
-    // .with_message(*TALK_MSG_WITHARGUMENTS,      |val, args, _| selector_as_message_with_args(val.leak(), args.leak()))
+    .with_message(*TALK_MSG_WITHARGUMENTS,      |val, mut args, context| selector_as_message_from_array(val.leak(), args[0].take(), context))
     );
 
 ///
