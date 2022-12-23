@@ -156,19 +156,19 @@ impl TalkMessage {
     }
 
     ///
-    /// Releases all the references contained in this message
+    /// Retains all the references contained in this message
     ///
-    pub fn add_reference(&self, context: &TalkContext) {
+    pub fn retain(&self, context: &TalkContext) {
         match self {
             TalkMessage::Unary(_)               => { }
-            TalkMessage::WithArguments(_, args) => { args.iter().for_each(|arg| arg.add_reference(context)); }
+            TalkMessage::WithArguments(_, args) => { args.iter().for_each(|arg| arg.retain(context)); }
         }
     }
 
     ///
     /// Releases all the references contained in this message
     ///
-    pub fn release_references(self, context: &TalkContext) {
+    pub fn release(self, context: &TalkContext) {
         match self {
             TalkMessage::Unary(_)               => { }
             TalkMessage::WithArguments(_, args) => { context.release_values(args); }
@@ -511,7 +511,7 @@ impl TalkValueType for TalkMessage {
                 let msg = value.leak();
                 if let TalkValue::Message(msg) = msg {
                     let msg = *msg;
-                    msg.add_reference(context);
+                    msg.retain(context);
                     Ok(msg)
                 } else {
                     unreachable!()

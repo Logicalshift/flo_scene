@@ -82,7 +82,7 @@ impl TalkRuntime {
     pub fn release_value<'a>(&'a self, value: TalkValue) -> impl 'a + Send + Future<Output=()> {
         async move {
             self.run(TalkContinuation::Soon(Box::new(move |talk_context| {
-                value.remove_reference(talk_context);
+                value.release(talk_context);
                 TalkValue::Nil.into()
             }))).await;
         }

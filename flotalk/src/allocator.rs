@@ -99,7 +99,7 @@ where
     /// Adds to the reference count for a data handle
     ///
     #[inline]
-    fn add_reference(allocator: &Arc<Mutex<Self>>, TalkDataHandle(pos): TalkDataHandle, _: &TalkContext) {
+    fn retain(allocator: &Arc<Mutex<Self>>, TalkDataHandle(pos): TalkDataHandle, _: &TalkContext) {
         let mut allocator = allocator.lock().unwrap();
 
         if allocator.reference_counts[pos] > 0 {
@@ -111,7 +111,7 @@ where
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
     #[inline]
-    fn remove_reference(allocator: &Arc<Mutex<Self>>, TalkDataHandle(pos): TalkDataHandle, talk_context: &TalkContext) {
+    fn release(allocator: &Arc<Mutex<Self>>, TalkDataHandle(pos): TalkDataHandle, talk_context: &TalkContext) {
         let freed_value = {
             let mut allocator = allocator.lock().unwrap();
 

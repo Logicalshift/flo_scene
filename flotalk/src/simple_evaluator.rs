@@ -121,7 +121,7 @@ impl TalkFrame {
     pub fn remove_all_references(&mut self, context: &mut TalkContext) {
         // Free the stack values
         while let Some(val) = self.stack.pop() {
-            val.remove_reference(context);
+            val.release(context);
         }
 
         // Free anything in the local bindings (if the arguments haven't been taken yet, there are no local bindings)
@@ -292,7 +292,7 @@ where
             // Discards the value on top of the stack
             Discard => {
                 if let Some(old_value) = frame.stack.pop() {
-                    old_value.remove_reference(context);
+                    old_value.release(context);
                 }
             }
         }

@@ -72,10 +72,10 @@ pub (super) struct TalkClassContextCallbacks {
     pub (super) class_dispatch_table: TalkMessageDispatchTable<()>,
 
     /// Add to the reference count for a data handle
-    add_reference: Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()>,
+    retain: Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()>,
 
     /// Decreases the reference count for a data handle, and frees it if the count reaches 0
-    remove_reference: Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()>,
+    release: Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()>,
 
     /// If there's a class data reader for the type ID, return a Box containing an Option<TargetType>, otherwise return None
     read_data: Box<dyn Send + Fn(TypeId, TalkDataHandle) -> Option<Box<dyn Any>>>,
@@ -112,13 +112,13 @@ impl TalkClassContextCallbacks {
     }
 
     #[inline]
-    pub (super) fn add_reference(&self, data_handle: TalkDataHandle, context: &TalkContext) {
-        (self.add_reference)(data_handle, context)
+    pub (super) fn retain(&self, data_handle: TalkDataHandle, context: &TalkContext) {
+        (self.retain)(data_handle, context)
     }
 
     #[inline]
-    pub (super) fn remove_reference(&self, data_handle: TalkDataHandle, context: &TalkContext) {
-        (self.remove_reference)(data_handle, context)
+    pub (super) fn release(&self, data_handle: TalkDataHandle, context: &TalkContext) {
+        (self.release)(data_handle, context)
     }
 
     #[inline]
@@ -221,12 +221,12 @@ pub trait TalkClassAllocator : Send {
     ///
     /// Adds to the reference count for a data handle
     ///
-    fn add_reference(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext);
+    fn retain(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext);
 
     ///
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
-    fn remove_reference(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext);
+    fn release(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext);
 }
 
 impl TalkClass {
@@ -255,18 +255,18 @@ impl TalkClass {
     ///
     /// Creates the 'add reference' method for an allocator
     ///
-    fn callback_add_reference(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()> {
+    fn callback_retain(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()> {
         Box::new(move |data_handle, context| {
-            TalkClassAllocator::add_reference(&allocator, data_handle, context);
+            TalkClassAllocator::retain(&allocator, data_handle, context);
         })
     }
 
     ///
     /// Creates the 'remove reference' method for an allocator
     ///
-    fn callback_remove_reference(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()> {
+    fn callback_release(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()> {
         Box::new(move |data_handle, context| {
-            TalkClassAllocator::remove_reference(&allocator, data_handle, context);
+            TalkClassAllocator::release(&allocator, data_handle, context);
         })
     }
 
@@ -323,8 +323,8 @@ impl TalkClass {
             TalkClassContextCallbacks {
                 dispatch_table:         Self::callback_dispatch_table(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
                 class_dispatch_table:   Self::callback_class_dispatch_table(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
-                add_reference:          Self::callback_add_reference(Arc::clone(&allocator)),
-                remove_reference:       Self::callback_remove_reference(Arc::clone(&allocator)),
+                retain:                 Self::callback_retain(Arc::clone(&allocator)),
+                release:                Self::callback_release(Arc::clone(&allocator)),
                 read_data:              Self::callback_read_data(Arc::clone(&definition), Arc::clone(&allocator)),
                 class_definition:       Box::new(Arc::clone(&definition)),
                 allocator:              Box::new(Arc::clone(&allocator)),

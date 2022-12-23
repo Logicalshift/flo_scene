@@ -157,7 +157,7 @@ where
                             let mut args        = args;
 
                             if let Some(superclass) = superclass.clone() {
-                                superclass.add_reference(talk_context);
+                                superclass.retain(talk_context);
                                 args.push(superclass);
                             } else {
                                 args.push(TalkValue::Nil);

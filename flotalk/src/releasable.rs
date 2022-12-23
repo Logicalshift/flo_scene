@@ -240,7 +240,7 @@ impl TalkReleasable for TalkValue {
     ///
     #[inline]
     fn release_in_context(self, context: &TalkContext) {
-        self.remove_reference(context);
+        self.release(context);
     }
 }
 
@@ -301,7 +301,7 @@ impl TalkReleasable for TalkReference {
     ///
     #[inline]
     fn release_in_context(self, context: &TalkContext) {
-        self.remove_reference(context);
+        self.release(context);
     }
 }
 
@@ -313,7 +313,7 @@ impl TalkCloneable for TalkReference {
     fn clone_in_context(&self, context: &TalkContext) -> TalkReference {
         let clone = TalkReference(self.0, self.1);
         if let Some(callbacks) = context.get_callbacks(self.0) {
-            callbacks.add_reference(self.1, context);
+            callbacks.retain(self.1, context);
         }
         clone
     }

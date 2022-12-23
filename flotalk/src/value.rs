@@ -210,7 +210,7 @@ impl TalkValue {
     /// Increases the reference count for this value. References are freed once the count reaches 0.
     ///
     #[inline]
-    pub fn add_reference(&self, context: &TalkContext) {
+    pub fn retain(&self, context: &TalkContext) {
         use TalkValue::*;
 
         match self {
@@ -224,9 +224,9 @@ impl TalkValue {
             Selector(_)     |
             Error(_)        => { }
 
-            Reference(reference)    => reference.add_reference(context),
-            Array(values)           => values.iter().for_each(|val| val.add_reference(context)),
-            Message(msg)            => msg.add_reference(context),
+            Reference(reference)    => reference.retain(context),
+            Array(values)           => values.iter().for_each(|val| val.retain(context)),
+            Message(msg)            => msg.retain(context),
         }
     }
 
@@ -234,7 +234,7 @@ impl TalkValue {
     /// Decreases the reference count for this value. References are freed once the count reaches 0.
     ///
     #[inline]
-    pub fn remove_reference(&self, context: &TalkContext) {
+    pub fn release(&self, context: &TalkContext) {
         use TalkValue::*;
 
         match self {
@@ -248,8 +248,8 @@ impl TalkValue {
             Selector(_)     |
             Error(_)        => { }
 
-            Reference(reference)    => reference.remove_reference(context),
-            Array(values)           => values.iter().for_each(|val| val.remove_reference(context)),
+            Reference(reference)    => reference.release(context),
+            Array(values)           => values.iter().for_each(|val| val.release(context)),
             Message(msg)            => msg.release_in_context(context),
         }
     }

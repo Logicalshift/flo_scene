@@ -79,16 +79,16 @@ impl TalkReleasable for TalkScriptClass {
     fn release_in_context(mut self, context: &TalkContext) {
         // Release the superclass
         if let Some(superclass) = self.superclass_script_class.take() {
-            superclass.remove_reference(context);
+            superclass.release(context);
         }
 
         // Release all the resources used by the messages
         self.instance_message_resources.iter()
             .flat_map(|(_, references)| references.iter())
-            .for_each(|reference| reference.remove_reference(context));
+            .for_each(|reference| reference.release(context));
         self.class_message_resources.iter()
             .flat_map(|(_, references)| references.iter())
-            .for_each(|reference| reference.remove_reference(context));
+            .for_each(|reference| reference.release(context));
     }
 }
 
@@ -109,7 +109,7 @@ impl TalkScriptClassClass {
         // Create a new script class by sending a message to ourselves
         TalkContinuation::soon(move |context| {
             // Retain the parent class (need to do this 'soon' as it may be released otherwise)
-            parent_class_1.add_reference(context);
+            parent_class_1.retain(context);
 
             // The 'new' message should generate a new script class reference
             script_class_class.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
@@ -118,7 +118,7 @@ impl TalkScriptClassClass {
 
             // TODO: if read_value errors, it will leak the parent class
             TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class, _| {
-                // The script_class will release the superclass when it's released (matching the add_reference above)
+                // The script_class will release the superclass when it's released (matching the retain above)
                 script_class.superclass_id              = Some(new_superclass_id);
                 script_class.superclass_script_class    = Some(TalkValue::Reference(parent_class_2));
 
@@ -209,13 +209,13 @@ impl TalkScriptClass {
             TalkContinuation::soon(move |context| {
                 // Retain the superclass
                 if let Some(superclass_value) = &superclass_value {
-                    superclass_value.add_reference(context);
+                    superclass_value.retain(context);
                 }
 
                 // Release any old resources
                 if let Some(old_resources) = old_resources {
                     // Clean up any old message that might be stored here
-                    old_resources.into_iter().for_each(|reference| reference.remove_reference(context));
+                    old_resources.into_iter().for_each(|reference| reference.release(context));
                 }
 
                 // Define in the dispatch table
@@ -249,7 +249,7 @@ impl TalkScriptClass {
                 // Release any old resources
                 if let Some(old_resources) = old_resources {
                     // Clean up any old message that might be stored here
-                    old_resources.into_iter().for_each(|reference| reference.remove_reference(context));
+                    old_resources.into_iter().for_each(|reference| reference.release(context));
                 }
 
                 // Define in the dispatch table
@@ -319,7 +319,7 @@ impl TalkScriptClass {
                 let superclass = superclass.clone();
                 TalkContinuation::soon(move |context| {
                     // Send the 'new' message to the superclass
-                    superclass.add_reference(context);
+                    superclass.retain(context);
                     superclass.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
                 }).and_then_soon(move |superclass, context| {
                     match superclass {
@@ -508,7 +508,7 @@ impl TalkClassAllocator for TalkCellBlockAllocator {
     /// Adds to the reference count for a data handle
     ///
     #[inline]
-    fn add_reference(_allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) {
+    fn retain(_allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) {
         let cell_block = TalkCellBlock(handle.0 as _);
         context.retain_cell_block(cell_block);
     }
@@ -517,7 +517,7 @@ impl TalkClassAllocator for TalkCellBlockAllocator {
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
     #[inline]
-    fn remove_reference(_allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) {
+    fn release(_allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) {
         let cell_block = TalkCellBlock(handle.0 as _);
         context.release_cell_block(cell_block);
     }

@@ -79,9 +79,9 @@ impl TalkClassAllocator for TalkClassClassAllocator {
 
     fn retrieve<'a>(&'a mut self, _handle: TalkDataHandle) -> &'a mut Self::Data { &mut self.nothing }
 
-    fn add_reference(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) { /* Classes don't count references */ }
+    fn retain(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) { /* Classes don't count references */ }
 
-    fn remove_reference(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) { /* Class objects cannot be freed */ }
+    fn release(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) { /* Class objects cannot be freed */ }
 }
 
 impl TalkClass {
