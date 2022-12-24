@@ -1,7 +1,10 @@
 use super::continuation::*;
 use super::expression::*;
+use super::instruction::*;
+use super::parse_error::*;
 use super::parser::*;
 use super::simple_evaluator::*;
+use super::symbol::*;
 use super::symbol_table::*;
 use super::value::*;
 
@@ -24,6 +27,37 @@ impl From<&str> for TalkScript {
 impl From<String> for TalkScript {
     fn from(script: String) -> TalkScript {
         TalkScript(script)
+    }
+}
+
+impl TalkScript {
+    ///
+    /// Converts this script to a list of expressions
+    ///
+    pub async fn to_expressions(&self) -> Result<Vec<TalkExpression>, TalkParseError> {
+        let source_stream   = stream::iter(self.0.chars());
+        let mut expressions = parse_flotalk_expression(source_stream);
+        let mut program     = vec![];
+
+        while let Some(next_expression) = expressions.next().await {
+            match next_expression {
+                Ok(next_expression) => { program.push(next_expression.value); },
+                Err(parser_error)   => { return Err(parser_error.value.into()).into(); }
+            }
+        }
+
+        Ok(program)
+    }
+
+    ///
+    /// Converts this script to some instructions
+    ///
+    pub async fn to_instructions(&self) -> Result<Vec<TalkInstruction<TalkLiteral, TalkSymbol>>, TalkParseError> {
+        let program         = self.to_expressions().await;
+        let program         = match program { Ok(x) => x, Err(e) => { return Err(e); } };
+        let instructions    = TalkExpression::sequence_to_instructions(program);
+
+        Ok(instructions)
     }
 }
 
