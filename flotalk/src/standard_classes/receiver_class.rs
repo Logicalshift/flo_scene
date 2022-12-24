@@ -28,8 +28,7 @@ static RECEIVER_CLASS: Lazy<Mutex<HashMap<TypeId, TalkClass>>> = Lazy::new(|| Mu
 ///
 pub struct TalkReceiverClass<TStream>
 where
-    TStream:        'static + Send + Unpin + Stream,
-    TStream::Item:  'static + Send + TalkMessageType,
+    TStream:        'static + Send + Unpin + Stream<Item=TalkMessage>,
 {
     receiver: PhantomData<Arc<lock::Mutex<TStream>>>,
 }
