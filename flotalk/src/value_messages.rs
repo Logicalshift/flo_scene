@@ -176,6 +176,28 @@ pub static TALK_MSG_TRUNCATED: Lazy<TalkMessageSignatureId>                   = 
 pub static TALK_MSG_TRUNCATE_TO: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| ("truncateTo:").into());
 
 
+// SequencedReadableCollection protocol messages
+
+pub static TALK_MSG_DO: Lazy<TalkMessageSignatureId>                            = Lazy::new(|| ("do:").into());
+// TODO: add the rest of th protocol
+
+
+// Interval protocol messages
+
+pub static TALK_BINARY_COMMA: Lazy<TalkMessageSignatureId>                      = Lazy::new(|| (",").into());
+pub static TALK_MSG_COLLECT: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| ("collect:").into());
+pub static TALK_MSG_COPYFROM_TO: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("copyFrom:", "to:").into());
+pub static TALK_MSG_COPYREPLACEALL_WITH: Lazy<TalkMessageSignatureId>           = Lazy::new(|| ("copyReplaceAll:", "with:").into());
+pub static TALK_MSG_COPYREPLACEFROM_TO_WITH: Lazy<TalkMessageSignatureId>       = Lazy::new(|| ("copyReplaceFrom:", "to:", "with:").into());
+pub static TALK_MSG_COPYREPLACEFROM_TO_WITHOBJECT: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("copyReplaceFrom:", "to:", "withObject:Ok(result)").into());
+pub static TALK_MSG_COPYREPLACING_WITHOBJECT: Lazy<TalkMessageSignatureId>      = Lazy::new(|| ("copyReplacing:", "withObject:").into());
+pub static TALK_MSG_COPYWITH: Lazy<TalkMessageSignatureId>                      = Lazy::new(|| ("copyWith:").into());
+pub static TALK_MSG_COPYWITHOUT: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("copyWithout:").into());
+pub static TALK_MSG_REJECT: Lazy<TalkMessageSignatureId>                        = Lazy::new(|| ("reject:").into());
+pub static TALK_MSG_REVERSE: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| ("reverse").into());
+pub static TALK_MSG_SELECT: Lazy<TalkMessageSignatureId>                        = Lazy::new(|| ("select:").into());
+
+
 // FloTalk selector protocol messages
 
 /// `#signature asMessage` - creates a unary message value from a signature
