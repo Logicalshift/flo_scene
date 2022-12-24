@@ -376,7 +376,7 @@ where
             Run             => Poll::Pending,
             Finished(value) => {
                 frame.remove_all_references(talk_context);
-                Poll::Ready(value.take())
+                Poll::Ready(TalkContinuation::Ready(value.take()))
             },
         }
     }))

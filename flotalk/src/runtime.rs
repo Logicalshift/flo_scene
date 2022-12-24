@@ -94,19 +94,18 @@ impl TalkRuntime {
     ///
     pub fn release_value<'a>(&'a self, value: TalkValue) -> impl 'a + Send + Future<Output=()> {
         async move {
-            self.run(TalkContinuation::Soon(Box::new(move |talk_context| {
+            self.run(TalkContinuation::soon(move |talk_context| {
                 value.release(talk_context);
                 TalkValue::Nil.into()
-            }))).await;
+            })).await;
         }
     }
 
     ///
     /// Runs a continuation with a 'later' part
     ///
-    fn run_continuation_later<'a>(&self, later: Box<dyn 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>>) -> impl 'a + Send + Future<Output=TalkValue> {
+    fn run_continuation_later<'a>(talk_context: Weak<lock::Mutex<TalkContext>>, later: Box<dyn 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkContinuation<'static>>>) -> impl 'a + Send + Future<Output=TalkContinuation<'static>> {
         // If the runtime is dropped while the future is running, it will be aborted (if it ever wakes up again)
-        let talk_context        = Arc::downgrade(&self.context);
         let mut acquire_context = None;
         let mut later           = later;
 
@@ -140,7 +139,7 @@ impl TalkRuntime {
                 // Context is not available
                 acquire_context = None;
 
-                Poll::Ready(TalkValue::Error(TalkError::RuntimeDropped))
+                Poll::Ready(TalkError::RuntimeDropped.into())
             }
         })
     }
@@ -306,41 +305,7 @@ impl TalkRuntime {
     ///
     pub fn run<'a>(&self, continuation: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
         // Start running the continuation
-        let continuation = continuation.into();
-
-        enum NowLater<T> {
-            Now(TalkValue),
-            Later(T),
-        }
-
-        // Action depends on the continuation
-        let now_later = match continuation {
-            TalkContinuation::Ready(value)  => NowLater::Now(value),
-            TalkContinuation::Later(later)  => NowLater::Later(self.run_continuation_later(later)),
-
-            TalkContinuation::Soon(soon)    => {
-                let mut continuation = Some(TalkContinuation::Soon(soon));
-
-                NowLater::Later(self.run_continuation_later(Box::new(move |talk_context, future_context| {
-                    loop {
-                        match continuation.take() {
-                            None                                        => { return Poll::Ready(TalkValue::Nil); }
-                            Some(TalkContinuation::Ready(val))          => { return Poll::Ready(val); }
-                            Some(TalkContinuation::Later(mut later_fn)) => {
-                                let result      = later_fn(talk_context, future_context);
-                                continuation    = Some(TalkContinuation::Later(later_fn));
-
-                                return result;
-                            }
-
-                            Some(TalkContinuation::Soon(soon_fn)) => {
-                                continuation = Some(soon_fn(talk_context));
-                            }
-                        }
-                    }
-                })))
-            },
-        };
+        let mut continuation = continuation.into();
 
         // Take this opportunity to obtain the context and release any values that were previously returned
         use std::mem;
@@ -358,12 +323,31 @@ impl TalkRuntime {
                 let context = context.lock().await;
                 released_values.into_iter().for_each(|val| val.release_in_context(&*context));
             }
+
+            let talk_context = Arc::downgrade(&context);
             mem::drop(context);
 
             // Either return the value stored in the continuation or await the continuation
-            match now_later {
-                NowLater::Now(value)    => TalkOwned::new(value, owner),
-                NowLater::Later(later)  => TalkOwned::new(later.await, owner),
+            loop {
+                // Each step either creates a new continuation or returns the result
+                continuation = match continuation {
+                    TalkContinuation::Ready(value)  => { return TalkOwned::new(value, owner) }
+
+                    TalkContinuation::Soon(soon)    => { 
+                        // Upgrade and lock the context
+                        let talk_context        = if let Some(talk_context) = talk_context.upgrade() { talk_context } else { return TalkOwned::new(TalkError::RuntimeDropped.into(), owner); };
+                        let mut talk_context    = if let Some(talk_context) = talk_context.try_lock() { talk_context } else { talk_context.lock().await };
+
+                        // Update the continuation to the 'soon' continuation
+                        soon(&mut *talk_context)
+                    }
+
+                    TalkContinuation::Later(later)  => {
+                        // Poll the 'later' function with the context
+                        let talk_context = talk_context.clone();
+                        Self::run_continuation_later(talk_context, later).await
+                    }
+                }
             }
         }
     }
