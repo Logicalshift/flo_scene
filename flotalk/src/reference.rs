@@ -65,6 +65,14 @@ impl TalkReference {
     }
 
     ///
+    /// Retrieves the data handle within the class for this reference (the meaning of the value of this handle is defined by the class's allocator)
+    ///
+    #[inline]
+    pub fn data_handle(&self) -> TalkDataHandle {
+        self.1
+    }
+
+    ///
     /// Increases the reference count for this reference. References are freed once the count reaches 0.
     ///
     #[inline]

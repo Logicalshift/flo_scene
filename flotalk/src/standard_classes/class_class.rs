@@ -44,7 +44,7 @@ impl TalkClassDefinition for TalkClassClass {
         TalkError::MessageNotSupported(message_id).into()
     }
 
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, _target: &mut Self::Data) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, _allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
         // The data handle is the TalkClass ID
         let talk_class  = TalkClass(reference.1.0);
 

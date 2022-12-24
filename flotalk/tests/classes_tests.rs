@@ -36,8 +36,11 @@ impl TalkClassDefinition for TestClass {
         }
     }
 
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, _arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, _arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
         let sig = message_id.to_signature();
+
+        let mut allocator   = allocator.lock().unwrap();
+        let target          = allocator.retrieve(reference.data_handle());
 
         if sig == TalkMessageSignature::Unary(TalkSymbol::from("addOne")) {
             *target += 1;

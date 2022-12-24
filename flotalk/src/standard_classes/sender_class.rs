@@ -74,7 +74,7 @@ where
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _reference: TalkReference, target: &mut Self::Data) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
         // Turn the arguments back into a message
         let message = if arguments.len() == 0 {
             TalkMessage::Unary(message_id)
@@ -83,7 +83,9 @@ where
         };
 
         // Take a copy of the sender for the continuation
-        let sender = target.sender.clone();
+        let mut allocator   = allocator.lock().unwrap();
+        let target          = allocator.retrieve(reference.1);
+        let sender          = target.sender.clone();
 
         // Create a continuation that sends the message
         TalkContinuation::soon(move |context| {
