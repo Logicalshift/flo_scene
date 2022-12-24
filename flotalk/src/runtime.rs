@@ -1,6 +1,7 @@
 use super::context::*;
 use super::continuation::*;
 use super::error::*;
+use super::initialization::*;
 use super::message::*;
 use super::reference::*;
 use super::releasable::*;
@@ -60,6 +61,18 @@ impl TalkRuntime {
     ///
     pub fn empty() -> TalkRuntime {
         Self::with_context(TalkContext::empty())
+    }
+
+    ///
+    /// Creates a new runtime with the standard set of symbols declared
+    ///
+    pub fn with_standard_symbols() -> impl Future<Output=TalkRuntime> {
+        async {
+            let runtime = Self::empty();
+            runtime.run(talk_init_standard_classes()).await;
+
+            runtime
+        }
     }
 
     ///
