@@ -417,7 +417,6 @@ fn double_blocks() {
     });
 }
 
-/*
 #[test]
 fn evaluate_while() {
     let test_source     = "
@@ -444,4 +443,3 @@ fn evaluate_while() {
         assert!(*result == TalkValue::Int(3));
     });
 }
-*/
