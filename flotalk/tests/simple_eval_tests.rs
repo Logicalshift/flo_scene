@@ -372,6 +372,31 @@ fn unsupported_message_to_block() {
 }
 
 #[test]
+fn unsupported_message_to_block_with_block() {
+    let test_source     = "
+        | x |
+        x := 0 .
+
+        [
+            x := x + 1 .
+            x
+        ] unsupported: [ 2 ]
+    ";
+
+    executor::block_on(async { 
+        // Set up the runtime with the standard set of symbols (which includes 'Object')
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Run the test script with the 'Object' class defined
+        let result = runtime.run(TalkScript::from(test_source)).await;
+
+        // Should generate an error
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Error(TalkError::MessageNotSupported("unsupported:".into())));
+    });
+}
+
+#[test]
 fn double_blocks() {
     let test_source     = "
         ([ 1 ] value) + ([ 2 ] value)
