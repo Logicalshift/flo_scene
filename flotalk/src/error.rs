@@ -81,6 +81,9 @@ pub enum TalkError {
 
     /// A symbol was used that's not bound to any value
     UnboundSymbol(TalkSymbol),
+
+    /// An object is already busy servicing another request so the new request cannot be processed
+    Busy,
 }
 
 impl From<TalkParseError> for TalkError {
