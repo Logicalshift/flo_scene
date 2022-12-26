@@ -270,3 +270,14 @@ fn if_does_not_match_2() {
         assert!(*msg == TalkValue::Int(42));
     })
 }
+
+#[test]
+fn message_is_not_nil() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        let msg     = runtime.run(TalkScript::from("(#signature:other: withArguments: #(1 2)) isNil")).await;
+
+        println!("{:?}", msg);
+        assert!(*msg == TalkValue::Bool(false));
+    })
+}
