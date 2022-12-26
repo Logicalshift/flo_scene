@@ -66,3 +66,118 @@ fn receive_values_from_script_via_stream() {
         assert!(hello_world.next().await == None);
     });
 }
+
+#[test]
+fn receive_one_message() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        
+        // Create a source stream, which is itself a script
+        let source_stream = stream::iter(vec![
+            TalkMessage::with_arguments(vec![("add:", 200)]),
+            TalkMessage::with_arguments(vec![("sub:", 180)]),
+            TalkMessage::with_arguments(vec![("add:", 22)]),
+        ]);
+
+        // Create a receiver object (in the root namespace for now)
+        runtime.run(TalkContinuation::soon(|context| {
+            let receiver = create_talk_receiver(source_stream, context).leak();
+            context.set_root_symbol_value("receiver", TalkValue::Reference(receiver));
+
+            ().into()
+        })).await;
+
+        // Run a script that updates a variable based on what the source stream says
+        let script_result = runtime.run(TalkScript::from("
+            receiver next
+            ")).await;
+
+        // 200 - 180 + 22 = 42, indicating we received the messages we were expecting in our script
+        println!("{:?}", script_result);
+        assert!(*script_result == TalkValue::Message(Box::new(TalkMessage::with_arguments(vec![("add:", 200)]))));
+    });
+}
+
+#[test]
+fn receive_two_messages() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        
+        // Create a source stream, which is itself a script
+        let source_stream = stream::iter(vec![
+            TalkMessage::with_arguments(vec![("add:", 200)]),
+            TalkMessage::with_arguments(vec![("sub:", 180)]),
+            TalkMessage::with_arguments(vec![("add:", 22)]),
+        ]);
+
+        // Create a receiver object (in the root namespace for now)
+        runtime.run(TalkContinuation::soon(|context| {
+            let receiver = create_talk_receiver(source_stream, context).leak();
+            context.set_root_symbol_value("receiver", TalkValue::Reference(receiver));
+
+            ().into()
+        })).await;
+
+        // Run a script that updates a variable based on what the source stream says
+        let script_result = runtime.run(TalkScript::from("
+            receiver next.
+            receiver next
+            ")).await;
+
+        // 200 - 180 + 22 = 42, indicating we received the messages we were expecting in our script
+        println!("{:?}", script_result);
+        assert!(*script_result == TalkValue::Message(Box::new(TalkMessage::with_arguments(vec![("sub:", 180)]))));
+    });
+}
+
+#[test]
+fn stream_through_receiver() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        
+        // Create a source stream, which is itself a script
+        let source_stream = stream::iter(vec![
+            TalkMessage::with_arguments(vec![("add:", 200)]),
+            TalkMessage::with_arguments(vec![("sub:", 180)]),
+            TalkMessage::with_arguments(vec![("add:", 22)]),
+        ]);
+
+        /* TODO: need to return a static stream here
+        let source_stream = runtime.stream_from::<TalkMessage>(TalkScript::from("
+            [ :output | 
+                output add: 200. 
+                output sub: 180.
+                output add: 22.
+            ]"));
+        */
+
+        // Create a receiver object (in the root namespace for now)
+        runtime.run(TalkContinuation::soon(|context| {
+            let receiver = create_talk_receiver(source_stream, context).leak();
+            context.set_root_symbol_value("receiver", TalkValue::Reference(receiver));
+
+            ().into()
+        })).await;
+
+        // Run a script that updates a variable based on what the source stream says
+        let script_result = runtime.run(TalkScript::from("
+            | x nextMessage |
+
+            x := 0 .
+
+            [
+                nextMessage ifMatches: #add: do: [ :value | x := x + value ].
+                nextMessage ifMatches: #sub: do: [ :value | x := x - value ].
+            ] while: [
+                nextMessage := receiver next.
+                ^(nextMessage isNil) not
+            ].
+
+            x
+            ")).await;
+
+        // 200 - 180 + 22 = 42, indicating we received the messages we were expecting in our script
+        println!("{:?}", script_result);
+        assert!(*script_result == TalkValue::Int(42));
+    });
+}
