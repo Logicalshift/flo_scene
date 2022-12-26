@@ -176,6 +176,15 @@ impl<'a> TalkContinuation<'a> {
             }
         }))
     }
+
+    ///
+    /// Causes an action to be run 'while' a condition is true
+    ///
+    /// If the condition or the block returns an error, then the result is that error. If 
+    ///
+    pub fn do_while(while_condition: impl Fn(&mut TalkContext) -> TalkContinuation<'a>, action: impl Fn(&mut TalkContext) -> TalkContinuation<'a>) -> TalkContinuation<'a> {
+        todo!()
+    }
 }
 
 impl<'a, T> From<T> for TalkContinuation<'a>

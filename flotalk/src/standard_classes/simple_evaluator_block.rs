@@ -25,8 +25,10 @@ use std::sync::*;
 /// Maps the type IDs of the value and symbol type to the TalkClass that implements the SimpleEvaluatorClass for that ID type
 static SIMPLE_EVALUATOR_CLASS: Lazy<Mutex<HashMap<(TypeId, TypeId), TalkClass>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
-static VALUE_SYMBOL: Lazy<TalkSymbol>       = Lazy::new(|| TalkSymbol::from("value"));
-static VALUE_COLON_SYMBOL: Lazy<TalkSymbol> = Lazy::new(|| TalkSymbol::from("value:"));
+static TALK_MSG_WHILE: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("while:").into());
+
+static VALUE_SYMBOL: Lazy<TalkSymbol>               = Lazy::new(|| TalkSymbol::from("value"));
+static VALUE_COLON_SYMBOL: Lazy<TalkSymbol>         = Lazy::new(|| TalkSymbol::from("value:"));
 
 ///
 /// Class that represents a block evaluated by the simple evaluator
@@ -54,6 +56,9 @@ where
 {
     /// The ID of the message that evaluates this block
     accepted_message_id:    TalkMessageSignatureId,
+
+    /// Number of arguments that are accepted for this block
+    num_arguments:          usize,
 
     /// The symbol table for the parent frames
     parent_symbol_table:    Arc<Mutex<TalkSymbolTable>>,
@@ -121,11 +126,46 @@ where
         if message_id == target.accepted_message_id {
             // Leak the arguments to the method call (it will dispose them when done)
             talk_evaluate_simple_with_arguments(Arc::clone(&target.parent_symbol_table), target.parent_frames.clone(), arguments.leak(), Arc::clone(&target.expression))
+        } else if message_id == *TALK_MSG_WHILE && target.num_arguments == 0 {
+            // Gather details about the instructions we're about to run
+            let parent_symbol_table = Arc::clone(&target.parent_symbol_table);
+            let parent_frames       = target.parent_frames.clone();
+            let expression          = Arc::clone(&target.expression);
+
+            let mut arguments       = arguments;
+            let while_condition     = arguments[0].take();
+
+            // Run the while expression
+            talk_evaluate_while(while_condition, parent_symbol_table, parent_frames, expression)
         } else {
             // Not the message this block was expecting
             TalkContinuation::Ready(TalkValue::Error(TalkError::MessageNotSupported(message_id)))
         }
     }
+}
+
+///
+/// Evaluates a block while a condition is true. The while condition is freed once the block has run.
+///
+fn talk_evaluate_while<TValue, TSymbol>(while_condition: TalkValue, parent_symbol_table: Arc<Mutex<TalkSymbolTable>>, parent_frames: Vec<TalkCellBlock>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation<'static>
+where
+    TValue:     'static + Send + Sync,
+    TSymbol:    'static + Send + Sync,
+    TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
+    TalkSymbol: for<'a> From<&'a TSymbol>,
+{
+    static VALUE_MSG: Lazy<TalkMessageSignatureId> = Lazy::new(|| "value".into());
+
+    // Clone the while conditition value so we can free it later
+    let while_condition_to_free = while_condition.clone();
+
+    // Evaluate the block 'while' the condition is true
+    TalkContinuation::do_while(
+        move |context| while_condition.clone_in_context(context).send_message_in_context(TalkMessage::Unary(*VALUE_MSG), context), 
+        move |context| talk_evaluate_simple_with_arguments(Arc::clone(&parent_symbol_table), parent_frames.clone(), smallvec![], Arc::clone(&expression)))
+        .and_then(move |value| {
+            TalkContinuation::soon(move |ctxt| { while_condition_to_free.release_in_context(ctxt); value.into() })
+        })
 }
 
 ///
@@ -244,6 +284,7 @@ where
     // Create the block data
     let data        = SimpleEvaluatorBlock {
         accepted_message_id:    signature.id(),
+        num_arguments:          arguments.len(),
         parent_symbol_table:    parent_symbol_table,
         parent_frames:          parent_frames,
         resources:              expression_resources,
