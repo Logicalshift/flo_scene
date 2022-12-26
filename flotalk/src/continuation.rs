@@ -65,7 +65,7 @@ impl<'a> TalkContinuation<'a> {
     /// Creates a 'TalkContinuation::Later' from a function returning a value
     ///
     #[inline]
-    pub fn later(later: impl 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>) -> Self {
+    pub fn later_value(later: impl 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>) -> Self {
         let mut later = later;
         TalkContinuation::Later(Box::new(move |talk_context, future_context| later(talk_context, future_context).map(|result| TalkContinuation::Ready(result))))
     }
@@ -87,7 +87,7 @@ impl<'a> TalkContinuation<'a> {
         TFuture: 'a + Send + Future<Output=TalkValue>,
     {
         let mut future = Box::pin(future);
-        Self::later(move |_, ctxt| future.poll_unpin(ctxt))
+        Self::later_value(move |_, ctxt| future.poll_unpin(ctxt))
     }
 
     ///
