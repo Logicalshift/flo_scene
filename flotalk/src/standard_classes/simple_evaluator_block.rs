@@ -162,7 +162,8 @@ where
     // Evaluate the block 'while' the condition is true
     TalkContinuation::do_while(
         move |context| while_condition.clone_in_context(context).send_message_in_context(TalkMessage::Unary(*VALUE_MSG), context), 
-        move |context| talk_evaluate_simple_with_arguments(Arc::clone(&parent_symbol_table), parent_frames.clone(), smallvec![], Arc::clone(&expression)))
+        move |context| talk_evaluate_simple_with_arguments(Arc::clone(&parent_symbol_table), parent_frames.clone(), smallvec![], Arc::clone(&expression)),
+        TalkValue::Nil)
         .and_then(move |value| {
             TalkContinuation::soon(move |ctxt| { while_condition_to_free.release_in_context(ctxt); value.into() })
         })

@@ -3,6 +3,7 @@ use super::context::*;
 use super::error::*;
 use super::message::*;
 use super::reference::*;
+use super::releasable::*;
 use super::value::*;
 
 use futures::prelude::*;
@@ -176,18 +177,20 @@ impl<'a> TalkContinuation<'a> {
             }
         }))
     }
+}
 
+impl TalkContinuation<'static> {
     ///
-    /// Causes an action to be run 'while' a condition is true
+    /// Causes an action to be run 'while' a condition is true. Returns the result of either the last run through the block or the `initial_return_value` if the block is never run
     ///
-    /// If the condition or the block returns an error, then the result is that error. If 
+    /// If the condition or the block returns an error, then the result is that error.
     ///
-    pub fn do_while(while_condition: impl 'a + Send + Fn(&mut TalkContext) -> TalkContinuation<'a>, action: impl 'a + Send + Fn(&mut TalkContext) -> TalkContinuation<'a>) -> TalkContinuation<'a> {
+    pub fn do_while(while_condition: impl 'static + Send + Fn(&mut TalkContext) -> TalkContinuation<'static>, action: impl 'static + Send + Fn(&mut TalkContext) -> TalkContinuation<'static>, initial_return_value: TalkValue) -> TalkContinuation<'static> {
         // Try to evaluate 'soon' if possible (avoiding returning a 'later' continuation)
         TalkContinuation::soon(move |talk_context| {
             use TalkContinuation::*;
 
-            let mut last_result = TalkValue::Nil;
+            let mut last_result = initial_return_value;
 
             loop {
                 // Try to get the result of evaluating the 'while' condition
@@ -196,7 +199,45 @@ impl<'a> TalkContinuation<'a> {
                     match while_continuation {
                         Ready(val)      => { break val; }
                         Soon(soon)      => { while_continuation = soon(talk_context); }
-                        Later(later)    => { todo!("Switch to 'later' polling mode"); }
+                        Later(later)    => {
+                            // Put back in a continuation
+                            let mut later       = TalkContinuation::Later(later);
+
+                            let mut action          = Some(action);
+                            let mut while_condition = Some(while_condition);
+                            let mut last_result     = Some(last_result);
+
+                            // Create a new continuation that performs this step of the while loop before re-entering do_while
+                            return TalkContinuation::later_soon(move |talk_context, future_context| {
+                                if let Poll::Ready(while_result) = later.poll(talk_context, future_context) {
+                                    // Continue with the action if true, or stop on an error or any othe rvalue
+                                    match while_result {
+                                        TalkValue::Bool(true)   => { 
+                                            // Done with the last result
+                                            last_result.take().unwrap().release_in_context(talk_context);
+
+                                            // Take ownership of the action and the condition
+                                            let action              = action.take().unwrap();
+                                            let while_condition     = while_condition.take().unwrap();
+
+                                            // Create a continuation that runs the action and then continues the while loop
+                                            let action_continuation = action(talk_context);
+                                            let while_continuation  = action_continuation
+                                                .and_then(move |action_result| {
+                                                    TalkContinuation::do_while(while_condition, action, action_result)
+                                                });
+                                            Poll::Ready(while_continuation) 
+                                        }
+
+                                        TalkValue::Error(err)   => { Poll::Ready(err.into()) }
+                                        _                       => { Poll::Ready(last_result.take().unwrap().into()) }
+                                    }
+                                } else {
+                                    // Stop looping
+                                    Poll::Pending
+                                }
+                            })
+                        }
                     }
                 };
 
@@ -218,6 +259,7 @@ impl<'a> TalkContinuation<'a> {
                 };
 
                 // Stop if there's an error, otherwise set the last result so we can return it
+                last_result.release_in_context(talk_context);
                 match action_result {
                     TalkValue::Error(err)   => { return err.into(); }
                     _                       => { last_result = action_result; }
