@@ -706,6 +706,7 @@ fn message_if_matches_do(msg: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, sele
 }
 
 pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
+    .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |msg_value| TalkValue::Message(msg_value))
     .with_message(*TALK_MSG_SELECTOR,                       |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkValue::Selector(val.signature_id()))
     .with_message(*TALK_MSG_MATCHES_SELECTOR,               |val, args, _| message_matches_selector(&**val, &args[0]))
     .with_message(*TALK_MSG_SELECTOR_STARTS_WITH,           |val, args, _| message_selector_starts_with(&**val, &args[0]))
