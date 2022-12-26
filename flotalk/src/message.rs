@@ -532,3 +532,15 @@ impl TalkValueType for TalkMessage {
         }
     }
 }
+
+impl TalkMessageType for TalkMessage {
+    /// Converts a message to an object of this type
+    fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
+        Ok(message.leak())
+    }
+
+    /// Converts an object of this type to a message
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkMessage, &'a TalkContext> {
+        TalkOwned::new(self.clone_in_context(context), context)
+    }
+}
