@@ -224,7 +224,10 @@ impl TalkContinuation<'static> {
                                             let action_continuation = action(talk_context);
                                             let while_continuation  = action_continuation
                                                 .and_then(move |action_result| {
-                                                    TalkContinuation::do_while(while_condition, action, action_result)
+                                                    match action_result {
+                                                        TalkValue::Error(err)   => err.into(),
+                                                        _                       => TalkContinuation::do_while(while_condition, action, action_result)
+                                                    }
                                                 });
                                             Poll::Ready(while_continuation) 
                                         }
@@ -248,18 +251,29 @@ impl TalkContinuation<'static> {
                     _                       => { return last_result.into(); }
                 }
 
+                // Result was true, so we're replacing the last_result value
+                last_result.release_in_context(talk_context);
+
                 // Try to evaluate the action similarly
                 let mut action_continuation = action(talk_context);
                 let action_result           = loop {
                     match action_continuation {
                         Ready(val)      => { break val; }
                         Soon(soon)      => { action_continuation = soon(talk_context); }
-                        Later(later)    => { todo!("Switch to 'later' polling mode"); }
+                        Later(later)    => {
+                            // Run the continuation then re-enter the while block
+                            return TalkContinuation::Later(later)
+                                .and_then(move |action_result| {
+                                    match action_result {
+                                        TalkValue::Error(err)   => err.into(),
+                                        _                       => TalkContinuation::do_while(while_condition, action, action_result)
+                                    }
+                                })
+                        }
                     }
                 };
 
                 // Stop if there's an error, otherwise set the last result so we can return it
-                last_result.release_in_context(talk_context);
                 match action_result {
                     TalkValue::Error(err)   => { return err.into(); }
                     _                       => { last_result = action_result; }
