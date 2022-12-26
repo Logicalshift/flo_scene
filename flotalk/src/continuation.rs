@@ -182,8 +182,48 @@ impl<'a> TalkContinuation<'a> {
     ///
     /// If the condition or the block returns an error, then the result is that error. If 
     ///
-    pub fn do_while(while_condition: impl Fn(&mut TalkContext) -> TalkContinuation<'a>, action: impl Fn(&mut TalkContext) -> TalkContinuation<'a>) -> TalkContinuation<'a> {
-        todo!()
+    pub fn do_while(while_condition: impl 'a + Send + Fn(&mut TalkContext) -> TalkContinuation<'a>, action: impl 'a + Send + Fn(&mut TalkContext) -> TalkContinuation<'a>) -> TalkContinuation<'a> {
+        // Try to evaluate 'soon' if possible (avoiding returning a 'later' continuation)
+        TalkContinuation::soon(move |talk_context| {
+            use TalkContinuation::*;
+
+            let mut last_result = TalkValue::Nil;
+
+            loop {
+                // Try to get the result of evaluating the 'while' condition
+                let mut while_continuation  = while_condition(talk_context);
+                let while_result            = loop {
+                    match while_continuation {
+                        Ready(val)      => { break val; }
+                        Soon(soon)      => { while_continuation = soon(talk_context); }
+                        Later(later)    => { todo!("Switch to 'later' polling mode"); }
+                    }
+                };
+
+                // Check the result: stop if there's an error or the condition is any value other than true
+                match while_result {
+                    TalkValue::Error(err)   => { return err.into(); }
+                    TalkValue::Bool(true)   => { }
+                    _                       => { return last_result.into(); }
+                }
+
+                // Try to evaluate the action similarly
+                let mut action_continuation = action(talk_context);
+                let action_result           = loop {
+                    match action_continuation {
+                        Ready(val)      => { break val; }
+                        Soon(soon)      => { action_continuation = soon(talk_context); }
+                        Later(later)    => { todo!("Switch to 'later' polling mode"); }
+                    }
+                };
+
+                // Stop if there's an error, otherwise set the last result so we can return it
+                match action_result {
+                    TalkValue::Error(err)   => { return err.into(); }
+                    _                       => { last_result = action_result; }
+                }
+            }
+        })
     }
 }
 
