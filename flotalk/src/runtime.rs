@@ -230,15 +230,16 @@ impl TalkRuntime {
     /// let mut hello_world = runtime.stream_from::<HelloWorld>(TalkScript::from("[ :output | output helloWorld. output goodbye. ]"));
     /// ```
     ///
-    pub fn stream_from<'a, TStreamItem>(&'a self, receive_target: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + Stream<Item=Result<TStreamItem, TalkError>> + TryStream<Ok=TStreamItem, Error=TalkError>
+    pub fn stream_from<TStreamItem>(&self, receive_target: impl Into<TalkContinuation<'static>>) -> impl 'static + Send + Stream<Item=Result<TStreamItem, TalkError>> + TryStream<Ok=TStreamItem, Error=TalkError>
     where
         TStreamItem: 'static + Send + TalkMessageType,
     {
         use futures::future::{Either};
         static VALUE_COLON_MSG: Lazy<TalkSymbol>  = Lazy::new(|| "value:".into());
 
-        let context         = Arc::clone(&self.context);
-        let receive_target  = receive_target.into();
+        let context             = Arc::clone(&self.context);
+        let waiting_for_release = Arc::clone(&self.waiting_for_release);
+        let receive_target      = receive_target.into();
 
         generator_stream(move |yield_value| {
             async move {
@@ -250,7 +251,7 @@ impl TalkRuntime {
                 };
 
                 // Evaluate the value that we'll send the sender object to
-                let receive_target = self.run(receive_target).await;
+                let receive_target = Self::run_with_context(receive_target, context.clone(), waiting_for_release.clone()).await;
                 if let TalkValue::Error(err) = &*receive_target {
                     // Stop early if the target is an error
                     sender.release_in_context(&*context.lock().await);
@@ -260,7 +261,7 @@ impl TalkRuntime {
 
                 // Start sending the 'value:' message (this runs in parallel with our relay code)
                 let send_message = receive_target.leak().send_message_in_context(TalkMessage::with_arguments(vec![(*VALUE_COLON_MSG, sender)]), &*context.lock().await);
-                let send_message = self.run(send_message);
+                let send_message = Self::run_with_context(send_message, context.clone(), waiting_for_release.clone());
 
                 // Create a future to relay results from the output to the stream
                 let relay_message = async move {
