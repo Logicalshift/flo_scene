@@ -201,6 +201,38 @@ fn stream_through_receiver() {
 }
 
 #[test]
+fn next_receiver_from_script() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        
+        // Create a source stream, which is itself a script
+        let source_stream = runtime.stream_from::<TalkMessage>(TalkScript::from("
+            [ :output | 
+                output add: 200 . 
+                output sub: 180 .
+                output add: 22 .
+            ]"));
+
+        // Create a receiver object (in the root namespace for now)
+        runtime.run(TalkContinuation::soon(|context| {
+            let receiver = create_talk_receiver(source_stream.map(|val| val.unwrap()), context).leak();
+            context.set_root_symbol_value("receiver", TalkValue::Reference(receiver));
+
+            ().into()
+        })).await;
+
+        // Run a script that updates a variable based on what the source stream says
+        let script_result = runtime.run(TalkScript::from("
+            receiver next
+            ")).await;
+
+        // 200 - 180 + 22 = 42, indicating we received the messages we were expecting in our script
+        println!("{:?}", script_result);
+        assert!(*script_result == TalkValue::Message(Box::new(TalkMessage::with_arguments(vec![("add:", 200)]))));
+    });
+}
+
+#[test]
 fn stream_through_receiver_from_script() {
     executor::block_on(async {
         let runtime = TalkRuntime::empty();
