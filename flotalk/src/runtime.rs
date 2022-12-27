@@ -301,21 +301,20 @@ impl TalkRuntime {
     }
 
     ///
-    /// Runs a continuation or a script using this runtime
+    /// Runs a continuation using the values stored in a runtime (the continuation and the future can outlive the runtime itself if necessary)
     ///
-    pub fn run<'a>(&self, continuation: impl Into<TalkContinuation<'a>>) -> impl 'a + Send + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
+    fn run_with_context<'a>(continuation: impl Into<TalkContinuation<'a>>, context: Arc<lock::Mutex<TalkContext>>, waiting_for_release: Arc<Mutex<Vec<TalkValue>>>) -> impl 'a + Send + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
         // Start running the continuation
         let mut continuation = continuation.into();
 
         // Take this opportunity to obtain the context and release any values that were previously returned
         use std::mem;
 
-        let context             = self.context.clone();
         let mut released_values = vec![];
-        mem::swap(&mut *self.waiting_for_release.lock().unwrap(), &mut released_values);
+        mem::swap(&mut *waiting_for_release.lock().unwrap(), &mut released_values);
 
-        let waiting_for_release = Arc::clone(&self.waiting_for_release);
-        let owner               = TalkOwnedByRuntime { released_values: waiting_for_release };
+        // The owner points at the waiting_for_release list so the next 'run' call can release the values created by this one
+        let owner = TalkOwnedByRuntime { released_values: waiting_for_release };
 
         async move {
             // Release anything that is waiting before starting the new continuation
@@ -350,6 +349,13 @@ impl TalkRuntime {
                 }
             }
         }
+    }
+
+    ///
+    /// Runs a continuation or a script using this runtime
+    ///
+    pub fn run<'a>(&self, continuation: impl 'a + Into<TalkContinuation<'a>>) -> impl 'a + Send + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
+        Self::run_with_context(continuation, self.context.clone(), self.waiting_for_release.clone())
     }
 
     ///
