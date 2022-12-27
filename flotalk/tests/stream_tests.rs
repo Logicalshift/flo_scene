@@ -131,29 +131,48 @@ fn receive_two_messages() {
 }
 
 #[test]
+fn stream_messages() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        
+        // Create a source stream, which is itself a script
+        let mut source_stream = runtime.stream_from::<TalkMessage>(TalkScript::from("
+            [ :output | 
+                output add: 200 . 
+                output sub: 180 .
+                output add: 22 .
+            ]"));
+
+        let first = source_stream.next().await;
+        println!("{:?}", first);
+        assert!(first == Some(Ok(TalkMessage::with_arguments(vec![("add:", 200)]))));
+
+        let second = source_stream.next().await;
+        println!("{:?}", second);
+        assert!(second == Some(Ok(TalkMessage::with_arguments(vec![("sub:", 180)]))));
+
+        let third = source_stream.next().await;
+        println!("{:?}", third);
+        assert!(third == Some(Ok(TalkMessage::with_arguments(vec![("add:", 22)]))));
+    })
+}
+
+#[test]
 fn stream_through_receiver() {
     executor::block_on(async {
         let runtime = TalkRuntime::empty();
         
         // Create a source stream, which is itself a script
-        let source_stream = stream::iter(vec![
-            TalkMessage::with_arguments(vec![("add:", 200)]),
-            TalkMessage::with_arguments(vec![("sub:", 180)]),
-            TalkMessage::with_arguments(vec![("add:", 22)]),
-        ]);
-
-        /* TODO: need to return a static stream here
         let source_stream = runtime.stream_from::<TalkMessage>(TalkScript::from("
             [ :output | 
-                output add: 200. 
-                output sub: 180.
-                output add: 22.
+                output add: 200 . 
+                output sub: 180 .
+                output add: 22 .
             ]"));
-        */
 
         // Create a receiver object (in the root namespace for now)
         runtime.run(TalkContinuation::soon(|context| {
-            let receiver = create_talk_receiver(source_stream, context).leak();
+            let receiver = create_talk_receiver(source_stream.map(|val| val.unwrap()), context).leak();
             context.set_root_symbol_value("receiver", TalkValue::Reference(receiver));
 
             ().into()
