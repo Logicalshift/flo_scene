@@ -277,6 +277,7 @@ where
                         TalkContinuation::Ready(value)                  => { frame.stack.push(value); break; },
                         TalkContinuation::Soon(soon_value)              => { continuation = soon_value(context); }
                         TalkContinuation::Later(later)                  => return TalkWaitState::WaitFor(TalkContinuation::Later(later)),
+                        TalkContinuation::Future(future)                => return TalkWaitState::WaitFor(TalkContinuation::Future(future)),
                     }
                 }
             }
@@ -316,26 +317,18 @@ where
 }
 
 ///
-/// Evaluates a FloTalk expression which does not have any binding specified, and where Literals have not been parsed into values
+/// Creates a continuation that runs instructions on a frame
 ///
-/// This is the simplest form of expression evaluator, which runs the slowest out of all the possible implementations (due to needing to parse values and look up
-/// symbols every time)
-///
-/// The argument cell block will be released when this returns, but the parent frames will not be released (ie, the parent frames are considered borrowed and the arguments are
-/// considered owned).
-///
-pub fn talk_evaluate_simple_with_arguments<TValue, TSymbol>(parent_symbol_table: Arc<Mutex<TalkSymbolTable>>, parent_frames: Vec<TalkCellBlock>, arguments: SmallVec<[TalkValue; 4]>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation<'static> 
+fn frame_continuation<TValue, TSymbol>(frame: TalkFrame, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation<'static>
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
     TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
     TalkSymbol: for<'a> From<&'a TSymbol>,
 {
-    // Create the first frame
-    let mut wait_state      = TalkWaitState::Run;
-    let symbol_table        = TalkSymbolTable::with_parent_frame(parent_symbol_table);      // TODO: makes the cells invalid (frame number is wrong) until LoadArguments is called, which is kind of janky
-    let bindings            = parent_frames;
-    let mut frame           = TalkFrame { pc: 0, stack: vec![], arguments: Some(arguments), bindings: bindings, symbol_table: symbol_table, earlier_bindings: HashMap::new() };
+    // We always start in the run wait state
+    let mut wait_state = TalkWaitState::Run;
+    let mut frame       = frame;
 
     TalkContinuation::Later(Box::new(move |talk_context, future_context| {
         use TalkWaitState::*;
@@ -372,7 +365,7 @@ where
 
         // Return the value if finished
         match &mut wait_state {
-            WaitFor(_)      => Poll::Pending,
+            WaitFor(future) => Poll::Pending,
             Run             => Poll::Pending,
             Finished(value) => {
                 frame.remove_all_references(talk_context);
@@ -380,4 +373,29 @@ where
             },
         }
     }))
+}
+
+///
+/// Evaluates a FloTalk expression which does not have any binding specified, and where Literals have not been parsed into values
+///
+/// This is the simplest form of expression evaluator, which runs the slowest out of all the possible implementations (due to needing to parse values and look up
+/// symbols every time)
+///
+/// The argument cell block will be released when this returns, but the parent frames will not be released (ie, the parent frames are considered borrowed and the arguments are
+/// considered owned).
+///
+pub fn talk_evaluate_simple_with_arguments<TValue, TSymbol>(parent_symbol_table: Arc<Mutex<TalkSymbolTable>>, parent_frames: Vec<TalkCellBlock>, arguments: SmallVec<[TalkValue; 4]>, expression: Arc<Vec<TalkInstruction<TValue, TSymbol>>>) -> TalkContinuation<'static> 
+where
+    TValue:     'static + Send + Sync,
+    TSymbol:    'static + Send + Sync,
+    TalkValue:  for<'a> TryFrom<&'a TValue, Error=TalkError>,
+    TalkSymbol: for<'a> From<&'a TSymbol>,
+{
+    // Create the first frame
+    let symbol_table    = TalkSymbolTable::with_parent_frame(parent_symbol_table);      // TODO: makes the cells invalid (frame number is wrong) until LoadArguments is called, which is kind of janky
+    let bindings        = parent_frames;
+    let frame           = TalkFrame { pc: 0, stack: vec![], arguments: Some(arguments), bindings: bindings, symbol_table: symbol_table, earlier_bindings: HashMap::new() };
+
+    // Start running the frame continuation
+    frame_continuation(frame, expression)
 }
