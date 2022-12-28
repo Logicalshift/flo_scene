@@ -87,7 +87,7 @@ where
 
             if let Some(stream) = stream {
                 // Create a future to read from the stream, and put the value back into the container
-                TalkContinuation::future(async move {
+                TalkContinuation::future_value(async move {
                     // Read the next value from the stream
                     let mut stream  = stream;
                     let next_value  = stream.next().await;

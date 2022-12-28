@@ -55,12 +55,11 @@ impl<'a> TalkContinuation<'a> {
         TalkContinuation::Later(Box::new(later))
     }
 
-    // TODO: rename to future_value to match later_value and avoid confusion with TalkContinuation::Future
     ///
     /// Creates a TalkContinuation from a future
     ///
     #[inline]
-    pub fn future<TFuture>(future: TFuture) -> Self
+    pub fn future_value<TFuture>(future: TFuture) -> Self
     where
         TFuture: 'a + Send + Future<Output=TalkValue>,
     {
