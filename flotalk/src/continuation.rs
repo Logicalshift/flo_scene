@@ -31,38 +31,6 @@ pub enum TalkContinuation<'a> {
 
 impl<'a> TalkContinuation<'a> {
     ///
-    /// Polls this continuation for a result
-    ///
-    #[inline]
-    pub fn poll(&mut self, talk_context: &mut TalkContext, future_context: &mut Context) -> Poll<TalkValue> {
-        use TalkContinuation::*;
-
-        loop {
-            let mut continuation = TalkContinuation::Ready(TalkValue::Nil);
-            mem::swap(&mut continuation, self);
-
-            match continuation {
-                Ready(value)        => { return Poll::Ready(value); },
-                Soon(soon)          => { *self = soon(talk_context); }
-
-                Later(mut poll_fn)  => { 
-                    let result = poll_fn(talk_context, future_context);
-                    if let Poll::Ready(next) = result {
-                        *self = next;
-                    } else {
-                        *self = Later(poll_fn);
-                        return Poll::Pending;
-                    }
-                },
-
-                Future(_future) => {
-                    todo!("Not safe to poll here as the context is locked")
-                }
-            }
-        }
-    }
-
-    ///
     /// Creates a 'TalkContinuation::Soon' from a function
     ///
     #[inline]
@@ -214,43 +182,37 @@ impl TalkContinuation<'static> {
                         Soon(soon)      => { while_continuation = soon(talk_context); }
                         Later(later)    => {
                             // Put back in a continuation
-                            let mut later       = TalkContinuation::Later(later);
+                            let mut later           = TalkContinuation::Later(later);
 
                             let mut action          = Some(action);
                             let mut while_condition = Some(while_condition);
                             let mut last_result     = Some(last_result);
 
                             // Create a new continuation that performs this step of the while loop before re-entering do_while
-                            return TalkContinuation::later_soon(move |talk_context, future_context| {
-                                if let Poll::Ready(while_result) = later.poll(talk_context, future_context) {
-                                    // Continue with the action if true, or stop on an error or any othe rvalue
-                                    match while_result {
-                                        TalkValue::Bool(true)   => { 
-                                            // Done with the last result
-                                            last_result.take().unwrap().release_in_context(talk_context);
+                            return later.and_then(move |while_result| {
+                                match while_result {
+                                    TalkValue::Bool(true)   => TalkContinuation::soon(move |talk_context| {
+                                        // Done with the last result (TODO)
+                                        last_result.take().unwrap().release_in_context(talk_context);
 
-                                            // Take ownership of the action and the condition
-                                            let action              = action.take().unwrap();
-                                            let while_condition     = while_condition.take().unwrap();
+                                        // Take ownership of the action and the condition
+                                        let action              = action.take().unwrap();
+                                        let while_condition     = while_condition.take().unwrap();
 
-                                            // Create a continuation that runs the action and then continues the while loop
-                                            let action_continuation = action(talk_context);
-                                            let while_continuation  = action_continuation
-                                                .and_then(move |action_result| {
-                                                    match action_result {
-                                                        TalkValue::Error(err)   => err.into(),
-                                                        _                       => TalkContinuation::do_while(while_condition, action, action_result)
-                                                    }
-                                                });
-                                            Poll::Ready(while_continuation) 
-                                        }
+                                        // Create a continuation that runs the action and then continues the while loop
+                                        let action_continuation = action(talk_context);
+                                        let while_continuation  = action_continuation
+                                            .and_then(move |action_result| {
+                                                match action_result {
+                                                    TalkValue::Error(err)   => err.into(),
+                                                    _                       => TalkContinuation::do_while(while_condition, action, action_result)
+                                                }
+                                            });
+                                        while_continuation
+                                    }),
 
-                                        TalkValue::Error(err)   => { Poll::Ready(err.into()) }
-                                        _                       => { Poll::Ready(last_result.take().unwrap().into()) }
-                                    }
-                                } else {
-                                    // Stop looping
-                                    Poll::Pending
+                                    TalkValue::Error(err)   => { err.into() }
+                                    _                       => { last_result.take().unwrap().into() }
                                 }
                             })
                         },
