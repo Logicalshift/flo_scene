@@ -7,6 +7,7 @@ use super::releasable::*;
 use super::value::*;
 
 use futures::prelude::*;
+use futures::future::{BoxFuture};
 use futures::task::{Poll, Context};
 
 use std::mem;
@@ -23,6 +24,9 @@ pub enum TalkContinuation<'a> {
 
     /// A value that is ready when a future completes
     Later(Box<dyn 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkContinuation<'static>>>),
+
+    /// A future value that should be evaluated outside of the TalkContext
+    Future(BoxFuture<'a, TalkContinuation<'static>>),
 }
 
 impl<'a> TalkContinuation<'a> {
@@ -50,6 +54,10 @@ impl<'a> TalkContinuation<'a> {
                         return Poll::Pending;
                     }
                 },
+
+                Future(_future) => {
+                    todo!("Not safe to poll here as the context is locked")
+                }
             }
         }
     }
@@ -87,8 +95,7 @@ impl<'a> TalkContinuation<'a> {
     where
         TFuture: 'a + Send + Future<Output=TalkValue>,
     {
-        let mut future = Box::pin(future);
-        Self::later_value(move |_, ctxt| future.poll_unpin(ctxt))
+        Self::Future(future.map(|value| TalkContinuation::Ready(value)).boxed())
     }
 
     ///
@@ -99,9 +106,7 @@ impl<'a> TalkContinuation<'a> {
     where
         TFuture: 'a + Send + Future<Output=TalkContinuation<'static>>,
     {
-        let mut future              = Box::pin(future);
-
-        Self::later_soon(move |_talk_context, future_context| future.poll_unpin(future_context))
+        Self::Future(future.boxed())
     }
 
     ///
@@ -134,6 +139,12 @@ impl<'a> TalkContinuation<'a> {
                         poll_result
                     }
                 }))
+            }
+
+            TalkContinuation::Future(original_future) => {
+                TalkContinuation::Future(async move {
+                    original_future.await.and_then(and_then)
+                }.boxed())
             }
         }
     }
@@ -241,6 +252,27 @@ impl TalkContinuation<'static> {
                                     Poll::Pending
                                 }
                             })
+                        },
+
+                        Future(later) => {
+                            // Wait for the future...
+                            return TalkContinuation::Future(later)
+                                .and_then(move |next_value| {
+                                    // ... then trigger the action continuation...
+                                    match next_value {
+                                        TalkValue::Error(err)   => err.into(),
+                                        _                       => TalkContinuation::soon(move |talk_context| {
+                                            action(talk_context)
+                                                .and_then(|action_result| {
+                                                    // ... then re-enter the 'while' loop
+                                                    match action_result {
+                                                        TalkValue::Error(err)   => err.into(),
+                                                        _                       => TalkContinuation::do_while(while_condition, action, action_result)
+                                                    }
+                                                })
+                                        })
+                                    }
+                                });
                         }
                     }
                 };
@@ -270,6 +302,17 @@ impl TalkContinuation<'static> {
                                         _                       => TalkContinuation::do_while(while_condition, action, action_result)
                                     }
                                 })
+                        }
+                        Future(later)   => {
+                            // Wait for the action
+                            return TalkContinuation::Future(later)
+                                .and_then(|action_result| {
+                                    // ... then re-enter the 'while' loop
+                                    match action_result {
+                                        TalkValue::Error(err)   => err.into(),
+                                        _                       => TalkContinuation::do_while(while_condition, action, action_result)
+                                    }
+                                });
                         }
                     }
                 };
