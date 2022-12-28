@@ -87,6 +87,7 @@ impl<'a> TalkContinuation<'a> {
         TalkContinuation::Later(Box::new(later))
     }
 
+    // TODO: rename to future_value to match later_value and avoid confusion with TalkContinuation::Future
     ///
     /// Creates a TalkContinuation from a future
     ///
