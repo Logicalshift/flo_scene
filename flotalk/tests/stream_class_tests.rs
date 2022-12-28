@@ -21,6 +21,7 @@ fn basic_stream() {
     });
 }
 
+/*
 #[test]
 fn basic_stream_class() {
     executor::block_on(async {
@@ -56,3 +57,4 @@ fn basic_stream_class() {
         assert!(*result == TalkValue::Int(2));
     });
 }
+*/
