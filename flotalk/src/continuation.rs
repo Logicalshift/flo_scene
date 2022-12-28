@@ -46,6 +46,7 @@ impl<'a> TalkContinuation<'a> {
                     if let Poll::Ready(next) = result {
                         *self = next;
                     } else {
+                        *self = Later(poll_fn);
                         return Poll::Pending;
                     }
                 },
