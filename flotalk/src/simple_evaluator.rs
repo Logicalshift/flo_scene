@@ -330,46 +330,26 @@ where
     let mut wait_state = TalkWaitState::Run;
     let mut frame       = frame;
 
-    TalkContinuation::Later(Box::new(move |talk_context, future_context| {
+    TalkContinuation::Soon(Box::new(move |talk_context| {
         use TalkWaitState::*;
 
-        // Poll the future if we're in an appropriate state
-        if let WaitFor(future) = &mut wait_state {
-            // If ready, push the result and move to the 'run' state
-            if let Poll::Ready(value) = future.poll(talk_context, future_context) {
-                if let TalkValue::Error(err) = value {
-                    // Errors abort the rest of the evaluation and are returned directly
-                    wait_state = Finished(TalkValue::Error(err));
-                } else {
-                    // Future is finished: push the new value to the stack and continue
-                    frame.stack.push(value);
-                    wait_state = Run;
-                }
-            }
-        }
-
-        // Run until the future futures
+        // Run until the job is finished or it returns a waiting continuation
         while let Run = &wait_state {
             // Evaluate until we hit a point where we are finished or need to poll a future
             wait_state = eval_at(&*expression, &mut frame, talk_context);
-
-            // Poll the future if one is returned
-            if let WaitFor(future) = &mut wait_state {
-                // If ready, push the result and move to the 'run' state
-                if let Poll::Ready(value) = future.poll(talk_context, future_context) {
-                    frame.stack.push(value);
-                    wait_state = Run;
-                }
-            }
         }
 
         // Return the value if finished
-        match &mut wait_state {
-            WaitFor(future) => Poll::Pending,
-            Run             => Poll::Pending,
+        match wait_state {
+            Run             => { unreachable!() },
+            WaitFor(future) => future
+                .and_then(move |result_value| {
+                    frame.stack.push(result_value);
+                    frame_continuation(frame, expression)
+                }),
             Finished(value) => {
                 frame.remove_all_references(talk_context);
-                Poll::Ready(TalkContinuation::Ready(value.take()))
+                TalkContinuation::Ready(value)
             },
         }
     }))
