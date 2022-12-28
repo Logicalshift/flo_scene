@@ -13,7 +13,7 @@ fn basic_stream() {
             | testStream |
 
             testStream := Stream withSender: [ :output | output say: 42 ].
-            testStream ifMatches: #say: do: [ :value | value ].
+            (testStream next) ifMatches: #say: do: [ :value | value ].
         ")).await;
 
         println!("{:?}", *result);
