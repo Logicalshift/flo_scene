@@ -347,6 +347,10 @@ impl TalkRuntime {
                         let talk_context = talk_context.clone();
                         Self::run_continuation_later(talk_context, later).await
                     }
+
+                    TalkContinuation::Future(later) => {
+                        later.await
+                    }
                 }
             }
         }
