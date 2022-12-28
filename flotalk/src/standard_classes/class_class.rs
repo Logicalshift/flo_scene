@@ -88,7 +88,8 @@ impl TalkClass {
     ///
     /// Retrieves the data object for this TalkClass
     ///
-    pub fn class_object_in_context(&self, _context: &TalkContext) -> TalkReference {
+    pub fn class_object_in_context(&self, context: &mut TalkContext) -> TalkReference {
+        context.get_callbacks_mut(*CLASS_CLASS);;
         TalkReference(*CLASS_CLASS, TalkDataHandle(self.0))
     }
 

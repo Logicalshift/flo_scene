@@ -29,7 +29,8 @@ pub fn talk_init_object_class() -> TalkContinuation<'static> {
 ///
 pub fn talk_init_stream_class() -> TalkContinuation<'static> {
     TalkContinuation::soon(|talk_context| {
-        talk_context.set_root_symbol_value("Stream", STREAM_CLASS.class_object_in_context(talk_context).into());
+        let stream_class_object = STREAM_CLASS.class_object_in_context(talk_context);
+        talk_context.set_root_symbol_value("Stream", stream_class_object.into());
         ().into()
     })
 }
