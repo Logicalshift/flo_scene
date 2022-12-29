@@ -55,6 +55,9 @@ pub struct TalkRuntime {
 
     /// Values generated previously by the runtime that are waiting to be released
     waiting_for_release: Arc<Mutex<Vec<TalkValue>>>,
+
+    /// Used to ensure that only one background runner is active at any one time
+    background_mutex: Arc<lock::Mutex<()>>,
 }
 
 impl TalkRuntime {
@@ -65,6 +68,7 @@ impl TalkRuntime {
         TalkRuntime {
             context:                Arc::new(lock::Mutex::new(context)),
             waiting_for_release:    Arc::new(Mutex::new(vec![])),
+            background_mutex:       Arc::new(lock::Mutex::new(())),
         }
     }
 
@@ -375,10 +379,17 @@ impl TalkRuntime {
     /// one of these futures exist.
     ///
     pub fn run_background_tasks(&self) -> impl Send + Future<Output=()> {
+        use std::mem;
+        use futures::task;
+
         let weak_context        = Arc::downgrade(&self.context);
         let waiting_for_release = Arc::clone(&self.waiting_for_release);
+        let background_mutex    = Arc::clone(&self.background_mutex);
 
         async move {
+            // Acquire the background mutex, so only one 'run in background' task can run at any one time
+            let background_mutex = background_mutex.lock().await;
+
             // Setup: fetch the background tasks from the context
             let background_tasks = { 
                 if let Some(talk_context) = weak_context.upgrade() {
@@ -396,7 +407,6 @@ impl TalkRuntime {
 
                 // Update the background task waker to reawaken this thread and get the IDs of the 'awake' continuations we need to poll
                 let mut awake_futures = {
-                    use std::mem;
                     let mut background_tasks = background_tasks.lock().unwrap();
 
                     if background_tasks.context_dropped {
@@ -466,8 +476,6 @@ impl TalkRuntime {
 
                     if let Some(maybe_future) = maybe_future {
                         if let Some(mut future) = maybe_future {
-                            use futures::task;
-
                             // Create a waker for this future that marks it as 'awake' to use with our new future
                             let waker               = Arc::new(BackgroundFutureWaker { future_id: id, background_tasks: Arc::clone(&background_tasks) });
                             let future_waker        = task::waker(waker);
@@ -501,7 +509,9 @@ impl TalkRuntime {
 
                 // Keep on running background tasks while the context is alive
                 Poll::Pending
-            }).await
+            }).await;
+
+            mem::drop(background_mutex);
         }
     }
 
