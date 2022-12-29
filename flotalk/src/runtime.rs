@@ -18,6 +18,7 @@ use futures::task::{Poll, Context};
 
 use flo_stream::*;
 
+use std::collections::{HashSet, HashMap};
 use std::sync::*;
 
 // TODO: write and upgrade to a 'fair' mutex that processing wakeups in the order that they happen
@@ -353,6 +354,126 @@ impl TalkRuntime {
                     }
                 }
             }
+        }
+    }
+
+    ///
+    /// Returns a future that will poll any background tasks contained by the context
+    ///
+    /// This can be run multiple times: only one running future will actually run the background tasks, and background tasks will progress provided at least
+    /// one of these futures exist.
+    ///
+    pub fn run_background_tasks(&self) -> impl Send + Future<Output=()> {
+        let weak_context        = Arc::downgrade(&self.context);
+        let waiting_for_release = Arc::clone(&self.waiting_for_release);
+
+        async move {
+            // Setup: fetch the background tasks from the context
+            let background_tasks = { 
+                if let Some(talk_context) = weak_context.upgrade() {
+                    // Take the background tasks from the context
+                    talk_context.lock().await.background_tasks.clone()
+                } else {
+                    // Stop if the context is no longer available
+                    return;
+                }
+            };
+
+            // Poll the background tasks
+            future::poll_fn(move |future_context| {
+                // TODO: add a way to reawaken a thread if a different 'run_background_tasks' future is dropped
+
+                // Update the background task waker to reawaken this thread and get the IDs of the 'awake' continuations we need to poll
+                let mut awake_futures = {
+                    use std::mem;
+                    let mut background_tasks = background_tasks.lock().unwrap();
+
+                    if background_tasks.context_dropped {
+                        // Stop if the context is dropped
+                        return Poll::Ready(());
+                    }
+
+                    // Convert any new continuations into futures
+                    if !background_tasks.new_continuations.is_empty() {
+                        let mut new_continuations = HashMap::new();
+                        mem::swap(&mut new_continuations, &mut background_tasks.new_continuations);
+
+                        for (id, continuation) in new_continuations {
+                            // Start the continuation running as a future
+                            let weak_context        = weak_context.clone();
+                            let waiting_for_release = waiting_for_release.clone();
+                            let run_continuation    = async move {
+                                let mut continuation = continuation;
+
+                                loop {
+                                    continuation = match continuation {
+                                        TalkContinuation::Ready(val)        => {
+                                            // Lock the context
+                                            let talk_context    = if let Some(talk_context) = weak_context.upgrade() { talk_context } else { break; };
+                                            let talk_context    = talk_context.lock().await;
+
+                                            // Release any value that was generated (background values are never used)
+                                            val.release_in_context(&*talk_context);
+
+                                            // Stop running
+                                            break;
+                                        }
+
+                                        TalkContinuation::Soon(soon)        => {
+                                            // Lock the context and run 'soon'
+                                            let talk_context        = if let Some(talk_context) = weak_context.upgrade() { talk_context } else { break; };
+                                            let mut talk_context    = talk_context.lock().await;
+
+                                            soon(&mut *talk_context)
+                                        }
+
+                                        TalkContinuation::Later(later)      => Self::run_continuation_later(weak_context.clone(), later).await,
+                                        TalkContinuation::Future(future)    => future.await,
+                                    }
+                                }
+                            };
+
+                            // Store as an awake running future so we poll it
+                            background_tasks.running_futures.insert(id, Some(run_continuation.boxed()));
+                            background_tasks.awake_futures.insert(id);
+                        }
+                    }
+
+                    // Wake up this future next time something changes
+                    background_tasks.waker = Some(future_context.waker().clone());
+
+                    // Take the awake continuation IDs from the background tasks
+                    let mut awake_futures = HashSet::new();
+                    mem::swap(&mut awake_futures, &mut background_tasks.awake_futures);
+
+                    awake_futures
+                };
+
+                // Poll any awake futures
+                for id in awake_futures {
+                    let maybe_future = background_tasks.lock().unwrap().running_futures.get_mut(&id).map(|future| future.take());
+
+                    if let Some(maybe_future) = maybe_future {
+                        if let Some(mut future) = maybe_future {
+                            // TODO: create a waker for this future that marks it as 'awake'
+                            if let Poll::Pending = future.poll_unpin(future_context) {
+                                // Future is still available to run, so add back again
+                                background_tasks.lock().unwrap().running_futures.insert(id, Some(future));
+                            } else {
+                                // Future has finished
+                                background_tasks.lock().unwrap().running_futures.remove(&id);
+                            }
+                        } else {
+                            // TODO: Future has been re-awakened while being polled (has a slot with value 'None') - need to re-poll it!
+                        }
+                    } else {
+                        // Future has finished after being awakened (nothing more to do)
+                    }
+                }
+
+                // Keep on running background tasks while the context is alive
+                Poll::Pending
+            }).await
         }
     }
 
