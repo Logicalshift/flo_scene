@@ -471,6 +471,12 @@ impl TalkContext {
     }
 }
 
+impl Drop for TalkContext {
+    fn drop(&mut self) {
+        TalkContextBackgroundTasks::drop_context(&self.background_tasks);
+    }
+}
+
 impl TalkContextBackgroundTasks {
     ///
     /// Creates an empty set of background tasks
@@ -482,6 +488,25 @@ impl TalkContextBackgroundTasks {
             awake_continuations:        HashSet::new(),
             context_dropped:            false,
             waker:                      None,
+        }
+    }
+
+    ///
+    /// Sets the context as dropped and wakes up anything running the background tasks
+    ///
+    /// Background task runners should keep only a weak reference to the context to make sure that this event can happen
+    ///
+    fn drop_context(arc_self: &Arc<Mutex<TalkContextBackgroundTasks>>) {
+        let waker = {
+            let mut background_tasks = arc_self.lock().unwrap();
+
+            background_tasks.context_dropped = true;
+            background_tasks.waker.take()
+        };
+
+        // Wake up is done outside the lock (to make it impossible for a re-entry to deadlock anything)
+        if let Some(waker) = waker {
+            waker.wake();
         }
     }
 
