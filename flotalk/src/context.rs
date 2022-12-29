@@ -49,17 +49,18 @@ pub (crate) struct TalkContextBackgroundTasks {
     next_id: usize,
 
     /// The continuations that are running in the background. These must be polled when the context is not 'locked' or owned by anything (as 
-    /// they may try to take ownership of the context themselves). The usize here is used to identify a which continuations are awake
-    background_continuations: HashMap<usize, TalkContinuation<'static>>,
+    /// they may try to take ownership of the context themselves). The usize here is used to identify a which continuations are awake, and
+    /// continuations are set to 'None' while they are being polled (so they are only polled from one thread at a time).
+    pub (crate) background_continuations: HashMap<usize, Option<TalkContinuation<'static>>>,
 
     /// The continuations that have received a wakeup request (or which are newly added and not polled yet)
-    awake_continuations: HashSet<usize>,
+    pub (crate) awake_continuations: HashSet<usize>,
 
     /// Set to true once the context has been dropped
-    context_dropped: bool,
+    pub (crate) context_dropped: bool,
 
     /// General waker, used to wake up the background tasks when a new task is added or if the main context is dropped
-    waker: Option<task::Waker>,
+    pub (crate) waker: Option<task::Waker>,
 }
 
 ///
@@ -522,7 +523,7 @@ impl TalkContextBackgroundTasks {
             background_tasks.next_id    += 1;
 
             // Add to the list of background continuations
-            background_tasks.background_continuations.insert(continuation_id, continuation);
+            background_tasks.background_continuations.insert(continuation_id, Some(continuation));
 
             // Mark as awake
             background_tasks.awake_continuations.insert(continuation_id);
