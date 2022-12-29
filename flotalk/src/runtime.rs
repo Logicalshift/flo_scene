@@ -14,7 +14,7 @@ use once_cell::sync::{Lazy};
 use futures::prelude::*;
 use futures::future;
 use futures::lock;
-use futures::task::{Poll, Context};
+use futures::task::{Poll, Context, ArcWake};
 
 use flo_stream::*;
 
@@ -22,6 +22,17 @@ use std::collections::{HashSet, HashMap};
 use std::sync::*;
 
 // TODO: write and upgrade to a 'fair' mutex that processing wakeups in the order that they happen
+
+///
+/// Waker that sets a particular future to be woken before waking up the main future
+///
+struct BackgroundFutureWaker {
+    /// The ID of the future to mark as awake
+    future_id: usize,
+
+    /// The background tasks structure where the main waker and woken futures are stored
+    background_tasks: Arc<Mutex<TalkContextBackgroundTasks>>,
+}
 
 ///
 /// An owner for `TalkValues` that belong to a runtime
@@ -455,8 +466,14 @@ impl TalkRuntime {
 
                     if let Some(maybe_future) = maybe_future {
                         if let Some(mut future) = maybe_future {
-                            // TODO: create a waker for this future that marks it as 'awake'
-                            if let Poll::Pending = future.poll_unpin(future_context) {
+                            use futures::task;
+
+                            // Create a waker for this future that marks it as 'awake' to use with our new future
+                            let waker               = Arc::new(BackgroundFutureWaker { future_id: id, background_tasks: Arc::clone(&background_tasks) });
+                            let future_waker        = task::waker(waker);
+                            let mut future_context  = task::Context::from_waker(&future_waker);
+
+                            if let Poll::Pending = future.poll_unpin(&mut future_context) {
                                 // Future is still available to run, so add back again
                                 background_tasks.lock().unwrap().running_futures.insert(id, Some(future));
                             } else {
@@ -516,5 +533,21 @@ impl TalkReleasableOwner<TalkValue> for TalkOwnedByRuntime {
     fn release_value(&self, value: TalkValue) {
         // Add to the list of released values, to be freed up later
         self.released_values.lock().unwrap().push(value);
+    }
+}
+
+impl ArcWake for BackgroundFutureWaker {
+    fn wake_by_ref(arc_self: &Arc<Self>) {
+        // Mark the future as awake and retrieve the waker
+        let waker = {
+            let mut background_tasks = arc_self.background_tasks.lock().unwrap();
+            background_tasks.awake_futures.insert(arc_self.future_id);
+            background_tasks.waker.take()
+        };
+
+        // Wake up the background task if needed
+        if let Some(waker) = waker {
+            waker.wake();
+        }
     }
 }
