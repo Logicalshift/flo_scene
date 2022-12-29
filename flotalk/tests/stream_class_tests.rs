@@ -24,6 +24,64 @@ fn basic_stream() {
     });
 }
 
+#[test]
+fn basic_stream_repeatedly() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        for _ in 0..100 {
+            // Create a stream and send a simple message to it
+            let result = runtime.run(TalkScript::from("
+                | testStream |
+
+                testStream := Stream withSender: [ :output | output say: 42 ].
+                (testStream next) ifMatches: #say: do: [ :value | value ].
+            ")).await;
+
+            println!("{:?}", result);
+            assert!(*result == TalkValue::Int(42));
+        }
+    });
+}
+
+#[test]
+fn basic_stream_several_messages() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Create a stream and send a simple message to it
+        let result = runtime.run(TalkScript::from("
+            | testStream x |
+
+            testStream := Stream withSender: [ :output | 
+                output add: 1 .
+                output sub: 23 .
+                output add: 28 .
+                output mul: 7 .
+            ].
+
+            x := 0 .
+
+            | nextVal |
+            [
+                nextVal ifMatches: #add: do: [ :value | x := x + value ].
+                nextVal ifMatches: #sub: do: [ :value | x := x - value ].
+                nextVal ifMatches: #mul: do: [ :value | x := x * value ].
+            ] while: [
+                nextVal := testStream next.
+                ^(nextVal isNil) not
+            ].
+
+            x
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
 /*
 #[test]
 fn basic_stream_class() {
