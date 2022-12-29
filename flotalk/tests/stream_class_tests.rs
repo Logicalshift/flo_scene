@@ -11,25 +11,16 @@ fn basic_stream() {
         // Set up the standard runtime
         let runtime = TalkRuntime::with_standard_symbols().await;
 
-        let run_in_background = runtime.run_background_tasks();
-
         // Create a stream and send a simple message to it
         let result = runtime.run(TalkScript::from("
             | testStream |
 
             testStream := Stream withSender: [ :output | output say: 42 ].
             (testStream next) ifMatches: #say: do: [ :value | value ].
-        "));
+        ")).await;
 
-        let result = future::select(run_in_background.boxed(), result.boxed()).await;
-
-        match result {
-            Either::Left((_, _))        => assert!(false, "Background task finished first (?)"),
-            Either::Right((result, _))  => {
-                println!("{:?}", result);
-                assert!(*result == TalkValue::Int(42));
-            }
-        }
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
