@@ -377,7 +377,8 @@ impl TalkRuntime {
     /// Returns a future that will poll any background tasks contained by the context
     ///
     /// This can be run multiple times: only one running future will actually run the background tasks, and background tasks will progress provided at least
-    /// one of these futures exist.
+    /// one of these futures exist. It's not often necessary to call this manually as `run()` will run the background tasks while its future is running, but
+    /// this can be used in cases where the background tasks should continue to run even when there is no foreground script running.
     ///
     pub fn run_background_tasks(&self) -> impl Send + Future<Output=()> {
         use std::mem;
