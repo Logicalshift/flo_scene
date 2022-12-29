@@ -481,7 +481,18 @@ impl TalkRuntime {
                                 background_tasks.lock().unwrap().running_futures.remove(&id);
                             }
                         } else {
-                            // TODO: Future has been re-awakened while being polled (has a slot with value 'None') - need to re-poll it!
+                            // Future has been re-awakened while being polled (has a slot with value 'None') - need to re-poll it!
+                            debug_assert!(false, "Should only be one background runner in action at once");         // ... but this should also be a bug, only one background runner should be here
+
+                            let waker = {
+                                let mut background_tasks = background_tasks.lock().unwrap();
+                                background_tasks.awake_futures.insert(id);
+                                background_tasks.waker.take()
+                            };
+
+                            if let Some(waker) = waker {
+                                waker.wake();
+                            }
                         }
                     } else {
                         // Future has finished after being awakened (nothing more to do)
