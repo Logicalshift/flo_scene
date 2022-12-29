@@ -12,6 +12,7 @@ use super::value::*;
 
 use once_cell::sync::{Lazy};
 use futures::prelude::*;
+use futures::pin_mut;
 use futures::future;
 use futures::lock;
 use futures::task::{Poll, Context, ArcWake};
@@ -386,6 +387,9 @@ impl TalkRuntime {
         let waiting_for_release = Arc::clone(&self.waiting_for_release);
         let background_mutex    = Arc::clone(&self.background_mutex);
 
+        // Note this future is frequently dropped when 'run()' returns: the background tasks stay in the background_tasks object, and the
+        // background mutex ensures both that only one future actually runs the background tasks, and that another thread is woken up when
+        // that future gets abandoned
         async move {
             // Acquire the background mutex, so only one 'run in background' task can run at any one time
             let background_mutex = background_mutex.lock().await;
@@ -403,10 +407,8 @@ impl TalkRuntime {
 
             // Poll the background tasks
             future::poll_fn(move |future_context| {
-                // TODO: add a way to reawaken a thread if a different 'run_background_tasks' future is dropped
-
                 // Update the background task waker to reawaken this thread and get the IDs of the 'awake' continuations we need to poll
-                let mut awake_futures = {
+                let awake_futures = {
                     let mut background_tasks = background_tasks.lock().unwrap();
 
                     if background_tasks.context_dropped {
@@ -519,7 +521,21 @@ impl TalkRuntime {
     /// Runs a continuation or a script using this runtime
     ///
     pub fn run<'a>(&self, continuation: impl 'a + Into<TalkContinuation<'a>>) -> impl 'a + Send + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
-        Self::run_with_context(continuation, self.context.clone(), self.waiting_for_release.clone())
+        let background_tasks    = self.run_background_tasks();
+        let run_task            = Self::run_with_context(continuation, self.context.clone(), self.waiting_for_release.clone());
+
+        async move {
+            use futures::future::{Either};
+
+            pin_mut!(background_tasks);
+            pin_mut!(run_task);
+
+            // The background tasks future can only finish if the context is dropped (which in turn means that the runtime went away)
+            match future::select(run_task, background_tasks).await {
+                Either::Left((result, _))   => result,
+                Either::Right(_)            => TalkOwned::new(TalkError::RuntimeDropped.into(), TalkOwnedByRuntime { released_values: Arc::new(Mutex::new(vec![])) }),
+            }
+        }
     }
 
     ///
