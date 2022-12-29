@@ -12,6 +12,7 @@ use super::value_messages::*;
 use once_cell::sync::{Lazy};
 
 use futures::prelude::*;
+use futures::future::{BoxFuture};
 use futures::task;
 
 use std::collections::{HashSet, HashMap};
@@ -48,13 +49,14 @@ pub (crate) struct TalkContextBackgroundTasks {
     /// The next ID to assign to a continuation
     next_id: usize,
 
-    /// The continuations that are running in the background. These must be polled when the context is not 'locked' or owned by anything (as 
-    /// they may try to take ownership of the context themselves). The usize here is used to identify a which continuations are awake, and
-    /// continuations are set to 'None' while they are being polled (so they are only polled from one thread at a time).
-    pub (crate) background_continuations: HashMap<usize, Option<TalkContinuation<'static>>>,
+    /// Continuations that are awaiting to be scheduled
+    pub (crate) new_continuations: HashMap<usize, TalkContinuation<'static>>,
 
-    /// The continuations that have received a wakeup request (or which are newly added and not polled yet)
-    pub (crate) awake_continuations: HashSet<usize>,
+    /// Futures that are running on in the background (representing scheduled continuations)
+    pub (crate) running_futures: HashMap<usize, Option<BoxFuture<'static, ()>>>,
+
+    /// The futures that have received a wakeup request (or which are newly added and not polled yet)
+    pub (crate) awake_futures: HashSet<usize>,
 
     /// Set to true once the context has been dropped
     pub (crate) context_dropped: bool,
@@ -484,11 +486,12 @@ impl TalkContextBackgroundTasks {
     ///
     fn new() -> TalkContextBackgroundTasks {
         TalkContextBackgroundTasks {
-            next_id:                    0,
-            background_continuations:   HashMap::new(),
-            awake_continuations:        HashSet::new(),
-            context_dropped:            false,
-            waker:                      None,
+            next_id:            0,
+            new_continuations:  HashMap::new(),
+            running_futures:    HashMap::new(),
+            awake_futures:      HashSet::new(),
+            context_dropped:    false,
+            waker:              None,
         }
     }
 
@@ -523,10 +526,10 @@ impl TalkContextBackgroundTasks {
             background_tasks.next_id    += 1;
 
             // Add to the list of background continuations
-            background_tasks.background_continuations.insert(continuation_id, Some(continuation));
+            background_tasks.new_continuations.insert(continuation_id, continuation);
 
             // Mark as awake
-            background_tasks.awake_continuations.insert(continuation_id);
+            background_tasks.awake_futures.insert(continuation_id);
 
             // Wake up anything that's running the background continuations so that it runs this continuation for the first time
             background_tasks.waker.take()
