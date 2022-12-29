@@ -1,4 +1,5 @@
 use super::class::*;
+use super::continuation::*;
 use super::dispatch_table::*;
 use super::reference::*;
 use super::releasable::*;
@@ -10,6 +11,10 @@ use super::value_messages::*;
 
 use once_cell::sync::{Lazy};
 
+use futures::prelude::*;
+use futures::task;
+
+use std::collections::{HashSet, HashMap};
 use std::sync::*;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -37,6 +42,27 @@ struct TalkCellBlockStore {
 }
 
 ///
+/// Manages the background tasks in a TalkContext
+///
+pub (crate) struct TalkContextBackgroundTasks {
+    /// The next ID to assign to a continuation
+    next_id: usize,
+
+    /// The continuations that are running in the background. These must be polled when the context is not 'locked' or owned by anything (as 
+    /// they may try to take ownership of the context themselves). The usize here is used to identify a which continuations are awake
+    background_continuations: HashMap<usize, TalkContinuation<'static>>,
+
+    /// The continuations that have received a wakeup request (or which are newly added and not polled yet)
+    awake_continuations: HashSet<usize>,
+
+    /// Set to true once the context has been dropped
+    context_dropped: bool,
+
+    /// General waker, used to wake up the background tasks when a new task is added or if the main context is dropped
+    waker: Option<task::Waker>,
+}
+
+///
 /// A talk context is a self-contained representation of the state of a flotalk interpreter
 ///
 /// Contexts are only accessed on one thread at a time. They're wrapped by a `TalkRuntime`, which deals with
@@ -48,6 +74,9 @@ pub struct TalkContext {
 
     /// Dispatch tables by value
     pub (super) value_dispatch_tables: TalkValueDispatchTables,
+
+    /// Background tasks queued on this context
+    pub (super) background_tasks: Arc<Mutex<TalkContextBackgroundTasks>>,
 
     /// Storage cells that make up the heap for the interpreter
     cells: Vec<TalkCellBlockStore>,
@@ -82,6 +111,7 @@ impl TalkContext {
         TalkContext {
             context_callbacks:              vec![],
             value_dispatch_tables:          TalkValueDispatchTables::default(),
+            background_tasks:               Arc::new(Mutex::new(TalkContextBackgroundTasks::new())),
             cells:                          vec![TalkCellBlockStore { values: Box::new([]) }],
             cell_reference_count:           vec![AtomicU32::new(1)],
             cell_block_classes:             vec![],
@@ -431,6 +461,55 @@ impl TalkContext {
         let old_value = root_cell_block[symbol_index].take();
         root_cell_block[symbol_index] = new_value;
         old_value.release_in_context(self);
+    }
+
+    ///
+    /// Runs a continuation in the background (alongside any other continuations that might be running). Any result it produces will be discarded
+    ///
+    pub fn run_in_background(&self, continuation: TalkContinuation<'static>) {
+        TalkContextBackgroundTasks::add_background_continuation(&self.background_tasks, continuation);
+    }
+}
+
+impl TalkContextBackgroundTasks {
+    ///
+    /// Creates an empty set of background tasks
+    ///
+    fn new() -> TalkContextBackgroundTasks {
+        TalkContextBackgroundTasks {
+            next_id:                    0,
+            background_continuations:   HashMap::new(),
+            awake_continuations:        HashSet::new(),
+            context_dropped:            false,
+            waker:                      None,
+        }
+    }
+
+    ///
+    /// Adds a background continuation to these background tasks
+    ///
+    fn add_background_continuation(arc_self: &Arc<Mutex<TalkContextBackgroundTasks>>, continuation: TalkContinuation<'static>) {
+        let waker = {
+            let mut background_tasks = arc_self.lock().unwrap();
+
+            // Assign an ID to this continuation (this is used so we only poll continuations that are 'awake' so large numbers of background continuations can be efficiently handled)
+            let continuation_id         = background_tasks.next_id;
+            background_tasks.next_id    += 1;
+
+            // Add to the list of background continuations
+            background_tasks.background_continuations.insert(continuation_id, continuation);
+
+            // Mark as awake
+            background_tasks.awake_continuations.insert(continuation_id);
+
+            // Wake up anything that's running the background continuations so that it runs this continuation for the first time
+            background_tasks.waker.take()
+        };
+
+        // Wake up is done outside the lock (to make it impossible for a re-entry to deadlock anything)
+        if let Some(waker) = waker {
+            waker.wake();
+        }
     }
 }
 

@@ -65,7 +65,7 @@ impl TalkClassDefinition for TalkStreamClass {
 
                 // Run the sender
                 let run_sender = sender_block.send_message_in_context(TalkMessage::WithArguments(*TALK_MSG_VALUE, smallvec![sender_value.into()]), context);
-                // context.run_in_background(run_sender); -- TODO!
+                context.run_in_background(run_sender);
 
                 // Result is the receiver
                 receiver.into()
