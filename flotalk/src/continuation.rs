@@ -118,6 +118,36 @@ impl<'a> TalkContinuation<'a> {
     }
 
     ///
+    /// Once this continuation is finished without producing an error, perform the specified function on the result. If the continuation
+    /// returns an error, drop the 'and_then' portion and return the error instead.
+    ///
+    #[inline]
+    pub fn and_then_if_ok(self, and_then: impl 'static + Send + FnOnce(TalkValue) -> TalkContinuation<'static>) -> TalkContinuation<'a> {
+        self.and_then(|val| {
+            if let TalkValue::Error(_) = &val {
+                val.into()
+            } else {
+                and_then(val)
+            }
+        })
+    }
+
+    ///
+    /// If this continuation fails with an error, panic
+    ///
+    #[inline]
+    pub fn panic_on_error(self, message: impl Into<String>) -> TalkContinuation<'a> {
+        let message = message.into();
+        self.and_then(move |val| {
+            if let TalkValue::Error(err) = &val {
+                panic!("{}: {:?}", message, err);
+            } else {
+                val.into()
+            }
+        })
+    }
+
+    ///
     /// Once this continuation is finished, perform the specified function on the result
     ///
     #[inline]
