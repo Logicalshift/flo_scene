@@ -57,21 +57,19 @@ pub fn talk_init_streaming_class() -> TalkContinuation<'static> {
     }).and_then(|_| {
         // Define the class methods
         TalkScript::from("
-            [
-                | OriginalStream |
-                OriginalStream := Stream.
+            | OriginalStream |
+            OriginalStream := Stream.
 
-                Streaming addClassMethod: #subclass: withAction: [ :streamBlock |
-                    | subclass |
+            Streaming addClassMethod: #subclass: withAction: [ :streamBlock |
+                | subclass |
 
-                    subclass := Streaming subclassWithInstanceVariables: #messageStream:.
-                    subclass addInstanceMethod: #init withAction: [
-                        messageStream := OriginalStream withReceiver: streamBlock.
-                    ].
-
-                    ^subclass
+                subclass := Streaming subclassWithInstanceVariables: #messageStream:.
+                subclass addInstanceMethod: #init withAction: [
+                    messageStream := OriginalStream withReceiver: streamBlock.
                 ].
-            ] value
+
+                ^subclass
+            ].
         ").into()
     })
 }
