@@ -49,6 +49,7 @@ impl TalkClassDefinition for TalkStreamClass {
     ///
     fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         static TALK_MSG_WITHSENDER: Lazy<TalkMessageSignatureId>    = Lazy::new(|| ("withSender:").into());
+        static TALK_MSG_WITHRECEIVER: Lazy<TalkMessageSignatureId>  = Lazy::new(|| ("withReceiver:").into());
         static TALK_MSG_VALUE: Lazy<TalkMessageSignatureId>         = Lazy::new(|| ("value:").into());
 
         if message_id == *TALK_MSG_WITHSENDER {
@@ -69,6 +70,24 @@ impl TalkClassDefinition for TalkStreamClass {
 
                 // Result is the receiver
                 receiver.into()
+            })
+        } else if message_id == *TALK_MSG_WITHRECEIVER {
+            let mut args        = args;
+            let receiver_block  = args[0].take();
+
+            TalkContinuation::soon(move |context| {
+                // Create a sender and a receiver
+                let (sender_value, receiver_stream) = create_talk_sender::<TalkMessage>(context);
+                let sender_value                    = sender_value.leak();
+                let receiver                        = create_talk_receiver(receiver_stream, context);
+                let receiver                        = receiver.leak();
+
+                // Run the receiver
+                let run_receiver = receiver_block.send_message_in_context(TalkMessage::WithArguments(*TALK_MSG_VALUE, smallvec![receiver.into()]), context);
+                context.run_in_background(run_receiver);
+
+                // Result is the sender
+                sender_value.into()
             })
         } else {
             TalkError::MessageNotSupported(message_id).into()

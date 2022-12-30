@@ -25,6 +25,41 @@ fn basic_stream() {
 }
 
 #[test]
+fn stream_receiver() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Create a stream and send a simple message to it
+        let result = runtime.run(TalkScript::from("
+            | testStream readyStream readyStreamSender |
+
+            \"Here's how we get the sender and receiver in one place: send the sender via a message\"
+            readyStream         := Stream withSender: [ :sender | sender ready: sender ].
+            readyStreamSender   := (readyStream next) ifMatches: #ready: do: [ :value | value ].
+
+            \"Stream that receives instructions (eg: addOne:) and sends responses to the readyStreamSender\"
+            testStream := Stream withReceiver: [ :input |
+                | nextVal |
+                [
+                    nextVal ifMatches: #addOne: do: [ :value | readyStreamSender relay: value + 1 ]
+                ] while: [
+                    nextVal := input next.
+                    ^(nextVal isNil) not
+                ]
+            ].
+
+            \"Now sending an addOne message to 41 should relay a 42 back again\"
+            testStream addOne: 41 .
+            ^(readyStream next) ifMatches: #relay: do: [ :value | value ]
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
 fn basic_stream_repeatedly() {
     executor::block_on(async {
         // Set up the standard runtime
