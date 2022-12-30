@@ -61,7 +61,7 @@ pub fn talk_init_streaming_class() -> TalkContinuation<'static> {
             | OriginalStream |
             OriginalStream := Stream.
 
-            Streaming addClassMethod: #subclass: withAction: [ :streamBlock |
+            Streaming addClassMessage: #subclass: withAction: [ :streamBlock |
                 | subclass |
 
                 subclass := Streaming subclassWithInstanceVariables: #messageStream:.
