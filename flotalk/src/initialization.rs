@@ -8,8 +8,9 @@ use crate::script_continuation::*;
 ///
 pub fn talk_init_standard_classes() -> TalkContinuation<'static> {
     talk_init_object_class()
-        .and_then(|_| talk_init_stream_class())
-        .and_then(|_| talk_init_streaming_class())
+        .and_then_if_ok(|_| talk_init_stream_class())
+        .and_then_if_ok(|_| talk_init_streaming_class())
+        .panic_on_error("While initializing")
 }
 
 ///
