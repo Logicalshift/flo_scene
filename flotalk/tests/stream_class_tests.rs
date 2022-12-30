@@ -129,7 +129,7 @@ fn basic_stream_class() {
             | numCalls TestClass testObject |
 
             numCalls := 0 .
-            TestClass := StreamingClass subclass: [ 
+            TestClass := Streaming subclass: [ 
                 :messages |
 
                 | nextMessage |
