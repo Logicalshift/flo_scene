@@ -19,6 +19,9 @@ use once_cell::sync::{Lazy};
 
 use std::sync::*;
 
+/// `newValue := Object new` will send the 'init' instance message before returning its result
+pub static TALK_MSG_INIT: Lazy<TalkMessageSignatureId> = Lazy::new(|| "init".into());
+
 /// `NewClass := Object subclass` will define a new class by subclassing Object. The new class will have no instance variables
 pub static TALK_MSG_SUBCLASS: Lazy<TalkMessageSignatureId> = Lazy::new(|| "subclass".into());
 
@@ -335,7 +338,11 @@ impl TalkScriptClass {
                             let handle      = TalkDataHandle(cell_block.0 as _);
                             let reference   = TalkReference(class_id, handle);
 
-                            TalkValue::Reference(reference).into()
+                            // Call the 'init' message and return the reference
+                            reference.clone_in_context(context).send_message_in_context(TalkMessage::Unary(*TALK_MSG_INIT), context)
+                                .and_then(|_| {
+                                    TalkValue::Reference(reference).into()
+                                })
                         }
                     }
                 })
@@ -442,6 +449,9 @@ impl TalkClassDefinition for TalkScriptClassClass {
                 // Register the class with the context
                 let script_class = TalkReference(class_id, script_class);
                 talk_context.declare_cell_block_class(script_class.clone_in_context(talk_context), cell_block_class);
+
+                // Define an empty 'init' instance method for the new class
+                talk_context.get_callbacks_mut(cell_block_class).dispatch_table.define_message(*TALK_MSG_INIT, |_, _, _| { ().into() });
 
                 // Result is a reference to the script class (this acts as the class object instead of a TalkClass object)
                 script_class.into()

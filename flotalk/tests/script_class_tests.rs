@@ -22,6 +22,74 @@ fn unsupported_message() {
 }
 
 #[test]
+fn unsupported_message_in_instance() {
+    let test_source     = "
+        | x |
+
+        x := Object new.
+        x unsupported
+    ";
+
+    executor::block_on(async { 
+        // Set up the runtime with the standard set of symbols (which includes 'Object')
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Run the test script with the 'Object' class defined
+        let result = runtime.run(TalkScript::from(test_source)).await;
+
+        // Should generate an error
+        assert!(match &*result {
+            TalkValue::Error(TalkError::MessageNotSupported(_)) => true,
+            _ => false
+        });
+    });
+}
+
+#[test]
+fn init_is_supported() {
+    // Init is called just after 'new' as an opportunity to set up the new class
+    let test_source     = "
+        | x |
+
+        x := Object new.
+        x init
+    ";
+
+    executor::block_on(async { 
+        // Set up the runtime with the standard set of symbols (which includes 'Object')
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Run the test script with the 'Object' class defined
+        let result = runtime.run(TalkScript::from(test_source)).await;
+
+        // Should return nil
+        assert!(*result == TalkValue::Nil);
+    });
+}
+
+#[test]
+fn init_is_supported_in_subclass() {
+    // Init is called just after 'new' as an opportunity to set up the new class
+    let test_source     = "
+        | Subclass x |
+        Subclass := Object subclass.
+        x := Subclass new.
+        x init
+    ";
+
+    executor::block_on(async { 
+        // Set up the runtime with the standard set of symbols (which includes 'Object')
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Run the test script with the 'Object' class defined
+        let result = runtime.run(TalkScript::from(test_source)).await;
+
+        // Should return nil
+        assert!(*result == TalkValue::Nil);
+    });
+}
+
+#[test]
 fn create_subclass() {
     let test_source     = "Object subclass";
 
@@ -60,6 +128,31 @@ fn create_subclass_with_instance_variables() {
             TalkValue::Reference(new_class) => new_class.class() == *SCRIPT_CLASS_CLASS,
             _ => false
         });
+    });
+}
+
+#[test]
+fn subclass_with_init() {
+    let test_source = "
+        | SomeSubclass someInstance var1 |
+
+        SomeSubclass := Object subclassWithInstanceVariables: #var1:.
+        SomeSubclass addInstanceMessage: #init withAction: [ var1 := 42 ].
+        SomeSubclass addInstanceMessage: #getVar1 withAction: [ var1 ].
+
+        someInstance := SomeSubclass new.
+        var1 := 3.
+        ^someInstance getVar1
+    ";
+
+    executor::block_on(async { 
+        // Test creates a subclass with an instance variable and sets it in the init method, then we read from there
+        // (Also assigns a global 'var1' to guard against the instance variables not being set properly)
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        let result  = runtime.run(TalkScript::from(test_source)).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
     });
 }
 
