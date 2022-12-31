@@ -1,5 +1,6 @@
-use super::sender_class::*;
 use super::receiver_class::*;
+use super::script_class::*;
+use super::sender_class::*;
 
 use crate::allocator::*;
 use crate::context::*;
@@ -89,6 +90,10 @@ impl TalkClassDefinition for TalkStreamClass {
                 // Result is the sender
                 sender_value.into()
             })
+        } else if message_id == *TALK_MSG_SUBCLASS {
+
+            TalkScriptClassClass::create_subclass(class_id, vec![*TALK_MSG_WITHSENDER, *TALK_MSG_WITHRECEIVER])
+
         } else {
             TalkError::MessageNotSupported(message_id).into()
         }
