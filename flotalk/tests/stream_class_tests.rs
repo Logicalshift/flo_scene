@@ -128,9 +128,11 @@ fn subclass_stream() {
             | testStream StreamSubclass |
 
             StreamSubclass := Stream subclass.
+            StreamSubclass addInstanceMessage: #nextSay withAction: [ :self |
+                ^(self next) ifMatches: #say: do: [ :value | value ]
+            ].
 
-            testStream := StreamSubclass withSender: [ :output | output say: 42 ].
-            (testStream next) ifMatches: #say: do: [ :value | value ].
+            StreamSubclass nextSay
         ")).await;
 
         println!("{:?}", result);
