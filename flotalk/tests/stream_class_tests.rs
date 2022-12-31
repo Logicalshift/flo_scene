@@ -86,7 +86,7 @@ fn basic_stream_several_messages() {
         // Set up the standard runtime
         let runtime = TalkRuntime::with_standard_symbols().await;
 
-        // Create a stream and send a simple message to it
+        // Create a stream and send a set of messages to it
         let result = runtime.run(TalkScript::from("
             | testStream x |
 
@@ -110,6 +110,27 @@ fn basic_stream_several_messages() {
             ].
 
             x
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn subclass_stream() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Create a stream from a subclass and send a simple message to it
+        let result = runtime.run(TalkScript::from("
+            | testStream StreamSubclass |
+
+            StreamSubclass := Stream subclass.
+
+            testStream := StreamSubclass withSender: [ :output | output say: 42 ].
+            (testStream next) ifMatches: #say: do: [ :value | value ].
         ")).await;
 
         println!("{:?}", result);
