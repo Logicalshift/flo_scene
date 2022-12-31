@@ -128,11 +128,33 @@ fn subclass_stream() {
             | testStream StreamSubclass |
 
             StreamSubclass := Stream subclass.
+
+            testStream := StreamSubclass withSender: [ :output | output say: 42 ].
+            (testStream next) ifMatches: #say: do: [ :value | value ]
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn subclass_stream_and_add_instance_message() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Create a stream from a subclass and send a simple message to it
+        let result = runtime.run(TalkScript::from("
+            | testStream StreamSubclass |
+
+            StreamSubclass := Stream subclass.
             StreamSubclass addInstanceMessage: #nextSay withAction: [ :self |
                 ^(self next) ifMatches: #say: do: [ :value | value ]
             ].
 
-            StreamSubclass nextSay
+            testStream := StreamSubclass withSender: [ :output | output say: 42 ].
+            testStream nextSay
         ")).await;
 
         println!("{:?}", result);
