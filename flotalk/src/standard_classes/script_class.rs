@@ -101,7 +101,7 @@ impl TalkScriptClassClass {
     ///
     /// This provides a way to implement the `subclass` and `subclassWithInstanceVariables:` messages for any class
     ///
-    pub fn create_subclass(superclass: TalkClass) -> TalkContinuation<'static> {
+    pub fn create_subclass(superclass: TalkClass, constructor_messages: Vec<TalkMessageSignatureId>) -> TalkContinuation<'static> {
         TalkContinuation::soon(move |context| {
             // Generate a new script class reference
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
@@ -137,6 +137,38 @@ impl TalkScriptClassClass {
                             superclass_ref.send_message_in_context(TalkMessage::WithArguments(msg, args.leak()), context)
                         }
                     });
+
+                    // Set up the constructor messages for the new class
+                    let class_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).class_dispatch_table;
+                    constructor_messages.into_iter()
+                        .for_each(|constructor_message_id| {
+                            let cell_class_id = cell_class_id;
+
+                            class_dispatch_table.define_message(constructor_message_id, move |_, args, context| {
+                                // Construct the superclass
+                                if args.len() == 0 {
+                                    superclass.send_message_in_context(TalkMessage::Unary(constructor_message_id), context)
+                                } else {
+                                    superclass.send_message_in_context(TalkMessage::WithArguments(constructor_message_id, args.leak()), context)
+                                }.and_then_soon_if_ok(move |new_class_value, context| {
+                                    // Allocate space for this instance
+                                    let cell_block = context.allocate_cell_block(1);
+
+                                    // The first value is always a reference to the superclass
+                                    context.cell_block_mut(cell_block)[0] = new_class_value;
+
+                                    // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
+                                    let handle      = TalkDataHandle(cell_block.0 as _);
+                                    let reference   = TalkReference(cell_class_id, handle);
+
+                                    // Call the 'init' message and return the reference
+                                    reference.clone_in_context(context).send_message_in_context(TalkMessage::Unary(*TALK_MSG_INIT), context)
+                                        .and_then(|_| {
+                                            TalkValue::Reference(reference).into()
+                                        })
+                                })
+                            })
+                        });
 
                     // Final result is the new class reference
                     new_class_reference.into()
@@ -373,27 +405,22 @@ impl TalkScriptClass {
                     // Send the 'new' message to the superclass
                     superclass.retain(context);
                     superclass.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
-                }).and_then_soon(move |superclass, context| {
-                    match superclass {
-                        TalkValue::Error(err)   => err.into(),
-                        _                       => {
-                            // Allocate space for this instance
-                            let cell_block = context.allocate_cell_block(instance_size);
+                }).and_then_soon_if_ok(move |superclass, context| {
+                    // Allocate space for this instance
+                    let cell_block = context.allocate_cell_block(instance_size);
 
-                            // The first value is always a reference to the superclass
-                            context.cell_block_mut(cell_block)[0] = superclass;
+                    // The first value is always a reference to the superclass
+                    context.cell_block_mut(cell_block)[0] = superclass;
 
-                            // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
-                            let handle      = TalkDataHandle(cell_block.0 as _);
-                            let reference   = TalkReference(class_id, handle);
+                    // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
+                    let handle      = TalkDataHandle(cell_block.0 as _);
+                    let reference   = TalkReference(class_id, handle);
 
-                            // Call the 'init' message and return the reference
-                            reference.clone_in_context(context).send_message_in_context(TalkMessage::Unary(*TALK_MSG_INIT), context)
-                                .and_then(|_| {
-                                    TalkValue::Reference(reference).into()
-                                })
-                        }
-                    }
+                    // Call the 'init' message and return the reference
+                    reference.clone_in_context(context).send_message_in_context(TalkMessage::Unary(*TALK_MSG_INIT), context)
+                        .and_then(|_| {
+                            TalkValue::Reference(reference).into()
+                        })
                 })
             } else {
                 TalkContinuation::soon(move |context| {
