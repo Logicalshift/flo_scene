@@ -97,6 +97,55 @@ impl TalkReleasable for TalkScriptClass {
 
 impl TalkScriptClassClass {
     ///
+    /// Creates a subclass of a class that is not itself a script class
+    ///
+    /// This provides a way to implement the `subclass` and `subclassWithInstanceVariables:` messages for any class
+    ///
+    pub fn create_subclass(superclass: TalkClass) -> TalkContinuation<'static> {
+        TalkContinuation::soon(move |context| {
+            // Generate a new script class reference
+            SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
+        }).and_then_if_ok(move |new_class_reference| {
+            // Set the superclass for the new class
+            TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class, _| {
+                // Set the superclass
+                script_class.superclass_id = Some(superclass);
+
+                // No script superclass
+                script_class.superclass_script_class = None;
+
+                // As this is a subclass, location 0 is a pointer to the superclass
+                script_class.instance_variables.lock().unwrap().define_symbol(*TALK_SUPER);
+
+                // Fetch the class ID of the subclass (this will always be a cell class)
+                let cell_class_id = script_class.class_id;
+                TalkContinuation::soon(move |context| {
+                    // Set the class dispatch table to call the superclass for an unsupported message
+                    let instance_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).dispatch_table;
+
+                    instance_dispatch_table.define_not_supported(move |cell_block_reference, msg, args, context| {
+                        // As we know that the 'cell block' reference is has cell block handle, we can convert the data handle directly to a CellBlock
+                        let cell_block = TalkCellBlock(cell_block_reference.1.0 as _);
+
+                        // For classes with a superclass, the first value in the cell block is the superclass reference
+                        let superclass_ref = &context.cell_block(cell_block)[0];
+                        let superclass_ref = superclass_ref.clone_in_context(context);
+
+                        if args.len() == 0 {
+                            superclass_ref.send_message_in_context(TalkMessage::Unary(msg), context)
+                        } else {
+                            superclass_ref.send_message_in_context(TalkMessage::WithArguments(msg, args.leak()), context)
+                        }
+                    });
+
+                    // Final result is the new class reference
+                    new_class_reference.into()
+                })
+            })
+        })
+    }
+
+    ///
     /// Creates a subclass of a superclass
     ///
     /// The parent_class reference is assumed to not be owned by this function
