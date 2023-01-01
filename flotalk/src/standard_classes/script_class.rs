@@ -58,7 +58,7 @@ pub struct TalkScriptClassClass;
 /// * `Subclass := Object subclass` - create a new subclass from Object
 /// * `Subsubclass := Subclass subclass` - ... and so on
 /// * `Subclass := Object subclassWithInstanceVariables: #foo:` - create a subclass with the instance variable 'foo' declared
-/// * `Subclass addClassMessage: #classMessage: withAction: [ :arg :superclass | "..." ]` - add a class message to a subclass
+/// * `Subclass addClassMessage: #classMessage: withAction: [ :arg :Self | "..." ]` - add a class message to a subclass
 /// * `Subclass addInstanceMessage: #instanceMessage: withAction: [ :arg :self | "..." ]` - add an instance message (instance variables will be available from within the block, as will the `super` variable, which is implemented as another instance variable)
 /// * `Subclass addClassMessage: #newSuperclass withAction: [ Object new ]` - the `newSuperclass` class message can be used to change how the `super` variable is initially set up
 /// * `Subclass addInstanceMessage: #init withAction: [ :self | "..." ]` - the `init` message can be used to change how the new subclass sets up after being created
@@ -368,7 +368,7 @@ impl TalkScriptClass {
     ///
     /// Processes a standard class message directed at a script class
     ///
-    fn process_standard_message(&mut self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference) -> TalkContinuation<'static> {
+    fn process_standard_class_message(&mut self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference) -> TalkContinuation<'static> {
         // Predefined messages
         if message_id == *TALK_MSG_SUBCLASS {
 
@@ -498,6 +498,10 @@ impl TalkScriptClass {
             // Try to dispatch to this table
             if let Some(class_dispatch_table) = class_dispatch_table {
                 if class_dispatch_table.responds_to(message_id) {
+                    // Add the original target to the end of the arguments (so it's possible to get the 'real' class later on)
+                    let mut args = args;
+                    args.push(original_target.clone_in_context(talk_context).into());
+
                     // If the class dispatch table responds to the message, forward it there instead
                     let message = if args.len() == 0 {
                         TalkMessage::Unary(message_id)
@@ -517,7 +521,7 @@ impl TalkScriptClass {
                 } else {
                     // Not found (or with a non-script class superclass): process against the original message
                     TalkContinuation::read_value::<TalkScriptClassClass, _>(TalkValue::Reference(original_target.clone()), move |script_class, talk_context| {
-                        script_class.process_standard_message(message_id, TalkOwned::new(args, talk_context), original_target)
+                        script_class.process_standard_class_message(message_id, TalkOwned::new(args, talk_context), original_target)
                     })
                 }
             })

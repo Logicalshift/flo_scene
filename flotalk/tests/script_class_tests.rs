@@ -509,6 +509,40 @@ fn call_superclass_from_instance_method() {
 }
 
 #[test]
+fn use_original_class_to_define_instance_message() {
+    // Define a class with a message that creates an instance message on the class it's sent to (rather than the class that owns the message)
+    let test_source = "
+    [ 
+        | NewClass SubClass one two | 
+
+        NewClass := Object subclassWithInstanceVariables: #val.
+        NewClass addClassMessage: #testCreateInstanceMessage: withAction: [ :value :Self | Self addInstanceMessage: #test withAction: [ value ] ].
+
+        SubClass := NewClass subclass.
+
+        SubClass testCreateInstanceMessage: 32 .
+        NewClass testCreateInstanceMessage: 10 .
+
+        one := NewClass new.
+        two := SubClass new.
+
+        ^(one test) + (two test)
+    ] value";
+
+    executor::block_on(async { 
+        // Set up the runtime with the standard set of symbols (which includes 'Object')
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Run the test script with the 'Object' class defined
+        let result = runtime.run(TalkScript::from(test_source)).await;
+
+        // Should return 42
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
 fn define_instance_message_without_self() {
     let test_source     = "
     [ 
