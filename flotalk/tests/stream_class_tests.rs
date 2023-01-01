@@ -171,7 +171,9 @@ fn basic_stream_class() {
 
         // Script that creates a basic stream class, which processes messages asynchronously
         let result = runtime.run(TalkScript::from("
-            | numCalls TestClass testObject |
+            | numCalls TestClass testObject whenReady |
+
+            whenReady := Later new.
 
             numCalls := 0 .
             TestClass := Streaming subclass: [ 
@@ -179,7 +181,8 @@ fn basic_stream_class() {
 
                 | nextMessage |
                 [
-                    nextMessage ifMatches: #addCalls: do: [ :value | numCalls := numCalls + 1 ].
+                    nextMessage ifMatches: #addCalls: do: [ :value | numCalls := numCalls + value ].
+                    nextMessage ifMatches: #signalReady do: [ whenReady setValue: 0 ].
                 ] while: [
                     nextMessage := messages next.
                     ^(nextMessage isNil) not
@@ -190,12 +193,14 @@ fn basic_stream_class() {
 
             testObject := TestClass new.
             testObject addCalls: 2 .
+            testObject addCalls: 4 .
+            testObject signalReady.
 
-            \"numCalls\"
-            2 \"TODO\"
+            whenReady value.
+            numCalls
         ")).await;
 
         println!("{:?}", *result);
-        assert!(*result == TalkValue::Int(2));
+        assert!(*result == TalkValue::Int(6));
     });
 }
