@@ -162,7 +162,6 @@ fn subclass_stream_and_add_instance_message() {
     });
 }
 
-/*
 #[test]
 fn basic_stream_class() {
     executor::block_on(async {
@@ -189,7 +188,7 @@ fn basic_stream_class() {
             TestClass supportMessage: #addCalls:.
 
             testObject := TestClass new.
-            testObject addCalls: 2.
+            testObject addCalls: 2 .
 
             numCalls
         ")).await;
@@ -198,4 +197,3 @@ fn basic_stream_class() {
         assert!(*result == TalkValue::Int(2));
     });
 }
-*/
