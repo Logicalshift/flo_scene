@@ -22,6 +22,9 @@ use std::sync::*;
 /// `newValue := Object new` will send the 'init' instance message before returning its result
 pub static TALK_MSG_INIT: Lazy<TalkMessageSignatureId> = Lazy::new(|| "init".into());
 
+/// When `new` is called on a script class, the superclass is created by calling `newSuperclass` (this allows for customizing how superclasses are created)
+pub static TALK_MSG_NEWSUPERCLASS: Lazy<TalkMessageSignatureId> = Lazy::new(|| "newSuperclass".into());
+
 /// `NewClass := Object subclass` will define a new class by subclassing Object. The new class will have no instance variables
 pub static TALK_MSG_SUBCLASS: Lazy<TalkMessageSignatureId> = Lazy::new(|| "subclass".into());
 
@@ -393,19 +396,43 @@ impl TalkScriptClass {
                 TalkValue::Nil.into()
             }
 
+        } else if message_id == *TALK_MSG_NEWSUPERCLASS {
+
+            // Default is just to call 'new' on the superclass
+            if let Some(superclass) = &self.superclass_script_class {
+                // Send the 'new' message to the script class
+                let superclass = superclass.clone();
+
+                TalkContinuation::soon(move |context| {
+                    superclass.clone_in_context(context).send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
+                })
+            } else if let Some(superclass) = self.superclass_id {
+                // Send the 'new' message to the superclass class ID
+                TalkContinuation::soon(move |context| {
+                    superclass.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
+                })
+            } else {
+                ().into()
+            }
+
         } else if message_id == *TALK_MSG_NEW {
 
             // Create a new instance of this class (with empty instance variables)
             let instance_size   = self.instance_variables.lock().unwrap().len();
             let class_id        = self.class_id;
 
-            if let Some(superclass) = &self.superclass_script_class {
-                let superclass = superclass.clone();
+            if self.superclass_script_class.is_some() || self.superclass_id.is_some() {
+                let reference1 = reference.clone();
+                let reference2 = reference;
+
                 TalkContinuation::soon(move |context| {
-                    // Send the 'new' message to the superclass
-                    superclass.retain(context);
-                    superclass.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
+                    let reference = reference1;
+
+                    // Send the 'newSuperclass' message to ourselves
+                    reference.clone_in_context(context).send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEWSUPERCLASS), context)
                 }).and_then_soon_if_ok(move |superclass, context| {
+                    let reference = reference2;
+
                     // Allocate space for this instance
                     let cell_block = context.allocate_cell_block(instance_size);
 
