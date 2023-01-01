@@ -43,10 +43,25 @@ pub static SCRIPT_CLASS_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(
 ///
 /// This class is a factory for other classes: it creates TalkScriptClass objects
 ///
+/// This not typically used directly but indirectly to create the base 'Object' class, or when subclassing another
+/// class (eg: a custom class might call `TalkScriptClass::create_subclass()`). Sending a 'new' message to this
+/// creates a new empty script class.
+///
 pub struct TalkScriptClassClass;
 
 ///
 /// This represents an instance of a talk script class
+///
+/// There's typically an instance of this referenced by the `Object` symbol:
+///
+/// * `Object new` - create a new object
+/// * `Subclass := Object subclass` - create a new subclass from Object
+/// * `Subsubclass := Subclass subclass` - ... and so on
+/// * `Subclass := Object subclassWithInstanceVariables: #foo:` - create a subclass with the instance variable 'foo' declared
+/// * `Subclass addClassMessage: #classMessage: withAction: [ :arg :superclass | "..." ]` - add a class message to a subclass
+/// * `Subclass addInstanceMessage: #instanceMessage: withAction: [ :arg :self | "..." ]` - add an instance message (instance variables will be available from within the block, as will the `super` variable, which is implemented as another instance variable)
+/// * `Subclass addClassMessage: #newSuperclass withAction: [ Object new ]` - the `newSuperclass` class message can be used to change how the `super` variable is initially set up
+/// * `Subclass addInstanceMessage: #init withAction: [ :self | "..." ]` - the `init` message can be used to change how the new subclass sets up after being created
 ///
 pub struct TalkScriptClass {
     /// The ID of the TalkCellBlockClass that this script class is associated with
