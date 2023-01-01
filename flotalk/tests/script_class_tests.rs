@@ -354,6 +354,35 @@ fn call_superclass_from_class_method() {
 }
 
 #[test]
+fn change_superclass_using_new_superclass() {
+    let test_source     = "
+    [ 
+        | NewClass1 NewClass2 NewClass3 | 
+        NewClass1 := Object subclass. 
+        NewClass1 addInstanceMessage: #foo withAction: [ :foo :super | 12 ].
+        NewClass2 := Object subclass.
+        NewClass2 addInstanceMessage: #foo withAction: [ :bar :super | 42 ].
+
+        NewClass3 := NewClass1 subclass.
+        NewClass3 addClassMessage: #newSuperclass withAction: [ NewClass2 new ].
+        ^(NewClass3 new) foo
+    ] value";
+
+    executor::block_on(async { 
+        // Set up the runtime with the standard set of symbols (which includes 'Object')
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Run the test script with the 'Object' class defined
+        let result = runtime.run(TalkScript::from(test_source)).await;
+
+        // Should return 42. NewClass3 subclasses NewClass1 but actually creates NewClass2 as the superclass when being instantiated.
+        // (Normally this is for setting up superclasses with more complicated constructors but can be used to change the superclass entirely)
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
 fn define_instance_message() {
     let test_source     = "
     [ 
