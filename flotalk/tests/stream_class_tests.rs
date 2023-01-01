@@ -34,9 +34,10 @@ fn stream_receiver() {
         let result = runtime.run(TalkScript::from("
             | testStream readyStream readyStreamSender |
 
-            \"Here's how we get the sender and receiver in one place: send the sender via a message\"
-            readyStream         := Stream withSender: [ :sender | sender ready: sender ].
-            readyStreamSender   := (readyStream next) ifMatches: #ready: do: [ :value | value ].
+            \"Here's how we get the sender and receiver in one place: a Later variable\"
+            readyStreamSender   := Later new.
+            readyStream         := Stream withSender: [ :sender | readyStreamSender setValue: sender ].
+            readyStreamSender   := readyStreamSender value.
 
             \"Stream that receives instructions (eg: addOne:) and sends responses to the readyStreamSender\"
             testStream := Stream withReceiver: [ :input |

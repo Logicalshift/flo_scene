@@ -82,6 +82,9 @@ pub enum TalkError {
     /// A symbol was used that's not bound to any value
     UnboundSymbol(TalkSymbol),
 
+    /// A 'later' value has already been sent to the target
+    AlreadySentValue,
+
     /// An object is already busy servicing another request so the new request cannot be processed
     Busy,
 }
