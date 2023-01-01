@@ -86,6 +86,7 @@ pub fn talk_init_streaming_class() -> TalkContinuation<'static> {
 
                 ^subclass
             ].
+
             Streaming addClassMessage: #supportMessage: withAction: [ :message | 
             ].
         ").into()
