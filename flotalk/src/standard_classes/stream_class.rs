@@ -19,17 +19,17 @@ use once_cell::sync::{Lazy};
 use std::sync::*;
 
 /// The 'stream' class, creates asynchronous generator style sender/receiver streams
-pub static STREAM_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkStreamClass { }));
+pub static STREAM_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkStreamClass));
 
 ///
 /// The `Stream` class, which can be used to receive values from an asynchronous stream
 ///
 /// A stream can be created like this: `someReceiver := Stream withSender: [ :messageSender | messageSender hello: foo ].`
-/// Here, `someReceiver` will be a receiver object and `messageSender` 
+/// Here, `someReceiver` will be a receiver object and `messageSender`.
 ///
-pub struct TalkStreamClass {
-
-}
+/// The reverse is also possible: `someSender := Stream withReceiver: [ :receiver | (receiver next) ifMatches: #hello: do: [ "..." ] ]`
+///
+pub struct TalkStreamClass;
 
 impl TalkClassDefinition for TalkStreamClass {
     /// The type of the data stored by an object of this class (this particular class is never instantiated)
