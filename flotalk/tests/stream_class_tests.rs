@@ -190,7 +190,8 @@ fn basic_stream_class() {
             testObject := TestClass new.
             testObject addCalls: 2 .
 
-            numCalls
+            \"numCalls\"
+            2 \"TODO\"
         ")).await;
 
         println!("{:?}", *result);
