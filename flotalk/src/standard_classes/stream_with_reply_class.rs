@@ -94,27 +94,27 @@ impl TalkClassDefinition for TalkStreamWithReplyClass {
         static TALK_MSG_VALUE: Lazy<TalkMessageSignatureId>         = Lazy::new(|| ("value:").into());
 
         if message_id == *TALK_MSG_WITHSENDER {
-            /*
-            // The first argument is the sender block
             let mut args        = args;
             let sender_block    = args[0].take();
 
-            TalkContinuation::soon(move |context| {
-                // Create a sender and a receiver
-                let (sender_value, receiver_stream) = create_talk_sender::<TalkMessage>(context);
-                let sender_value                    = sender_value.leak();
-                let receiver                        = create_talk_receiver(receiver_stream, context);
-                let receiver                        = receiver.leak();
+            // Create the stream object
+            let (sender, receiver)  = mpsc::channel(1);
+            let stream_object       = TalkStreamWithReply { sender };
+            let stream_object       = allocator.lock().unwrap().store(stream_object);
+            let stream_object       = TalkValue::Reference(TalkReference(class_id, stream_object));
 
-                // Run the sender
-                let run_sender = sender_block.send_message_in_context(TalkMessage::WithArguments(*TALK_MSG_VALUE, smallvec![sender_value.into()]), context);
+            TalkContinuation::soon(move |context| {
+                // Create the receiver object for this stream
+                let receiver    = create_talk_receiver(receiver, context);
+                let receiver    = receiver.leak();
+
+                // Run the receiver
+                let run_sender = sender_block.send_message_in_context(TalkMessage::WithArguments(*TALK_MSG_VALUE, smallvec![stream_object.into()]), context);
                 context.run_in_background(run_sender);
 
                 // Result is the receiver
                 receiver.into()
             })
-            */
-            todo!()
 
         } else if message_id == *TALK_MSG_WITHRECEIVER {
             let mut args        = args;
@@ -126,7 +126,7 @@ impl TalkClassDefinition for TalkStreamWithReplyClass {
             let stream_object       = TalkValue::Reference(TalkReference(class_id, stream_object));
 
             TalkContinuation::soon(move |context| {
-                // Create a sender and a receiver
+                // Create the receiver for this stream
                 let receiver            = create_talk_receiver(receiver, context);
                 let receiver            = receiver.leak();
 
@@ -137,7 +137,7 @@ impl TalkClassDefinition for TalkStreamWithReplyClass {
                 // Result is the stream
                 stream_object.into()
             })
-            
+
         } else if message_id == *TALK_MSG_SUBCLASS {
 
             TalkScriptClassClass::create_subclass(class_id, vec![*TALK_MSG_WITHSENDER, *TALK_MSG_WITHRECEIVER])
