@@ -137,6 +137,7 @@ impl TalkClassDefinition for TalkStreamWithReplyClass {
                 // Result is the stream
                 stream_object.into()
             })
+            
         } else if message_id == *TALK_MSG_SUBCLASS {
 
             TalkScriptClassClass::create_subclass(class_id, vec![*TALK_MSG_WITHSENDER, *TALK_MSG_WITHRECEIVER])

@@ -244,3 +244,32 @@ fn basic_stream_class_with_later() {
         assert!(*result == TalkValue::Int(42));
     });
 }
+
+#[test]
+fn basic_stream_with_reply() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Script that creates a basic stream class, which processes messages asynchronously
+        let result = runtime.run(TalkScript::from("
+            | sender |
+
+            sender := StreamWithReply withReceiver: [ :receiver | 
+                | nextMsg |
+
+                [
+                    nextMsg ifMatches: #result:addOne: do: [ :result :val | result setValue: val + 1 ].
+                ] while: [
+                    nextMsg := receiver next.
+                    ^(nextMsg isNil) not
+                ].
+            ].
+
+            sender addOne: 41
+        ")).await;
+
+        println!("{:?}", *result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
