@@ -60,26 +60,27 @@ pub fn talk_init_later_class() -> TalkContinuation<'static> {
 ///
 pub fn talk_init_streaming_class() -> TalkContinuation<'static> {
     TalkContinuation::soon(|talk_context| {
-        SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
-    }).and_then(|script_class| {
-        // Start from a new base class and call it 'Streaming'
+        // Subclass 'Stream' to make the 'Streaming' class
+        TalkScript::from("Stream subclass").into()
+    }).and_then_if_ok(|streaming_class| {
+        // Store in the 'Streaming' variable
         TalkContinuation::soon(move |talk_context| {
-            talk_context.set_root_symbol_value("Streaming", script_class);
+            talk_context.set_root_symbol_value("Streaming", streaming_class);
             ().into()
         })
-    }).and_then(|_| {
+    }).and_then_if_ok(|_| {
         // Define the class methods
         TalkScript::from("
-            | OriginalStream |
-            OriginalStream := Stream.
+            | OriginalStreaming |
+            OriginalStreaming := Streaming.
 
             Streaming addClassMessage: #subclass: withAction: [ :streamBlock |
                 | subclass |
 
-                subclass := Streaming subclass.
+                subclass := OriginalStreaming subclass.
                 subclass addClassMessage: #newSuperclass withAction: [
                     | stream |
-                    stream := OriginalStream withReceiver: streamBlock.
+                    stream := OriginalStreaming withReceiver: streamBlock.
 
                     stream
                 ].
