@@ -213,7 +213,7 @@ fn basic_stream_class_with_later() {
 
         // Script that creates a basic stream class, which processes messages asynchronously
         let result = runtime.run(TalkScript::from("
-            | TestClass testObject result |
+            | TestClass testObject |
 
             TestClass := Streaming subclass: [ 
                 :messages |
@@ -228,12 +228,16 @@ fn basic_stream_class_with_later() {
             ].
 
             TestClass supportMessage: #addOne:withResult:.
+            TestClass addInstanceMessage: #addOne: withAction: [ :value :self | 
+                | result |
+
+                result := Later new.
+                self addOne: value withResult: result.
+                result value
+            ].
 
             testObject := TestClass new.
-            result := Later new.
-            testObject addOne: 41 withResult: result.
-
-            result value.
+            testObject addOne: 41
         ")).await;
 
         println!("{:?}", *result);
