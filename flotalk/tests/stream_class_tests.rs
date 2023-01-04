@@ -204,3 +204,39 @@ fn basic_stream_class() {
         assert!(*result == TalkValue::Int(6));
     });
 }
+
+#[test]
+fn basic_stream_class_with_later() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Script that creates a basic stream class, which processes messages asynchronously
+        let result = runtime.run(TalkScript::from("
+            | TestClass testObject result |
+
+            TestClass := Streaming subclass: [ 
+                :messages |
+
+                | nextMessage |
+                [
+                    nextMessage ifMatches: #addOne:withResult: do: [ :value :later | later setValue: value + 1 ]
+                ] while: [
+                    nextMessage := messages next.
+                    ^(nextMessage isNil) not
+                ]
+            ].
+
+            TestClass supportMessage: #addOne:withResult:.
+
+            testObject := TestClass new.
+            result := Later new.
+            testObject addOne: 41 withResult: result.
+
+            result value.
+        ")).await;
+
+        println!("{:?}", *result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
