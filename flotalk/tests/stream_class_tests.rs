@@ -190,6 +190,7 @@ fn basic_stream_class() {
             ].
 
             TestClass supportMessage: #addCalls:.
+            TestClass supportMessage: #signalReady.
 
             testObject := TestClass new.
             testObject addCalls: 2 .
@@ -271,5 +272,43 @@ fn basic_stream_with_reply() {
 
         println!("{:?}", *result);
         assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn basic_stream_class_with_reply() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Script that creates a basic stream class, which processes messages asynchronously
+        let result = runtime.run(TalkScript::from("
+            | numCalls TestClass testObject |
+
+            numCalls := 0 .
+            TestClass := StreamingWithReply subclass: [ 
+                :messages |
+
+                | nextMessage |
+                [
+                    nextMessage ifMatches: #result:addCalls: do: [ :result :value | numCalls := numCalls + value. result setValue: 0 ].
+                    nextMessage ifMatches: #resultForNumCalls: do: [ :result | result setValue: numCalls ].
+                ] while: [
+                    nextMessage := messages next.
+                    ^(nextMessage isNil) not
+                ]
+            ].
+
+            TestClass supportMessage: #addCalls:.
+            TestClass supportMessage: #numCalls.
+
+            testObject := TestClass new.
+            testObject addCalls: 2 .
+            testObject addCalls: 4 .
+            testObject numCalls
+        ")).await;
+
+        println!("{:?}", *result);
+        assert!(*result == TalkValue::Int(6));
     });
 }

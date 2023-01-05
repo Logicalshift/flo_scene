@@ -12,6 +12,7 @@ pub fn talk_init_standard_classes() -> TalkContinuation<'static> {
         .and_then_if_ok(|_| talk_init_stream_with_reply_class())
         .and_then_if_ok(|_| talk_init_later_class())
         .and_then_if_ok(|_| talk_init_streaming_class())
+        .and_then_if_ok(|_| talk_init_streaming_with_reply_class())
         .panic_on_error("While initializing")
 }
 
@@ -101,6 +102,50 @@ pub fn talk_init_streaming_class() -> TalkContinuation<'static> {
             ].
 
             Streaming addClassMessage: #supportMessage: withAction: [ :message | 
+            ].
+        ").into()
+    })
+}
+
+///
+/// Returns a continuation that will create the 'StreamingWithReply' class definition
+///
+/// Requires 'StreamWithReply' to already be initialised.
+///
+/// `StreamingWithReply` is a base class that can be used to create objects that handle messages as a stream rather
+/// usual instance messages. It 
+///
+pub fn talk_init_streaming_with_reply_class() -> TalkContinuation<'static> {
+    TalkContinuation::soon(|talk_context| {
+        // Subclass 'Stream' to make the 'Streaming' class
+        TalkScript::from("StreamWithReply subclass").into()
+    }).and_then_if_ok(|streaming_class| {
+        // Store in the 'Streaming' variable
+        TalkContinuation::soon(move |talk_context| {
+            talk_context.set_root_symbol_value("StreamingWithReply", streaming_class);
+            ().into()
+        })
+    }).and_then_if_ok(|_| {
+        // Define the class methods
+        TalkScript::from("
+            | OriginalStreamingWithReply |
+            OriginalStreamingWithReply := StreamingWithReply.
+
+            StreamingWithReply addClassMessage: #subclass: withAction: [ :streamBlock |
+                | subclass |
+
+                subclass := OriginalStreamingWithReply subclass.
+                subclass addClassMessage: #newSuperclass withAction: [
+                    | stream |
+                    stream := OriginalStreamingWithReply withReceiver: streamBlock.
+
+                    stream
+                ].
+
+                ^subclass
+            ].
+
+            StreamingWithReply addClassMessage: #supportMessage: withAction: [ :message | 
             ].
         ").into()
     })
