@@ -175,10 +175,10 @@ impl TalkClassDefinition for TalkStreamWithReplyClass {
                 match old_sig {
                     TalkMessageSignature::Unary(symbol)   => {
                         // `#unary` -> `#resultForUnary`
-                        let new_symbol_name = format!("resultFor{}", capitalized(symbol.name()));
+                        let new_symbol_name = format!("resultFor{}:", capitalized(symbol.name()));
 
                         // Convert to a message sig ID
-                        let new_sig = TalkMessageSignatureId::from(TalkMessageSignature::Unary(new_symbol_name.into()));
+                        let new_sig = TalkMessageSignatureId::from(TalkMessageSignature::Arguments(smallvec![new_symbol_name.into()]));
 
                         // Store in the cache
                         sig_cache.insert(message_id.into(), new_sig);
