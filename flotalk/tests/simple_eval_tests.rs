@@ -34,6 +34,23 @@ fn add_numbers() {
 }
 
 #[test]
+fn cascade_messages() {
+    let test_source     = "38 abs; asFloat";
+    let runtime         = TalkRuntime::empty();
+
+    executor::block_on(async { 
+        let test_source     = stream::iter(test_source.chars());
+        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
+        let instructions    = expr.value.to_instructions();
+        println!("{:?}", instructions);
+
+        let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
+
+        assert!(*result == TalkValue::Float(38.0));
+    });
+}
+
+#[test]
 fn equal_numbers() {
     let test_source     = "(38 + 4) == 42";
     let runtime         = TalkRuntime::empty();
