@@ -99,9 +99,10 @@ fn basic_stream_several_messages() {
 
             | nextVal |
             [
-                nextVal ifMatches: #add: do: [ :value | x := x + value ].
-                nextVal ifMatches: #sub: do: [ :value | x := x - value ].
-                nextVal ifMatches: #mul: do: [ :value | x := x * value ].
+                nextVal 
+                    ifMatches: #add: do: [ :value | x := x + value ];
+                    ifMatches: #sub: do: [ :value | x := x - value ];
+                    ifMatches: #mul: do: [ :value | x := x * value ].
             ] while: [
                 nextVal := testStream next.
                 ^(nextVal isNil) not
@@ -178,8 +179,9 @@ fn basic_stream_class() {
 
                 | nextMessage |
                 [
-                    nextMessage ifMatches: #addCalls: do: [ :value | numCalls := numCalls + value ].
-                    nextMessage ifMatches: #signalReady do: [ whenReady setValue: 0 ].
+                    nextMessage 
+                        ifMatches: #addCalls: do: [ :value | numCalls := numCalls + value ];
+                        ifMatches: #signalReady do: [ whenReady setValue: 0 ].
                 ] while: [
                     nextMessage := messages next.
                     ^(nextMessage isNil) not
@@ -349,8 +351,9 @@ fn basic_stream_class_with_reply() {
 
                 | nextMessage |
                 [
-                    nextMessage ifMatches: #result:addCalls: do: [ :result :value | numCalls := numCalls + value. result setValue: 0 ].
-                    nextMessage ifMatches: #resultForNumCalls: do: [ :result | result setValue: numCalls ].
+                    nextMessage 
+                        ifMatches: #result:addCalls: do: [ :result :value | numCalls := numCalls + value. result setValue: 0 ];
+                        ifMatches: #resultForNumCalls: do: [ :result | result setValue: numCalls ].
                 ] while: [
                     nextMessage := messages next.
                     ^(nextMessage isNil) not
@@ -387,8 +390,9 @@ fn basic_stream_class_with_no_reply() {
 
                 | nextMessage |
                 [
-                    nextMessage ifMatches: #result:addCalls: do: [ :result :value | numCalls := numCalls + value. result setValue: 0 ].
-                    nextMessage ifMatches: #resultForNumCalls: do: [ :result | result setValue: numCalls ].
+                    nextMessage
+                        ifMatches: #result:addCalls: do: [ :result :value | numCalls := numCalls + value. result setValue: 0 ];
+                        ifMatches: #resultForNumCalls: do: [ :result | result setValue: numCalls ].
                 ] while: [
                     nextMessage := nil. \"TODO: this is not very ergonomic, need to clear the nextMessage before retrieving the next value right now.\"
                     nextMessage := messages next.
