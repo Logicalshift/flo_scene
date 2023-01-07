@@ -242,10 +242,22 @@ where
                 let new_value   = frame.stack.pop().unwrap();
                 let symbol      = TalkSymbol::from(symbol);
 
-                if let Some(()) = frame.with_symbol_value(symbol, context, move |value| *value = new_value) {
-                    // Value stored
+                // Retrieve the binding for the symbol
+                if let Some(binding) = frame.symbol_table.symbol(symbol) {
+                    use std::mem;
+
+                    // Fetch the cell block containing the value
+                    let cell_block  = frame.bindings[binding.frame as usize];
+                    let cell_block  = context.cell_block_mut(cell_block);
+
+                    // Swap the new value into the cell block
+                    let mut old_value = new_value;
+                    mem::swap(&mut cell_block[binding.cell as usize], &mut old_value);
+
+                    // Release the old value
+                    old_value.release_in_context(context);
                 } else {
-                    // TODO: declare in the outer state?
+                    // TODO: declare in the outer state? (Actually, it's nicer if we don't, forces the user to declare their variables explicitly)
                     return TalkWaitState::Finished(TalkValue::Error(TalkError::UnboundSymbol(symbol)));
                 }
             }

@@ -43,7 +43,6 @@ fn split_out_sender() {
     });
 }
 
-/* -- TODO: never actually drops the sender
 #[test]
 fn error_if_sender_dropped() {
     executor::block_on(async {
@@ -65,4 +64,3 @@ fn error_if_sender_dropped() {
         assert!(*result == TalkValue::Error(TalkError::NoResult));
     });
 }
-*/
