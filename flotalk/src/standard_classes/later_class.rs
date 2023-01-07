@@ -50,13 +50,13 @@ impl TalkReleasable for TalkLater {
     fn release_in_context(mut self, context: &TalkContext) { 
         if let Some(set_value) = self.set_value.lock().unwrap().take() {
             if let Some(default_value) = self.default_value.take() {
+                // Store the default value in 'value' (will be released when the number of references reaches 0)
+                *self.value.lock().unwrap() = Some(default_value.clone());
+
                 // Retain the default value for every sender
                 for _ in set_value.iter() {
                     default_value.retain(context);
                 }
-
-                // Release the default value retained by us
-                default_value.release(context);
 
                 // Send the default value to all of the receivers
                 for sender in set_value.into_iter() {
@@ -65,11 +65,14 @@ impl TalkReleasable for TalkLater {
             }
         }
 
-        if let Some(value) = self.value.lock().unwrap().take() {
-            value.release(context);
+        if Arc::strong_count(&self.value) <= 1 {
+            // Release the value if we're the last 'later' object sharing it
+            if let Some(value) = self.value.lock().unwrap().take() {
+                value.release(context);
+            }
         }
 
-        if let Some(default_value) = self.value.lock().unwrap().take() {
+        if let Some(default_value) = self.default_value.take() {
             default_value.release(context);
         }
     }
