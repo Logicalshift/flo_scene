@@ -178,7 +178,7 @@ impl TalkMessage {
     ///
     /// Releases all the references contained in this message
     ///
-    pub fn release(self, context: &TalkContext) {
+    pub fn release(&self, context: &TalkContext) {
         match self {
             TalkMessage::Unary(_)               => { }
             TalkMessage::WithArguments(_, args) => { context.release_values(args); }
