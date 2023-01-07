@@ -153,6 +153,7 @@ impl TalkClassDefinition for TalkStreamWithReplyClass {
         static TALK_MSG_NEW: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| ("new").into());
         static TALK_MSG_VALUE: Lazy<TalkMessageSignatureId>                     = Lazy::new(|| ("value").into());
         static SIG_CACHE: Lazy<Mutex<TalkSparseArray<TalkMessageSignatureId>>>  = Lazy::new(|| Mutex::new(TalkSparseArray::empty()));
+        static TALK_MSG_SENDER: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| ("sender").into());
 
         // Every message is sent to the sender with a new 'later' object attached
         let mut allocator   = allocator.lock().unwrap();
@@ -201,17 +202,21 @@ impl TalkClassDefinition for TalkStreamWithReplyClass {
             };
 
             // Generate the new message using the signature
-            let mut args = args;
-            args.insert(0, later_reference.clone_in_context(talk_context));
-
-            let message = TalkMessage::WithArguments(new_signature, args);
+            let later_sender    = later_reference.clone_in_context(talk_context);
+            let later_sender    = later_sender.send_message_in_context(TalkMessage::Unary(*TALK_MSG_SENDER), talk_context);
 
             // Start waiting for the result
             let wait_for_result = later_reference.send_message_in_context(TalkMessage::Unary(*TALK_MSG_VALUE), talk_context);
 
             // Send to the stream, then wait for the result
-            TalkContinuation::future_value(async move { sender.send(message).await.ok(); ().into() })
-                .and_then(move |_| wait_for_result)
+            later_sender.and_then_soon_if_ok(move |later_sender, talk_context| {
+                let mut args = args;
+                args.insert(0, later_sender);
+
+                let message = TalkMessage::WithArguments(new_signature, args);
+
+                TalkContinuation::future_value(async move { sender.send(message).await.ok(); ().into() })
+            }).and_then(move |_| wait_for_result)
         })
     }
 }
