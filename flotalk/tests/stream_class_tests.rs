@@ -260,6 +260,7 @@ fn basic_stream_class_dropping_later() {
                 [
                     nextMessage ifMatches: #addOne:withResult: do: [ :value :later | later := 0 . ]
                 ] while: [
+                    nextMessage := nil. \"TODO: this is not very ergonomic, need to clear the nextMessage before retrieving the next value right now.\"
                     nextMessage := messages next.
                     ^(nextMessage isNil) not
                 ]
@@ -321,7 +322,7 @@ fn basic_stream_with_no_reply() {
                 | nextMsg |
 
                 nextMsg := receiver next.
-                nextMsg := 0 .
+                nextMsg := nil.
             ].
 
             sender notSupported
@@ -389,6 +390,7 @@ fn basic_stream_class_with_no_reply() {
                     nextMessage ifMatches: #result:addCalls: do: [ :result :value | numCalls := numCalls + value. result setValue: 0 ].
                     nextMessage ifMatches: #resultForNumCalls: do: [ :result | result setValue: numCalls ].
                 ] while: [
+                    nextMessage := nil. \"TODO: this is not very ergonomic, need to clear the nextMessage before retrieving the next value right now.\"
                     nextMessage := messages next.
                     ^(nextMessage isNil) not
                 ]
