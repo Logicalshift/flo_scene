@@ -187,7 +187,7 @@ impl TalkContext {
     /// Releases multiple references using this context
     ///
     #[inline]
-    pub fn release_values(&self, values: impl IntoIterator<Item=TalkValue>) {
+    pub fn release_values<'a>(&self, values: impl IntoIterator<Item=&'a TalkValue>) {
         for value in values {
             match value {
                 TalkValue::Reference(reference) => {
