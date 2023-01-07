@@ -42,13 +42,13 @@ pub struct TalkLaterClass;
 ///
 pub struct TalkLater {
     default_value:  Option<TalkValue>,
-    set_value:      Option<Vec<oneshot::Sender<TalkValue>>>,
-    value:          Option<TalkValue>,
+    set_value:      Arc<Mutex<Option<Vec<oneshot::Sender<TalkValue>>>>>,
+    value:          Arc<Mutex<Option<TalkValue>>>,
 }
 
 impl TalkReleasable for TalkLater { 
     fn release_in_context(mut self, context: &TalkContext) { 
-        if let Some(set_value) = self.set_value.take() {
+        if let Some(set_value) = self.set_value.lock().unwrap().take() {
             if let Some(default_value) = self.default_value.take() {
                 // Retain the default value for every sender
                 for _ in set_value.iter() {
@@ -65,11 +65,11 @@ impl TalkReleasable for TalkLater {
             }
         }
 
-        if let Some(value) = self.value.take() {
+        if let Some(value) = self.value.lock().unwrap().take() {
             value.release(context);
         }
 
-        if let Some(default_value) = self.value.take() {
+        if let Some(default_value) = self.value.lock().unwrap().take() {
             default_value.release(context);
         }
     }
@@ -101,8 +101,8 @@ impl TalkClassDefinition for TalkLaterClass {
             // Create a new 'Later' data object
             let new_value           = TalkLater {
                 default_value:  None,
-                set_value:      Some(vec![]),
-                value:          None,
+                set_value:      Arc::new(Mutex::new(Some(vec![]))),
+                value:          Arc::new(Mutex::new(None)),
             };
 
             // Store in the allocator
@@ -120,8 +120,8 @@ impl TalkClassDefinition for TalkLaterClass {
             // Create a new 'Later' data object
             let new_value           = TalkLater {
                 default_value:  None,
-                set_value:      Some(vec![]),
-                value:          None,
+                set_value:      Arc::new(Mutex::new(Some(vec![]))),
+                value:          Arc::new(Mutex::new(None)),
             };
 
             // Store in the allocator
@@ -165,14 +165,15 @@ impl TalkClassDefinition for TalkLaterClass {
             // Fetch the 'later' object
             let mut allocator   = allocator.lock().unwrap();
             let mut later       = allocator.retrieve(reference.1);
+            let maybe_value     = later.value.lock().unwrap().clone();
 
-            if let Some(value) = later.value.clone() {
+            if let Some(value) = maybe_value {
                 // Value has already been generated, just re-use it
                 TalkContinuation::soon(move |context| {
                     value.retain(context);
                     value.into()
                 })
-            } else if let Some(senders) = &mut later.set_value {
+            } else if let Some(senders) = &mut *later.set_value.lock().unwrap() {
                 // Wait for something to generate the value
                 let (sender, receiver) = oneshot::channel();
                 senders.push(sender);
@@ -192,13 +193,13 @@ impl TalkClassDefinition for TalkLaterClass {
             let mut later       = allocator.retrieve(reference.1);
 
             // Take the senders if no value has been sent yet
-            let senders         = later.set_value.take();
+            let senders         = later.set_value.lock().unwrap().take();
             let senders         = if let Some(senders) = senders { senders } else { return TalkError::AlreadySentValue.into(); };
 
             // Argument 0 is the value to set
             let mut args    = args;
             let new_value   = args[0].take();
-            later.value     = Some(new_value.clone());
+            *later.value.lock().unwrap() = Some(new_value.clone());
 
             // Retain once more per sender, then send the results
             TalkContinuation::soon(move |context| {
@@ -222,14 +223,14 @@ impl TalkClassDefinition for TalkLaterClass {
             let mut later       = allocator.retrieve(reference.1);
 
             // Take the senders if no value has been sent yet
-            let senders         = later.set_value.take();
-            let senders         = if let Some(senders) = senders { senders } else { return TalkError::AlreadySentValue.into(); };
+            let senders         = Arc::clone(&later.set_value);
+            if senders.lock().unwrap().is_none() { return TalkError::AlreadySentValue.into(); }
 
             // Create a new 'later' object that will return an error if it's not actually set
             let new_value       = TalkLater {
                 default_value:  Some(TalkValue::Error(TalkError::NoResult)),
-                set_value:      Some(senders),
-                value:          None,
+                set_value:      senders,
+                value:          Arc::clone(&later.value),
             };
 
             // Store in the allocator
