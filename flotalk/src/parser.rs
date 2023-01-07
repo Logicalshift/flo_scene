@@ -270,6 +270,7 @@ where
             number.push('.');
             self.next().await;
 
+            let mut matched_floating_point = false;
             while let Some(chr) = self.peek().await {
                 // Stop if the peeked character isn't part of a number
                 if !is_number(chr) {
@@ -277,11 +278,16 @@ where
                 }
 
                 // Consume this character
+                matched_floating_point = true;
                 number.push(chr);
                 self.next().await;
             }
 
-            if self.peek().await == Some('e') {
+            if !matched_floating_point {
+                // Matched a '.' and nother further: we treat '1.' as '1' and leave the '.' as a statement separator
+                number.pop();
+                self.pushback('.');
+            } else if self.peek().await == Some('e') {
                 // Exponent
                 number.push('e');
                 self.next().await;

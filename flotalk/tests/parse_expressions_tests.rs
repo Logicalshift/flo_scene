@@ -165,7 +165,6 @@ fn two_numbers_block_1() {
     ]));
 }
 
-/* -- TODO!
 #[test]
 fn two_numbers_block_2() {
     let test_source     = "[ 1. 2 ]";
@@ -180,7 +179,6 @@ fn two_numbers_block_2() {
         TalkExpression::Literal(TalkLiteral::Number(Arc::new("2".to_string()))),
     ]));
 }
-*/
 
 #[test]
 fn arguments_block() {
