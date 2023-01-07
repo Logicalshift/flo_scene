@@ -251,7 +251,7 @@ impl TalkValue {
 
             Reference(reference)    => reference.release(context),
             Array(values)           => values.iter().for_each(|val| val.release(context)),
-            Message(msg)            => msg.release_in_context(context),
+            Message(msg)            => msg.release(context),
         }
     }
 
