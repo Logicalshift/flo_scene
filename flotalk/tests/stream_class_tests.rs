@@ -273,6 +273,35 @@ fn basic_stream_with_reply() {
 }
 
 #[test]
+fn basic_stream_with_no_reply() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Script that creates a basic stream class, which processes messages asynchronously
+        let result = runtime.run(TalkScript::from("
+            | sender |
+
+            sender := StreamWithReply withReceiver: [ :receiver | 
+                | nextMsg |
+
+                [
+                    nextMsg ifMatches: #result:addOne: do: [ :result :val | result setValue: val + 1 ].
+                ] while: [
+                    nextMsg := receiver next.
+                    ^(nextMsg isNil) not
+                ].
+            ].
+
+            sender notSupported
+        ")).await;
+
+        println!("{:?}", *result);
+        assert!(*result == TalkValue::Error(TalkError::NoResult));
+    });
+}
+
+#[test]
 fn basic_stream_class_with_reply() {
     executor::block_on(async {
         // Set up the standard runtime
