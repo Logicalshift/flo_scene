@@ -244,6 +244,41 @@ fn basic_stream_class_with_later() {
 }
 
 #[test]
+fn basic_stream_class_dropping_later() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Script that creates a basic stream class, which processes messages asynchronously
+        let result = runtime.run(TalkScript::from("
+            | TestClass testObject laterResult |
+
+            TestClass := Streaming subclass: [ 
+                :messages |
+
+                | nextMessage |
+                [
+                    nextMessage ifMatches: #addOne:withResult: do: [ :value :later | later := 0 . ]
+                ] while: [
+                    nextMessage := messages next.
+                    ^(nextMessage isNil) not
+                ]
+            ].
+
+            TestClass supportMessage: #addOne:withResult:.
+            laterResult := Later new.
+
+            testObject := TestClass new.
+            testObject addOne: 41 withResult: (laterResult sender).
+            laterResult value.
+        ")).await;
+
+        println!("{:?}", *result);
+        assert!(*result == TalkValue::Error(TalkError::NoResult));
+    });
+}
+
+#[test]
 fn basic_stream_with_reply() {
     executor::block_on(async {
         // Set up the standard runtime
