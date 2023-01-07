@@ -11,7 +11,6 @@ use super::value_messages::*;
 
 use once_cell::sync::{Lazy};
 
-use futures::prelude::*;
 use futures::future::{BoxFuture};
 use futures::task;
 

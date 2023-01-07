@@ -47,7 +47,7 @@ where
     TItem: Send + TalkMessageType,
 {
     #[inline]
-    fn release_in_context(self, context: &TalkContext) { }
+    fn release_in_context(self, _context: &TalkContext) { }
 }
 
 impl<TItem> TalkClassDefinition for TalkSenderClass<TItem>
@@ -96,7 +96,7 @@ where
             // Result is an error if we can't convert the message, or a continuation that sends to the sender
             match item {
                 Err(err)    => err.into(),
-                Ok(item)    => TalkContinuation::future_value(async move { sender.lock().await.send(item).await; TalkValue::Nil })
+                Ok(item)    => TalkContinuation::future_value(async move { sender.lock().await.send(item).await.ok(); TalkValue::Nil })
             }
         })
     }

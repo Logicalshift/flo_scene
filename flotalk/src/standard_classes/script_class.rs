@@ -437,17 +437,10 @@ impl TalkScriptClass {
             let class_id        = self.class_id;
 
             if self.superclass_script_class.is_some() || self.superclass_id.is_some() {
-                let reference1 = reference.clone();
-                let reference2 = reference;
-
                 TalkContinuation::soon(move |context| {
-                    let reference = reference1;
-
                     // Send the 'newSuperclass' message to ourselves
                     reference.clone_in_context(context).send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEWSUPERCLASS), context)
                 }).and_then_soon_if_ok(move |superclass, context| {
-                    let reference = reference2;
-
                     // Allocate space for this instance
                     let cell_block = context.allocate_cell_block(instance_size);
 

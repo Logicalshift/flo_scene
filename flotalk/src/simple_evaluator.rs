@@ -10,7 +10,6 @@ use super::symbol::*;
 use super::symbol_table::*;
 use super::value::*;
 
-use futures::task::{Poll};
 use smallvec::*;
 
 use std::sync::*;

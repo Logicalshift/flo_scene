@@ -10,8 +10,6 @@ use futures::prelude::*;
 use futures::future::{BoxFuture};
 use futures::task::{Poll, Context};
 
-use std::mem;
-
 ///
 /// Raw functions return a continuation, which specifies how a result may be retrieved
 ///
@@ -219,7 +217,7 @@ impl TalkContinuation<'static> {
                         Soon(soon)      => { while_continuation = soon(talk_context); }
                         Later(later)    => {
                             // Put back in a continuation
-                            let mut later           = TalkContinuation::Later(later);
+                            let later               = TalkContinuation::Later(later);
 
                             let mut action          = Some(action);
                             let mut while_condition = Some(while_condition);

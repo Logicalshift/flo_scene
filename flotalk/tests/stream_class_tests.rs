@@ -1,8 +1,5 @@
 use flo_talk::*;
 
-use futures::prelude::*;
-use futures::future;
-use futures::future::{Either};
 use futures::executor;
 
 #[test]

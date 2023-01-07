@@ -6,7 +6,6 @@ use crate::allocator::*;
 use crate::context::*;
 use crate::class::*;
 use crate::continuation::*;
-use crate::dispatch_table::*;
 use crate::error::*;
 use crate::message::*;
 use crate::reference::*;

@@ -6,7 +6,6 @@ use crate::allocator::*;
 use crate::context::*;
 use crate::class::*;
 use crate::continuation::*;
-use crate::dispatch_table::*;
 use crate::error::*;
 use crate::message::*;
 use crate::reference::*;
@@ -48,7 +47,7 @@ impl TalkClassDefinition for TalkStreamClass {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         static TALK_MSG_WITHSENDER: Lazy<TalkMessageSignatureId>    = Lazy::new(|| ("withSender:").into());
         static TALK_MSG_WITHRECEIVER: Lazy<TalkMessageSignatureId>  = Lazy::new(|| ("withReceiver:").into());
         static TALK_MSG_VALUE: Lazy<TalkMessageSignatureId>         = Lazy::new(|| ("value:").into());
@@ -102,7 +101,7 @@ impl TalkClassDefinition for TalkStreamClass {
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _reference: TalkReference, _allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
     }
 }

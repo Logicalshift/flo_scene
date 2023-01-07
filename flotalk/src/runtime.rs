@@ -385,7 +385,6 @@ impl TalkRuntime {
         use futures::task;
 
         let weak_context        = Arc::downgrade(&self.context);
-        let waiting_for_release = Arc::clone(&self.waiting_for_release);
         let background_mutex    = Arc::clone(&self.background_mutex);
 
         // Note this future is frequently dropped when 'run()' returns: the background tasks stay in the background_tasks object, and the
@@ -425,7 +424,6 @@ impl TalkRuntime {
                         for (id, continuation) in new_continuations {
                             // Start the continuation running as a future
                             let weak_context        = weak_context.clone();
-                            let waiting_for_release = waiting_for_release.clone();
                             let run_continuation    = async move {
                                 let mut continuation = continuation;
 

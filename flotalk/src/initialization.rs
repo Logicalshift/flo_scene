@@ -72,7 +72,7 @@ pub fn talk_init_later_class() -> TalkContinuation<'static> {
 /// usual instance messages.
 ///
 pub fn talk_init_streaming_class() -> TalkContinuation<'static> {
-    TalkContinuation::soon(|talk_context| {
+    TalkContinuation::soon(|_talk_context| {
         // Subclass 'Stream' to make the 'Streaming' class
         TalkScript::from("Stream subclass").into()
     }).and_then_soon_if_ok(|streaming_class, talk_context| {
@@ -114,7 +114,7 @@ pub fn talk_init_streaming_class() -> TalkContinuation<'static> {
 /// usual instance messages. It 
 ///
 pub fn talk_init_streaming_with_reply_class() -> TalkContinuation<'static> {
-    TalkContinuation::soon(|talk_context| {
+    TalkContinuation::soon(|_talk_context| {
         // Subclass 'Stream' to make the 'Streaming' class
         TalkScript::from("StreamWithReply subclass").into()
     }).and_then_if_ok(|streaming_class| {

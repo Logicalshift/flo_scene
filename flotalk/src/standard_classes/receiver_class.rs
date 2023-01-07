@@ -48,7 +48,7 @@ where
     TStream: 'static + Send + Unpin + Stream<Item=TalkMessage>,
 {
     #[inline]
-    fn release_in_context(self, context: &TalkContext) { }
+    fn release_in_context(self, _context: &TalkContext) { }
 }
 
 impl<TStream> TalkClassDefinition for TalkReceiverClass<TStream>
@@ -75,7 +75,7 @@ where
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, _arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_NEXT {
             // Create a continuation to read the next value from the receiver: this borrows the receiver while it's running so 
             let mut allocator       = allocator.lock().unwrap();

@@ -4,7 +4,6 @@ use crate::allocator::*;
 use crate::context::*;
 use crate::class::*;
 use crate::continuation::*;
-use crate::dispatch_table::*;
 use crate::error::*;
 use crate::message::*;
 use crate::reference::*;
@@ -167,7 +166,7 @@ impl TalkClassDefinition for TalkLaterClass {
 
             // Fetch the 'later' object
             let mut allocator   = allocator.lock().unwrap();
-            let mut later       = allocator.retrieve(reference.1);
+            let later           = allocator.retrieve(reference.1);
             let maybe_value     = later.value.lock().unwrap().clone();
 
             if let Some(value) = maybe_value {
@@ -193,7 +192,7 @@ impl TalkClassDefinition for TalkLaterClass {
 
             // Fetch the 'later' object
             let mut allocator   = allocator.lock().unwrap();
-            let mut later       = allocator.retrieve(reference.1);
+            let later           = allocator.retrieve(reference.1);
 
             // Take the senders if no value has been sent yet
             let senders         = later.set_value.lock().unwrap().take();
@@ -223,7 +222,7 @@ impl TalkClassDefinition for TalkLaterClass {
 
             // Fetch the 'later' object
             let mut allocator   = allocator.lock().unwrap();
-            let mut later       = allocator.retrieve(reference.1);
+            let later           = allocator.retrieve(reference.1);
 
             // Take the senders if no value has been sent yet
             let senders         = Arc::clone(&later.set_value);
