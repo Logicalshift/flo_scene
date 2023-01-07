@@ -181,7 +181,7 @@ impl TalkClassDefinition for TalkLaterClass {
                 senders.push(sender);
 
                 TalkContinuation::future_value(async move {
-                    receiver.await.ok().unwrap_or(TalkValue::Nil)
+                    receiver.await.ok().unwrap_or(TalkValue::Error(TalkError::NoResult))
                 })
             } else {
                 // Shouldn't ever end up in this state
