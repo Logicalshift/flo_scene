@@ -75,6 +75,10 @@ impl TalkFrame {
             self.earlier_bindings.entry(symbol)
                 .or_insert_with(|| vec![])
                 .push(old_location);
+        } else {
+            // Store no bindings
+            self.earlier_bindings.entry(symbol)
+                .or_insert_with(|| vec![]);
         }
 
         // Create a new location for this symbol
@@ -103,14 +107,16 @@ impl TalkFrame {
     #[inline]
     pub fn pop_binding(&mut self, symbol: TalkSymbol) {
         // Fetch the last binding position
-        let last_binding = self.earlier_bindings.get_mut(&symbol).unwrap().pop().unwrap();
+        let last_binding = self.earlier_bindings.get_mut(&symbol).unwrap().pop();
 
         // Undefine the symbol
         self.symbol_table.undefine_symbol(symbol);
 
-        if last_binding.frame == 0 {
-            // The previous binding was in the same frame
-            self.symbol_table.alias_symbol(symbol, last_binding.cell);
+        if let Some(last_binding) = last_binding {
+            if last_binding.frame == 0 {
+                // The previous binding was in the same frame
+                self.symbol_table.alias_symbol(symbol, last_binding.cell);
+            }
         }
     }
 
