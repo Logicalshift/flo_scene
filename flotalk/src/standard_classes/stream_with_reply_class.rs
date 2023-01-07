@@ -209,7 +209,7 @@ impl TalkClassDefinition for TalkStreamWithReplyClass {
             let wait_for_result = later_reference.send_message_in_context(TalkMessage::Unary(*TALK_MSG_VALUE), talk_context);
 
             // Send to the stream, then wait for the result
-            later_sender.and_then_soon_if_ok(move |later_sender, talk_context| {
+            later_sender.and_then_soon_if_ok(move |later_sender, _talk_context| {
                 let mut args = args;
                 args.insert(0, later_sender);
 
