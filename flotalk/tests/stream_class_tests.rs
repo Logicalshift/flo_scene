@@ -321,7 +321,6 @@ fn basic_stream_with_no_reply() {
                 | nextMsg |
 
                 nextMsg := receiver next.
-                nextMsg ifMatches: #result:addOne: do: [ :result :val | result setValue: val + 1 ].
                 nextMsg := 0 .
             ].
 
