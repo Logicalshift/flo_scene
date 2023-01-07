@@ -85,6 +85,9 @@ pub enum TalkError {
     /// A 'later' value has already been sent to the target
     AlreadySentValue,
 
+    /// A 'later' object was dropped before it could generate a value
+    NoResult,
+
     /// An object is already busy servicing another request so the new request cannot be processed
     Busy,
 }
