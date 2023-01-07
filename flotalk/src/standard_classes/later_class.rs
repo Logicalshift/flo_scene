@@ -168,6 +168,7 @@ impl TalkClassDefinition for TalkLaterClass {
             let mut allocator   = allocator.lock().unwrap();
             let later           = allocator.retrieve(reference.1);
             let maybe_value     = later.value.lock().unwrap().clone();
+            let senders         = Arc::clone(&later.set_value);
 
             if let Some(value) = maybe_value {
                 // Value has already been generated, just re-use it
@@ -175,13 +176,24 @@ impl TalkClassDefinition for TalkLaterClass {
                     value.retain(context);
                     value.into()
                 })
-            } else if let Some(senders) = &mut *later.set_value.lock().unwrap() {
+            } else if let Some(senders) = &mut *senders.lock().unwrap() {
+                use std::mem;
+
                 // Wait for something to generate the value
                 let (sender, receiver) = oneshot::channel();
                 senders.push(sender);
 
+                // Retain the reference to the 'later' object while we're waiting
+                mem::drop(allocator);
+                reference.retain(args.context());
+
                 TalkContinuation::future_value(async move {
+                    // Wait for the result to arrive
                     receiver.await.ok().unwrap_or(TalkValue::Error(TalkError::NoResult))
+                }).and_then_soon(move |val, talk_context| {
+                    // Release the reference to the 'later' object
+                    reference.release(talk_context);
+                    val.into()
                 })
             } else {
                 // Shouldn't ever end up in this state
