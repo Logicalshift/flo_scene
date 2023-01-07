@@ -2,6 +2,7 @@ use crate::continuation::*;
 use crate::message::*;
 use crate::standard_classes::*;
 use crate::script_continuation::*;
+use crate::value::*;
 
 ///
 /// Returns a continuation that will load the standard set of classes into 
@@ -13,6 +14,7 @@ pub fn talk_init_standard_classes() -> TalkContinuation<'static> {
         .and_then_if_ok(|_| talk_init_later_class())
         .and_then_if_ok(|_| talk_init_streaming_class())
         .and_then_if_ok(|_| talk_init_streaming_with_reply_class())
+        .and_then_if_ok(|_| talk_init_constants())
         .panic_on_error("While initializing")
 }
 
@@ -22,11 +24,9 @@ pub fn talk_init_standard_classes() -> TalkContinuation<'static> {
 pub fn talk_init_object_class() -> TalkContinuation<'static> {
     TalkContinuation::soon(|talk_context| {
         SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
-    }).and_then(|script_class| {
-        TalkContinuation::soon(move |talk_context| {
-            talk_context.set_root_symbol_value("Object", script_class);
-            ().into()
-        })
+    }).and_then_soon(|script_class, talk_context| {
+        talk_context.set_root_symbol_value("Object", script_class);
+        ().into()
     })
 }
 
@@ -75,12 +75,10 @@ pub fn talk_init_streaming_class() -> TalkContinuation<'static> {
     TalkContinuation::soon(|talk_context| {
         // Subclass 'Stream' to make the 'Streaming' class
         TalkScript::from("Stream subclass").into()
-    }).and_then_if_ok(|streaming_class| {
+    }).and_then_soon_if_ok(|streaming_class, talk_context| {
         // Store in the 'Streaming' variable
-        TalkContinuation::soon(move |talk_context| {
-            talk_context.set_root_symbol_value("Streaming", streaming_class);
-            ().into()
-        })
+        talk_context.set_root_symbol_value("Streaming", streaming_class);
+        ().into()
     }).and_then_if_ok(|_| {
         // Define the class methods
         TalkScript::from("
@@ -148,5 +146,19 @@ pub fn talk_init_streaming_with_reply_class() -> TalkContinuation<'static> {
             StreamingWithReply addClassMessage: #supportMessage: withAction: [ :message | 
             ].
         ").into()
+    })
+}
+
+///
+/// Returns a continuation that will initialize the standard set of constant values
+///
+/// These are:
+///
+/// * `nil` - the 'nil' value
+///
+pub fn talk_init_constants() -> TalkContinuation<'static> {
+    TalkContinuation::soon(|talk_context| {
+        talk_context.set_root_symbol_value("nil", TalkValue::Nil);
+        ().into()
     })
 }

@@ -56,7 +56,7 @@ fn error_if_sender_dropped() {
             later       := Later new.
             laterSender := later sender.
 
-            laterSender := 0 .
+            laterSender := nil.
             later value
         ")).await;
 
