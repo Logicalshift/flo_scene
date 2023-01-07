@@ -285,12 +285,8 @@ fn basic_stream_with_no_reply() {
             sender := StreamWithReply withReceiver: [ :receiver | 
                 | nextMsg |
 
-                [
-                    nextMsg ifMatches: #result:addOne: do: [ :result :val | result setValue: val + 1 ].
-                ] while: [
-                    nextMsg := receiver next.
-                    ^(nextMsg isNil) not
-                ].
+                nextMsg := receiver next.
+                nextMsg ifMatches: #result:addOne: do: [ :result :val | result setValue: val + 1 ].
             ].
 
             sender notSupported
