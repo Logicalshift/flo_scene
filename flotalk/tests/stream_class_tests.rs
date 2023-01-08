@@ -364,8 +364,8 @@ fn basic_stream_class_with_reply() {
             TestClass supportMessage: #numCalls.
 
             testObject := TestClass new.
-            testObject addCalls: 2 .
-            testObject addCalls: 4 .
+            testObject addCalls: 2.
+            testObject addCalls: 4.
             testObject numCalls
         ")).await;
 
