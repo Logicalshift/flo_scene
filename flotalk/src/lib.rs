@@ -15,6 +15,7 @@ mod parse_error;
 mod pushback_stream;
 mod symbol;
 mod context;
+mod local_context;
 mod class;
 mod reference;
 mod message;
