@@ -2,6 +2,7 @@ use super::context::*;
 use super::continuation::*;
 use super::error::*;
 use super::initialization::*;
+use super::local_context::*;
 use super::message::*;
 use super::reference::*;
 use super::releasable::*;
@@ -97,10 +98,10 @@ impl TalkRuntime {
     ///
     pub fn send_message<'a>(&'a self, value: &'a TalkValue, message: TalkMessage) -> impl 'a + Send + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
         async move {
-            self.run(TalkContinuation::Soon(Box::new(move |talk_context| {
+            self.run(TalkContinuation::soon(move |talk_context| {
                 let value = value.clone_in_context(talk_context);
                 value.send_message_in_context(message, talk_context)
-            }))).await
+            })).await
         }
     }
 
@@ -121,7 +122,7 @@ impl TalkRuntime {
     ///
     /// Runs a continuation with a 'later' part
     ///
-    fn run_continuation_later<'a>(talk_context: Weak<lock::Mutex<TalkContext>>, later: Box<dyn 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkContinuation<'static>>>) -> impl 'a + Send + Future<Output=TalkContinuation<'static>> {
+    fn run_continuation_later<'a>(talk_context: Weak<lock::Mutex<TalkContext>>, local_context: &'a mut TalkLocalContext, later: Box<dyn 'a + Send + FnMut(&mut TalkContext, &mut TalkLocalContext, &mut Context) -> Poll<TalkContinuation<'static>>>) -> impl 'a + Send + Future<Output=TalkContinuation<'static>> {
         // If the runtime is dropped while the future is running, it will be aborted (if it ever wakes up again)
         let mut acquire_context = None;
         let mut later           = later;
@@ -134,7 +135,7 @@ impl TalkRuntime {
                     // Don't try_lock() if we're acquiring the context via the mutex
                     if let Some(mut talk_context) = talk_context.try_lock() {
                         acquire_context = None;
-                        return later(&mut *talk_context, future_context);
+                        return later(&mut *talk_context, local_context, future_context);
                     }
                 }
 
@@ -147,7 +148,7 @@ impl TalkRuntime {
                     // Acquired access to the context
                     acquire_context = None;
 
-                    return later(&mut *talk_context, future_context);
+                    return later(&mut *talk_context, local_context, future_context);
                 } else {
                     // Context is in use on another thread
                     return Poll::Pending;
@@ -322,6 +323,9 @@ impl TalkRuntime {
     /// Runs a continuation using the values stored in a runtime (the continuation and the future can outlive the runtime itself if necessary)
     ///
     fn run_with_context<'a>(continuation: impl Into<TalkContinuation<'a>>, context: Arc<lock::Mutex<TalkContext>>, waiting_for_release: Arc<Mutex<Vec<TalkValue>>>) -> impl 'a + Send + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
+        // Create a local context to run with
+        let mut local_context = TalkLocalContext::default();
+
         // Start running the continuation
         let mut continuation = continuation.into();
 
@@ -356,13 +360,13 @@ impl TalkRuntime {
                         let mut talk_context    = if let Some(talk_context) = talk_context.try_lock() { talk_context } else { talk_context.lock().await };
 
                         // Update the continuation to the 'soon' continuation
-                        soon(&mut *talk_context)
+                        soon(&mut *talk_context, &mut local_context)
                     }
 
                     TalkContinuation::Later(later)  => {
                         // Poll the 'later' function with the context
                         let talk_context = talk_context.clone();
-                        Self::run_continuation_later(talk_context, later).await
+                        Self::run_continuation_later(talk_context, &mut local_context, later).await
                     }
 
                     TalkContinuation::Future(later) => {
@@ -424,6 +428,7 @@ impl TalkRuntime {
                         for (id, continuation) in new_continuations {
                             // Start the continuation running as a future
                             let weak_context        = weak_context.clone();
+                            let mut local_context   = TalkLocalContext::default();
                             let run_continuation    = async move {
                                 let mut continuation = continuation;
 
@@ -446,10 +451,10 @@ impl TalkRuntime {
                                             let talk_context        = if let Some(talk_context) = weak_context.upgrade() { talk_context } else { break; };
                                             let mut talk_context    = talk_context.lock().await;
 
-                                            soon(&mut *talk_context)
+                                            soon(&mut *talk_context, &mut local_context)
                                         }
 
-                                        TalkContinuation::Later(later)      => Self::run_continuation_later(weak_context.clone(), later).await,
+                                        TalkContinuation::Later(later)      => Self::run_continuation_later(weak_context.clone(), &mut local_context, later).await,
                                         TalkContinuation::Future(future)    => future.await,
                                     }
                                 }
@@ -541,7 +546,7 @@ impl TalkRuntime {
     /// Generates a symbol table, then runs a continuation with it
     ///
     pub fn run_with_symbols<'a>(&'a self, create_symbol_table: impl 'a + Send + FnOnce(&mut TalkContext) -> Vec<(TalkSymbol, TalkValue)>, create_continuation: impl 'a + Send + FnOnce(Arc<Mutex<TalkSymbolTable>>, Vec<TalkCellBlock>) -> TalkContinuation<'static>) -> impl 'a + Send + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
-        let continuation = TalkContinuation::Soon(Box::new(move |talk_context| {
+        let continuation = TalkContinuation::soon(move |talk_context| {
             // Ask for the symbol table
             let symbols             = create_symbol_table(talk_context);
 
@@ -559,7 +564,7 @@ impl TalkRuntime {
             // Run the continuation with our new table
             // TODO: release the cell block when the continuation returns
             create_continuation(Arc::new(Mutex::new(symbol_table)), vec![cell_block])
-        }));
+        });
 
         self.run(continuation)
     }

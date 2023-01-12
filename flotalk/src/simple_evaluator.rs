@@ -2,6 +2,7 @@ use super::continuation::*;
 use super::context::*;
 use super::error::*;
 use super::instruction::*;
+use super::local_context::*;
 use super::message::*;
 use super::releasable::*;
 use super::reference::*;
@@ -140,7 +141,7 @@ impl TalkFrame {
 /// Evaluates expressions from a particular point (until we have a single result or we hit a future)
 ///
 #[inline]
-fn eval_at<TValue, TSymbol>(expression: &Vec<TalkInstruction<TValue, TSymbol>>, frame: &mut TalkFrame, context: &mut TalkContext) -> TalkWaitState 
+fn eval_at<TValue, TSymbol>(expression: &Vec<TalkInstruction<TValue, TSymbol>>, frame: &mut TalkFrame, context: &mut TalkContext, local_context: &mut TalkLocalContext) -> TalkWaitState 
 where
     TValue:     'static + Send + Sync,
     TSymbol:    'static + Send + Sync,
@@ -292,7 +293,7 @@ where
                     match continuation {
                         TalkContinuation::Ready(TalkValue::Error(err))  => return TalkWaitState::Finished(TalkValue::Error(err)),
                         TalkContinuation::Ready(value)                  => { frame.stack.push(value); break; },
-                        TalkContinuation::Soon(soon_value)              => { continuation = soon_value(context); }
+                        TalkContinuation::Soon(soon_value)              => { continuation = soon_value(context, local_context); }
                         TalkContinuation::Later(later)                  => return TalkWaitState::WaitFor(TalkContinuation::Later(later)),
                         TalkContinuation::Future(future)                => return TalkWaitState::WaitFor(TalkContinuation::Future(future)),
                     }
@@ -347,13 +348,13 @@ where
     let mut wait_state = TalkWaitState::Run;
     let mut frame       = frame;
 
-    TalkContinuation::Soon(Box::new(move |talk_context| {
+    TalkContinuation::Soon(Box::new(move |talk_context, local_context| {
         use TalkWaitState::*;
 
         // Run until the job is finished or it returns a waiting continuation
         while let Run = &wait_state {
             // Evaluate until we hit a point where we are finished or need to poll a future
-            wait_state = eval_at(&*expression, &mut frame, talk_context);
+            wait_state = eval_at(&*expression, &mut frame, talk_context, local_context);
         }
 
         // Return the value if finished

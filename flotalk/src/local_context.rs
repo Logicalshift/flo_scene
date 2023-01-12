@@ -9,3 +9,11 @@
 pub struct TalkLocalContext {
 
 }
+
+impl Default for TalkLocalContext {
+    fn default() -> Self {
+        TalkLocalContext {
+            
+        }
+    }
+}

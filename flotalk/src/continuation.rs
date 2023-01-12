@@ -1,6 +1,7 @@
 use super::class::*;
 use super::context::*;
 use super::error::*;
+use super::local_context::*;
 use super::message::*;
 use super::reference::*;
 use super::releasable::*;
@@ -18,10 +19,10 @@ pub enum TalkContinuation<'a> {
     Ready(TalkValue),
 
     /// A value that requires access to the context to compute, but which doesn't require awaiting a future
-    Soon(Box<dyn 'a + Send + FnOnce(&mut TalkContext) -> TalkContinuation<'static>>),
+    Soon(Box<dyn 'a + Send + FnOnce(&mut TalkContext, &mut TalkLocalContext) -> TalkContinuation<'static>>),
 
     /// A value that is ready when a future completes
-    Later(Box<dyn 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkContinuation<'static>>>),
+    Later(Box<dyn 'a + Send + FnMut(&mut TalkContext, &mut TalkLocalContext, &mut Context) -> Poll<TalkContinuation<'static>>>),
 
     /// A future value that should be evaluated outside of the TalkContext
     Future(BoxFuture<'a, TalkContinuation<'static>>),
@@ -33,7 +34,7 @@ impl<'a> TalkContinuation<'a> {
     ///
     #[inline]
     pub fn soon(soon: impl 'a + Send + FnOnce(&mut TalkContext) -> TalkContinuation<'static>) -> Self {
-        TalkContinuation::Soon(Box::new(soon))
+        TalkContinuation::Soon(Box::new(move |talk_context, _| soon(talk_context)))
     }
 
     ///
@@ -42,7 +43,7 @@ impl<'a> TalkContinuation<'a> {
     #[inline]
     pub fn later_value(later: impl 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkValue>) -> Self {
         let mut later = later;
-        TalkContinuation::Later(Box::new(move |talk_context, future_context| later(talk_context, future_context).map(|result| TalkContinuation::Ready(result))))
+        TalkContinuation::Later(Box::new(move |talk_context, _, future_context| later(talk_context, future_context).map(|result| TalkContinuation::Ready(result))))
     }
 
     ///
@@ -50,7 +51,8 @@ impl<'a> TalkContinuation<'a> {
     ///
     #[inline]
     pub fn later_soon(later: impl 'a + Send + FnMut(&mut TalkContext, &mut Context) -> Poll<TalkContinuation<'static>>) -> Self {
-        TalkContinuation::Later(Box::new(later))
+        let mut later = later;
+        TalkContinuation::Later(Box::new(move |talk_context, _, future_context| later(talk_context, future_context)))
     }
 
     ///
@@ -82,15 +84,15 @@ impl<'a> TalkContinuation<'a> {
     pub fn and_then(self, and_then: impl 'static + Send + FnOnce(TalkValue) -> TalkContinuation<'static>) -> TalkContinuation<'a> {
         match self {
             TalkContinuation::Ready(value)  => and_then(value),
-            TalkContinuation::Soon(soon)    => TalkContinuation::Soon(Box::new(move |context| soon(context).and_then(and_then))),
+            TalkContinuation::Soon(soon)    => TalkContinuation::Soon(Box::new(move |context, local_context| soon(context, local_context).and_then(and_then))),
 
             TalkContinuation::Later(later)  => {
                 let mut later       = later;
                 let mut and_then    = Some(and_then);
 
-                TalkContinuation::Later(Box::new(move |talk_context, future_context| {
+                TalkContinuation::Later(Box::new(move |talk_context, local_context, future_context| {
                     // Poll the 'later' value
-                    let poll_result = later(talk_context, future_context);
+                    let poll_result = later(talk_context, local_context, future_context);
 
                     if let Poll::Ready(value) = poll_result {
                         if let Some(and_then) = and_then.take() {
@@ -150,7 +152,7 @@ impl<'a> TalkContinuation<'a> {
     ///
     #[inline]
     pub fn and_then_soon(self, and_then: impl 'static + Send + FnOnce(TalkValue, &mut TalkContext) -> TalkContinuation<'static>) -> TalkContinuation<'a> {
-        self.and_then(move |value| TalkContinuation::Soon(Box::new(move |context| and_then(value, context))))
+        self.and_then(move |value| TalkContinuation::Soon(Box::new(move |context, _| and_then(value, context))))
     }
 
     ///
@@ -158,7 +160,7 @@ impl<'a> TalkContinuation<'a> {
     ///
     #[inline]
     pub fn and_then_soon_if_ok(self, and_then: impl 'static + Send + FnOnce(TalkValue, &mut TalkContext) -> TalkContinuation<'static>) -> TalkContinuation<'a> {
-        self.and_then_if_ok(move |value| TalkContinuation::Soon(Box::new(move |context| and_then(value, context))))
+        self.and_then_if_ok(move |value| TalkContinuation::Soon(Box::new(move |context, _| and_then(value, context))))
     }
 
     ///
@@ -170,7 +172,7 @@ impl<'a> TalkContinuation<'a> {
         TClass:     'static + TalkClassDefinition,
         TOutput:    Into<TalkContinuation<'static>>,
     {
-        TalkContinuation::Soon(Box::new(move |talk_context| {
+        TalkContinuation::Soon(Box::new(move |talk_context, _| {
             match value {
                 TalkValue::Reference(TalkReference(class_id, data_handle)) => {
                     // Get the callbacks for the class
@@ -203,7 +205,7 @@ impl TalkContinuation<'static> {
     ///
     pub fn do_while(while_condition: impl 'static + Send + Fn(&mut TalkContext) -> TalkContinuation<'static>, action: impl 'static + Send + Fn(&mut TalkContext) -> TalkContinuation<'static>, initial_return_value: TalkValue) -> TalkContinuation<'static> {
         // Try to evaluate 'soon' if possible (avoiding returning a 'later' continuation)
-        TalkContinuation::soon(move |talk_context| {
+        TalkContinuation::Soon(Box::new(move |talk_context, local_context| {
             use TalkContinuation::*;
 
             let mut last_result = initial_return_value;
@@ -214,7 +216,7 @@ impl TalkContinuation<'static> {
                 let while_result            = loop {
                     match while_continuation {
                         Ready(val)      => { break val; }
-                        Soon(soon)      => { while_continuation = soon(talk_context); }
+                        Soon(soon)      => { while_continuation = soon(talk_context, local_context); }
                         Later(later)    => {
                             // Put back in a continuation
                             let later               = TalkContinuation::Later(later);
@@ -290,7 +292,7 @@ impl TalkContinuation<'static> {
                 let action_result           = loop {
                     match action_continuation {
                         Ready(val)      => { break val; }
-                        Soon(soon)      => { action_continuation = soon(talk_context); }
+                        Soon(soon)      => { action_continuation = soon(talk_context, local_context); }
                         Later(later)    => {
                             // Run the continuation then re-enter the while block
                             return TalkContinuation::Later(later)
@@ -321,7 +323,7 @@ impl TalkContinuation<'static> {
                     _                       => { last_result = action_result; }
                 }
             }
-        })
+        }))
     }
 }
 

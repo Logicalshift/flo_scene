@@ -108,8 +108,9 @@ impl TalkReference {
     ///
     /// Sends a message to this object
     ///
+    #[inline]
     pub fn send_message_later<'a>(self, message: TalkMessage) -> TalkContinuation<'a> {
-        TalkContinuation::Soon(Box::new(move |talk_context| self.send_message_in_context(message, talk_context)))
+        TalkContinuation::soon(move |talk_context| self.send_message_in_context(message, talk_context))
     }
 
     ///

@@ -421,10 +421,10 @@ impl TalkClass {
         } else {
             let our_class = *self;
 
-            TalkContinuation::Soon(Box::new(move |talk_context| {
+            TalkContinuation::soon(move |talk_context| {
                 let _ = talk_context.get_callbacks_mut(our_class);
                 talk_context.get_callbacks(our_class).unwrap().send_class_message(message, talk_context)
-            }))
+            })
         }
     }
 
@@ -434,10 +434,10 @@ impl TalkClass {
     pub fn send_message<'a>(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl 'a + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
         let class = *self;
 
-        runtime.run(TalkContinuation::<'a>::Soon(Box::new(move |talk_context| {
+        runtime.run(TalkContinuation::soon(move |talk_context| {
             let continuation = class.send_message_in_context(message, talk_context);
             continuation
-        })))
+        }))
     }
 
     ///

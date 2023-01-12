@@ -52,13 +52,13 @@ impl TalkClassDefinition for TalkClassClass {
         let args        = args.leak();
 
         // Send a class message to this class
-        TalkContinuation::Soon(Box::new(move |talk_context| {
+        TalkContinuation::soon(move |talk_context| {
             if args.len() == 0 {
                 talk_class.send_message_in_context(TalkMessage::Unary(message_id), talk_context)
             } else {
                 talk_class.send_message_in_context(TalkMessage::WithArguments(message_id, args), talk_context)
             }
-        }))
+        })
     }
 
     fn default_instance_dispatch_table(&self) -> TalkMessageDispatchTable<TalkReference> { 
@@ -98,6 +98,6 @@ impl TalkClass {
     ///
     pub fn class_object(&self) -> TalkContinuation<'static> {
         let ourselves = *self;
-        TalkContinuation::Soon(Box::new(move |talk_context| ourselves.class_object_in_context(talk_context).into()))
+        TalkContinuation::soon(move |talk_context| ourselves.class_object_in_context(talk_context).into())
     }
 }
