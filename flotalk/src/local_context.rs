@@ -1,3 +1,6 @@
+use super::context::*;
+use super::releasable::*;
+
 ///
 /// Context that is local to a single TalkContinuation
 ///
@@ -16,4 +19,8 @@ impl Default for TalkLocalContext {
             
         }
     }
+}
+
+impl TalkReleasable for TalkLocalContext {
+    fn release_in_context(self, context: &TalkContext) { }
 }

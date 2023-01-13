@@ -352,7 +352,14 @@ impl TalkRuntime {
             loop {
                 // Each step either creates a new continuation or returns the result
                 continuation = match continuation {
-                    TalkContinuation::Ready(value)  => { return TalkOwned::new(value, owner) }
+                    TalkContinuation::Ready(value)  => { 
+                        let talk_context        = if let Some(talk_context) = talk_context.upgrade() { talk_context } else { return TalkOwned::new(TalkError::RuntimeDropped.into(), owner); };
+                        let mut talk_context    = if let Some(talk_context) = talk_context.try_lock() { talk_context } else { talk_context.lock().await };
+
+                        local_context.release_in_context(&mut talk_context);
+
+                        return TalkOwned::new(value, owner);
+                    }
 
                     TalkContinuation::Soon(soon)    => { 
                         // Upgrade and lock the context
@@ -440,7 +447,9 @@ impl TalkRuntime {
                                             let talk_context    = talk_context.lock().await;
 
                                             // Release any value that was generated (background values are never used)
+                                            // TODO: report errors somehow?
                                             val.release_in_context(&*talk_context);
+                                            local_context.release_in_context(&*talk_context);
 
                                             // Stop running
                                             break;
