@@ -1,3 +1,18 @@
+use crate::allocator::*;
+use crate::context::*;
+use crate::class::*;
+use crate::continuation::*;
+use crate::error::*;
+use crate::message::*;
+use crate::reference::*;
+use crate::releasable::*;
+use crate::value::*;
+
+use smallvec::*;
+use once_cell::sync::{Lazy};
+
+use std::sync::*;
+
 ///
 /// The `Inverted` class provides a way to declare messages that are sent *from* an instance instead of *to* an instance.
 ///
@@ -65,4 +80,33 @@
 ///
 pub struct TalkInvertedClass {
 
+}
+
+impl TalkClassDefinition for TalkInvertedClass {
+    /// The type of the data stored by an object of this class
+    type Data = ();
+
+    /// The allocator is used to manage the memory of this class within a context
+    type Allocator = TalkStandardAllocator<Self::Data>;
+
+    ///
+    /// Creates the allocator for this class
+    ///
+    fn create_allocator(&self) -> Self::Allocator {
+        TalkStandardAllocator::empty()
+    }
+
+    ///
+    /// Sends a message to the class object itself
+    ///
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
+        TalkError::MessageNotSupported(message_id).into()
+    }
+
+    ///
+    /// Sends a message to an instance of this class
+    ///
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
+        TalkError::MessageNotSupported(message_id).into()
+    }
 }
