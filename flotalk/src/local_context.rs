@@ -22,5 +22,5 @@ impl Default for TalkLocalContext {
 }
 
 impl TalkReleasable for TalkLocalContext {
-    fn release_in_context(self, context: &TalkContext) { }
+    fn release_in_context(self, _context: &TalkContext) { }
 }
