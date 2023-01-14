@@ -16,6 +16,16 @@ use std::sync::*;
 ///
 /// The `Inverted` class provides a way to declare messages that are sent *from* an instance instead of *to* an instance.
 ///
+/// Normally, the left-hand side of a 'message' expression such as `foo exampleMessage.` is the receiver of the message: the 
+/// message is sent to the object `foo`. Messages that are declared on an `Inverted` class work the opposite way around, ie
+/// for an inverted message, `foo` would be the sender and not the receiver. The receivers would be one or more instances of
+/// a subclass of the `Inverted` class that implement the exampleMessage and which are configured to listen to the `foo`
+/// object.
+///
+/// Another difference that 'inverted' messages have over the more traditional kind is that inverted messages know both the
+/// sender (the object on the left-hand side of the expresssion), and the receiver (the `Inverted` instance that receives
+/// the message). As there can be multiple receivers, inverted messages do not produce a return value.
+///
 /// This type is designed to support code structured using dependency inversion. For an example of what this means, consider
 /// the problem of designing a logging framework. If messages are sent directly to a logging object, then every object that
 /// needs to produce log messages has to have a reference to that object. This is the conventional dependency model: objects
