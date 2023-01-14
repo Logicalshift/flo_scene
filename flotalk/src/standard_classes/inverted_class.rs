@@ -178,8 +178,21 @@ impl TalkInvertedClassAllocator {
     ///
     /// Callback when a reference is dropped
     ///
-    pub fn on_drop_reference(&mut self, reference: TalkReference) {
+    fn on_dropped_reference(&mut self, reference: TalkReference, _talk_context: &TalkContext) {
 
+    }
+}
+
+impl TalkInvertedClass {
+    ///
+    /// Adds the action to take when a reference is dropped
+    ///
+    /// The inverted class allocator tracks dropped references so it can remove references that are attached to particular objects
+    ///
+    fn add_drop_action(&self, allocator: Arc<Mutex<TalkInvertedClassAllocator>>, talk_context: &mut TalkContext) {
+        talk_context.on_dropped_reference(move |reference, talk_context| {
+            allocator.lock().unwrap().on_dropped_reference(reference, talk_context)
+        })
     }
 }
 
@@ -193,8 +206,12 @@ impl TalkClassDefinition for TalkInvertedClass {
     ///
     /// Creates the allocator for this class
     ///
-    fn create_allocator(&self, _talk_context: &mut TalkContext) -> Arc<Mutex<Self::Allocator>> {
-        TalkInvertedClassAllocator::empty()
+    fn create_allocator(&self, talk_context: &mut TalkContext) -> Arc<Mutex<Self::Allocator>> {
+        let allocator = TalkInvertedClassAllocator::empty();
+
+        self.add_drop_action(Arc::clone(&allocator), talk_context);
+
+        allocator
     }
 
     ///
