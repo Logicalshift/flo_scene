@@ -107,6 +107,13 @@ pub (super) struct TalkClassContextCallbacks {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub struct TalkClass(pub (super) usize);
 
+impl From<TalkClass> for usize {
+    #[inline]
+    fn from(class: TalkClass) -> usize {
+        class.0
+    }
+}
+
 impl TalkClassCallbacks {
     #[inline]
     pub (super) fn create_in_context(&self, talk_context: &mut TalkContext) -> TalkClassContextCallbacks {
