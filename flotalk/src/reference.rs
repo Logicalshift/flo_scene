@@ -155,3 +155,10 @@ impl TalkCellBlock {
         TalkCell(*self, cell_number)
     }
 }
+
+impl From<TalkDataHandle> for usize {
+    #[inline]
+    fn from(data_handle: TalkDataHandle) -> usize {
+        data_handle.0
+    }
+}
