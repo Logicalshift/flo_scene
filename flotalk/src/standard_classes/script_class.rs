@@ -532,7 +532,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
     ///
     /// Creates the allocator for this class
     ///
-    fn create_allocator(&self) -> Self::Allocator {
+    fn create_allocator(&self, _talk_context: &mut TalkContext) -> Self::Allocator {
         TalkStandardAllocator::empty()
     }
 
@@ -599,7 +599,7 @@ impl TalkClassDefinition for TalkCellBlockClass {
     ///
     /// Creates the allocator for this class
     ///
-    fn create_allocator(&self) -> Self::Allocator {
+    fn create_allocator(&self, _talk_context: &mut TalkContext) -> Self::Allocator {
         TalkCellBlockAllocator { tmp_cell_block: TalkCellBlock(0) }
     }
 

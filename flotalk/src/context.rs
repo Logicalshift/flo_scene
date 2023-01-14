@@ -136,7 +136,7 @@ impl TalkContext {
         }
 
         let class_callbacks     = class.callbacks();
-        let context_callbacks   = class_callbacks.create_in_context();
+        let context_callbacks   = class_callbacks.create_in_context(self);
 
         self.context_callbacks[class_id] = Some(context_callbacks);
         self.context_callbacks[class_id].as_mut().unwrap()

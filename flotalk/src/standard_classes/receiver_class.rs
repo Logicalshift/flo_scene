@@ -61,7 +61,7 @@ where
     ///
     /// Creates the allocator for this class
     ///
-    fn create_allocator(&self) -> Self::Allocator {
+    fn create_allocator(&self, _talk_context: &mut TalkContext) -> Self::Allocator {
         TalkStandardAllocator::empty()
     }
 

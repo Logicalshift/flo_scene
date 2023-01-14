@@ -72,7 +72,7 @@ pub enum TalkReleaseAction {
 ///
 pub (super) struct TalkClassCallbacks {
     /// Creates the callbacks for this class in a context
-    create_in_context: Box<dyn Send + Sync + Fn() -> TalkClassContextCallbacks>,
+    create_in_context: Box<dyn Send + Sync + Fn(&mut TalkContext) -> TalkClassContextCallbacks>,
 }
 
 ///
@@ -109,8 +109,8 @@ pub struct TalkClass(pub (super) usize);
 
 impl TalkClassCallbacks {
     #[inline]
-    pub (super) fn create_in_context(&self) -> TalkClassContextCallbacks {
-        (self.create_in_context)()
+    pub (super) fn create_in_context(&self, talk_context: &mut TalkContext) -> TalkClassContextCallbacks {
+        (self.create_in_context)(talk_context)
     }
 }
 
@@ -191,9 +191,11 @@ pub trait TalkClassDefinition : Send + Sync {
     type Allocator: TalkClassAllocator<Data=Self::Data>;
 
     ///
-    /// Creates the allocator for this class
+    /// Creates the allocator for this class in a particular context
     ///
-    fn create_allocator(&self) -> Self::Allocator;
+    /// This is also an opportunity for a class to perform any other initialization it needs to do within a particular `TalkContext`
+    ///
+    fn create_allocator(&self, talk_context: &mut TalkContext) -> Self::Allocator;
 
     ///
     /// Sends a message to the class object itself
@@ -328,9 +330,9 @@ impl TalkClass {
     ///
     /// Creates the 'create in context' function for a class
     ///
-    fn callback_create_in_context(class_id: TalkClass, definition: Arc<impl 'static + TalkClassDefinition>) -> Box<dyn Send + Sync + Fn() -> TalkClassContextCallbacks> {
-        Box::new(move || {
-            let allocator = Arc::new(Mutex::new(definition.create_allocator()));
+    fn callback_create_in_context(class_id: TalkClass, definition: Arc<impl 'static + TalkClassDefinition>) -> Box<dyn Send + Sync + Fn(&mut TalkContext) -> TalkClassContextCallbacks> {
+        Box::new(move |talk_context| {
+            let allocator = Arc::new(Mutex::new(definition.create_allocator(talk_context)));
 
             TalkClassContextCallbacks {
                 dispatch_table:         Self::callback_dispatch_table(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
