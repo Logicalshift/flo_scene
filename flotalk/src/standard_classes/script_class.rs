@@ -138,6 +138,9 @@ impl TalkScriptClassClass {
                 // Fetch the class ID of the subclass (this will always be a cell class)
                 let cell_class_id = script_class.class_id;
                 TalkContinuation::soon(move |context| {
+                    // Set the superclass in the context
+                    context.set_superclass(cell_class_id, superclass);
+
                     // Set the class dispatch table to call the superclass for an unsupported message
                     let instance_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).dispatch_table;
 
@@ -227,7 +230,12 @@ impl TalkScriptClassClass {
                 // As this is a subclass, location 0 is a pointer to the superclass
                 script_class.instance_variables.lock().unwrap().define_symbol(*TALK_SUPER);
 
-                new_class_reference
+                // Set the superclass in the context
+                let cell_class_id = script_class.class_id;
+                TalkContinuation::soon(move |context| {
+                    context.set_superclass(cell_class_id, new_superclass_id);
+                    new_class_reference.into()
+                })
             })
         }).and_then(move |new_class_reference| {
             // Call the superclass from the new class

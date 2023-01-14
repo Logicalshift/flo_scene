@@ -83,6 +83,9 @@ pub struct TalkContext {
     /// Callbacks made when a reference is dropped in this context
     when_dropped: Vec<Box<dyn Send + Fn(TalkReference, &TalkContext) -> ()>>,
 
+    /// Vec indexed by class of the superclass of any given type
+    superclass: Vec<Option<TalkClass>>,
+
     /// Storage cells that make up the heap for the interpreter
     cells: Vec<TalkCellBlockStore>,
 
@@ -118,6 +121,7 @@ impl TalkContext {
             value_dispatch_tables:          TalkValueDispatchTables::default(),
             background_tasks:               Arc::new(Mutex::new(TalkContextBackgroundTasks::new())),
             when_dropped:                   vec![],
+            superclass:                     vec![],
             cells:                          vec![TalkCellBlockStore { values: Box::new([]) }],
             cell_reference_count:           vec![AtomicU32::new(1)],
             cell_block_classes:             vec![],
@@ -495,6 +499,35 @@ impl TalkContext {
         for on_drop in self.when_dropped.iter() {
             let dropped_reference = TalkReference(reference.0, reference.1);
             on_drop(dropped_reference, self);
+        }
+    }
+
+    ///
+    /// Sets the superclass of a particular talk class ID
+    ///
+    pub fn set_superclass(&mut self, class: TalkClass, superclass: TalkClass) {
+        let class_id = usize::from(class);
+
+        // Extend the superclass list until we have space to store our class's superclass
+        while self.superclass.len() <= class_id {
+            self.superclass.push(None);
+        }
+
+        // Store the superclass for this class
+        self.superclass[class_id] = Some(superclass);
+    }
+
+    ///
+    /// Reads the superclass of a class ID
+    ///
+    #[inline]
+    pub fn superclass(&self, class: TalkClass) -> Option<TalkClass> {
+        let class_id = usize::from(class);
+
+        if class_id < self.superclass.len() {
+            self.superclass[class_id]
+        } else {
+            None
         }
     }
 }
