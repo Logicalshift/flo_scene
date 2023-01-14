@@ -89,6 +89,12 @@ use std::sync::*;
 /// someLogger receiveFrom: SomeClass instances unreceived.     "Receive log messages from every instance of SomeClass if they are otherwise unreceived"
 /// ```
 ///
+/// The `Inverted` instance that received the most recent `receiveFrom:` or `with:` call will receive the message with the 
+/// highest priority for the cases where that matters.
+///
+/// An inverted instance message can return the value `Inverted notHandled` if it wants to indicate that it doesn't want 
+/// the message to be considered as 'received' for lower priority handlers.
+///
 pub struct TalkInvertedClass {
 
 }
