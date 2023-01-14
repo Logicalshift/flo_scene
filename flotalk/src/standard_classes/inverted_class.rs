@@ -6,6 +6,7 @@ use crate::error::*;
 use crate::message::*;
 use crate::reference::*;
 use crate::releasable::*;
+use crate::sparse_array::*;
 use crate::value::*;
 
 use smallvec::*;
@@ -100,9 +101,28 @@ pub struct TalkInverted {
 }
 
 ///
+/// The priority of an inverted receiver (higher priorities receive messages sooner)
+///
+#[derive(Copy, Clone)]
+struct Priority(usize);
+
+///
 /// Allocator for instances of the inverted class
 ///
 pub struct TalkInvertedClassAllocator {
+    /// The priority of the next receiveFrom: implementation that's added
+    next_priority: usize,
+
+    /// The classes in the current context that can respond to each type of message ID (expectation is for there to be usually just one class per message)
+    responder_classes: TalkSparseArray<SmallVec<[TalkClass; 2]>>,
+
+    /// A Vec, indexed by responder class ID that contains the references of that class that want to respond to all
+    /// Ie, for a given message to find out which 'all' responders are present, we look up the responder classes
+    respond_to_all: Vec<Vec<(TalkReference, Priority)>>,
+
+    /// A Vec, indexed by *source* class ID that contains a sparse array of source data handles and the `Inverted` references that respond to them
+    respond_to_specific: Vec<TalkSparseArray<Vec<(TalkReference, Priority)>>>,
+
     /// The data store
     data: Vec<Option<TalkInverted>>,
 
@@ -179,9 +199,13 @@ impl TalkInvertedClassAllocator {
     ///
     pub fn empty() -> Arc<Mutex<TalkInvertedClassAllocator>> {
         Arc::new(Mutex::new(TalkInvertedClassAllocator {
-            data:               vec![],
-            reference_counts:   vec![],
-            free_slots:         vec![],
+            next_priority:          0,
+            responder_classes:      TalkSparseArray::empty(),
+            respond_to_all:         vec![],
+            respond_to_specific:    vec![],
+            data:                   vec![],
+            reference_counts:       vec![],
+            free_slots:             vec![],
         }))
     }
 
@@ -189,7 +213,82 @@ impl TalkInvertedClassAllocator {
     /// Callback when a reference is dropped
     ///
     fn on_dropped_reference(&mut self, reference: TalkReference, _talk_context: &TalkContext) {
+        // TODO: deregister this reference from any `Inverted` subclass that 
+    }
 
+    ///
+    /// Sends an inverted message to the known instances of the `Inverted` class that support the message type and 
+    ///
+    #[inline]
+    fn send_inverted_message(allocator: &Arc<Mutex<Self>>, sender_reference: TalkReference, inverted_message: TalkMessage) -> TalkContinuation<'static> {
+        let allocator = Arc::clone(allocator);
+
+        // There is a priority execution order: messages are received in reverse order of calling the `receiveFrom:` message.
+        // 'unreceived' receiver targets are only called if the message has not been processed by any other receiver in this order
+
+        // Possible targets (any individual object should only receive the message once even if matching multiple conditions):
+        //      - objects registered for receiving directly from the sender which support the inverted message
+        //      - objects registered for receiving all messages for any `Inverted` subclass that supports the message
+        //      - TODO: objects registered for receiving messages in the local context
+        //      - TODO: objects registered for receiving all messages from a specific class (or its subclass) - not sure if we have a way to get the superclass of a class at the 
+        //              moment
+        //
+        // Some groups/priorities may have the 'unreceived' modifier and so need to only send if the message is 'unhandled'
+        TalkContinuation::Soon(Box::new(move |talk_context, local_context| {
+            let allocator   = allocator.lock().unwrap();
+            let message_id  = inverted_message.signature_id();
+
+            // For this to be an 'inverted' message, it must have some Inverted classes that respond to it
+            if let Some(responder_classes) = allocator.responder_classes.get(message_id.into()) {
+                // There are `Inverted` classes that can respond to this message
+                let mut targets = vec![];
+
+                // Find all of the Inverted objects that always respond to this message
+                for responder_class in responder_classes.iter() {
+                    let responder_class_id = usize::from(*responder_class);
+
+                    if responder_class_id < allocator.respond_to_all.len() {
+                        targets.extend(allocator.respond_to_all[responder_class_id].iter().cloned());
+                    }
+                }
+
+                // Find all of the Inverted objects that are specifically responding to this source
+                let sender_class    = sender_reference.0;
+                let sender_class_id = usize::from(sender_class);
+                let sender_handle   = sender_reference.1;
+
+                if sender_class_id < allocator.respond_to_specific.len() {
+                    let sender_handle_id = usize::from(sender_handle);
+
+                    if let Some(specific_responders) = allocator.respond_to_specific[sender_class_id].get(sender_handle_id) {
+                        // These responders may or may not respond to this message, so we need to filter them to the responder classes
+                        targets.extend(specific_responders.iter()
+                            .filter(|(TalkReference(ref class_id, _) ,_)| responder_classes.contains(class_id))
+                            .cloned());
+                    }
+                }
+
+                // TODO: everything in the local context that might respond to this message
+                // TODO: respond to specific class or subclass
+
+                match targets.len() {
+                    0 => { ().into() }              // No responders, so nothing to do (inverted messages don't error even if there are no responder)
+
+                    1 => { 
+                        // Send the message directly to the first target, no prioritisation or weeding to do
+                        todo!() 
+                    }
+
+                    _ => {
+                        // If there are multiple targets, we need to make sure that each target is only in the list once, then we need to order by priority and deal with 'unreceived' groups too
+                        todo!()
+                    }
+                }
+            } else {
+                // No `Inverted` class responds to this message
+                TalkError::MessageNotSupported(inverted_message.signature_id()).into()
+            }
+        }))
     }
 }
 
