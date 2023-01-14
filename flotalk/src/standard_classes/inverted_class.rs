@@ -82,18 +82,119 @@ pub struct TalkInvertedClass {
 
 }
 
+///
+/// Data stored for an instance of the inverted class
+///
+pub struct TalkInverted {
+
+}
+
+///
+/// Allocator for instances of the inverted class
+///
+pub struct TalkInvertedClassAllocator {
+    /// The data store
+    data: Vec<Option<TalkInverted>>,
+
+    /// Reference counts for each allocated item in the data store (data is dropped when the count reaches 0)
+    reference_counts: Vec<usize>,
+
+    /// Items in the data array that have been freed and are available for reallocation
+    free_slots: Vec<usize>,
+}
+
+impl TalkReleasable for TalkInverted {
+    fn release_in_context(self, _context: &TalkContext) { }
+}
+
+impl TalkClassAllocator for TalkInvertedClassAllocator {
+    /// The type of data stored for this class
+    type Data = TalkInverted;
+
+    ///
+    /// Retrieves a reference to the data attached to a handle (panics if the handle has been released)
+    ///
+    #[inline]
+    fn retrieve<'a>(&'a mut self, TalkDataHandle(pos): TalkDataHandle) -> &'a mut Self::Data {
+        self.data[pos].as_mut().unwrap()
+    }
+
+    ///
+    /// Adds to the reference count for a data handle
+    ///
+    #[inline]
+    fn retain(allocator: &Arc<Mutex<Self>>, TalkDataHandle(pos): TalkDataHandle, _: &TalkContext) {
+        let mut allocator = allocator.lock().unwrap();
+
+        if allocator.reference_counts[pos] > 0 {
+            allocator.reference_counts[pos] += 1;
+        }
+    }
+
+    ///
+    /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
+    ///
+    #[inline]
+    fn release(allocator: &Arc<Mutex<Self>>, TalkDataHandle(pos): TalkDataHandle, talk_context: &TalkContext) -> TalkReleaseAction {
+        let freed_value = {
+            let mut allocator = allocator.lock().unwrap();
+
+            if allocator.reference_counts[pos] > 0 {
+                allocator.reference_counts[pos] -= 1;
+
+                if allocator.reference_counts[pos] == 0 {
+                    allocator.free_slots.push(pos);
+                    allocator.data[pos].take()
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
+        if let Some(freed_value) = freed_value {
+            freed_value.release_in_context(talk_context);
+
+            TalkReleaseAction::Dropped
+        } else {
+            TalkReleaseAction::Retained
+        }
+    }
+}
+
+impl TalkInvertedClassAllocator {
+    ///
+    /// Creates an allocator with no values in it
+    ///
+    pub fn empty() -> Arc<Mutex<TalkInvertedClassAllocator>> {
+        Arc::new(Mutex::new(TalkInvertedClassAllocator {
+            data:               vec![],
+            reference_counts:   vec![],
+            free_slots:         vec![],
+        }))
+    }
+
+    ///
+    /// Callback when a reference is dropped
+    ///
+    pub fn on_drop_reference(&mut self, reference: TalkReference) {
+
+    }
+}
+
 impl TalkClassDefinition for TalkInvertedClass {
     /// The type of the data stored by an object of this class
-    type Data = ();
+    type Data = TalkInverted;
 
     /// The allocator is used to manage the memory of this class within a context
-    type Allocator = TalkStandardAllocator<Self::Data>;
+    type Allocator = TalkInvertedClassAllocator;
 
     ///
     /// Creates the allocator for this class
     ///
     fn create_allocator(&self, _talk_context: &mut TalkContext) -> Arc<Mutex<Self::Allocator>> {
-        TalkStandardAllocator::empty()
+        TalkInvertedClassAllocator::empty()
     }
 
     ///
