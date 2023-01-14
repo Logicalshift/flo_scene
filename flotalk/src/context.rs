@@ -479,6 +479,16 @@ impl TalkContext {
     }
 
     ///
+    /// Adds an action that will be performed whenever a reference is dropped in this context
+    ///
+    /// Note: the reference passed in here has already been dropped at the point the callback is made, so it
+    /// is not safe to attempt to retrieve any data for it.
+    ///
+    pub fn on_dropped_reference(&mut self, action: impl 'static + Send + Fn(TalkReference, &TalkContext) -> ()) {
+        self.when_dropped.push(Box::new(action))
+    }
+
+    ///
     /// Indicates that a reference has been dropped (is no longer valid)
     ///
     pub (super) fn notify_dropped(&self, reference: TalkReference) {
