@@ -34,10 +34,10 @@ impl TalkClassDefinition for TalkClassClass {
     type Data       = ();
     type Allocator  = TalkClassClassAllocator;
 
-    fn create_allocator(&self, _talk_context: &mut TalkContext) -> Self::Allocator {
-        TalkClassClassAllocator {
+    fn create_allocator(&self, _talk_context: &mut TalkContext) -> Arc<Mutex<Self::Allocator>> {
+        Arc::new(Mutex::new(TalkClassClassAllocator {
             nothing: ()
-        }
+        }))
     }
 
     fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _class_id: TalkClass, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {

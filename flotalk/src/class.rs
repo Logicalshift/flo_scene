@@ -195,7 +195,7 @@ pub trait TalkClassDefinition : Send + Sync {
     ///
     /// This is also an opportunity for a class to perform any other initialization it needs to do within a particular `TalkContext`
     ///
-    fn create_allocator(&self, talk_context: &mut TalkContext) -> Self::Allocator;
+    fn create_allocator(&self, talk_context: &mut TalkContext) -> Arc<Mutex<Self::Allocator>>;
 
     ///
     /// Sends a message to the class object itself
@@ -337,7 +337,7 @@ impl TalkClass {
     ///
     fn callback_create_in_context(class_id: TalkClass, definition: Arc<impl 'static + TalkClassDefinition>) -> Box<dyn Send + Sync + Fn(&mut TalkContext) -> TalkClassContextCallbacks> {
         Box::new(move |talk_context| {
-            let allocator = Arc::new(Mutex::new(definition.create_allocator(talk_context)));
+            let allocator = definition.create_allocator(talk_context);
 
             TalkClassContextCallbacks {
                 dispatch_table:         Self::callback_dispatch_table(class_id, Arc::clone(&definition), Arc::clone(&allocator)),

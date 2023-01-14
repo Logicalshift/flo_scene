@@ -15,10 +15,10 @@ impl TalkClassDefinition for TestClass {
     type Data       = usize;
     type Allocator  = TestAllocator;
 
-    fn create_allocator(&self, _talk_context: &mut TalkContext) -> Self::Allocator {
-        TestAllocator {
+    fn create_allocator(&self, _talk_context: &mut TalkContext) -> Arc<Mutex<Self::Allocator>> {
+        Arc::new(Mutex::new(TestAllocator {
             items: vec![]
-        }
+        }))
     }
 
     fn send_class_message(&self, message_id: TalkMessageSignatureId, _arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
