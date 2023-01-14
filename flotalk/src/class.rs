@@ -278,9 +278,14 @@ impl TalkClass {
     ///
     /// Creates the 'remove reference' method for an allocator
     ///
-    fn callback_release(allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()> {
+    fn callback_release(class_id: TalkClass, allocator: Arc<Mutex<impl 'static + TalkClassAllocator>>) -> Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()> {
         Box::new(move |data_handle, context| {
-            TalkClassAllocator::release(&allocator, data_handle, context);
+            let release_action = TalkClassAllocator::release(&allocator, data_handle, context);
+
+            match release_action {
+                TalkReleaseAction::Retained => { }
+                TalkReleaseAction::Dropped  => { context.notify_dropped(TalkReference(class_id, data_handle)); }
+            }
         })
     }
 
@@ -338,7 +343,7 @@ impl TalkClass {
                 dispatch_table:         Self::callback_dispatch_table(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
                 class_dispatch_table:   Self::callback_class_dispatch_table(class_id, Arc::clone(&definition), Arc::clone(&allocator)),
                 retain:                 Self::callback_retain(Arc::clone(&allocator)),
-                release:                Self::callback_release(Arc::clone(&allocator)),
+                release:                Self::callback_release(class_id, Arc::clone(&allocator)),
                 read_data:              Self::callback_read_data(Arc::clone(&definition), Arc::clone(&allocator)),
                 class_definition:       Box::new(Arc::clone(&definition)),
                 allocator:              Box::new(Arc::clone(&allocator)),

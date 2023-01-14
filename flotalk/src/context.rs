@@ -80,6 +80,9 @@ pub struct TalkContext {
     /// Background tasks queued on this context
     pub (super) background_tasks: Arc<Mutex<TalkContextBackgroundTasks>>,
 
+    /// Callbacks made when a reference is dropped in this context
+    when_dropped: Vec<Box<dyn Send + Fn(TalkReference, &TalkContext) -> ()>>,
+
     /// Storage cells that make up the heap for the interpreter
     cells: Vec<TalkCellBlockStore>,
 
@@ -114,6 +117,7 @@ impl TalkContext {
             context_callbacks:              vec![],
             value_dispatch_tables:          TalkValueDispatchTables::default(),
             background_tasks:               Arc::new(Mutex::new(TalkContextBackgroundTasks::new())),
+            when_dropped:                   vec![],
             cells:                          vec![TalkCellBlockStore { values: Box::new([]) }],
             cell_reference_count:           vec![AtomicU32::new(1)],
             cell_block_classes:             vec![],
@@ -472,6 +476,16 @@ impl TalkContext {
     ///
     pub fn run_in_background(&self, continuation: TalkContinuation<'static>) {
         TalkContextBackgroundTasks::add_background_continuation(&self.background_tasks, continuation);
+    }
+
+    ///
+    /// Indicates that a reference has been dropped (is no longer valid)
+    ///
+    pub (super) fn notify_dropped(&self, reference: TalkReference) {
+        for on_drop in self.when_dropped.iter() {
+            let dropped_reference = TalkReference(reference.0, reference.1);
+            on_drop(dropped_reference, self);
+        }
     }
 }
 
