@@ -65,8 +65,8 @@ impl TalkClassAllocator for TestAllocator {
 
     }
 
-    fn release(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) {
-
+    fn release(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) -> TalkReleaseAction {
+        TalkReleaseAction::Retained
     }
 }
 

@@ -111,7 +111,7 @@ where
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
     #[inline]
-    fn release(allocator: &Arc<Mutex<Self>>, TalkDataHandle(pos): TalkDataHandle, talk_context: &TalkContext) {
+    fn release(allocator: &Arc<Mutex<Self>>, TalkDataHandle(pos): TalkDataHandle, talk_context: &TalkContext) -> TalkReleaseAction {
         let freed_value = {
             let mut allocator = allocator.lock().unwrap();
 
@@ -131,6 +131,10 @@ where
 
         if let Some(freed_value) = freed_value {
             freed_value.release_in_context(talk_context);
+
+            TalkReleaseAction::Dropped
+        } else {
+            TalkReleaseAction::Retained
         }
     }
 }

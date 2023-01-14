@@ -294,7 +294,7 @@ impl TalkContext {
     /// Returns true if the cell block was actually released, otherwise false
     ///
     #[inline]
-    pub fn release_cell_block(&self, TalkCellBlock(idx): TalkCellBlock) -> bool {
+    pub fn release_cell_block(&self, TalkCellBlock(idx): TalkCellBlock) -> TalkReleaseAction {
         let ref_count = &self.cell_reference_count[idx as usize];
         debug_assert!(ref_count.load(Ordering::Relaxed) > 0);
 
@@ -307,9 +307,11 @@ impl TalkContext {
 
             self.free_cells.lock().unwrap().push(idx as _);
 
-            true
+            // This makes the cell block 'dropped' so it can't be accessed any more
+            TalkReleaseAction::Dropped
         } else {
-            false
+            // Other owners of the cell block may still access it
+            TalkReleaseAction::Retained
         }
     }
 

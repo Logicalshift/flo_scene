@@ -54,6 +54,20 @@ thread_local! {
 }
 
 ///
+/// Represents the action that was taken when a reference was released
+///
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TalkReleaseAction {
+    /// The item was fully released and dropped (and is no longer a valid reference anywhere in the code)
+    Dropped,
+
+    /// The item still has other references that are valid so is still in memory
+    ///
+    /// Other references are still valid, but callers shouldn't consider that the specific reference that was released is still valid
+    Retained,
+}
+
+///
 /// Callbacks for addressing a TalkClass
 ///
 pub (super) struct TalkClassCallbacks {
@@ -226,7 +240,7 @@ pub trait TalkClassAllocator : Send {
     ///
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
-    fn release(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext);
+    fn release(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) -> TalkReleaseAction;
 }
 
 impl TalkClass {

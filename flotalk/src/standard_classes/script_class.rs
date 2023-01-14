@@ -645,8 +645,8 @@ impl TalkClassAllocator for TalkCellBlockAllocator {
     /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
     ///
     #[inline]
-    fn release(_allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) {
+    fn release(_allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) -> TalkReleaseAction {
         let cell_block = TalkCellBlock(handle.0 as _);
-        context.release_cell_block(cell_block);
+        context.release_cell_block(cell_block)
     }
 }

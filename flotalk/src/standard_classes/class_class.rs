@@ -81,7 +81,10 @@ impl TalkClassAllocator for TalkClassClassAllocator {
 
     fn retain(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) { /* Classes don't count references */ }
 
-    fn release(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) { /* Class objects cannot be freed */ }
+    fn release(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) -> TalkReleaseAction { 
+        // Class objects cannot be freed
+        TalkReleaseAction::Retained
+    }
 }
 
 impl TalkClass {
