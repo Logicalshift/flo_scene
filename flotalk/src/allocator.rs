@@ -21,13 +21,13 @@ use std::sync::*;
 ///
 /// ```
 /// # use flo_talk::*;
-/// # let mut allocator = TalkStandardAllocator::<usize>::empty();
-/// let handle = allocator.store(42);
-/// # let handle_2 = allocator.store(43);
+/// # let allocator = TalkStandardAllocator::<usize>::empty();
+/// let handle = allocator.lock().unwrap().store(42);
+/// # let handle_2 = allocator.lock().unwrap().store(43);
 /// # assert!(handle.0 == 0);
 /// # assert!(handle_2.0 == 1);
-/// # assert!(allocator.retrieve(handle) == &mut 42);
-/// # assert!(allocator.retrieve(handle_2) == &mut 43);
+/// # assert!(allocator.lock().unwrap().retrieve(handle) == &mut 42);
+/// # assert!(allocator.lock().unwrap().retrieve(handle_2) == &mut 43);
 /// ```
 ///
 pub struct TalkStandardAllocator<TValue> 
