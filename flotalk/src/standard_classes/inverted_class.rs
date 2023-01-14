@@ -285,6 +285,7 @@ impl TalkInvertedClassAllocator {
 
                     1 => { 
                         // Send the message directly to the first target, no prioritisation or weeding to do
+                        // TODO: how to inject the sender into the message argument list
                         todo!() 
                     }
 
