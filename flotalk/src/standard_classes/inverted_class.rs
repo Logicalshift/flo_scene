@@ -310,8 +310,10 @@ impl TalkInvertedClassAllocator {
 
                     1 => { 
                         // Send the message directly to the first target, no prioritisation or weeding to do
-                        // TODO: how to inject the sender into the message argument list
-                        todo!() 
+                        let target = targets.pop().unwrap().0;
+
+                        target.retain(talk_context);
+                        target.send_message_in_context(inverted_message, talk_context)
                     }
 
                     _ => {
