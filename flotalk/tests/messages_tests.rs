@@ -281,3 +281,25 @@ fn message_is_not_nil() {
         assert!(*msg == TalkValue::Bool(false));
     })
 }
+
+#[test]
+fn add_parameter_to_unary_message() {
+    executor::block_on(async {
+        let msg = TalkMessage::unary("test");
+        let msg = msg.with_extra_parameter("foo:", 0);
+
+        println!("{:?}", msg);
+        assert!(msg == TalkMessage::with_arguments(vec![("testFoo:", 0)]));
+    })
+}
+
+#[test]
+fn add_parameter_to_argument_message() {
+    executor::block_on(async {
+        let msg = TalkMessage::with_arguments(vec![("foo:", 0)]);
+        let msg = msg.with_extra_parameter("bar:", 1);
+
+        println!("{:?}", msg);
+        assert!(msg == TalkMessage::with_arguments(vec![("foo:", 0), ("bar:", 1)]));
+    })
+}

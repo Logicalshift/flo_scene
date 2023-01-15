@@ -2,6 +2,7 @@ use super::context::*;
 use super::error::*;
 use super::expression::*;
 use super::releasable::*;
+use super::sparse_array::*;
 use super::symbol::*;
 use super::value::*;
 
@@ -195,6 +196,30 @@ impl TalkMessage {
             TalkMessage::WithArguments(id, _args)   => id.to_signature()
         }
     }
+
+    ///
+    /// Appends an extra parameter to this message
+    ///
+    /// The extra parameter must always have a value. For a message like `foo:`, adding a parameter like `bar:` will generate
+    /// the message `foo:bar:`. However, for a unary message like `foo`, the generated signature will be `fooBar:`.
+    ///
+    pub fn with_extra_parameter(self, symbol: impl Into<TalkSymbol>, value: impl Into<TalkValue>) -> TalkMessage {
+        // Split up this object
+        let (message_id, args) = match self {
+            TalkMessage::Unary(message_id)                  => (message_id, smallvec![]),
+            TalkMessage::WithArguments(message_id, args)    => (message_id, args),
+        };
+
+        // Add the new argument
+        let mut args = args;
+        args.push(value.into());
+
+        // Generate a new message ID
+        let message_id = message_id.with_extra_parameter(symbol);
+
+        // New message always has an argument
+        TalkMessage::WithArguments(message_id, args)
+    }
 }
 
 impl TalkReleasable for TalkMessage {
@@ -332,6 +357,17 @@ impl TalkMessageSignature {
             TalkMessageSignature::Arguments(args)   => args.len(),
         }
     }
+
+    ///
+    /// Appends an extra parameter to this signature
+    ///
+    /// The extra parameter must always have a value. For a message like `foo:`, adding a parameter like `bar:` will generate
+    /// the message `foo:bar:`. However, for a unary message like `foo`, the generated signature will be `fooBar:`.
+    ///
+    pub fn with_extra_parameter(&self, new_symbol: impl Into<TalkSymbol>) -> TalkMessageSignature {
+        // This is implemented by the message signature ID type (which does caching)
+        self.id().with_extra_parameter(new_symbol).to_signature()
+    }
 }
 
 impl From<&TalkMessageSignature> for TalkMessageSignatureId {
@@ -359,6 +395,59 @@ impl TalkMessageSignatureId {
     ///
     pub fn len(&self) -> usize {
         SIGNATURE_FOR_ID.lock().unwrap().get(self).unwrap().len()
+    }
+
+    ///
+    /// Appends an extra parameter to this signature ID
+    ///
+    /// The extra parameter must always have a value. For a message like `foo:`, adding a parameter like `bar:` will generate
+    /// the message `foo:bar:`. However, for a unary message like `foo`, the generated signature will be `fooBar:`.
+    ///
+    pub fn with_extra_parameter(&self, new_symbol: impl Into<TalkSymbol>) -> TalkMessageSignatureId {
+        let new_symbol = new_symbol.into();
+
+        // Cache of the extra parameters for each symbol
+        static EXTRA_PARAMETERS: Lazy<Mutex<TalkSparseArray<TalkSparseArray<TalkMessageSignatureId>>>> = Lazy::new(|| Mutex::new(TalkSparseArray::empty()));
+        let mut extra_parameters = EXTRA_PARAMETERS.lock().unwrap();
+
+        // Get the list of extra parameters for this message, or create a new map
+        let map_for_message = if let Some(map_for_message) = extra_parameters.get_mut(self.0) {
+            map_for_message
+        } else {
+            let map_for_message = TalkSparseArray::empty();
+            extra_parameters.insert(self.0, map_for_message);
+            extra_parameters.get_mut(self.0).unwrap()
+        };
+
+        // Fetch the signature ID for the specified symbol, or create a new one
+        if let Some(new_signature) = map_for_message.get(new_symbol.into()) {
+            // We've already mapped this symbol
+            *new_signature
+        } else {
+            // Generate a new message signature
+            let signature       = self.to_signature();
+            let new_signature   = match signature {
+                TalkMessageSignature::Arguments(args) => {
+                    let mut new_args = args.clone();
+                    new_args.push(new_symbol);
+                    TalkMessageSignature::Arguments(new_args).id()
+                }
+
+                TalkMessageSignature::Unary(old_symbol) => {
+                    let old_symbol_name = old_symbol.name();
+                    let new_symbol_name = format!("{}{}", old_symbol.name(), capitalized(new_symbol.name()));
+                    let new_symbol      = TalkSymbol::from(new_symbol_name);
+
+                    TalkMessageSignature::Arguments(smallvec![new_symbol]).id()
+                }
+            };
+
+            // Cache the new signature so we can find it more quickly next time
+            map_for_message.insert(new_symbol.into(), new_signature);
+
+            // The new signature is the result
+            new_signature
+        }
     }
 }
 
@@ -542,5 +631,20 @@ impl TalkMessageType for TalkMessage {
     /// Converts an object of this type to a message
     fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkMessage, &'a TalkContext> {
         TalkOwned::new(self.clone_in_context(context), context)
+    }
+}
+
+///
+/// Capitalizes the first letter of a string
+///
+fn capitalized(name: &str) -> String {
+    let mut name_chrs = name.chars();
+
+    if let Some(first_chr) = name_chrs.next() {
+        first_chr.to_uppercase()
+            .chain(name_chrs)
+            .collect()
+    } else {
+        String::new()
     }
 }
