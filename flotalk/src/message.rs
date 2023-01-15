@@ -410,17 +410,18 @@ impl TalkMessageSignatureId {
         static EXTRA_PARAMETERS: Lazy<Mutex<TalkSparseArray<TalkSparseArray<TalkMessageSignatureId>>>> = Lazy::new(|| Mutex::new(TalkSparseArray::empty()));
         let mut extra_parameters = EXTRA_PARAMETERS.lock().unwrap();
 
-        // Get the list of extra parameters for this message, or create a new map
-        let map_for_message = if let Some(map_for_message) = extra_parameters.get_mut(self.0) {
-            map_for_message
+        // Get the list of extra parameters for the symbol we're adding, or create a new map (assumption is we're adding a particular symbol to different messages so this is the more efficient representation)
+        let new_symbol_id   = usize::from(new_symbol);
+        let map_for_symbol  = if let Some(map_for_symbol) = extra_parameters.get_mut(new_symbol_id) {
+            map_for_symbol
         } else {
-            let map_for_message = TalkSparseArray::empty();
-            extra_parameters.insert(self.0, map_for_message);
-            extra_parameters.get_mut(self.0).unwrap()
+            let map_for_symbol = TalkSparseArray::empty();
+            extra_parameters.insert(new_symbol_id, map_for_symbol);
+            extra_parameters.get_mut(new_symbol_id).unwrap()
         };
 
         // Fetch the signature ID for the specified symbol, or create a new one
-        if let Some(new_signature) = map_for_message.get(new_symbol.into()) {
+        if let Some(new_signature) = map_for_symbol.get(self.0) {
             // We've already mapped this symbol
             *new_signature
         } else {
@@ -443,7 +444,7 @@ impl TalkMessageSignatureId {
             };
 
             // Cache the new signature so we can find it more quickly next time
-            map_for_message.insert(new_symbol.into(), new_signature);
+            map_for_symbol.insert(self.0, new_signature);
 
             // The new signature is the result
             new_signature
