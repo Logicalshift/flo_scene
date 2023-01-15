@@ -260,6 +260,11 @@ impl TalkInvertedClassAllocator {
                 // There are `Inverted` classes that can respond to this message
                 let mut targets = vec![];
 
+                // Note: when releasing targets, we're only told after the reference goes invalid. Right now the mutex in the runtime ensures that
+                // this can't happen simultaneously with this continuation (TalkContext is meant to be Send but !Sync). There'd be a race condition
+                // if this mutex didn't exist and it were possible for another thread to be releasing a target reference as this continuation is
+                // starting to run (ie, this logic would need to be rethought if TalkContext needed to support multithreading).
+
                 // Find all of the Inverted objects that always respond to this message
                 for responder_class in responder_classes.iter() {
                     let responder_class_id = usize::from(*responder_class);
