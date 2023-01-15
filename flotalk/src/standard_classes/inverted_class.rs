@@ -288,7 +288,8 @@ impl TalkInvertedClassAllocator {
                 // TODO: everything in the local context that might respond to this message
                 // TODO: respond to specific class or subclass
 
-                // TODO: add the sender as a final parameter to the message (so it's released alongside it)
+                // Add the sender as a final parameter to the message (so it's released alongside it)
+                let inverted_message = inverted_message.with_extra_parameter("invertedFrom:", sender_reference);
 
                 match targets.len() {
                     0 => {
