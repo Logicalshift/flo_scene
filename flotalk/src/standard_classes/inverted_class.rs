@@ -109,7 +109,7 @@ pub struct TalkInverted {
 ///
 /// When a particular inverted message should be sent to a type (if it has not been received by another processor or always)
 ///
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 enum ProcessWhen {
     Always,
     Unreceived,    
@@ -232,6 +232,43 @@ impl TalkInvertedClassAllocator {
     }
 
     ///
+    /// Creates a continuation that will call the specified set targets, in reverse order (by popping values) with the specified message
+    ///
+    /// Unreceived targets are only called if `message_is_received` is false
+    ///
+    fn call_targets(targets: Vec<(TalkReference, Priority)>, message: TalkMessage, message_is_received: bool) -> TalkContinuation<'static> {
+        let mut targets = targets;
+
+        if targets.len() == 0 {
+            // Ran out of targets to send to
+            TalkContinuation::soon(|context| {
+                message.release_in_context(context);
+                ().into()
+            })
+        } else {
+            // Get the target to send to
+            let (target_ref, Priority(_, when)) = targets.pop().unwrap();
+
+            if when == ProcessWhen::Unreceived && message_is_received {
+                // Target should not receive the message (marked as unreceived, and message is received)
+                TalkContinuation::soon(move |context| {
+                    target_ref.release(context);
+                    Self::call_targets(targets, message, message_is_received)
+                })
+            } else {
+                // Target should receive the message, then we should continue with the remaining targets (TODO: set message_is_received based on the return value)
+                TalkContinuation::soon(move |context| {
+                    let target_message = message.clone_in_context(context);
+                    target_ref.send_message_in_context(target_message, context)
+                        .and_then(move |_| {
+                            Self::call_targets(targets, message, true)
+                        })
+                })
+            }
+        }
+    }
+
+    ///
     /// Sends an inverted message to the known instances of the `Inverted` class that support the message type and have requested to receive it
     ///
     #[inline]
@@ -318,7 +355,62 @@ impl TalkInvertedClassAllocator {
 
                     _ => {
                         // If there are multiple targets, we need to make sure that each target is only in the list once, then we need to order by priority and deal with 'unreceived' groups too
-                        todo!()
+                        use std::cmp::{Ordering};
+
+                        // Weeding out duplicate references: sort by reference
+                        targets.sort_by(|(a_ref, Priority(a_priority, _)), (b_ref, Priority(b_priority, _))| {
+                            let ref_ordering = a_ref.cmp(&b_ref);
+
+                            if ref_ordering == Ordering::Equal {
+                                // Order by priority, highest first
+                                b_priority.cmp(a_priority)
+                            } else {
+                                // Order by reference
+                                ref_ordering
+                            }
+                        });
+
+                        // Weeding out duplicate references: fold duplicates into their highest-priority single entry
+                        let mut idx = 1;
+                        loop {
+                            // All equal references will be in the same spot in this vec
+                            let (a_ref, Priority(a_priority, a_when)) = &targets[idx-1];
+                            let (b_ref, Priority(b_priority, b_when)) = &targets[idx];
+
+                            // For cases where the references are the same, combine into a single entry
+                            if a_ref == b_ref {
+                                // Any 'Always' message will promote the 'when' to 'Always'
+                                let when = match (a_when, b_when) {
+                                    (ProcessWhen::Unreceived, ProcessWhen::Unreceived)  => ProcessWhen::Unreceived,
+                                    _                                                   => ProcessWhen::Always,
+                                };
+
+                                // Update the 'process when' value
+                                targets[idx-1].1.1 = when;
+
+                                // Remove the next value as we want to send to any given reference once
+                                targets.remove(idx);
+                            } else {
+                                // Move to the next value
+                                idx += 1;
+                            }
+
+                            // Stop when we get to the end of the targets
+                            if idx >= targets.len() {
+                                break;
+                            }
+                        }
+
+                        // Ready to send: now sort just by priority: higher priorities are put last so we can pop from the targets as we go
+                        targets.sort_by(|(_, Priority(a, _)), (_, Priority(b, _))| { a.cmp(b) });
+
+                        // Retain the target references (they get released as we send the messages)
+                        for (target_ref, _) in targets.iter() {
+                            target_ref.retain(talk_context);
+                        }
+
+                        // Begin calling the targets
+                        Self::call_targets(targets, inverted_message, false)
                     }
                 }
             } else {
