@@ -232,11 +232,13 @@ impl TalkInvertedClassAllocator {
     }
 
     ///
-    /// Sends an inverted message to the known instances of the `Inverted` class that support the message type and 
+    /// Sends an inverted message to the known instances of the `Inverted` class that support the message type and have requested to receive it
     ///
     #[inline]
-    fn send_inverted_message(allocator: &Arc<Mutex<Self>>, sender_reference: TalkReference, inverted_message: TalkMessage) -> TalkContinuation<'static> {
-        let allocator = Arc::clone(allocator);
+    fn send_inverted_message(allocator: &Arc<Mutex<Self>>, sender_reference: TalkOwned<TalkReference, &'_ TalkContext>, inverted_message: TalkOwned<TalkMessage, &'_ TalkContext>) -> TalkContinuation<'static> {
+        let allocator           = Arc::clone(allocator);
+        let sender_reference    = sender_reference.leak();
+        let inverted_message    = inverted_message.leak();
 
         // There is a priority execution order: messages are received in reverse order of calling the `receiveFrom:` message.
         // 'unreceived' receiver targets are only called if the message has not been processed by any other receiver in this order
@@ -286,8 +288,19 @@ impl TalkInvertedClassAllocator {
                 // TODO: everything in the local context that might respond to this message
                 // TODO: respond to specific class or subclass
 
+                // TODO: add the sender as a final parameter to the message (so it's released alongside it)
+
                 match targets.len() {
-                    0 => { ().into() }              // No responders, so nothing to do (inverted messages don't error even if there are no responder)
+                    0 => {
+                          // No responders, so nothing to do (inverted messages don't error even if there are no responder)
+                        TalkContinuation::soon(move |context| {
+                            // Free the message as there's nothing to receive it
+                            inverted_message.release_in_context(context);
+
+                            // Result is nil
+                            ().into()
+                        })
+                    }
 
                     1 => { 
                         // Send the message directly to the first target, no prioritisation or weeding to do
