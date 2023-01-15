@@ -90,6 +90,13 @@ impl<'a> From<&'a Arc<String>> for TalkSymbol {
     }
 }
 
+impl From<TalkSymbol> for usize {
+    #[inline]
+    fn from(val: TalkSymbol) -> usize {
+        val.0
+    }
+}
+
 impl TalkSymbol {
     ///
     /// Creates an 'unnamed' symbol, which cannot be returned by `TalkSymbol::from()`
