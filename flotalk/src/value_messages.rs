@@ -594,7 +594,6 @@ fn message_after(msg: &TalkMessage, selector: &TalkValue, context: &TalkContext)
     }
 }
 
-
 ///
 /// Implements the `messageCombinedWith:` message
 ///
