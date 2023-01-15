@@ -46,8 +46,8 @@ use std::sync::*;
 /// Logger := InvertedClass subclass.
 ///
 /// Logger
-///     addInstanceMessage: #logDebug: withAction: [ :msg :sender :self | "... write debug message ..." ];
-///     addInstanceMessage: #logError: withAction: [ :msg :sender :self | "... write error message ..." ].
+///     addInvertedMessage: #logDebug: withAction: [ :msg :sender :self | "... write debug message ..." ];
+///     addInvertedMessage: #logError: withAction: [ :msg :sender :self | "... write error message ..." ].
 /// ```
 ///
 /// So far this looks like a fairly normal class definition but these messages are not sent directly to an instance of the
