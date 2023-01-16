@@ -475,6 +475,16 @@ impl<TTarget> TalkSparseArray<TTarget> {
             SparseBucket::Item(pos, value)  => Some((*pos, value)),
         })
     }
+
+    ///
+    /// Creates an iterator that covers the values in this sparse array
+    ///
+    pub fn iter_mut<'a>(&'a mut self) -> impl 'a + Iterator<Item=(usize, &'a mut TTarget)> {
+        self.values.iter_mut().filter_map(|val| match val {
+            SparseBucket::Empty             => None,
+            SparseBucket::Item(pos, value)  => Some((*pos, value)),
+        })
+    }
 }
 
 impl<TTarget> Clone for TalkSparseArray<TTarget>
