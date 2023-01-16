@@ -135,6 +135,18 @@ impl TalkMessage {
     }
 
     ///
+    /// Creates a message from a signature and its arguments (assumes the arguments matches the signature)
+    ///
+    #[inline]
+    pub fn from_signature(sig: impl Into<TalkMessageSignatureId>, arguments: SmallVec<[TalkValue; 4]>) -> TalkMessage {
+        if arguments.len() == 0 {
+            TalkMessage::Unary(sig.into())
+        } else {
+            TalkMessage::WithArguments(sig.into(), arguments)
+        }
+    }
+
+    ///
     /// Creates a unary message
     ///
     pub fn unary(symbol: impl Into<TalkSymbol>) -> TalkMessage {
