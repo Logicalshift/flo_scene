@@ -9,6 +9,7 @@ use crate::value::*;
 ///
 pub fn talk_init_standard_classes() -> TalkContinuation<'static> {
     talk_init_object_class()
+        .and_then_if_ok(|_| talk_init_inverted_class())
         .and_then_if_ok(|_| talk_init_stream_class())
         .and_then_if_ok(|_| talk_init_stream_with_reply_class())
         .and_then_if_ok(|_| talk_init_later_class())
@@ -26,6 +27,17 @@ pub fn talk_init_object_class() -> TalkContinuation<'static> {
         SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
     }).and_then_soon(|script_class, talk_context| {
         talk_context.set_root_symbol_value("Object", script_class);
+        ().into()
+    })
+}
+
+///
+/// Returns a continuation that will create the 'Inverted' class definition
+///
+pub fn talk_init_inverted_class() -> TalkContinuation<'static> {
+    TalkContinuation::soon(|talk_context| {
+        let inverted_class_object = INVERTED_CLASS.class_object_in_context(talk_context);
+        talk_context.set_root_symbol_value("Inverted", inverted_class_object.into());
         ().into()
     })
 }
