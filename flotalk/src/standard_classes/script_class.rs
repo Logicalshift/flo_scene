@@ -519,7 +519,27 @@ impl TalkScriptClass {
                 if let (Some(superclass_id), Some(TalkValue::Reference(superclass_reference))) = (&script_class.superclass_id, &script_class.superclass_script_class) {
                     // Try to send to the original class
                     Self::send_class_message(original_target, superclass_reference.clone(), *superclass_id, original_class_id, message_id, args)
+
+                } else if let Some(superclass_id) = script_class.superclass_id {
+
+                    // Non-script superclass
+                    TalkContinuation::soon(move |talk_context| {
+                        // Send to the class if it responds to the message
+                        let callbacks = talk_context.get_callbacks(superclass_id).unwrap();
+
+                        if callbacks.class_dispatch_table.responds_to(message_id) {
+                            // Send to the class
+                            callbacks.send_class_message(&original_class_id, TalkMessage::from_signature(message_id, args), talk_context)
+                        } else {
+                            // Process against the original message
+                            TalkContinuation::read_value::<TalkScriptClassClass, _>(TalkValue::Reference(original_target.clone()), move |script_class, talk_context| {
+                                script_class.process_standard_class_message(message_id, TalkOwned::new(args, talk_context), original_target)
+                            })
+                        }
+                    })
+
                 } else {
+
                     // Not found (or with a non-script class superclass): process against the original message
                     TalkContinuation::read_value::<TalkScriptClassClass, _>(TalkValue::Reference(original_target.clone()), move |script_class, talk_context| {
                         script_class.process_standard_class_message(message_id, TalkOwned::new(args, talk_context), original_target)
