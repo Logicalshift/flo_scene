@@ -64,10 +64,6 @@ impl TalkClassDefinition for TalkClassClass {
     fn default_instance_dispatch_table(&self) -> TalkMessageDispatchTable<TalkReference> { 
         TalkMessageDispatchTable::empty().with_mapped_messages_from(&*TALK_DISPATCH_ANY, |v| TalkValue::Reference(v))
     }
-
-    fn default_class_dispatch_table(&self) -> TalkMessageDispatchTable<()> {
-        TalkMessageDispatchTable::empty() 
-    }
 }
 
 ///

@@ -83,7 +83,7 @@ pub (super) struct TalkClassContextCallbacks {
     pub (super) dispatch_table: TalkMessageDispatchTable<TalkReference>,
 
     /// The dispatch table for the class object
-    pub (super) class_dispatch_table: TalkMessageDispatchTable<()>,
+    pub (super) class_dispatch_table: TalkMessageDispatchTable<TalkClass>,
 
     /// Add to the reference count for a data handle
     retain: Box<dyn Send + Fn(TalkDataHandle, &TalkContext) -> ()>,
@@ -112,6 +112,16 @@ impl From<TalkClass> for usize {
     fn from(class: TalkClass) -> usize {
         class.0
     }
+}
+
+impl TalkReleasable for TalkClass {
+    #[inline]
+    fn release_in_context(self, _context: &TalkContext) { }
+}
+
+impl TalkCloneable for TalkClass {
+    #[inline]
+    fn clone_in_context(&self, _context: &TalkContext) -> TalkClass { *self }
 }
 
 impl TalkClassCallbacks {
@@ -143,8 +153,9 @@ impl TalkClassContextCallbacks {
     }
 
     #[inline]
-    pub (super) fn send_class_message(&self, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'static> {
-        self.class_dispatch_table.send_message((), message, context)
+    pub (super) fn send_class_message(&self, target_class: &TalkClass, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'static> {
+        let target_class = target_class.clone_in_context(context);
+        self.class_dispatch_table.send_message(target_class, message, context)
     }
 
     #[inline]
@@ -226,7 +237,7 @@ pub trait TalkClassDefinition : Send + Sync {
     ///
     /// Messages are dispatched here ahead of the 'send_instance_message' callback (note in particular `respondsTo:` may need to be overridden)
     ///
-    fn default_class_dispatch_table(&self) -> TalkMessageDispatchTable<()> { TalkMessageDispatchTable::empty() }
+    fn default_class_dispatch_table(&self) -> TalkMessageDispatchTable<TalkClass> { TalkMessageDispatchTable::empty() }
 }
 
 ///
@@ -299,12 +310,12 @@ impl TalkClass {
     ///
     /// Creates the 'send class message' function for a class
     ///
-    fn callback_class_dispatch_table<TClass>(class_id: TalkClass, definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> TalkMessageDispatchTable<()>
+    fn callback_class_dispatch_table<TClass>(class_id: TalkClass, definition: Arc<TClass>, allocator: Arc<Mutex<TClass::Allocator>>) -> TalkMessageDispatchTable<TalkClass>
     where
         TClass: 'static + TalkClassDefinition,
     {
         definition.default_class_dispatch_table()
-            .with_not_supported(move |_: TalkOwned<(), &'_ TalkContext>, message_id, message_args, _talk_context| {
+            .with_not_supported(move |_: TalkOwned<TalkClass, &'_ TalkContext>, message_id, message_args, _talk_context| {
                 definition.send_class_message(message_id, message_args, class_id, &allocator)
             })
     }
@@ -445,13 +456,13 @@ impl TalkClass {
     #[inline]
     pub fn send_message_in_context<'a>(&self, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'a> {
         if let Some(callbacks) = context.get_callbacks(*self) {
-            callbacks.send_class_message(message, context)
+            callbacks.send_class_message(self, message, context)
         } else {
             let our_class = *self;
 
             TalkContinuation::soon(move |talk_context| {
                 let _ = talk_context.get_callbacks_mut(our_class);
-                talk_context.get_callbacks(our_class).unwrap().send_class_message(message, talk_context)
+                talk_context.get_callbacks(our_class).unwrap().send_class_message(&our_class, message, talk_context)
             })
         }
     }

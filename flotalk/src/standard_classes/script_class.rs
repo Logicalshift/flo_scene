@@ -487,7 +487,7 @@ impl TalkScriptClass {
     ///
     /// Attempts to send a class message to this class or its superclass
     ///
-    fn send_class_message(original_target: TalkReference, reference: TalkReference, class_id: TalkClass, message_id: TalkMessageSignatureId, args: SmallVec<[TalkValue; 4]>) -> TalkContinuation<'static> {
+    fn send_class_message(original_target: TalkReference, reference: TalkReference, class_id: TalkClass, original_class_id: TalkClass, message_id: TalkMessageSignatureId, args: SmallVec<[TalkValue; 4]>) -> TalkContinuation<'static> {
         // TODO: this is a bit twisty so we could probably do with some better helper methods to clarify things
         // This first tries to send to the dispatch table for the 'class_id' class
         // If that fails, it tries to read the superclass and tries again
@@ -510,7 +510,7 @@ impl TalkScriptClass {
                         TalkMessage::WithArguments(message_id, args)
                     };
 
-                    return class_dispatch_table.send_message((), message, talk_context);
+                    return class_dispatch_table.send_message(original_class_id, message, talk_context);
                 }
             }
 
@@ -518,7 +518,7 @@ impl TalkScriptClass {
             TalkContinuation::read_value::<TalkScriptClassClass, _>(TalkValue::Reference(reference), move |script_class, _| {
                 if let (Some(superclass_id), Some(TalkValue::Reference(superclass_reference))) = (&script_class.superclass_id, &script_class.superclass_script_class) {
                     // Try to send to the original class
-                    Self::send_class_message(original_target, superclass_reference.clone(), superclass_id.clone(), message_id, args)
+                    Self::send_class_message(original_target, superclass_reference.clone(), *superclass_id, original_class_id, message_id, args)
                 } else {
                     // Not found (or with a non-script class superclass): process against the original message
                     TalkContinuation::read_value::<TalkScriptClassClass, _>(TalkValue::Reference(original_target.clone()), move |script_class, talk_context| {
@@ -593,7 +593,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
         let mut allocator   = allocator.lock().unwrap();
         let target          = allocator.retrieve(reference.1);
 
-        TalkScriptClass::send_class_message(reference.clone(), reference.clone(), target.class_id, message_id, args.leak())
+        TalkScriptClass::send_class_message(reference.clone(), reference.clone(), target.class_id, target.class_id, message_id, args.leak())
     }
 }
 

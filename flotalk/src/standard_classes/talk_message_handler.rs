@@ -1,3 +1,4 @@
+use crate::class::*;
 use crate::dispatch_table::*;
 use crate::message::*;
 use crate::reference::*;
@@ -14,7 +15,7 @@ use std::sync::*;
 pub struct TalkClassMessageHandler {
     /// Defines this instance message in a dispatch table. The 'self' type is expected to be a reference cell (ie, the data handle should be a reference to a cell block
     /// with the instance variables in it)
-    pub (super) define_in_dispatch_table: Box<dyn Send + FnOnce(&mut TalkMessageDispatchTable<()>, TalkMessageSignatureId, Option<TalkValue>) -> ()>,
+    pub (super) define_in_dispatch_table: Box<dyn Send + FnOnce(&mut TalkMessageDispatchTable<TalkClass>, TalkMessageSignatureId, Option<TalkValue>) -> ()>,
 }
 
 ///
