@@ -580,6 +580,20 @@ impl TalkContext {
             Err((source, message))
         }
     }
+
+    ///
+    /// Attempts to send a message using the `Inverted` class, if it can be sent that way (returns the source and message back in the error if the message is not supported as inverted)
+    ///
+    #[inline]
+    pub fn try_send_inverted_message_reference<'a>(&self, source: TalkOwned<TalkReference, &'a Self>, message: TalkOwned<TalkMessage, &'a Self>) -> Result<TalkContinuation<'static>, (TalkOwned<TalkReference, &'a Self>, TalkOwned<TalkMessage, &'a Self>)> {
+        if self.inverted_messages.get(message.signature_id().into()).is_some() {
+            // This message is marked as supported in this context
+            Ok(TalkInvertedClass::send_inverted_message(self, source, message))
+        } else {
+            // Can't send this as an inverted message, so just return the source and the message back again
+            Err((source, message))
+        }
+    }
 }
 
 impl Drop for TalkContext {
