@@ -246,7 +246,15 @@ impl TalkInvertedClassAllocator {
     /// Callback when a reference is dropped
     ///
     fn on_dropped_reference(&mut self, reference: TalkReference, _talk_context: &TalkContext) {
-        // TODO: deregister this reference from any `Inverted` subclass that 
+        // Remove this reference from the list of values to respond to
+        let class       = reference.0;
+        let class_id    = usize::from(class);
+        let handle      = reference.1;
+
+        if class_id < self.respond_to_specific.len() {
+            let handle_id = usize::from(handle);
+            self.respond_to_specific[class_id].remove(handle_id);
+        }
     }
 
     ///
