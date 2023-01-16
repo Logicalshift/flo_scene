@@ -14,6 +14,9 @@ use once_cell::sync::{Lazy};
 
 use std::sync::*;
 
+/// The 'Inverted' class, adds inverted-control messages
+pub static INVERTED_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkInvertedClass));
+
 ///
 /// The `Inverted` class provides a way to declare messages that are sent *from* an instance instead of *to* an instance.
 ///
@@ -95,9 +98,7 @@ use std::sync::*;
 /// An inverted instance message can return the value `Inverted notHandled` if it wants to indicate that it doesn't want 
 /// the message to be considered as 'received' for lower priority handlers.
 ///
-pub struct TalkInvertedClass {
-
-}
+pub struct TalkInvertedClass;
 
 ///
 /// Data stored for an instance of the inverted class
@@ -146,6 +147,23 @@ pub struct TalkInvertedClassAllocator {
 
     /// Items in the data array that have been freed and are available for reallocation
     free_slots: Vec<usize>,
+}
+
+impl TalkInvertedClass {
+    ///
+    /// Sends a message as an inverted message to anything that is listening for it in the current context
+    ///
+    #[inline]
+    pub fn send_inverted_message(context: &TalkContext, source: TalkOwned<TalkReference, &'_ TalkContext>, inverted_message: TalkOwned<TalkMessage, &'_ TalkContext>) -> TalkContinuation<'static> {
+        // Fetch the allocator for the inverted class from the context
+        let callbacks = context.get_callbacks(*INVERTED_CLASS).unwrap();
+        let allocator = callbacks.allocator.downcast_ref::<Arc<Mutex<TalkInvertedClassAllocator>>>()
+            .map(|defn| Arc::clone(defn))
+            .unwrap();
+
+        // Ask the allocator to send the message
+        TalkInvertedClassAllocator::send_inverted_message(allocator, source, inverted_message)
+    }
 }
 
 impl TalkReleasable for TalkInverted {
@@ -272,8 +290,7 @@ impl TalkInvertedClassAllocator {
     /// Sends an inverted message to the known instances of the `Inverted` class that support the message type and have requested to receive it
     ///
     #[inline]
-    fn send_inverted_message(allocator: &Arc<Mutex<Self>>, sender_reference: TalkOwned<TalkReference, &'_ TalkContext>, inverted_message: TalkOwned<TalkMessage, &'_ TalkContext>) -> TalkContinuation<'static> {
-        let allocator           = Arc::clone(allocator);
+    fn send_inverted_message(allocator: Arc<Mutex<Self>>, sender_reference: TalkOwned<TalkReference, &'_ TalkContext>, inverted_message: TalkOwned<TalkMessage, &'_ TalkContext>) -> TalkContinuation<'static> {
         let sender_reference    = sender_reference.leak();
         let inverted_message    = inverted_message.leak();
 
