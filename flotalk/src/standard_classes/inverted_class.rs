@@ -490,6 +490,54 @@ impl TalkInvertedClass {
             allocator.lock().unwrap().on_dropped_reference(reference, talk_context)
         })
     }
+
+    ///
+    /// Implements the 'addInvertedMessage:' message
+    ///
+    fn add_inverted_message(class_id: TalkOwned<TalkClass, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _talk_context: &TalkContext) -> TalkContinuation<'static> {
+        static TALK_MSG_ADD_INSTANCE_MESSAGE: Lazy<TalkMessageSignatureId>    = Lazy::new(|| ("addInstanceMessage:", "withAction:").into());
+
+        // First argument should be a message selector
+        let selector = match &args[0] {
+            TalkValue::Selector(selector)   => *selector,
+            _                               => { return TalkError::NotASelector.into(); }
+        };
+
+        // The selector we actually declare has an 'invertedFrom:' parameter
+        let inverted_selector = selector.with_extra_parameter("invertedFrom:");
+
+        // Leak the owned stuff so we can process it later on
+        let class_id    = class_id.leak();
+        let args        = args.leak();
+
+        TalkContinuation::soon(move |talk_context| {
+            {
+                // Fetch the allocator for the inverted class so we can add this selector
+                let callbacks       = talk_context.get_callbacks(*INVERTED_CLASS).unwrap();
+                let mut allocator   = callbacks.allocator.downcast_ref::<Arc<Mutex<TalkInvertedClassAllocator>>>().unwrap().lock().unwrap();
+
+                // Declare this selector as handled by this class
+                if let Some(responder_classes) = allocator.responder_classes.get_mut(selector.into()) {
+                    // Add the class to the list for this selector
+                    if !responder_classes.iter().any(|existing_class| existing_class == &class_id) {
+                        responder_classes.push(class_id);
+                    }
+                } else {
+                    // Create a new class
+                    allocator.responder_classes.insert(selector.into(), smallvec![class_id])
+                }
+            }
+
+            TalkContinuation::soon(move |talk_context| {
+                // Change the argument to the inverted message selector
+                let mut args    = args;
+                args[0]         = TalkValue::Selector(inverted_selector);
+
+                // Send the 'add instance message' request to the class
+                class_id.send_message_in_context(TalkMessage::WithArguments(*TALK_MSG_ADD_INSTANCE_MESSAGE, args), talk_context)
+            })
+        })
+    }
 }
 
 impl TalkClassDefinition for TalkInvertedClass {
@@ -530,10 +578,12 @@ impl TalkClassDefinition for TalkInvertedClass {
     /// Messages are dispatched here ahead of the 'send_instance_message' callback (note in particular `respondsTo:` may need to be overridden)
     ///
     fn default_class_dispatch_table(&self) -> TalkMessageDispatchTable<TalkClass> {
-        static TALK_MSG_NEW: Lazy<TalkMessageSignatureId>       = Lazy::new(|| "subclass".into());
-        static TALK_MSG_SUBCLASS: Lazy<TalkMessageSignatureId>  = Lazy::new(|| "subclass".into());
+        static TALK_MSG_NEW: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| "new".into());
+        static TALK_MSG_SUBCLASS: Lazy<TalkMessageSignatureId>              = Lazy::new(|| "subclass".into());
+        static TALK_MSG_ADD_INVERTED_MESSAGE: Lazy<TalkMessageSignatureId>  = Lazy::new(|| ("addInvertedMessage:", "withAction:").into());
 
         TalkMessageDispatchTable::empty()
-            .with_message(*TALK_MSG_SUBCLASS, |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| TalkScriptClassClass::create_subclass(*class_id, vec![*TALK_MSG_NEW]))
+            .with_message(*TALK_MSG_SUBCLASS,               |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| TalkScriptClassClass::create_subclass(*class_id, vec![*TALK_MSG_NEW]))
+            .with_message(*TALK_MSG_ADD_INVERTED_MESSAGE,   |class_id, args, talk_context| Self::add_inverted_message(class_id, args, talk_context))
     }
 }
