@@ -277,10 +277,16 @@ impl TalkClass {
         TClass: 'static + TalkClassDefinition,
     {
         class_definition.default_instance_dispatch_table()
-            .with_not_supported(move |reference: TalkOwned<TalkReference, &'_ TalkContext>, message_id, message_args, _talk_context| {
-                let data_handle     = reference.1;
+            .with_not_supported(move |reference: TalkOwned<TalkReference, &'_ TalkContext>, message_id, message_args, talk_context| {
+                // Try sending as an inverted message before passing on to the class definition
+                match talk_context.try_send_inverted_message_reference(reference, message_id, message_args) {
+                    Ok(inverted_continuation)                   => inverted_continuation,
 
-                class_definition.send_instance_message(message_id, message_args, TalkReference(class_id, data_handle), &*allocator)
+                    Err((reference, message_id, message_args))  => {
+                        let data_handle = reference.1;
+                        class_definition.send_instance_message(message_id, message_args, TalkReference(class_id, data_handle), &*allocator)
+                    }
+                }
             })
     }
 
