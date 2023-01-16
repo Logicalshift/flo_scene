@@ -98,7 +98,7 @@ pub (super) struct TalkClassContextCallbacks {
     class_definition: Box<dyn Send + Any>,
 
     /// The allocator for this class (a boxed Arc<Mutex<TalkClassDefinition::Allocator>>)
-    allocator: Box<dyn Send + Any>,
+    pub (super) allocator: Box<dyn Send + Any>,
 }
 
 ///
