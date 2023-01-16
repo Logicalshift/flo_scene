@@ -1,8 +1,10 @@
 use super::class::*;
 use super::continuation::*;
 use super::dispatch_table::*;
+use super::message::*;
 use super::reference::*;
 use super::releasable::*;
+use super::sparse_array::*;
 use super::standard_classes::*;
 use super::symbol::*;
 use super::symbol_table::*;
@@ -80,6 +82,9 @@ pub struct TalkContext {
     /// Background tasks queued on this context
     pub (super) background_tasks: Arc<Mutex<TalkContextBackgroundTasks>>,
 
+    /// Messages that should be dispatched as an inverted message via the `TalkInvertedClass`
+    inverted_messages: TalkSparseArray<()>,
+
     /// Callbacks made when a reference is dropped in this context
     when_dropped: Vec<Box<dyn Send + Fn(TalkReference, &TalkContext) -> ()>>,
 
@@ -120,6 +125,7 @@ impl TalkContext {
             context_callbacks:              vec![],
             value_dispatch_tables:          TalkValueDispatchTables::default(),
             background_tasks:               Arc::new(Mutex::new(TalkContextBackgroundTasks::new())),
+            inverted_messages:              TalkSparseArray::empty(),
             when_dropped:                   vec![],
             superclass:                     vec![],
             cells:                          vec![TalkCellBlockStore { values: Box::new([]) }],
@@ -134,7 +140,7 @@ impl TalkContext {
     }
 
     ///
-    /// Creates the allocator for a particular class
+    /// Creates the callbacks for a particular class
     ///
     fn create_callbacks<'a>(&'a mut self, class: TalkClass) -> &'a mut TalkClassContextCallbacks {
         let TalkClass(class_id) = class;
@@ -151,7 +157,7 @@ impl TalkContext {
     }
 
     ///
-    /// Retrieves the allocator for a class
+    /// Retrieves the callbacks for a class
     ///
     #[inline]
     pub (super) fn get_callbacks_mut<'a>(&'a mut self, class: TalkClass) -> &'a mut TalkClassContextCallbacks {
@@ -167,7 +173,7 @@ impl TalkContext {
     }
 
     ///
-    /// Retrieves the allocator for a class
+    /// Retrieves the callbacks for a class
     ///
     #[inline]
     pub (super) fn get_callbacks<'a>(&'a self, class: TalkClass) -> Option<&'a TalkClassContextCallbacks> {
@@ -528,6 +534,50 @@ impl TalkContext {
             self.superclass[class_id]
         } else {
             None
+        }
+    }
+
+    ///
+    /// Adds a message type that should be dispatched 'inverted' via the TalkInvertedClass object
+    ///
+    #[inline]
+    pub fn add_inverted_message(&mut self, message: impl Into<TalkMessageSignatureId>) {
+        // Make sure that the inverted class is in memory, we need it to do the actual sending later on
+        self.get_callbacks_mut(*INVERTED_CLASS);
+
+        // Add an entry for this message so we'll send messages to it inverted
+        let message = message.into();
+        self.inverted_messages.insert(message.into(), ());
+    }
+
+    ///
+    /// Attempts to send a message using the `Inverted` class, if it can be sent that way (returns the source and message back in the error if the message is not supported as inverted)
+    ///
+    #[inline]
+    pub fn try_send_inverted_message<'a>(&self, source: TalkOwned<TalkValue, &'a Self>, message: TalkOwned<TalkMessage, &'a Self>) -> Result<TalkContinuation<'static>, (TalkOwned<TalkValue, &'a Self>, TalkOwned<TalkMessage, &'a Self>)> {
+        if self.inverted_messages.get(message.signature_id().into()).is_some() {
+            // The source must currently be a TalkReference as we don't have class objects for values yet
+            let context = source.context();
+            let source  = source.leak();
+            let source  = match source {
+                TalkValue::Reference(reference) => Ok(TalkOwned::new(reference, context)),
+                _                               => Err(TalkOwned::new(source, context)),
+            };
+
+            match source {
+                Ok(source) => {
+                    // This message is marked as supported in this context
+                    Ok(TalkInvertedClass::send_inverted_message(self, source, message))
+                }
+
+                Err(source) => {
+                    // Can't send inverted messages to pure values at the moment
+                    Err((source, message))
+                }
+            }
+        } else {
+            // Can't send this as an inverted message, so just return the source and the message back again
+            Err((source, message))
         }
     }
 }
