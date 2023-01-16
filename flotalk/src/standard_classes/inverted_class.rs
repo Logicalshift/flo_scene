@@ -12,6 +12,7 @@ use crate::value::*;
 use smallvec::*;
 use once_cell::sync::{Lazy};
 
+use std::collections::{HashSet};
 use std::sync::*;
 
 /// The 'Inverted' class, adds inverted-control messages
@@ -132,8 +133,11 @@ pub struct TalkInvertedClassAllocator {
     /// The classes in the current context that can respond to each type of message ID (expectation is for there to be usually just one class per message)
     responder_classes: TalkSparseArray<SmallVec<[TalkClass; 2]>>,
 
+    /// The references that are registered as responders (have had receiveFrom: called on them)
+    responder_instances: HashSet<TalkReference>,
+
     /// A Vec, indexed by responder class ID that contains the references of that class that want to respond to all
-    /// Ie, for a given message to find out which 'all' responders are present, we look up the responder classes
+    /// Ie, for a given message to find out which 'all' responders are present, we look up the responder classes, then use them to look up each responder in here
     respond_to_all: Vec<Vec<(TalkReference, Priority)>>,
 
     /// A Vec, indexed by *source* class ID that contains a sparse array of source data handles and the `Inverted` references that respond to them
@@ -234,12 +238,33 @@ impl TalkInvertedClassAllocator {
         Arc::new(Mutex::new(TalkInvertedClassAllocator {
             next_priority:          0,
             responder_classes:      TalkSparseArray::empty(),
+            responder_instances:    HashSet::new(),
             respond_to_all:         vec![],
             respond_to_specific:    vec![],
             data:                   vec![],
             reference_counts:       vec![],
             free_slots:             vec![],
         }))
+    }
+
+    ///
+    /// Removes a responder from the list of responders
+    ///
+    fn drop_responder(&mut self, dropped_responder: TalkReference) {
+        // Remove from the list of responders itself
+        self.responder_instances.remove(&dropped_responder);
+
+        // Remove from any respond_to_all receiver
+        for all_responders in self.respond_to_all.iter_mut() {
+            all_responders.retain(|(responder, _)| responder != &dropped_responder);
+        }
+
+        // Remove from any specific receiver
+        for specific_class in self.respond_to_specific.iter_mut() {
+            for (_, specific_data) in specific_class.iter_mut() {
+                specific_data.retain(|(responder, _)| responder != &dropped_responder);
+            }
+        }
     }
 
     ///
@@ -254,6 +279,11 @@ impl TalkInvertedClassAllocator {
         if class_id < self.respond_to_specific.len() {
             let handle_id = usize::from(handle);
             self.respond_to_specific[class_id].remove(handle_id);
+        }
+
+        // Remove from the responder list if needed
+        if self.responder_instances.contains(&reference) {
+            self.drop_responder(reference);
         }
     }
 
