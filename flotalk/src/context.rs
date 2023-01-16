@@ -11,6 +11,7 @@ use super::symbol_table::*;
 use super::value::*;
 use super::value_messages::*;
 
+use smallvec::*;
 use once_cell::sync::{Lazy};
 
 use futures::future::{BoxFuture};
@@ -585,13 +586,22 @@ impl TalkContext {
     /// Attempts to send a message using the `Inverted` class, if it can be sent that way (returns the source and message back in the error if the message is not supported as inverted)
     ///
     #[inline]
-    pub fn try_send_inverted_message_reference<'a>(&self, source: TalkOwned<TalkReference, &'a Self>, message: TalkOwned<TalkMessage, &'a Self>) -> Result<TalkContinuation<'static>, (TalkOwned<TalkReference, &'a Self>, TalkOwned<TalkMessage, &'a Self>)> {
-        if self.inverted_messages.get(message.signature_id().into()).is_some() {
+    pub (super) fn try_send_inverted_message_reference<'a>(&self, source: TalkOwned<TalkReference, &'a Self>, message_id: TalkMessageSignatureId, message_args: TalkOwned<SmallVec<[TalkValue; 4]>, &'a Self>) -> Result<TalkContinuation<'static>, (TalkOwned<TalkReference, &'a Self>, TalkMessageSignatureId, TalkOwned<SmallVec<[TalkValue; 4]>, &'a Self>)> {
+        if self.inverted_messages.get(message_id.into()).is_some() {
             // This message is marked as supported in this context
+            let context         = message_args.context();
+            let message_args    = message_args.leak();
+            let message         = if message_args.len() == 0 {
+                TalkMessage::Unary(message_id)
+            } else {
+                TalkMessage::WithArguments(message_id, message_args)
+            };
+
+            let message = TalkOwned::new(message, context);
             Ok(TalkInvertedClass::send_inverted_message(self, source, message))
         } else {
             // Can't send this as an inverted message, so just return the source and the message back again
-            Err((source, message))
+            Err((source, message_id, message_args))
         }
     }
 }
