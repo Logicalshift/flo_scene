@@ -2,12 +2,15 @@ use crate::allocator::*;
 use crate::context::*;
 use crate::class::*;
 use crate::continuation::*;
+use crate::dispatch_table::*;
 use crate::error::*;
 use crate::message::*;
 use crate::reference::*;
 use crate::releasable::*;
 use crate::sparse_array::*;
 use crate::value::*;
+
+use super::script_class::*;
 
 use smallvec::*;
 use once_cell::sync::{Lazy};
@@ -519,5 +522,18 @@ impl TalkClassDefinition for TalkInvertedClass {
     ///
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
+    }
+
+    ///
+    /// Generates default dispatch table for the class object for this class
+    ///
+    /// Messages are dispatched here ahead of the 'send_instance_message' callback (note in particular `respondsTo:` may need to be overridden)
+    ///
+    fn default_class_dispatch_table(&self) -> TalkMessageDispatchTable<TalkClass> {
+        static TALK_MSG_NEW: Lazy<TalkMessageSignatureId>       = Lazy::new(|| "subclass".into());
+        static TALK_MSG_SUBCLASS: Lazy<TalkMessageSignatureId>  = Lazy::new(|| "subclass".into());
+
+        TalkMessageDispatchTable::empty()
+            .with_message(*TALK_MSG_SUBCLASS, |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| TalkScriptClassClass::create_subclass(*class_id, vec![*TALK_MSG_NEW]))
     }
 }
