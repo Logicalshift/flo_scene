@@ -204,36 +204,13 @@ impl TalkScriptClassClass {
                             })
                         });
 
-                    Self::declare_class_messages(context, new_class_reference.try_as_reference().unwrap().clone(), cell_class_id, instance_variables);
+                    Self::declare_class_messages(context, cell_class_id, instance_variables);
 
                     // Final result is the new class reference
                     new_class_reference.into()
                 })
             })
         })
-    }
-
-    ///
-    /// Declares the standard class messages on a new subclass
-    ///
-    fn declare_class_messages(context: &mut TalkContext, class_reference: TalkReference, cell_class_id: TalkClass, instance_variables: Arc<Mutex<TalkSymbolTable>>) {
-        let class_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).class_dispatch_table;
-
-        // Declare the 'addInstanceMessage:' type (caution: we assume the class reference stays alive)
-        class_dispatch_table.define_message(*TALK_MSG_ADD_INSTANCE_MESSAGE, move |_, args, _| {
-            let mut args            = args.leak();
-            let instance_variables  = Arc::clone(&instance_variables);
-
-            TalkContinuation::read_value::<TalkScriptClassClass, _>(TalkValue::Reference(class_reference.clone()), move |script_class, talk_context| {
-                debug_assert!(script_class.class_id == cell_class_id);
-
-                // Add an instance message for this class
-                match args[0] {
-                    TalkValue::Selector(selector)   => script_class.add_instance_message(selector.to_signature(), TalkOwned::new(args[1].take(), talk_context), Arc::clone(&instance_variables)),
-                    _                               => { args.release_in_context(talk_context); TalkError::NotASelector.into() },
-                }
-            })
-        });
     }
 
     ///
@@ -283,7 +260,7 @@ impl TalkScriptClassClass {
 
                 TalkContinuation::soon(move |context| {
                     // Declare the standard messages on the class object
-                    Self::declare_class_messages(context, new_class_reference.try_as_reference().unwrap().clone(), cell_class_id, instance_variables);
+                    Self::declare_class_messages(context, cell_class_id, instance_variables);
 
                     // Set the class dispatch table to call the superclass for an unsupported message
                     let instance_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).dispatch_table;
@@ -328,6 +305,39 @@ impl TalkScriptClassClass {
                 new_class_reference
             })
         })
+    }
+}
+
+impl TalkScriptClassClass {
+    ///
+    /// Converts a cell block class created by the script class to a TalkReference to the underlying ScriptClass data
+    ///
+    #[inline]
+    fn cell_class_reference(class: TalkClass) -> TalkReference {
+        TalkReference(*SCRIPT_CLASS_CLASS, TalkDataHandle(class.into()))
+    }
+
+    ///
+    /// Declares the standard class messages on a new subclass
+    ///
+    fn declare_class_messages(context: &mut TalkContext, cell_class_id: TalkClass, instance_variables: Arc<Mutex<TalkSymbolTable>>) {
+        let class_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).class_dispatch_table;
+
+        // Declare the 'addInstanceMessage:' type (caution: we assume the class reference stays alive)
+        class_dispatch_table.define_message(*TALK_MSG_ADD_INSTANCE_MESSAGE, move |_, args, _| {
+            let mut args            = args.leak();
+            let instance_variables  = Arc::clone(&instance_variables);
+
+            TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, talk_context| {
+                debug_assert!(script_class.class_id == cell_class_id);
+
+                // Add an instance message for this class
+                match args[0] {
+                    TalkValue::Selector(selector)   => script_class.add_instance_message(selector.to_signature(), TalkOwned::new(args[1].take(), talk_context), Arc::clone(&instance_variables)),
+                    _                               => { args.release_in_context(talk_context); TalkError::NotASelector.into() },
+                }
+            })
+        });
     }
 }
 
