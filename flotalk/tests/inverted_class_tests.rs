@@ -21,7 +21,35 @@ fn inverted_subclass() {
 }
 
 #[test]
-fn send_inverted_mesasge() {
+fn send_inverted_message_directly() {
+    // Create an inverted subclass and send the 'internal' version of the inverted message
+    let test_source = "
+        | TestInverted invertedInstance object val |
+
+        TestInverted := Inverted subclass.
+        TestInverted addInvertedMessage: #setValInverted: withAction: [ :newVal :sender :self | val := newVal ].
+
+        val                 := 0.
+        invertedInstance    := TestInverted new.
+        object              := Object new.
+
+        invertedInstance setValInverted: 42 invertedFrom: object.
+
+        val
+    ";
+
+    executor::block_on(async { 
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        let result  = runtime.run(TalkScript::from(test_source)).await;
+
+        // Should set the 'val' variable to 42 via an inverted message
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn send_inverted_message() {
     // Create an inverted subclass and send a message to it from a 'normal' object
     let test_source = "
         | TestInverted invertedInstance object val |
