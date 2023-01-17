@@ -89,6 +89,17 @@ pub struct TalkScriptClass {
 pub struct TalkCellBlockClass;
 
 ///
+/// Script classes are allocated as class IDs, which we use in the references
+///
+pub struct TalkScriptClassAllocator {
+    /// The classes that have been allocated by this object, indexed by class ID
+    classes: TalkSparseArray<TalkScriptClass>,
+
+    /// The reference counts for each class, indexed by class ID
+    reference_counts: TalkSparseArray<usize>,
+}
+
+///
 /// Allocator that creates context cellblocks when requested
 ///
 pub struct TalkCellBlockAllocator {
@@ -665,6 +676,71 @@ impl TalkClassDefinition for TalkCellBlockClass {
     ///
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _reference: TalkReference, _allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
+    }
+}
+
+impl TalkScriptClassAllocator {
+    ///
+    /// Creates the data object for a cell class
+    ///
+    /// The data handle is the cell class ID, so it's easy to generate a reference to the class data from the cell class ID this way
+    ///
+    fn store(&mut self, cell_class_id: TalkClass, data: TalkScriptClass) -> TalkDataHandle {
+        let class_id = usize::from(cell_class_id);
+        self.classes.insert(class_id, data);
+        self.reference_counts.insert(class_id, 1);
+
+        TalkDataHandle(class_id)
+    }
+}
+
+impl TalkClassAllocator for TalkScriptClassAllocator {
+    /// The type of data stored for this class
+    type Data = TalkScriptClass;
+
+    ///
+    /// Retrieves a reference to the data attached to a handle (panics if the handle has been released)
+    ///
+    fn retrieve<'a>(&'a mut self, handle: TalkDataHandle) -> &'a mut Self::Data {
+        let class_id = usize::from(handle);
+        self.classes.get_mut(class_id).unwrap()
+    }
+
+    ///
+    /// Adds to the reference count for a data handle
+    ///
+    fn retain(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, _context: &TalkContext) {
+        let mut allocator   = allocator.lock().unwrap();
+        let class_id        = usize::from(handle);
+
+        *allocator.reference_counts.get_mut(class_id).unwrap() += 1;
+    }
+
+    ///
+    /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
+    ///
+    fn release(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) -> TalkReleaseAction {
+        let dropped_class = {
+            let mut allocator   = allocator.lock().unwrap();
+            let class_id        = usize::from(handle);
+
+            let ref_count       = allocator.reference_counts.get_mut(class_id).unwrap();
+
+            if *ref_count <= 1 {
+                allocator.reference_counts.remove(class_id);
+                allocator.classes.remove(class_id)
+            } else {
+                *ref_count -= 1;
+                None
+            }
+        };
+
+        if let Some(dropped_class) = dropped_class {
+            dropped_class.release_in_context(context);
+            TalkReleaseAction::Dropped
+        } else {
+            TalkReleaseAction::Retained
+        }
     }
 }
 
