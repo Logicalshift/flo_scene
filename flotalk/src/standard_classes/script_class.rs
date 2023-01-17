@@ -324,7 +324,15 @@ impl TalkScriptClassClass {
         let class_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).class_dispatch_table;
 
         // Declare the 'addInstanceMessage:' type (caution: we assume the class reference stays alive)
-        class_dispatch_table.define_message(*TALK_MSG_ADD_INSTANCE_MESSAGE, move |_, args, _| {
+        class_dispatch_table.define_message(*TALK_MSG_ADD_INSTANCE_MESSAGE, Self::define_add_instance_message(cell_class_id, Arc::clone(&instance_variables)));
+        class_dispatch_table.define_message(*TALK_MSG_ADD_CLASS_MESSAGE, Self::define_add_class_message(cell_class_id));
+    }
+
+    ///
+    /// Returns the function to use for the `addInstanceMessage:` function
+    ///
+    fn define_add_instance_message(cell_class_id: TalkClass, instance_variables: Arc<Mutex<TalkSymbolTable>>) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
+        move |_, args, _| {
             let mut args            = args.leak();
             let instance_variables  = Arc::clone(&instance_variables);
 
@@ -337,7 +345,26 @@ impl TalkScriptClassClass {
                     _                               => { args.release_in_context(talk_context); TalkError::NotASelector.into() },
                 }
             })
-        });
+        }
+    }
+
+    ///
+    /// Returns the function to use for the 'addClassMessage:` function
+    ///
+    fn define_add_class_message(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
+        move |_, args, _| {
+            let mut args = args.leak();
+
+            TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, talk_context| {
+                debug_assert!(script_class.class_id == cell_class_id);
+
+                // Add a message to the class messages for this class
+                match args[0] {
+                    TalkValue::Selector(selector)   => script_class.add_class_message(selector.to_signature(), TalkOwned::new(args[1].take(), talk_context)),
+                    _                               => { args.release_in_context(talk_context); TalkError::NotASelector.into() },
+                }
+            })
+        }
     }
 }
 
@@ -441,15 +468,6 @@ impl TalkScriptClass {
             match args[0] {
                 TalkValue::Selector(args)   => TalkScriptClassClass::subclass_with_instance_variables(reference.class(), reference, self, args.to_signature()),
                 _                           => TalkError::NotASelector.into(),
-            }
-
-        } else if message_id == *TALK_MSG_ADD_CLASS_MESSAGE {
-
-            // Add a message to the class messages for this class
-            let mut args = args;
-            match args[0] {
-                TalkValue::Selector(selector)   => self.add_class_message(selector.to_signature(), TalkOwned::new(args[1].take(), args.context())),
-                _                               => TalkError::NotASelector.into(),
             }
 
         } else if message_id == *TALK_MSG_SUPERCLASS {
