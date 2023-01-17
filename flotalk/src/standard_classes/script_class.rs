@@ -211,15 +211,16 @@ impl TalkScriptClassClass {
         // Declare the 'addInstanceMessage:' type (caution: we assume the class reference stays alive)
         // TODO: this is duplicated at the moment, we should remove the duplication
         class_dispatch_table.define_message(*TALK_MSG_ADD_INSTANCE_MESSAGE, move |_, args, _| {
-            let args                = args.leak();
+            let mut args            = args.leak();
             let instance_variables  = Arc::clone(&instance_variables);
 
             TalkContinuation::read_value::<TalkScriptClassClass, _>(TalkValue::Reference(class_reference.clone()), move |script_class, talk_context| {
+                debug_assert!(script_class.class_id == cell_class_id);
+
                 // Add an instance message for this class
-                let mut args = TalkOwned::new(args, talk_context);
                 match args[0] {
-                    TalkValue::Selector(selector)   => script_class.add_instance_message(selector.to_signature(), TalkOwned::new(args[1].take(), args.context()), Arc::clone(&instance_variables)),
-                    _                               => TalkError::NotASelector.into(),
+                    TalkValue::Selector(selector)   => script_class.add_instance_message(selector.to_signature(), TalkOwned::new(args[1].take(), talk_context), Arc::clone(&instance_variables)),
+                    _                               => { args.release_in_context(talk_context); TalkError::NotASelector.into() },
                 }
             })
         });
@@ -237,7 +238,6 @@ impl TalkScriptClassClass {
         // Need a few copies of the reference
         let parent_class_1 = parent_class;
         let parent_class_2 = parent_class_1.clone();
-        let parent_class_3 = parent_class_1.clone();
 
         // Create a new script class by sending a message to ourselves
         TalkContinuation::soon(move |context| {
@@ -273,7 +273,7 @@ impl TalkScriptClassClass {
 
                 TalkContinuation::soon(move |context| {
                     // Declare the standard messages on the class object
-                    Self::declare_class_messages(context, parent_class_3, cell_class_id, instance_variables);
+                    Self::declare_class_messages(context, new_class_reference.try_as_reference().unwrap().clone(), cell_class_id, instance_variables);
 
                     // Set the class dispatch table to call the superclass for an unsupported message
                     let instance_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).dispatch_table;
