@@ -588,13 +588,13 @@ impl TalkClassDefinition for TalkScriptClassClass {
     type Data = TalkScriptClass;
 
     /// The allocator is used to manage the memory of this class within a context
-    type Allocator = TalkStandardAllocator<TalkScriptClass>;
+    type Allocator = TalkScriptClassAllocator;
 
     ///
     /// Creates the allocator for this class
     ///
     fn create_allocator(&self, _talk_context: &mut TalkContext) -> Arc<Mutex<Self::Allocator>> {
-        TalkStandardAllocator::empty()
+        Self::Allocator::empty()
     }
 
     ///
@@ -620,7 +620,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
                 };
 
                 // Store the class using the allocator
-                let script_class = allocator.lock().unwrap().store(script_class);
+                let script_class = allocator.lock().unwrap().store(cell_block_class, script_class);
 
                 // Register the class with the context
                 let script_class = TalkReference(class_id, script_class);
@@ -680,6 +680,16 @@ impl TalkClassDefinition for TalkCellBlockClass {
 }
 
 impl TalkScriptClassAllocator {
+    ///
+    /// Creates an empty allocator
+    ///
+    fn empty() -> Arc<Mutex<TalkScriptClassAllocator>> {
+        Arc::new(Mutex::new(TalkScriptClassAllocator { 
+            classes:            TalkSparseArray::empty(),
+            reference_counts:   TalkSparseArray::empty(),
+        }))
+    }
+
     ///
     /// Creates the data object for a cell class
     ///
