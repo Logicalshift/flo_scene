@@ -13,6 +13,7 @@ use crate::symbol_table::*;
 use crate::sparse_array::*;
 use crate::value::*;
 use crate::value_messages::*;
+use crate::standard_classes::class_class::*;
 
 use smallvec::*;
 use once_cell::sync::{Lazy};
@@ -204,10 +205,10 @@ impl TalkScriptClassClass {
                             })
                         });
 
-                    Self::declare_class_messages(context, cell_class_id, instance_variables);
+                    Self::declare_class_messages(context, cell_class_id, Some(superclass), instance_variables);
 
                     // Final result is the new class reference
-                    new_class_reference.into()
+                    cell_class_id.class_object_in_context(context).into()
                 })
             })
         })
@@ -260,7 +261,7 @@ impl TalkScriptClassClass {
 
                 TalkContinuation::soon(move |context| {
                     // Declare the standard messages on the class object
-                    Self::declare_class_messages(context, cell_class_id, instance_variables);
+                    Self::declare_class_messages(context, cell_class_id, Some(new_superclass_id), instance_variables);
 
                     // Set the class dispatch table to call the superclass for an unsupported message
                     let instance_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).dispatch_table;
@@ -280,7 +281,7 @@ impl TalkScriptClassClass {
                         }
                     });
 
-                    new_class_reference.into()
+                    cell_class_id.class_object_in_context(context).into()
                 })
             })
         })
@@ -293,6 +294,14 @@ impl TalkScriptClassClass {
     ///
     fn subclass_with_instance_variables(our_class_id: TalkClass, parent_class: TalkReference, superclass: &TalkScriptClass, variables: TalkMessageSignature) -> TalkContinuation<'static> {
         Self::subclass(our_class_id, parent_class, superclass).and_then(move |new_class_reference| {
+            // The new class should be a TalkClass reference
+            let new_class_reference = new_class_reference.try_as_reference().unwrap();
+            debug_assert!(new_class_reference.class() == *CLASS_CLASS);
+
+            // Script class class references are also TalkClass handles (see the allocator for how this works)
+            let new_class_reference = TalkReference(*SCRIPT_CLASS_CLASS, new_class_reference.data_handle());
+            let new_class_reference = TalkValue::Reference(new_class_reference);
+
             // Set the symbol table for this class (the symbols in the message signature become the instance variables)
             TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class, _| {
                 let mut instance_variables = script_class.instance_variables.lock().unwrap();
@@ -320,7 +329,7 @@ impl TalkScriptClassClass {
     ///
     /// Declares the standard class messages on a new subclass
     ///
-    fn declare_class_messages(context: &mut TalkContext, cell_class_id: TalkClass, instance_variables: Arc<Mutex<TalkSymbolTable>>) {
+    fn declare_class_messages(context: &mut TalkContext, cell_class_id: TalkClass, superclass_id: Option<TalkClass>, instance_variables: Arc<Mutex<TalkSymbolTable>>) {
         let class_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).class_dispatch_table;
 
         // Declare the 'addInstanceMessage:' type (caution: we assume the class reference stays alive)
@@ -331,6 +340,15 @@ impl TalkScriptClassClass {
         class_dispatch_table.define_message(*TALK_MSG_SUPERCLASS,                       Self::define_superclass(cell_class_id));
         class_dispatch_table.define_message(*TALK_MSG_NEWSUPERCLASS,                    Self::define_new_superclass(cell_class_id));
         class_dispatch_table.define_message(*TALK_MSG_NEW,                              Self::define_new(cell_class_id));
+
+        // Send undispatched messages to the superclass if possible
+        if let Some(superclass_id) = superclass_id {
+            class_dispatch_table.define_not_supported(move |_, message_id, args, context| {
+                superclass_id.send_message_in_context(TalkMessage::from_signature(message_id, args.leak()), context)
+            })
+        } else {
+            class_dispatch_table.define_not_supported(|_, id, _, _| TalkError::MessageNotSupported(id).into())
+        }
     }
 
     ///
@@ -792,7 +810,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
                 talk_context.declare_cell_block_class(script_class.clone_in_context(talk_context), cell_block_class);
 
                 // Declare the standard methods for the class
-                Self::declare_class_messages(talk_context, cell_block_class, instance_variables);
+                Self::declare_class_messages(talk_context, cell_block_class, None, instance_variables);
 
                 // Define an empty 'init' instance method for the new class
                 talk_context.get_callbacks_mut(cell_block_class).dispatch_table.define_message(*TALK_MSG_INIT, |_, _, _| { ().into() });

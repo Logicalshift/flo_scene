@@ -102,6 +102,7 @@ fn create_subclass() {
         let object = runtime.run(TalkScript::from("Object")).await;
 
         // Must generate a new class, using the SCRIPT_CLASS_CLASS
+        println!("{:?}", result);
         assert!(*result != *object);
         assert!(match &*result {
             TalkValue::Reference(new_class) => new_class.class() == *SCRIPT_CLASS_CLASS,
@@ -231,6 +232,7 @@ fn create_subclass_instance() {
         let object = runtime.run(TalkScript::from("Object")).await;
 
         // Must generate a new class, using the SCRIPT_CLASS_CLASS
+        println!("{:?}", result);
         assert!(*result != *object);
         assert!(match &*result {
             TalkValue::Reference(new_object) => new_object.class() != *SCRIPT_CLASS_CLASS,
@@ -303,6 +305,7 @@ fn call_superclass_method() {
         let result = runtime.run(TalkScript::from(test_source)).await;
 
         // Should return 42
+        println!("{:?}", result);
         assert!(*result == TalkValue::Int(42));
     });
 }
