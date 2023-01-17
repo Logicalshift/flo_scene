@@ -326,10 +326,15 @@ impl TalkScriptClassClass {
         // Declare the 'addInstanceMessage:' type (caution: we assume the class reference stays alive)
         class_dispatch_table.define_message(*TALK_MSG_ADD_INSTANCE_MESSAGE, Self::define_add_instance_message(cell_class_id, Arc::clone(&instance_variables)));
         class_dispatch_table.define_message(*TALK_MSG_ADD_CLASS_MESSAGE, Self::define_add_class_message(cell_class_id));
+        class_dispatch_table.define_message(*TALK_MSG_SUBCLASS, Self::define_subclass(cell_class_id));
+        class_dispatch_table.define_message(*TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES, Self::define_subclass_with_instance_variables(cell_class_id));
+        //class_dispatch_table.define_message(*TALK_MSG_SUPERCLASS, Self::define_superclass(cell_class_id));
+        //class_dispatch_table.define_message(*TALK_MSG_NEWSUPERCLASS, Self::define_new_superclass(cell_class_id));
+        //class_dispatch_table.define_message(*TALK_MSG_NEW, Self::define_new(cell_class_id));
     }
 
     ///
-    /// Returns the function to use for the `addInstanceMessage:` function
+    /// Generates the function to use for the `addInstanceMessage:` message
     ///
     fn define_add_instance_message(cell_class_id: TalkClass, instance_variables: Arc<Mutex<TalkSymbolTable>>) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
         move |_, args, _| {
@@ -349,7 +354,7 @@ impl TalkScriptClassClass {
     }
 
     ///
-    /// Returns the function to use for the 'addClassMessage:` function
+    /// Generates the function to use for the 'addClassMessage:` message
     ///
     fn define_add_class_message(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
         move |_, args, _| {
@@ -362,6 +367,136 @@ impl TalkScriptClassClass {
                 match args[0] {
                     TalkValue::Selector(selector)   => script_class.add_class_message(selector.to_signature(), TalkOwned::new(args[1].take(), talk_context)),
                     _                               => { args.release_in_context(talk_context); TalkError::NotASelector.into() },
+                }
+            })
+        }
+    }
+
+    ///
+    /// Generates the function to use for the `subclass` message
+    ///
+    fn define_subclass(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
+        move |_, args, _| {
+            let mut args = args.leak();
+
+            TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, talk_context| {
+                debug_assert!(script_class.class_id == cell_class_id);
+
+                TalkScriptClassClass::subclass(*SCRIPT_CLASS_CLASS, Self::cell_class_reference(cell_class_id), script_class)
+            })
+        }
+    }
+
+    ///
+    /// Generates the function to use for the `subclassWithInstanceVariables:` message
+    ///
+    fn define_subclass_with_instance_variables(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
+        move |_, args, _| {
+            let mut args = args.leak();
+
+            TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, talk_context| {
+                debug_assert!(script_class.class_id == cell_class_id);
+
+                // Create a subclass of this class with different instance variables
+                match args[0] {
+                    TalkValue::Selector(args)   => TalkScriptClassClass::subclass_with_instance_variables(*SCRIPT_CLASS_CLASS, Self::cell_class_reference(cell_class_id), script_class, args.to_signature()),
+                    _                           => TalkError::NotASelector.into(),
+                }
+            })
+        }
+    }
+
+    ///
+    /// Generate the function to use for the 'superclass' message
+    ///
+    fn define_superclass(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
+        move |_, args, _| {
+            let mut args = args.leak();
+
+            TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, talk_context| {
+                debug_assert!(script_class.class_id == cell_class_id);
+
+                // Retrieve the superclass for this class
+                if let Some(superclass) = &script_class.superclass_id {
+                    let superclass = *superclass;
+
+                    TalkContinuation::soon(move |talk_context| {
+                        let superclass = superclass.class_object_in_context(talk_context);
+                        superclass.clone_in_context(talk_context).into()
+                    })
+                } else {
+                    TalkValue::Nil.into()
+                }
+            })
+        }
+    }
+
+    ///
+    /// Generate the function to use for the 'newSuperclass' message
+    ///
+    fn define_new_superclass(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
+        move |_, args, _| {
+            let mut args = args.leak();
+
+            TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, talk_context| {
+                debug_assert!(script_class.class_id == cell_class_id);
+
+                if let Some(superclass) = script_class.superclass_id {
+                    // Send the 'new' message to the superclass class ID
+                    superclass.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), talk_context)
+                } else {
+                    ().into()
+                }
+            })
+        }
+    }
+
+    ///
+    /// Generate the function to use for the 'new' message
+    ///
+    fn define_new(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
+        move |_, args, _| {
+            let mut args = args.leak();
+
+            TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, _| {
+                debug_assert!(script_class.class_id == cell_class_id);
+
+                // Create a new instance of this class (with empty instance variables)
+                let instance_size   = script_class.instance_variables.lock().unwrap().len();
+                let class_id        = script_class.class_id;
+
+                if script_class.superclass_script_class.is_some() || script_class.superclass_id.is_some() {
+                    TalkContinuation::soon(move |context| {
+                        // Send the 'newSuperclass' message to ourselves
+                        cell_class_id.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEWSUPERCLASS), context)
+                    }).and_then_soon_if_ok(move |superclass, context| {
+                        // Allocate space for this instance
+                        let cell_block = context.allocate_cell_block(instance_size);
+
+                        // The first value is always a reference to the superclass
+                        context.cell_block_mut(cell_block)[0] = superclass;
+
+                        // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
+                        let handle      = TalkDataHandle(cell_block.0 as _);
+                        let reference   = TalkReference(class_id, handle);
+
+                        // Call the 'init' message and return the reference
+                        reference.clone_in_context(context).send_message_in_context(TalkMessage::Unary(*TALK_MSG_INIT), context)
+                            .and_then(|_| {
+                                TalkValue::Reference(reference).into()
+                            })
+                    })
+                } else {
+                    TalkContinuation::soon(move |context| {
+                        // Allocate space for this instance
+                        let cell_block = context.allocate_cell_block(instance_size);
+
+                        // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
+                        let handle      = TalkDataHandle(cell_block.0 as _);
+                        let reference   = TalkReference(class_id, handle);
+
+                        TalkValue::Reference(reference).into()
+                    })
                 }
             })
         }
