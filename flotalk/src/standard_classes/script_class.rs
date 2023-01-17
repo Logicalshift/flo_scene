@@ -209,7 +209,6 @@ impl TalkScriptClassClass {
         let class_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).class_dispatch_table;
 
         // Declare the 'addInstanceMessage:' type (caution: we assume the class reference stays alive)
-        // TODO: this is duplicated at the moment, we should remove the duplication
         class_dispatch_table.define_message(*TALK_MSG_ADD_INSTANCE_MESSAGE, move |_, args, _| {
             let mut args            = args.leak();
             let instance_variables  = Arc::clone(&instance_variables);
@@ -421,15 +420,6 @@ impl TalkScriptClass {
             match args[0] {
                 TalkValue::Selector(args)   => TalkScriptClassClass::subclass_with_instance_variables(reference.class(), reference, self, args.to_signature()),
                 _                           => TalkError::NotASelector.into(),
-            }
-
-        } else if message_id == *TALK_MSG_ADD_INSTANCE_MESSAGE {
-
-            // Add an instance message for this class
-            let mut args = args;
-            match args[0] {
-                TalkValue::Selector(selector)   => self.add_instance_message(selector.to_signature(), TalkOwned::new(args[1].take(), args.context()), Arc::clone(&self.instance_variables)),
-                _                               => TalkError::NotASelector.into(),
             }
 
         } else if message_id == *TALK_MSG_ADD_CLASS_MESSAGE {
