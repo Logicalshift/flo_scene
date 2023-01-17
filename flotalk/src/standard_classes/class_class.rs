@@ -14,9 +14,7 @@ use once_cell::sync::{Lazy};
 
 use std::sync::*;
 
-// TODO: we could store a pool of classes that can be used to create custom classes in the allocator and make this where new classes are created
-
-static CLASS_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkClassClass));
+pub (crate) static CLASS_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkClassClass));
 
 ///
 /// The class representing a FloTalk class
