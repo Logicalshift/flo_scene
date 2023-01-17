@@ -136,7 +136,9 @@ impl TalkScriptClassClass {
                 script_class.instance_variables.lock().unwrap().define_symbol(*TALK_SUPER);
 
                 // Fetch the class ID of the subclass (this will always be a cell class)
-                let cell_class_id = script_class.class_id;
+                let cell_class_id       = script_class.class_id;
+                let instance_variables  = Arc::clone(&script_class.instance_variables);
+
                 TalkContinuation::soon(move |context| {
                     // Set the superclass in the context
                     context.set_superclass(cell_class_id, superclass);
@@ -190,6 +192,8 @@ impl TalkScriptClassClass {
                                 })
                             })
                         });
+
+                    Self::declare_class_messages(context, new_class_reference.try_as_reference().unwrap().clone(), cell_class_id, instance_variables);
 
                     // Final result is the new class reference
                     new_class_reference.into()
