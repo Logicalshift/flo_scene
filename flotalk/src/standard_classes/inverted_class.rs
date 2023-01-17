@@ -9,6 +9,7 @@ use crate::reference::*;
 use crate::releasable::*;
 use crate::sparse_array::*;
 use crate::value::*;
+use crate::value_messages::*;
 
 use super::script_class::*;
 
@@ -175,6 +176,28 @@ impl TalkInvertedClass {
 
 impl TalkReleasable for TalkInverted {
     fn release_in_context(self, _context: &TalkContext) { }
+}
+
+impl TalkInvertedClassAllocator {
+    ///
+    /// Stores a value in this allocator and returns a handle to it
+    ///
+    #[inline]
+    fn store(&mut self, value: TalkInverted) -> TalkDataHandle {
+        if let Some(pos) = self.free_slots.pop() {
+            self.data[pos]              = Some(value);
+            self.reference_counts[pos]  = 1;
+
+            TalkDataHandle(pos)
+        } else {
+            let pos = self.data.len();
+
+            self.data.push(Some(value));
+            self.reference_counts.push(1);
+
+            TalkDataHandle(pos)
+        }
+    }
 }
 
 impl TalkClassAllocator for TalkInvertedClassAllocator {
@@ -562,7 +585,20 @@ impl TalkClassDefinition for TalkInvertedClass {
     /// Sends a message to the class object itself
     ///
     fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
-        TalkError::MessageNotSupported(message_id).into()
+        if message_id == *TALK_MSG_NEW {
+
+            // Create a new 'Inverter' data object
+            let new_value = TalkInverted { };
+
+            // Store in the allocator
+            let inverted_data_handle    = allocator.lock().unwrap().store(new_value);
+            let inverted_reference      = TalkReference(class_id, inverted_data_handle);
+
+            inverted_reference.into()
+
+        } else {
+            TalkError::MessageNotSupported(message_id).into()
+        }
     }
 
     ///
@@ -578,7 +614,6 @@ impl TalkClassDefinition for TalkInvertedClass {
     /// Messages are dispatched here ahead of the 'send_instance_message' callback (note in particular `respondsTo:` may need to be overridden)
     ///
     fn default_class_dispatch_table(&self) -> TalkMessageDispatchTable<TalkClass> {
-        static TALK_MSG_NEW: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| "new".into());
         static TALK_MSG_SUBCLASS: Lazy<TalkMessageSignatureId>              = Lazy::new(|| "subclass".into());
         static TALK_MSG_ADD_INVERTED_MESSAGE: Lazy<TalkMessageSignatureId>  = Lazy::new(|| ("addInvertedMessage:", "withAction:").into());
 
