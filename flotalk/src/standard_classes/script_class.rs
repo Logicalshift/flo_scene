@@ -324,13 +324,13 @@ impl TalkScriptClassClass {
         let class_dispatch_table = &mut context.get_callbacks_mut(cell_class_id).class_dispatch_table;
 
         // Declare the 'addInstanceMessage:' type (caution: we assume the class reference stays alive)
-        class_dispatch_table.define_message(*TALK_MSG_ADD_INSTANCE_MESSAGE, Self::define_add_instance_message(cell_class_id, Arc::clone(&instance_variables)));
-        class_dispatch_table.define_message(*TALK_MSG_ADD_CLASS_MESSAGE, Self::define_add_class_message(cell_class_id));
-        class_dispatch_table.define_message(*TALK_MSG_SUBCLASS, Self::define_subclass(cell_class_id));
+        class_dispatch_table.define_message(*TALK_MSG_ADD_INSTANCE_MESSAGE,             Self::define_add_instance_message(cell_class_id, Arc::clone(&instance_variables)));
+        class_dispatch_table.define_message(*TALK_MSG_ADD_CLASS_MESSAGE,                Self::define_add_class_message(cell_class_id));
+        class_dispatch_table.define_message(*TALK_MSG_SUBCLASS,                         Self::define_subclass(cell_class_id));
         class_dispatch_table.define_message(*TALK_MSG_SUBCLASS_WITH_INSTANCE_VARIABLES, Self::define_subclass_with_instance_variables(cell_class_id));
-        //class_dispatch_table.define_message(*TALK_MSG_SUPERCLASS, Self::define_superclass(cell_class_id));
-        //class_dispatch_table.define_message(*TALK_MSG_NEWSUPERCLASS, Self::define_new_superclass(cell_class_id));
-        //class_dispatch_table.define_message(*TALK_MSG_NEW, Self::define_new(cell_class_id));
+        class_dispatch_table.define_message(*TALK_MSG_SUPERCLASS,                       Self::define_superclass(cell_class_id));
+        class_dispatch_table.define_message(*TALK_MSG_NEWSUPERCLASS,                    Self::define_new_superclass(cell_class_id));
+        class_dispatch_table.define_message(*TALK_MSG_NEW,                              Self::define_new(cell_class_id));
     }
 
     ///
@@ -782,12 +782,17 @@ impl TalkClassDefinition for TalkScriptClassClass {
                     class_message_resources:    TalkSparseArray::empty(),
                 };
 
+                let instance_variables = Arc::clone(&script_class.instance_variables);
+
                 // Store the class using the allocator
                 let script_class = allocator.lock().unwrap().store(cell_block_class, script_class);
 
                 // Register the class with the context
                 let script_class = TalkReference(class_id, script_class);
                 talk_context.declare_cell_block_class(script_class.clone_in_context(talk_context), cell_block_class);
+
+                // Declare the standard methods for the class
+                Self::declare_class_messages(talk_context, cell_block_class, instance_variables);
 
                 // Define an empty 'init' instance method for the new class
                 talk_context.get_callbacks_mut(cell_block_class).dispatch_table.define_message(*TALK_MSG_INIT, |_, _, _| { ().into() });
