@@ -534,6 +534,9 @@ impl TalkInvertedClass {
         let args        = args.leak();
 
         TalkContinuation::soon(move |talk_context| {
+            // Mark the selector as inverted
+            talk_context.add_inverted_message(selector);
+
             {
                 // Fetch the allocator for the inverted class so we can add this selector
                 let callbacks       = talk_context.get_callbacks(*INVERTED_CLASS).unwrap();
