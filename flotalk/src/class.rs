@@ -474,6 +474,23 @@ impl TalkClass {
     }
 
     ///
+    /// Sends a message to this class from a specified subclass
+    ///
+    #[inline]
+    pub fn send_message_in_context_from_subclass<'a>(&self, subclass: TalkClass, message: TalkMessage, context: &TalkContext) -> TalkContinuation<'a> {
+        if let Some(callbacks) = context.get_callbacks(*self) {
+            callbacks.send_class_message(&subclass, message, context)
+        } else {
+            let our_class = *self;
+
+            TalkContinuation::soon(move |talk_context| {
+                let _ = talk_context.get_callbacks_mut(our_class);
+                talk_context.get_callbacks(our_class).unwrap().send_class_message(&subclass, message, talk_context)
+            })
+        }
+    }
+
+    ///
     /// Sends a message to this class
     ///
     pub fn send_message<'a>(&self, message: TalkMessage, runtime: &TalkRuntime) -> impl 'a + Future<Output=TalkOwned<TalkValue, TalkOwnedByRuntime>> {
