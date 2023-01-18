@@ -815,8 +815,8 @@ impl TalkClassDefinition for TalkScriptClassClass {
                 // Define an empty 'init' instance method for the new class
                 talk_context.get_callbacks_mut(cell_block_class).dispatch_table.define_message(*TALK_MSG_INIT, |_, _, _| { ().into() });
 
-                // Result is a reference to the script class (this acts as the class object instead of a TalkClass object)
-                script_class.into()
+                // Result is the cell block class
+                cell_block_class.class_object_in_context(talk_context).into()
             })
 
         } else {
