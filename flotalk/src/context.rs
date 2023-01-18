@@ -187,6 +187,48 @@ impl TalkContext {
     }
 
     ///
+    /// For a reference, retrieves the dispatch table for its class implementation
+    ///
+    /// If the reference is to a class object, then this is the dispatch table for that class, rather than the class object itself.
+    /// If the reference is to an instance of an object, then this is the dispatch table for that class of that object.
+    ///
+    #[inline]
+    pub fn class_dispatch_table<'a>(&'a mut self, reference: &TalkReference) -> &'a mut TalkMessageDispatchTable<TalkClass> {
+        if reference.is_class_object() {
+            let class       = TalkClass(reference.1.into());
+            let callbacks   = self.get_callbacks_mut(class);
+
+            &mut callbacks.class_dispatch_table
+        } else {
+            let class       = reference.0;
+            let callbacks   = self.get_callbacks_mut(class);
+
+            &mut callbacks.class_dispatch_table
+        }
+    }
+
+    ///
+    /// For a reference, retrieves the dispatch table for its instance implementation
+    ///
+    /// If the reference is to a class object, then this is the dispatch table for that class, rather than the class object itself.
+    /// If the reference is to an instance of an object, then this is the dispatch table for that class of that object.
+    ///
+    #[inline]
+    pub fn instance_dispatch_table<'a>(&'a mut self, reference: &TalkReference) -> &'a mut TalkMessageDispatchTable<TalkReference> {
+        if reference.is_class_object() {
+            let class       = TalkClass(reference.1.into());
+            let callbacks   = self.get_callbacks_mut(class);
+
+            &mut callbacks.dispatch_table
+        } else {
+            let class       = reference.0;
+            let callbacks   = self.get_callbacks_mut(class);
+
+            &mut callbacks.dispatch_table
+        }
+    }
+
+    ///
     /// Releases multiple references using this context
     ///
     #[inline]
