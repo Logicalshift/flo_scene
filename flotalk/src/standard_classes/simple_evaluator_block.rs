@@ -196,7 +196,7 @@ where
                 let expression          = block.expression.clone();
 
                 TalkClassMessageHandler {
-                    define_in_dispatch_table: Box::new(move |dispatch_table, message_signature, superclass| {
+                    define_in_dispatch_table: Box::new(move |dispatch_table, message_signature, _superclass| {
                         dispatch_table.define_message(message_signature, move |target_class, args, talk_context| {
                             // Make the 'target class' value part of the arguments
                             let mut args = args;

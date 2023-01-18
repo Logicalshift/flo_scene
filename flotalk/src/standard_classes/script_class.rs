@@ -1,6 +1,5 @@
 use super::talk_message_handler::*;
 
-use crate::allocator::*;
 use crate::class::*;
 use crate::context::*;
 use crate::continuation::*;
@@ -405,10 +404,8 @@ impl TalkScriptClassClass {
     /// Generates the function to use for the `subclass` message
     ///
     fn define_subclass(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
-        move |_, args, _| {
-            let mut args = args.leak();
-
-            TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, talk_context| {
+        move |_, _, _| {
+            TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, _| {
                 debug_assert!(script_class.class_id == cell_class_id);
 
                 TalkScriptClassClass::subclass(*SCRIPT_CLASS_CLASS, Self::cell_class_reference(cell_class_id), script_class)
@@ -421,7 +418,7 @@ impl TalkScriptClassClass {
     ///
     fn define_subclass_with_instance_variables(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
         move |_, args, _| {
-            let mut args = args.leak();
+            let args = args.leak();
 
             TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, talk_context| {
                 debug_assert!(script_class.class_id == cell_class_id);
@@ -429,7 +426,7 @@ impl TalkScriptClassClass {
                 // Create a subclass of this class with different instance variables
                 match args[0] {
                     TalkValue::Selector(args)   => TalkScriptClassClass::subclass_with_instance_variables(*SCRIPT_CLASS_CLASS, Self::cell_class_reference(cell_class_id), script_class, args.to_signature()),
-                    _                           => TalkError::NotASelector.into(),
+                    _                           => { args.release_in_context(talk_context); TalkError::NotASelector.into() },
                 }
             })
         }
@@ -439,10 +436,8 @@ impl TalkScriptClassClass {
     /// Generate the function to use for the 'superclass' message
     ///
     fn define_superclass(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
-        move |_, args, _| {
-            let mut args = args.leak();
-
-            TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, talk_context| {
+        move |_, _, _| {
+            TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, _| {
                 debug_assert!(script_class.class_id == cell_class_id);
 
                 // Retrieve the superclass for this class
@@ -464,9 +459,7 @@ impl TalkScriptClassClass {
     /// Generate the function to use for the 'newSuperclass' message
     ///
     fn define_new_superclass(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
-        move |_, args, _| {
-            let mut args = args.leak();
-
+        move |_, _, _| {
             TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, talk_context| {
                 debug_assert!(script_class.class_id == cell_class_id);
 
@@ -484,9 +477,7 @@ impl TalkScriptClassClass {
     /// Generate the function to use for the 'new' message
     ///
     fn define_new(cell_class_id: TalkClass) -> impl 'static + Send + Sync + for<'a> Fn(TalkOwned<TalkClass, &'a TalkContext>, TalkOwned<SmallVec<[TalkValue; 4]>, &'a TalkContext>, &'a TalkContext) -> TalkContinuation<'static> {
-        move |_, args, _| {
-            let mut args = args.leak();
-
+        move |_, _, _| {
             TalkContinuation::read_value::<TalkScriptClassClass, _>(Self::cell_class_reference(cell_class_id).into(), move |script_class, _| {
                 debug_assert!(script_class.class_id == cell_class_id);
 
@@ -681,7 +672,7 @@ impl TalkClassDefinition for TalkScriptClassClass {
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _reference: TalkReference, _allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
     }
 }
