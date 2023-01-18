@@ -158,6 +158,16 @@ impl TalkValue {
     }
 
     ///
+    /// Returns true if this reference is to a `TalkClass` object
+    ///
+    pub fn is_class_object(&self) -> bool {
+        match self {
+            TalkValue::Reference(reference) => reference.is_class_object(),
+            _                               => false,
+        }
+    }
+
+    ///
     /// Sends a message to this value, then releases it
     ///
     #[inline]

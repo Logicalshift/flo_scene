@@ -4,6 +4,7 @@ use super::continuation::*;
 use super::message::*;
 use super::releasable::*;
 use super::runtime::*;
+use super::standard_classes::*;
 use super::value::*;
 
 use futures::prelude::*;
@@ -54,6 +55,13 @@ impl TalkReference {
     #[inline]
     pub fn from_handle(class: TalkClass, data_handle: TalkDataHandle) -> TalkReference {
         TalkReference(class, data_handle)
+    }
+
+    ///
+    /// Returns true if this reference is to a `TalkClass` object
+    ///
+    pub fn is_class_object(&self) -> bool {
+        self.0 == *CLASS_CLASS
     }
 
     ///

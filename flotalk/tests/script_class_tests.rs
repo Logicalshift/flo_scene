@@ -104,6 +104,7 @@ fn create_subclass() {
         // Must generate a new class, as the same class type as object
         println!("{:?}", result);
         assert!(*result != *object);
+        assert!(result.is_class_object());
         assert!(match &*result {
             TalkValue::Reference(new_class) => new_class.class() == object.try_as_reference().unwrap().class(),
             _ => false
@@ -124,9 +125,11 @@ fn create_subclass_with_instance_variables() {
         let object = runtime.run(TalkScript::from("Object")).await;
 
         // Must generate a new class, using the SCRIPT_CLASS_CLASS
+        println!("{:?}", result);
         assert!(*result != *object);
+        assert!(result.is_class_object());
         assert!(match &*result {
-            TalkValue::Reference(new_class) => new_class.class() == *SCRIPT_CLASS_CLASS,
+            TalkValue::Reference(new_class) => new_class.class() == object.try_as_reference().unwrap().class(),
             _ => false
         });
     });
@@ -602,6 +605,7 @@ fn call_self_from_instance_message() {
 
         // Run the test script with the 'Object' class defined
         let result = runtime.run(TalkScript::from(test_source)).await;
+        println!("{:?}", result);
 
         // Should return 42
         assert!(*result == TalkValue::Int(42));
