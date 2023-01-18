@@ -136,8 +136,10 @@ impl TalkScriptClassClass {
             // Generate a new script class reference
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
         }).and_then_if_ok(move |new_class_reference| {
+            let new_class_reference = Self::class_reference_to_script_reference(new_class_reference.try_as_reference().unwrap()).into();
+
             // Set the superclass for the new class
-            TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class, _| {
+            TalkContinuation::read_value::<Self, _>(new_class_reference, move |script_class, _| {
                 // Set the superclass
                 script_class.superclass_id = Some(superclass);
 
@@ -236,6 +238,8 @@ impl TalkScriptClassClass {
             script_class_class.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
         }).and_then(move |new_class_reference| {
             // Set the superclass for this class
+            let new_class_reference = Self::class_reference_to_script_reference(new_class_reference.try_as_reference().unwrap());
+            let new_class_reference = TalkValue::Reference(new_class_reference);
 
             // TODO: if read_value errors, it will leak the parent class
             TalkContinuation::read_value::<Self, _>(new_class_reference.clone(), move |script_class, _| {
@@ -295,11 +299,7 @@ impl TalkScriptClassClass {
     fn subclass_with_instance_variables(our_class_id: TalkClass, parent_class: TalkReference, superclass: &TalkScriptClass, variables: TalkMessageSignature) -> TalkContinuation<'static> {
         Self::subclass(our_class_id, parent_class, superclass).and_then(move |new_class_reference| {
             // The new class should be a TalkClass reference
-            let new_class_reference = new_class_reference.try_as_reference().unwrap();
-            debug_assert!(new_class_reference.class() == *CLASS_CLASS);
-
-            // Script class class references are also TalkClass handles (see the allocator for how this works)
-            let new_class_reference = TalkReference(*SCRIPT_CLASS_CLASS, new_class_reference.data_handle());
+            let new_class_reference = Self::class_reference_to_script_reference(new_class_reference.try_as_reference().unwrap());
             let new_class_reference = TalkValue::Reference(new_class_reference);
 
             // Set the symbol table for this class (the symbols in the message signature become the instance variables)
@@ -324,6 +324,17 @@ impl TalkScriptClassClass {
     #[inline]
     fn cell_class_reference(class: TalkClass) -> TalkReference {
         TalkReference(*SCRIPT_CLASS_CLASS, TalkDataHandle(class.into()))
+    }
+
+    ///
+    /// Converts a cell block class created by the script class to a TalkReference to the underlying ScriptClass data
+    ///
+    #[inline]
+    fn class_reference_to_script_reference(class: &TalkReference) -> TalkReference {
+        // Both CLASS_CLASS and SCRIPT_CLASS_CLASS use the TalkClass as the data handle (see the allocators for both)
+        debug_assert!(class.class() == *CLASS_CLASS || class.class() == *SCRIPT_CLASS_CLASS);
+
+        TalkReference(*SCRIPT_CLASS_CLASS, class.data_handle())
     }
 
     ///
