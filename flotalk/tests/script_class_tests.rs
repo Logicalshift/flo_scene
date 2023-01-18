@@ -101,11 +101,11 @@ fn create_subclass() {
         let result = runtime.run(TalkScript::from(test_source)).await;
         let object = runtime.run(TalkScript::from("Object")).await;
 
-        // Must generate a new class, using the SCRIPT_CLASS_CLASS
+        // Must generate a new class, as the same class type as object
         println!("{:?}", result);
         assert!(*result != *object);
         assert!(match &*result {
-            TalkValue::Reference(new_class) => new_class.class() == *SCRIPT_CLASS_CLASS,
+            TalkValue::Reference(new_class) => new_class.class() == object.try_as_reference().unwrap().class(),
             _ => false
         });
     });
@@ -187,6 +187,8 @@ fn read_superclass() {
         // Run the test script with the 'Object' class defined
         let result = runtime.run(TalkScript::from(test_source)).await;
         let object = runtime.run(TalkScript::from("Object")).await;
+
+        println!("{:?} {:?}", result, object);
 
         // Superclass gets us back to 'object'
         assert!(*result == *object);
