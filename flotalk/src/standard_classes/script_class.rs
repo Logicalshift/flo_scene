@@ -343,8 +343,8 @@ impl TalkScriptClassClass {
 
         // Send undispatched messages to the superclass if possible
         if let Some(superclass_id) = superclass_id {
-            class_dispatch_table.define_not_supported(move |_, message_id, args, context| {
-                superclass_id.send_message_in_context(TalkMessage::from_signature(message_id, args.leak()), context)
+            class_dispatch_table.define_not_supported(move |source_class, message_id, args, context| {
+                superclass_id.send_message_in_context_from_subclass(*source_class, TalkMessage::from_signature(message_id, args.leak()), context)
             })
         } else {
             class_dispatch_table.define_not_supported(|_, id, _, _| TalkError::MessageNotSupported(id).into())
