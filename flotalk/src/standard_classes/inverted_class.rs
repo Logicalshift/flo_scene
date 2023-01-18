@@ -22,6 +22,9 @@ use std::sync::*;
 /// The 'Inverted' class, adds inverted-control messages
 pub static INVERTED_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkInvertedClass));
 
+/// Specifies an object to receive messages from
+static TALK_MSG_RECEIVE_FROM: Lazy<TalkMessageSignatureId>          = Lazy::new(|| "receiveFrom:".into());
+
 ///
 /// The `Inverted` class provides a way to declare messages that are sent *from* an instance instead of *to* an instance.
 ///
@@ -515,6 +518,21 @@ impl TalkInvertedClass {
     }
 
     ///
+    /// Given a continuation that generates a subclass, returns a continuation that adds the inverted instance messages such as 'receiveFrom:'
+    ///
+    fn declare_subclass_instance_messages(create_subclass: TalkContinuation<'static>) -> TalkContinuation<'static> {
+        create_subclass.and_then_soon_if_ok(|subclass_reference, talk_context| {
+            // Modify the dispatch table
+            let dispatch_table = talk_context.instance_dispatch_table(subclass_reference.try_as_reference().unwrap());
+
+            dispatch_table.define_message(*TALK_MSG_RECEIVE_FROM, |target, args, talk_context| Self::receive_from(target, args, talk_context));
+
+            // Result is the subclass
+            subclass_reference.into()
+        })
+    }
+
+    ///
     /// Implements the 'addInvertedMessage:' message
     ///
     fn add_inverted_message(class_id: TalkOwned<TalkClass, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _talk_context: &TalkContext) -> TalkContinuation<'static> {
@@ -563,6 +581,13 @@ impl TalkInvertedClass {
                 class_id.send_message_in_context(TalkMessage::WithArguments(*TALK_MSG_ADD_INSTANCE_MESSAGE, args), talk_context)
             })
         })
+    }
+
+    ///
+    /// Adds an instance for an inverted object to receive messages from 
+    ///
+    fn receive_from(target: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _talk_context: &TalkContext) -> TalkContinuation<'static> {
+        ().into()
     }
 }
 
@@ -621,7 +646,7 @@ impl TalkClassDefinition for TalkInvertedClass {
         static TALK_MSG_ADD_INVERTED_MESSAGE: Lazy<TalkMessageSignatureId>  = Lazy::new(|| ("addInvertedMessage:", "withAction:").into());
 
         TalkMessageDispatchTable::empty()
-            .with_message(*TALK_MSG_SUBCLASS,               |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| TalkScriptClassClass::create_subclass(*class_id, vec![*TALK_MSG_NEW]))
-            .with_message(*TALK_MSG_ADD_INVERTED_MESSAGE,   |class_id, args, talk_context| Self::add_inverted_message(class_id, args, talk_context))
+            .with_message(*TALK_MSG_SUBCLASS,               |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| Self::declare_subclass_instance_messages(TalkScriptClassClass::create_subclass(*class_id, vec![*TALK_MSG_NEW])))
+            .with_message(*TALK_MSG_ADD_INVERTED_MESSAGE,   |class_id, args, talk_context|                          Self::add_inverted_message(class_id, args, talk_context))
     }
 }
