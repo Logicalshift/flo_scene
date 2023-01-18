@@ -1,3 +1,4 @@
+use super::class_class::*;
 use super::talk_message_handler::*;
 
 use crate::allocator::*;
@@ -196,16 +197,10 @@ where
 
                 TalkClassMessageHandler {
                     define_in_dispatch_table: Box::new(move |dispatch_table, message_signature, superclass| {
-                        dispatch_table.define_message(message_signature, move |_, args, talk_context| {
-                            // Make the 'super' value part of the arguments
-                            let mut args        = args;
-
-                            if let Some(superclass) = superclass.clone() {
-                                superclass.retain(talk_context);
-                                args.push(superclass);
-                            } else {
-                                args.push(TalkValue::Nil);
-                            }
+                        dispatch_table.define_message(message_signature, move |target_class, args, talk_context| {
+                            // Make the 'target class' value part of the arguments
+                            let mut args = args;
+                            args.push(TalkReference(*CLASS_CLASS, TalkDataHandle((*target_class).into())).into());
 
                             // Evaluate the message
                             talk_evaluate_simple_with_arguments(Arc::clone(&parent_symbol_table), parent_frames.clone(), args.leak(), Arc::clone(&expression))
