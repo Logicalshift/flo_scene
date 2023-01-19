@@ -36,8 +36,11 @@ pub fn talk_init_object_class() -> TalkContinuation<'static> {
 ///
 pub fn talk_init_inverted_class() -> TalkContinuation<'static> {
     TalkContinuation::soon(|talk_context| {
-        let inverted_class_object = INVERTED_CLASS.class_object_in_context(talk_context);
+        let inverted_class_object   = INVERTED_CLASS.class_object_in_context(talk_context);
+        let all_value               = (*INVERTED_ALL).clone();
+
         talk_context.set_root_symbol_value("Inverted", inverted_class_object.into());
+        talk_context.set_root_symbol_value("all", all_value);
         ().into()
     })
 }
