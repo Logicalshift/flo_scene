@@ -442,6 +442,13 @@ pub static TALK_DISPATCH_NUMBER: Lazy<TalkMessageDispatchTable<TalkNumber>> = La
     );
 
 ///
+/// The default message dispatcher for symbol values
+///
+pub static TALK_DISPATCH_SYMBOL: Lazy<TalkMessageDispatchTable<TalkSymbol>> = Lazy::new(|| TalkMessageDispatchTable::empty()
+    .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |symbol_value| TalkValue::from(symbol_value))
+    );
+
+///
 /// Returns the message signature ID for the `value:value:` type message with the specified number of arguments
 ///
 /// `0` arguments will produce the unary message `value`. `1` will produce `value:`. `2` will produce `value:value:`
@@ -751,7 +758,7 @@ impl Default for TalkValueDispatchTables {
             float_dispatch:     TALK_DISPATCH_NUMBER.clone(),
             string_dispatch:    TalkMessageDispatchTable::empty(),
             character_dispatch: TalkMessageDispatchTable::empty(),
-            symbol_dispatch:    TalkMessageDispatchTable::empty(),
+            symbol_dispatch:    TALK_DISPATCH_SYMBOL.clone(),
             selector_dispatch:  TALK_DISPATCH_SELECTOR.clone(),
             array_dispatch:     TalkMessageDispatchTable::empty(),
             message_dispatch:   TALK_DISPATCH_MESSAGE.clone(),
@@ -774,7 +781,7 @@ impl TalkValue {
             TalkValue::Float(val)               => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Float(val), message, context),
             TalkValue::String(_val)             => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Character(_val)          => TalkError::MessageNotSupported(message.signature_id()).into(),
-            TalkValue::Symbol(_val)             => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Symbol(symbol)           => TALK_DISPATCH_SYMBOL.send_message(symbol, message, context),
             TalkValue::Selector(selector)       => TALK_DISPATCH_SELECTOR.send_message(selector, message, context),
             TalkValue::Array(_val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Message(target)          => TALK_DISPATCH_MESSAGE.send_message(target, message, context),
