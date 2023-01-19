@@ -168,6 +168,16 @@ impl TalkValue {
     }
 
     ///
+    /// Returns true if this is an error
+    ///
+    pub fn is_error(&self) -> bool {
+        match self {
+            TalkValue::Error(_) => true,
+            _                   => false,
+        }
+    }
+
+    ///
     /// Sends a message to this value, then releases it
     ///
     #[inline]
@@ -447,5 +457,14 @@ impl TryFrom<TalkLiteral> for TalkValue {
 
     fn try_from(literal: TalkLiteral) -> Result<Self, TalkError> {
         TalkValue::try_from(&literal)
+    }
+}
+
+impl From<TalkValue> for Result<TalkValue, TalkError> {
+    fn from(value: TalkValue) -> Result<TalkValue, TalkError> {
+        match value {
+            TalkValue::Error(err)   => Err(err),
+            other                   => Ok(other)
+        }
     }
 }
