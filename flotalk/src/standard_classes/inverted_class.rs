@@ -33,7 +33,7 @@ pub (crate) static INVERTED_UNHANDLED: Lazy<TalkValue> = Lazy::new(|| TalkSymbol
 pub (crate) static INVERTED_UNRECEIVED_MSG: Lazy<TalkMessageSignatureId> = Lazy::new(|| "unreceived:".into());
 
 /// Specifies an object to receive messages from
-static TALK_MSG_RECEIVE_FROM: Lazy<TalkMessageSignatureId>          = Lazy::new(|| "receiveFrom:".into());
+static TALK_MSG_RECEIVE_FROM: Lazy<TalkMessageSignatureId> = Lazy::new(|| "receiveFrom:".into());
 
 ///
 /// The `Inverted` class provides a way to declare messages that are sent *from* an instance instead of *to* an instance.
@@ -534,6 +534,22 @@ impl TalkInvertedClassAllocator {
             self.respond_to_specific[source_class].insert(source_handle, vec![(target.clone(), priority)]);
         }
     }
+
+    ///
+    /// Sets it up so that 'target' will receive messages all possible sources
+    ///
+    fn receive_from_all(&mut self, target: &TalkReference) {
+        let target_class    = usize::from(target.class());
+        let priority        = Priority(self.next_priority, ProcessWhen::Always);
+
+        self.next_priority += 1;
+
+        while self.respond_to_all.len() <= target_class {
+            self.respond_to_all.push(vec![]);
+        }
+
+        self.respond_to_all[target_class].push((target.clone(), priority));
+    }
 }
 
 impl TalkInvertedClass {
@@ -633,6 +649,11 @@ impl TalkInvertedClass {
                 let mut allocator = allocator.lock().unwrap();
 
                 allocator.receive_from_specific(source, &target);
+            } else if &args[0] == &*INVERTED_ALL {
+                // Receive supported inverted messages from all objects
+                let mut allocator = allocator.lock().unwrap();
+
+                allocator.receive_from_all(&target);
             }
 
             // Release the arguments
