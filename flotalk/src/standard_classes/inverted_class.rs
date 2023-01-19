@@ -8,6 +8,7 @@ use crate::message::*;
 use crate::reference::*;
 use crate::releasable::*;
 use crate::sparse_array::*;
+use crate::symbol::*;
 use crate::value::*;
 use crate::value_messages::*;
 
@@ -21,6 +22,15 @@ use std::sync::*;
 
 /// The 'Inverted' class, adds inverted-control messages
 pub (crate) static INVERTED_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkInvertedClass));
+
+/// A value representing the 'all' collection
+pub (crate) static INVERTED_ALL: Lazy<TalkValue> = Lazy::new(|| TalkSymbol::new_unnamed().into());
+
+/// A value representing the 'unhandled' result, used to keep a message being processed in the 'unreceived' state
+pub (crate) static INVERTED_UNHANDLED: Lazy<TalkValue> = Lazy::new(|| TalkSymbol::new_unnamed().into());
+
+/// Sending the 'unreceived' message to something turns it into the message 'unreceived: whatever', which receiveFrom: uses to set the appropriate flag
+pub (crate) static INVERTED_UNRECEIVED_MSG: Lazy<TalkMessageSignatureId> = Lazy::new(|| "unreceived:".into());
 
 /// Specifies an object to receive messages from
 static TALK_MSG_RECEIVE_FROM: Lazy<TalkMessageSignatureId>          = Lazy::new(|| "receiveFrom:".into());
