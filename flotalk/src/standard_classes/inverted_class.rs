@@ -503,6 +503,27 @@ impl TalkInvertedClassAllocator {
             }
         }))
     }
+
+    ///
+    /// Sets it up so that 'target' will receive messages from 'source'
+    ///
+    fn receive_from_specific(&mut self, source: &TalkReference, target: &TalkReference) {
+        let source_class    = usize::from(source.class());
+        let source_handle   = usize::from(source.data_handle());
+        let priority        = Priority(self.next_priority, ProcessWhen::Always);
+
+        self.next_priority += 1;
+
+        while self.respond_to_specific.len() <= source_class {
+            self.respond_to_specific.push(TalkSparseArray::empty());
+        }
+
+        if let Some(responders) = self.respond_to_specific[source_class].get_mut(source_handle) {
+            responders.push((target.clone(), priority));
+        } else {
+            self.respond_to_specific[source_class].insert(source_handle, vec![(target.clone(), priority)]);
+        }
+    }
 }
 
 impl TalkInvertedClass {
@@ -587,7 +608,30 @@ impl TalkInvertedClass {
     /// Adds an instance for an inverted object to receive messages from 
     ///
     fn receive_from(target: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _talk_context: &TalkContext) -> TalkContinuation<'static> {
-        ().into()
+        let target  = target.leak();
+        let args    = args.leak();
+
+        TalkContinuation::soon(|talk_context| {
+            // Fetch the allocator
+            let callbacks = talk_context.get_callbacks_mut(*INVERTED_CLASS);
+            let allocator = callbacks.allocator.downcast_ref::<Arc<Mutex<TalkInvertedClassAllocator>>>()
+                .map(|defn| Arc::clone(defn))
+                .unwrap();
+
+            if let Ok(source) = args[0].try_as_reference() {
+                // Source must be a reference, can't receive from value types
+                let mut allocator = allocator.lock().unwrap();
+
+                allocator.receive_from_specific(source, &target);
+            }
+
+            // Release the arguments
+            args.release_in_context(talk_context);
+            target.release_in_context(talk_context);
+
+            // Return result is nil
+            ().into()
+        })
     }
 }
 
