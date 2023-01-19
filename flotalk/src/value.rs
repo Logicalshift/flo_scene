@@ -397,6 +397,14 @@ impl From<char> for TalkValue {
     fn from(val: char) -> TalkValue { TalkValue::Character(val) }
 }
 
+impl From<TalkSymbol> for TalkValue {
+    fn from(val: TalkSymbol) -> TalkValue { TalkValue::Symbol(val) }
+}
+
+impl<'a> From<&'a TalkSymbol> for TalkValue {
+    fn from(val: &'a TalkSymbol) -> TalkValue { TalkValue::Symbol(*val) }
+}
+
 impl From<TalkNumber> for TalkValue {
     fn from(val: TalkNumber) -> TalkValue { 
         match val {
