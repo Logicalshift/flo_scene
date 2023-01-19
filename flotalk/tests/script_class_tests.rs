@@ -212,10 +212,6 @@ fn create_object_instance() {
 
         // Must generate a new class, using the SCRIPT_CLASS_CLASS
         assert!(*result != *object);
-        assert!(match &*result {
-            TalkValue::Reference(new_object) => new_object.class() != *SCRIPT_CLASS_CLASS,
-            _ => false
-        });
     });
 }
 
@@ -239,10 +235,6 @@ fn create_subclass_instance() {
         // Must generate a new class, using the SCRIPT_CLASS_CLASS
         println!("{:?}", result);
         assert!(*result != *object);
-        assert!(match &*result {
-            TalkValue::Reference(new_object) => new_object.class() != *SCRIPT_CLASS_CLASS,
-            _ => false
-        });
     });
 }
 

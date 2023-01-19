@@ -20,11 +20,8 @@ fn send_values_to_script_stream() {
         let runtime = TalkRuntime::empty();
         runtime.set_root_symbol_value("x", 0).await;
 
-        // Manually create the 'object' in this context (by sending 'new' to the script class class)
-        let object = runtime.run(TalkContinuation::soon(|talk_context| {
-            SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
-        })).await;
-        runtime.set_root_symbol_value("Object", object.leak()).await;
+        // Manually create the 'object' in this context
+        runtime.run(talk_init_object_class()).await;
 
         // Declare a class to handle the 'setValue' and 'addValue' messages and use that as the target of the stream
         let stream_values   = vec![Message::SetValue(26), Message::AddValue(16)];
