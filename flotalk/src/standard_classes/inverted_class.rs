@@ -517,10 +517,10 @@ impl TalkInvertedClassAllocator {
     ///
     /// Sets it up so that 'target' will receive messages from 'source'
     ///
-    fn receive_from_specific(&mut self, source: &TalkReference, target: &TalkReference) {
+    fn receive_from_specific(&mut self, source: &TalkReference, target: &TalkReference, when: ProcessWhen) {
         let source_class    = usize::from(source.class());
         let source_handle   = usize::from(source.data_handle());
-        let priority        = Priority(self.next_priority, ProcessWhen::Always);
+        let priority        = Priority(self.next_priority, when);
 
         self.next_priority += 1;
 
@@ -538,9 +538,9 @@ impl TalkInvertedClassAllocator {
     ///
     /// Sets it up so that 'target' will receive messages all possible sources
     ///
-    fn receive_from_all(&mut self, target: &TalkReference) {
+    fn receive_from_all(&mut self, target: &TalkReference, when: ProcessWhen) {
         let target_class    = usize::from(target.class());
-        let priority        = Priority(self.next_priority, ProcessWhen::Always);
+        let priority        = Priority(self.next_priority, when);
 
         self.next_priority += 1;
 
@@ -637,23 +637,38 @@ impl TalkInvertedClass {
         let target  = target.leak();
         let args    = args.leak();
 
-        TalkContinuation::soon(|talk_context| {
+        TalkContinuation::soon(move |talk_context| {
             // Fetch the allocator
             let callbacks = talk_context.get_callbacks_mut(*INVERTED_CLASS);
             let allocator = callbacks.allocator.downcast_ref::<Arc<Mutex<TalkInvertedClassAllocator>>>()
                 .map(|defn| Arc::clone(defn))
                 .unwrap();
 
-            if let Ok(source) = args[0].try_as_reference() {
+            // Determine when the item needs to be processed
+            let (source, when) = if let TalkValue::Message(msg) = &args[0] {
+                if msg.signature_id() == *INVERTED_UNRECEIVED_MSG {
+                    match &**msg {
+                        TalkMessage::WithArguments(_, msg_args) => (&msg_args[0], ProcessWhen::Unreceived),
+                        _                                       => unreachable!()
+                    }
+                } else {
+                    (&args[0], ProcessWhen::Always)
+                }
+            } else {
+                (&args[0], ProcessWhen::Always)
+            };
+
+            // Register the message
+            if let Ok(source) = source.try_as_reference() {
                 // Source must be a reference, can't receive from value types
                 let mut allocator = allocator.lock().unwrap();
 
-                allocator.receive_from_specific(source, &target);
-            } else if &args[0] == &*INVERTED_ALL {
+                allocator.receive_from_specific(source, &target, when);
+            } else if source == &*INVERTED_ALL {
                 // Receive supported inverted messages from all objects
                 let mut allocator = allocator.lock().unwrap();
 
-                allocator.receive_from_all(&target);
+                allocator.receive_from_all(&target, when);
             }
 
             // Release the arguments
