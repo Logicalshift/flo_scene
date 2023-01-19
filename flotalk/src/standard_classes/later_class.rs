@@ -19,7 +19,7 @@ use futures::channel::oneshot;
 use std::sync::*;
 
 /// The 'later' class, creates values that are set later by some other asynchronous part of the program
-pub static LATER_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkLaterClass));
+pub (crate) static LATER_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkLaterClass));
 
 ///
 /// The `Later` class is used for values that are set elsewhere

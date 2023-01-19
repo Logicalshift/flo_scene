@@ -20,7 +20,7 @@ use std::collections::{HashSet};
 use std::sync::*;
 
 /// The 'Inverted' class, adds inverted-control messages
-pub static INVERTED_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkInvertedClass));
+pub (crate) static INVERTED_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkInvertedClass));
 
 /// Specifies an object to receive messages from
 static TALK_MSG_RECEIVE_FROM: Lazy<TalkMessageSignatureId>          = Lazy::new(|| "receiveFrom:".into());

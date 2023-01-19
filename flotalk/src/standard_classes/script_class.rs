@@ -38,7 +38,7 @@ pub static TALK_MSG_ADD_INSTANCE_MESSAGE: Lazy<TalkMessageSignatureId> = Lazy::n
 pub static TALK_MSG_ADD_CLASS_MESSAGE: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("addClassMessage:", "withAction:").into());
 
 /// The 'class of classes', used for creating the scriptable classes like 'Object' and its subclasses
-pub static SCRIPT_CLASS_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkScriptClassClass));
+pub (crate) static SCRIPT_CLASS_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkScriptClassClass));
 
 ///
 /// This class is a factory for other classes: it creates TalkScriptClass objects

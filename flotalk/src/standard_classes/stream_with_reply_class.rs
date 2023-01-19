@@ -22,7 +22,7 @@ use futures::channel::mpsc;
 use std::sync::*;
 
 /// The 'stream with reply' class, creates asynchronous generator style sender/receiver streams
-pub static STREAM_WITH_REPLY_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkStreamWithReplyClass));
+pub (crate) static STREAM_WITH_REPLY_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkStreamWithReplyClass));
 
 ///
 /// The `StreamWithReply` class, which is similar to the stream class, except every message that's sent is modified to have a return value

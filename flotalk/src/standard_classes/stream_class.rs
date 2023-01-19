@@ -18,7 +18,7 @@ use once_cell::sync::{Lazy};
 use std::sync::*;
 
 /// The 'stream' class, creates asynchronous generator style sender/receiver streams
-pub static STREAM_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkStreamClass));
+pub (crate) static STREAM_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkStreamClass));
 
 ///
 /// The `Stream` class, which can be used to receive values from an asynchronous stream
