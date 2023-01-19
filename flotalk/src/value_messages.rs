@@ -4,9 +4,10 @@ use super::dispatch_table::*;
 use super::error::*;
 use super::message::*;
 use super::number::*;
-use super::symbol::*;
 use super::reference::*;
 use super::releasable::*;
+use super::standard_classes::*;
+use super::symbol::*;
 use super::value::*;
 
 use smallvec::*;
@@ -106,6 +107,11 @@ pub static TALK_MSG_RESPONDS_TO: Lazy<TalkMessageSignatureId>                 = 
 
 /// Returns the receiver as the result
 pub static TALK_MSG_YOURSELF: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| "yourself".into());
+
+// FloTalk Object messages
+
+/// Returns the 'inverted' receiver target for this object which is only called when the message is not processed earlier (see the `TalkInvertedClass` class for more details)
+pub static TALK_MSG_UNRECEIVED: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| "unreceived".into());
 
 
 // Valuable protocol messages
@@ -366,6 +372,7 @@ pub static TALK_DISPATCH_ANY: Lazy<TalkMessageDispatchTable<TalkValue>> = Lazy::
     .with_message(*TALK_MSG_PRINT_STRING,               |_, _, _| TalkError::NotImplemented)
     .with_message(*TALK_MSG_RESPONDS_TO,                |val, args, context| responds_to(val, args, context))
     .with_message(*TALK_MSG_YOURSELF,                   |mut val, _, _| val.take())
+    .with_message(*TALK_MSG_UNRECEIVED,                 |val, _, _| TalkValue::Message(Box::new(TalkMessage::WithArguments(*INVERTED_UNRECEIVED_MSG, smallvec![val.leak()]))))
     );
 
 ///
