@@ -129,7 +129,7 @@ pub struct TalkInverted {
 /// When a particular inverted message should be sent to a type (if it has not been received by another processor or always)
 ///
 #[derive(Copy, Clone, PartialEq, Debug)]
-enum ProcessWhen {
+pub (crate) enum ProcessWhen {
     Always,
     Unreceived,    
 }
@@ -138,7 +138,7 @@ enum ProcessWhen {
 /// The priority of an inverted receiver (higher priorities receive messages sooner)
 ///
 #[derive(Copy, Clone, Debug)]
-struct Priority(usize, ProcessWhen);
+pub (crate) struct Priority(usize, ProcessWhen);
 
 ///
 /// Allocator for instances of the inverted class
