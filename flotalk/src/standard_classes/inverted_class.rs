@@ -1,4 +1,3 @@
-use crate::allocator::*;
 use crate::context::*;
 use crate::class::*;
 use crate::continuation::*;
@@ -577,11 +576,14 @@ impl TalkInvertedClass {
     /// Given a continuation that generates a subclass, returns a continuation that adds the inverted instance messages such as 'receiveFrom:'
     ///
     fn declare_subclass_instance_messages(create_subclass: TalkContinuation<'static>) -> TalkContinuation<'static> {
+        static TALK_MSG_WITH: Lazy<TalkMessageSignatureId> = Lazy::new(|| "with:".into());
+
         create_subclass.and_then_soon_if_ok(|subclass_reference, talk_context| {
             // Modify the dispatch table
             let dispatch_table = talk_context.instance_dispatch_table(subclass_reference.try_as_reference().unwrap());
 
             dispatch_table.define_message(*TALK_MSG_RECEIVE_FROM, |target, args, talk_context| Self::receive_from(target, args, talk_context));
+            dispatch_table.define_message(*TALK_MSG_WITH, |target, args, talk_context| Self::with(target, args, talk_context));
 
             // Result is the subclass
             subclass_reference.into()
@@ -687,6 +689,49 @@ impl TalkInvertedClass {
             // Return result is nil
             ().into()
         })
+    }
+
+    ///
+    /// Adds the 'target' class to the list of inverted receivers while a block passed in the arguments is executed
+    ///
+    fn with(target: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _talk_context: &TalkContext) -> TalkContinuation<'static> {
+        // Target ends up retained in the local context
+        let target = target.leak();
+
+        // Only argument is the block
+        let block = args.leak()[0].take();
+
+        TalkContinuation::Soon(Box::new(move |talk_context, local_context| {
+            // Fetch the allocator
+            let callbacks = talk_context.get_callbacks_mut(*INVERTED_CLASS);
+            let allocator = callbacks.allocator.downcast_ref::<Arc<Mutex<TalkInvertedClassAllocator>>>()
+                .unwrap();
+
+            // Get the priority from the allocator
+            let priority = { 
+                let mut allocator = allocator.lock().unwrap();
+                let next_priority = allocator.next_priority;
+                allocator.next_priority += 1;
+
+                TalkPriority(next_priority, TalkProcessWhen::Always)
+            };
+
+            // Add the target to the local context
+            let target_copy = target.clone();
+            local_context.push_inverted_target(target, priority);
+
+            // Send the 'value' message to the block with the updated context
+            block.send_message_in_context(TalkMessage::Unary(*TALK_MSG_VALUE), talk_context)
+                .and_then(move |result| {
+                    TalkContinuation::Soon(Box::new(move |talk_context, local_context| {
+                        // Remove the target from the local context again
+                        local_context.pop_inverted_target(target_copy, talk_context);
+
+                        // Return the same result
+                        result.into()
+                    }))
+                })
+        }))
     }
 }
 

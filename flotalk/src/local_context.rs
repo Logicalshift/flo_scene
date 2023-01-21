@@ -16,6 +16,59 @@ pub struct TalkLocalContext {
     pub (crate) inverted_targets: Option<TalkSparseArray<Vec<(TalkReference, TalkPriority)>>>,
 }
 
+impl TalkLocalContext {
+    ///
+    /// Adds a reference as a target of inverted messages (see `TalkInverted`). The reference will be released when the local context is freed or when `pop_inverted_target` is called.
+    ///
+    pub (crate) fn push_inverted_target(&mut self, target: TalkReference, priority: TalkPriority) {
+        // Create the inverted targets sparse array if it's not already there
+        if self.inverted_targets.is_none() {
+            self.inverted_targets = Some(TalkSparseArray::empty());
+        }
+
+        // Add the new target
+        if let Some(inverted_targets) = &mut self.inverted_targets {
+            // Inverted targets are indexed by class ID
+            let target_class_id = usize::from(target.class());
+
+            if let Some(existing_targets) = inverted_targets.get_mut(target_class_id) {
+                existing_targets.push((target, priority));
+            } else {
+                inverted_targets.insert(target_class_id, vec![(target, priority)]);
+            }
+        } else {
+            unreachable!()
+        }
+    }
+
+    ///
+    /// Removes an inverted target, in the opposite order that it was added in
+    ///
+    pub (crate) fn pop_inverted_target(&mut self, target: TalkReference, context: &TalkContext) {
+        // If the inverted targets is null then this isn't valid
+        debug_assert!(self.inverted_targets.is_some());
+
+        if let Some(inverted_targets) = &mut self.inverted_targets {
+            // Fetch the targets for this class
+            let target_class_id = usize::from(target.class());
+
+            if let Some(existing_targets) = inverted_targets.get_mut(target_class_id) {
+                // The target should be the last value in the list
+                debug_assert!(existing_targets.last().map(|tgt| &tgt.0) == Some(&target));
+
+                // Remove the old target
+                existing_targets.pop();
+
+                // Release it
+                target.release_in_context(context);
+            } else {
+                // The target should exist to be safely popped
+                debug_assert!(false);
+            }
+        }
+    }
+}
+
 impl Default for TalkLocalContext {
     fn default() -> Self {
         TalkLocalContext {
