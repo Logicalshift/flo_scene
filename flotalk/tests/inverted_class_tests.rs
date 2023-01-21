@@ -236,7 +236,8 @@ fn send_inverted_message_to_local_context() {
         invertedInstance    := TestInverted new.
         object              := Object new.
 
-        invertedInstance with: [ object setValueInverted: 42 ].
+        object setValInverted: 41.
+        invertedInstance with: [ object setValInverted: 42 ].
         object setValInverted: 43.
 
         val
