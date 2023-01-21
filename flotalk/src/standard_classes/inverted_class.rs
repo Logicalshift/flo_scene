@@ -366,7 +366,6 @@ impl TalkInvertedClassAllocator {
     ///
     /// Sends an inverted message to the known instances of the `Inverted` class that support the message type and have requested to receive it
     ///
-    #[inline]
     fn send_inverted_message(allocator: Arc<Mutex<Self>>, sender_reference: TalkOwned<TalkReference, &'_ TalkContext>, inverted_message: TalkOwned<TalkMessage, &'_ TalkContext>) -> TalkContinuation<'static> {
         let sender_reference    = sender_reference.leak();
         let inverted_message    = inverted_message.leak();
@@ -421,7 +420,17 @@ impl TalkInvertedClassAllocator {
                     }
                 }
 
-                // TODO: everything in the local context that might respond to this message
+                // Everything in the local context that might respond to this message
+                if let Some(local_targets) = &local_context.inverted_targets {
+                    for responder_class in responder_classes.iter() {
+                        let responder_class_id = usize::from(*responder_class);
+
+                        if let Some(responders) = local_targets.get(responder_class_id) {
+                            targets.extend(responders.iter().cloned());
+                        }
+                    }
+                }
+
                 // TODO: respond to specific class or subclass
 
                 // Add the sender as a final parameter to the message (so it's released alongside it)
