@@ -13,7 +13,7 @@ use super::standard_classes::*;
 ///
 pub struct TalkLocalContext {
     /// Maps target inverted classes to the instances that messages should be sent to
-    pub (crate) inverted_targets: Option<TalkSparseArray<Vec<(TalkReference, Priority)>>>,
+    pub (crate) inverted_targets: Option<TalkSparseArray<Vec<(TalkReference, TalkPriority)>>>,
 }
 
 impl Default for TalkLocalContext {

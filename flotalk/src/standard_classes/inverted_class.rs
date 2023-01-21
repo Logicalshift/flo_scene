@@ -129,7 +129,7 @@ pub struct TalkInverted {
 /// When a particular inverted message should be sent to a type (if it has not been received by another processor or always)
 ///
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub (crate) enum ProcessWhen {
+pub (crate) enum TalkProcessWhen {
     Always,
     Unreceived,    
 }
@@ -138,7 +138,7 @@ pub (crate) enum ProcessWhen {
 /// The priority of an inverted receiver (higher priorities receive messages sooner)
 ///
 #[derive(Copy, Clone, Debug)]
-pub (crate) struct Priority(usize, ProcessWhen);
+pub (crate) struct TalkPriority(usize, TalkProcessWhen);
 
 ///
 /// Allocator for instances of the inverted class
@@ -155,10 +155,10 @@ pub struct TalkInvertedClassAllocator {
 
     /// A Vec, indexed by responder class ID that contains the references of that class that want to respond to all
     /// Ie, for a given message to find out which 'all' responders are present, we look up the responder classes, then use them to look up each responder in here
-    respond_to_all: Vec<Vec<(TalkReference, Priority)>>,
+    respond_to_all: Vec<Vec<(TalkReference, TalkPriority)>>,
 
     /// A Vec, indexed by *source* class ID that contains a sparse array of source data handles and the `Inverted` references that respond to them
-    respond_to_specific: Vec<TalkSparseArray<Vec<(TalkReference, Priority)>>>,
+    respond_to_specific: Vec<TalkSparseArray<Vec<(TalkReference, TalkPriority)>>>,
 
     /// The data store
     data: Vec<Option<TalkInverted>>,
@@ -331,7 +331,7 @@ impl TalkInvertedClassAllocator {
     ///
     /// Unreceived targets are only called if `message_is_received` is false
     ///
-    fn call_targets(targets: Vec<(TalkReference, Priority)>, message: TalkMessage, message_is_received: bool) -> TalkContinuation<'static> {
+    fn call_targets(targets: Vec<(TalkReference, TalkPriority)>, message: TalkMessage, message_is_received: bool) -> TalkContinuation<'static> {
         let mut targets = targets;
 
         if targets.len() == 0 {
@@ -342,9 +342,9 @@ impl TalkInvertedClassAllocator {
             })
         } else {
             // Get the target to send to
-            let (target_ref, Priority(_, when)) = targets.pop().unwrap();
+            let (target_ref, TalkPriority(_, when)) = targets.pop().unwrap();
 
-            if when == ProcessWhen::Unreceived && message_is_received {
+            if when == TalkProcessWhen::Unreceived && message_is_received {
                 // Target should not receive the message (marked as unreceived, and message is received)
                 TalkContinuation::soon(move |context| {
                     target_ref.release(context);
@@ -452,7 +452,7 @@ impl TalkInvertedClassAllocator {
                         use std::cmp::{Ordering};
 
                         // Weeding out duplicate references: sort by reference
-                        targets.sort_by(|(a_ref, Priority(a_priority, _)), (b_ref, Priority(b_priority, _))| {
+                        targets.sort_by(|(a_ref, TalkPriority(a_priority, _)), (b_ref, TalkPriority(b_priority, _))| {
                             let ref_ordering = a_ref.cmp(&b_ref);
 
                             if ref_ordering == Ordering::Equal {
@@ -468,15 +468,15 @@ impl TalkInvertedClassAllocator {
                         let mut idx = 1;
                         loop {
                             // All equal references will be in the same spot in this vec
-                            let (a_ref, Priority(a_priority, a_when)) = &targets[idx-1];
-                            let (b_ref, Priority(b_priority, b_when)) = &targets[idx];
+                            let (a_ref, TalkPriority(a_priority, a_when)) = &targets[idx-1];
+                            let (b_ref, TalkPriority(b_priority, b_when)) = &targets[idx];
 
                             // For cases where the references are the same, combine into a single entry
                             if a_ref == b_ref {
                                 // Any 'Always' message will promote the 'when' to 'Always'
                                 let when = match (a_when, b_when) {
-                                    (ProcessWhen::Unreceived, ProcessWhen::Unreceived)  => ProcessWhen::Unreceived,
-                                    _                                                   => ProcessWhen::Always,
+                                    (TalkProcessWhen::Unreceived, TalkProcessWhen::Unreceived)  => TalkProcessWhen::Unreceived,
+                                    _                                                   => TalkProcessWhen::Always,
                                 };
 
                                 // Update the 'process when' value
@@ -496,7 +496,7 @@ impl TalkInvertedClassAllocator {
                         }
 
                         // Ready to send: now sort just by priority: higher priorities are put last so we can pop from the targets as we go
-                        targets.sort_by(|(_, Priority(a, _)), (_, Priority(b, _))| { a.cmp(b) });
+                        targets.sort_by(|(_, TalkPriority(a, _)), (_, TalkPriority(b, _))| { a.cmp(b) });
 
                         // Retain the target references (they get released as we send the messages)
                         for (target_ref, _) in targets.iter() {
@@ -517,10 +517,10 @@ impl TalkInvertedClassAllocator {
     ///
     /// Sets it up so that 'target' will receive messages from 'source'
     ///
-    fn receive_from_specific(&mut self, source: &TalkReference, target: &TalkReference, when: ProcessWhen) {
+    fn receive_from_specific(&mut self, source: &TalkReference, target: &TalkReference, when: TalkProcessWhen) {
         let source_class    = usize::from(source.class());
         let source_handle   = usize::from(source.data_handle());
-        let priority        = Priority(self.next_priority, when);
+        let priority        = TalkPriority(self.next_priority, when);
 
         self.next_priority += 1;
 
@@ -538,9 +538,9 @@ impl TalkInvertedClassAllocator {
     ///
     /// Sets it up so that 'target' will receive messages all possible sources
     ///
-    fn receive_from_all(&mut self, target: &TalkReference, when: ProcessWhen) {
+    fn receive_from_all(&mut self, target: &TalkReference, when: TalkProcessWhen) {
         let target_class    = usize::from(target.class());
-        let priority        = Priority(self.next_priority, when);
+        let priority        = TalkPriority(self.next_priority, when);
 
         self.next_priority += 1;
 
@@ -648,14 +648,14 @@ impl TalkInvertedClass {
             let (source, when) = if let TalkValue::Message(msg) = &args[0] {
                 if msg.signature_id() == *INVERTED_UNRECEIVED_MSG {
                     match &**msg {
-                        TalkMessage::WithArguments(_, msg_args) => (&msg_args[0], ProcessWhen::Unreceived),
+                        TalkMessage::WithArguments(_, msg_args) => (&msg_args[0], TalkProcessWhen::Unreceived),
                         _                                       => unreachable!()
                     }
                 } else {
-                    (&args[0], ProcessWhen::Always)
+                    (&args[0], TalkProcessWhen::Always)
                 }
             } else {
-                (&args[0], ProcessWhen::Always)
+                (&args[0], TalkProcessWhen::Always)
             };
 
             // Register the message
