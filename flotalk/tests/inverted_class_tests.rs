@@ -71,8 +71,8 @@ fn send_inverted_message_with_no_receiver() {
         // Should not generate an error
         println!("{:?}", result);
         assert!(match &*result {
-            TalkValue::Error(_) => false,
-            _                   => true
+            TalkValue::Nil  => true,
+            _               => false,
         });
     });
 }
