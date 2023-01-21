@@ -453,6 +453,7 @@ impl TalkInvertedClassAllocator {
 
                         target.retain(talk_context);
                         target.send_message_in_context(inverted_message, talk_context)
+                            .and_then(|_| TalkValue::Nil.into())
                     }
 
                     _ => {
