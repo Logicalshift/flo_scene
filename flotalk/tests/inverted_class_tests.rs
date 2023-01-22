@@ -316,6 +316,37 @@ fn unreceived_filters_handled_messages() {
 }
 
 #[test]
+fn unreceived_receives_unhandled_messages() {
+    // Create an inverted subclass and send a message to it from a 'normal' object
+    let test_source = "
+        | TestInverted invertedInstance1 invertedInstance2 object val |
+
+        TestInverted := Inverted subclass.
+        TestInverted addInvertedMessage: #invertedMessage withAction: [ :sender :self | val := val + 1. unhandled ].
+
+        val                 := 0.
+        invertedInstance1   := TestInverted new.
+        invertedInstance2   := TestInverted new.
+        object              := Object new.
+
+        invertedInstance1 receiveFrom: object unreceived.
+        invertedInstance2 receiveFrom: object.
+        object invertedMessage.
+
+        val
+    ";
+
+    executor::block_on(async { 
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        let result  = runtime.run(TalkScript::from(test_source)).await;
+
+        // Should set the 'val' variable to 2 as although the 'unreceived' version of the message is processed after the 'received' version, both indicate they don't handle the message
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(2));
+    });
+}
+
+#[test]
 fn unreceived_processes_earliest_messages() {
     // Create an inverted subclass and send a message to it from a 'normal' object
     let test_source = "
