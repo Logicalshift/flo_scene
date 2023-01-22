@@ -480,8 +480,8 @@ impl TalkInvertedClassAllocator {
                         let mut idx = 1;
                         loop {
                             // All equal references will be in the same spot in this vec
-                            let (a_ref, TalkPriority(a_priority, a_when)) = &targets[idx-1];
-                            let (b_ref, TalkPriority(b_priority, b_when)) = &targets[idx];
+                            let (a_ref, TalkPriority(_, a_when)) = &targets[idx-1];
+                            let (b_ref, TalkPriority(_, b_when)) = &targets[idx];
 
                             // For cases where the references are the same, combine into a single entry
                             if a_ref == b_ref {
@@ -760,7 +760,7 @@ impl TalkClassDefinition for TalkInvertedClass {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         if message_id == *TALK_MSG_NEW {
 
             // Create a new 'Inverter' data object
@@ -780,7 +780,7 @@ impl TalkClassDefinition for TalkInvertedClass {
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _reference: TalkReference, _allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
     }
 
