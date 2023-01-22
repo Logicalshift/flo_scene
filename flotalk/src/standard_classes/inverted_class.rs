@@ -104,15 +104,12 @@ static TALK_MSG_RECEIVE_FROM: Lazy<TalkMessageSignatureId> = Lazy::new(|| "recei
 /// someLogger with: [ "...code..." ].                          "Receive log messages from every object stored in a frame beneath a block"
 /// someLogger withAsync: [ "...code..." ].                     "Receive log messages from every object stored in a frame beneath a block that is running asynchronously"
 /// someLogger receiveFrom: all unreceived.                     "Receive log messages from every object whose message is not received by any other logger first"
-/// someLogger receiveFrom: SomeClass.                          "Receive log messages the SomeClass class object itself"
-/// someLogger receiveFrom: SomeClass instances.                "Receive log messages from every instance of SomeClass"
-/// someLogger receiveFrom: SomeClass instances unreceived.     "Receive log messages from every instance of SomeClass if they are otherwise unreceived"
 /// ```
 ///
 /// The `Inverted` instance that received the most recent `receiveFrom:` or `with:` call will receive the message with the 
 /// highest priority for the cases where that matters.
 ///
-/// An inverted instance message can return the value `Inverted notHandled` if it wants to indicate that it doesn't want 
+/// An inverted instance message can return the value `Inverted unhandled` if it wants to indicate that it doesn't want 
 /// the message to be considered as 'received' for lower priority handlers.
 ///
 pub struct TalkInvertedClass;
@@ -792,9 +789,11 @@ impl TalkClassDefinition for TalkInvertedClass {
     fn default_class_dispatch_table(&self) -> TalkMessageDispatchTable<TalkClass> {
         static TALK_MSG_SUBCLASS: Lazy<TalkMessageSignatureId>              = Lazy::new(|| "subclass".into());
         static TALK_MSG_ADD_INVERTED_MESSAGE: Lazy<TalkMessageSignatureId>  = Lazy::new(|| ("addInvertedMessage:", "withAction:").into());
+        static TALK_MSG_UNHANDLED: Lazy<TalkMessageSignatureId>             = Lazy::new(|| "unhandled".into());
 
         TalkMessageDispatchTable::empty()
             .with_message(*TALK_MSG_SUBCLASS,               |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| Self::declare_subclass_instance_messages(TalkScriptClassClass::create_subclass(*class_id, vec![*TALK_MSG_NEW])))
             .with_message(*TALK_MSG_ADD_INVERTED_MESSAGE,   |class_id, args, talk_context|                          Self::add_inverted_message(class_id, args, talk_context))
+            .with_message(*TALK_MSG_UNHANDLED,              |_, _, _|                                               TalkContinuation::Ready(INVERTED_UNHANDLED.clone()))
     }
 }

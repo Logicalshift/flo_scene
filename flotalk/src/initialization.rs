@@ -42,7 +42,6 @@ pub fn talk_init_inverted_class() -> TalkContinuation<'static> {
 
         talk_context.set_root_symbol_value("Inverted", inverted_class_object.into());
         talk_context.set_root_symbol_value("all", all_value);
-        talk_context.set_root_symbol_value("unhandled", unhandled_value);
         ().into()
     })
 }

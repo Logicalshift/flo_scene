@@ -322,7 +322,7 @@ fn unreceived_receives_unhandled_messages() {
         | TestInverted invertedInstance1 invertedInstance2 object val |
 
         TestInverted := Inverted subclass.
-        TestInverted addInvertedMessage: #invertedMessage withAction: [ :sender :self | val := val + 1. unhandled ].
+        TestInverted addInvertedMessage: #invertedMessage withAction: [ :sender :self | val := val + 1. Inverted unhandled ].
 
         val                 := 0.
         invertedInstance1   := TestInverted new.
