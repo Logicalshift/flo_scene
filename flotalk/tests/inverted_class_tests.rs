@@ -254,6 +254,98 @@ fn send_inverted_message_to_local_context() {
 }
 
 #[test]
+fn send_inverted_message_to_async_local_context() {
+    // Create an inverted subclass and send a message to it from a 'normal' object, using a local context (then send another message outside the context to demonstrate that the context resets properly)
+    let test_source = "
+        | TestInverted invertedInstance object val later |
+
+        TestInverted := Inverted subclass.
+        TestInverted addInvertedMessage: #setValInverted: withAction: [ :newVal :sender :self | val := newVal ].
+
+        val                 := 0.
+        invertedInstance    := TestInverted new.
+        object              := Object new.
+
+        object setValInverted: 41.
+        later := invertedInstance withAsync: [ object setValInverted: 42 ].
+        object setValInverted: 43.
+
+        later value.
+
+        val
+    ";
+
+    executor::block_on(async { 
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        let result  = runtime.run(TalkScript::from(test_source)).await;
+
+        // Should set the 'val' variable to 42 via an inverted message
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn async_messages_run_at_lower_priority() {
+    // Create an inverted subclass and send a message to it from a 'normal' object, using a local context (then send another message outside the context to demonstrate that the context resets properly)
+    let test_source = "
+        | TestInverted invertedInstance object val later |
+
+        TestInverted := Inverted subclass.
+        TestInverted addInvertedMessage: #setValInverted: withAction: [ :newVal :sender :self | val := newVal ].
+
+        val                 := 0.
+        invertedInstance    := TestInverted new.
+        object              := Object new.
+
+        object setValInverted: 41.
+        later := invertedInstance withAsync: [ object setValInverted: 42 ].
+        object setValInverted: 43.
+
+        val
+    ";
+
+    executor::block_on(async { 
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        let result  = runtime.run(TalkScript::from(test_source)).await;
+
+        // The background task doesn't get a chance to run before we retrieve the result so the result is 0
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(0));
+    });
+}
+
+#[test]
+fn receive_result_from_inverted_context() {
+    // Create an inverted subclass and send a message to it from a 'normal' object, using a local context (then send another message outside the context to demonstrate that the context resets properly)
+    let test_source = "
+        | TestInverted invertedInstance object val later |
+
+        TestInverted := Inverted subclass.
+        TestInverted addInvertedMessage: #setValInverted: withAction: [ :newVal :sender :self | val := newVal ].
+
+        val                 := 0.
+        invertedInstance    := TestInverted new.
+        object              := Object new.
+
+        object setValInverted: 41.
+        later := invertedInstance withAsync: [ object setValInverted: 42. 128 ].
+        object setValInverted: 43.
+
+        later value
+    ";
+
+    executor::block_on(async { 
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        let result  = runtime.run(TalkScript::from(test_source)).await;
+
+        // The result of the 'async' block is 128
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(128));
+    });
+}
+
+#[test]
 fn send_inverted_message_to_several_targets() {
     // Create an inverted subclass and send a message to it from a 'normal' object
     let test_source = "

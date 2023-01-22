@@ -11,6 +11,7 @@ use crate::symbol::*;
 use crate::value::*;
 use crate::value_messages::*;
 
+use super::later_class::*;
 use super::script_class::*;
 
 use smallvec::*;
@@ -577,14 +578,16 @@ impl TalkInvertedClass {
     /// Given a continuation that generates a subclass, returns a continuation that adds the inverted instance messages such as 'receiveFrom:'
     ///
     fn declare_subclass_instance_messages(create_subclass: TalkContinuation<'static>) -> TalkContinuation<'static> {
-        static TALK_MSG_WITH: Lazy<TalkMessageSignatureId> = Lazy::new(|| "with:".into());
+        static TALK_MSG_WITH: Lazy<TalkMessageSignatureId>          = Lazy::new(|| "with:".into());
+        static TALK_MSG_WITH_ASYNC: Lazy<TalkMessageSignatureId>    = Lazy::new(|| "withAsync:".into());
 
         create_subclass.and_then_soon_if_ok(|subclass_reference, talk_context| {
             // Modify the dispatch table
             let dispatch_table = talk_context.instance_dispatch_table(subclass_reference.try_as_reference().unwrap());
 
-            dispatch_table.define_message(*TALK_MSG_RECEIVE_FROM, |target, args, talk_context| Self::receive_from(target, args, talk_context));
-            dispatch_table.define_message(*TALK_MSG_WITH, |target, args, talk_context| Self::with(target, args, talk_context));
+            dispatch_table.define_message(*TALK_MSG_RECEIVE_FROM,   |target, args, talk_context| Self::receive_from(target, args, talk_context));
+            dispatch_table.define_message(*TALK_MSG_WITH,           |target, args, talk_context| Self::with(target, args, talk_context));
+            dispatch_table.define_message(*TALK_MSG_WITH_ASYNC,     |target, args, talk_context| Self::with_async(target, args, talk_context));
 
             // Result is the subclass
             subclass_reference.into()
@@ -733,6 +736,61 @@ impl TalkInvertedClass {
                     }))
                 })
         }))
+    }
+
+    ///
+    /// As for 'with' except runs in background, and returns a Later
+    ///
+    fn with_async(target: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, talk_context: &TalkContext) -> TalkContinuation<'static> {
+        static TALK_MSG_SENDER: Lazy<TalkMessageSignatureId>    = Lazy::new(|| "sender".into());
+        static TALK_MSG_SETVALUE: Lazy<TalkMessageSignatureId>  = Lazy::new(|| "setValue:".into());
+
+        // Target ends up retained in the local context
+        let target = target.leak();
+
+        // Only argument is the block
+        let block = args.leak()[0].take();
+
+        // Start by creating a 'Later' to call back
+        LATER_CLASS.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), talk_context)
+            .and_then(move |later_value| {
+                TalkContinuation::Soon(Box::new(move |talk_context, _local_context| {
+                    // Get the priority from the allocator
+                    let callbacks = talk_context.get_callbacks_mut(*INVERTED_CLASS);
+                    let allocator = callbacks.allocator.downcast_ref::<Arc<Mutex<TalkInvertedClassAllocator>>>()
+                        .unwrap();
+
+                    let priority = { 
+                        let mut allocator = allocator.lock().unwrap();
+                        let next_priority = allocator.next_priority;
+                        allocator.next_priority += 1;
+
+                        TalkPriority(next_priority, TalkProcessWhen::Always)
+                    };
+
+                    // Convert the 'later' value to a sender
+                    let later_to_sender = later_value.clone_in_context(talk_context);
+
+                    later_to_sender.send_message_in_context(TalkMessage::Unary(*TALK_MSG_SENDER), talk_context)
+                        .and_then_soon(move |later_sender, talk_context| {
+                            // Run the task in the background (TODO: clone the active local context)
+                            talk_context.run_in_background(TalkContinuation::Soon(Box::new(move |talk_context, local_context| {
+                                // Push the target (don't need to pop it as the whole context will be freed when this finishes)
+                                local_context.push_inverted_target(target, priority);
+
+                                // Evaluate the value and retrieve the result
+                                block.send_message_in_context(TalkMessage::Unary(*TALK_MSG_VALUE), talk_context)
+                                    .and_then_soon(move |result, talk_context| {
+                                        // Send to the sender once done
+                                        later_sender.send_message_in_context(TalkMessage::WithArguments(*TALK_MSG_SETVALUE, smallvec![result]), talk_context)
+                                    })
+                            })));
+
+                            // Result is the 'later' value
+                            later_value.into()
+                        })
+                }))
+            })
     }
 }
 
