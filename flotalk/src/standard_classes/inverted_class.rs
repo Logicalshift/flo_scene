@@ -354,8 +354,11 @@ impl TalkInvertedClassAllocator {
                 TalkContinuation::soon(move |context| {
                     let target_message = message.clone_in_context(context);
                     target_ref.send_message_in_context(target_message, context)
-                        .and_then(move |_| {
-                            Self::call_targets(targets, message, true)
+                        .and_then(move |result| {
+                            // Message counts as received if it's already received or if the call did not return the 'unhandled' symbol
+                            let was_received = message_is_received || result != *INVERTED_UNHANDLED;
+
+                            Self::call_targets(targets, message, was_received)
                         })
                 })
             }
