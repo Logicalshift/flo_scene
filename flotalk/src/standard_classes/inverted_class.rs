@@ -29,6 +29,9 @@ pub (crate) static INVERTED_ALL: Lazy<TalkValue> = Lazy::new(|| TalkSymbol::new_
 /// A value representing the 'unhandled' result, used to keep a message being processed in the 'unreceived' state
 pub (crate) static INVERTED_UNHANDLED: Lazy<TalkValue> = Lazy::new(|| TalkSymbol::new_unnamed().into());
 
+/// A value representing the 'unhandled' result, used to keep a message being processed in the 'unreceived' state
+pub (crate) static TALK_MSG_HANDLED: Lazy<TalkMessageSignatureId> = Lazy::new(|| "handled:".into());
+
 /// Sending the 'unreceived' message to something turns it into the message 'unreceived: whatever', which receiveFrom: uses to set the appropriate flag
 pub (crate) static INVERTED_UNRECEIVED_MSG: Lazy<TalkMessageSignatureId> = Lazy::new(|| "unreceived:".into());
 
@@ -854,5 +857,6 @@ impl TalkClassDefinition for TalkInvertedClass {
             .with_message(*TALK_MSG_SUBCLASS,               |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| Self::declare_subclass_instance_messages(TalkScriptClassClass::create_subclass(*class_id, vec![*TALK_MSG_NEW])))
             .with_message(*TALK_MSG_ADD_INVERTED_MESSAGE,   |class_id, args, talk_context|                          Self::add_inverted_message(class_id, args, talk_context))
             .with_message(*TALK_MSG_UNHANDLED,              |_, _, _|                                               TalkContinuation::Ready(INVERTED_UNHANDLED.clone()))
+            .with_message(*TALK_MSG_HANDLED,                |_, args, _|                                            TalkValue::Message(Box::new(TalkMessage::WithArguments(*TALK_MSG_HANDLED, args.leak()))))
     }
 }
