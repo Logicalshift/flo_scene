@@ -662,14 +662,12 @@ impl TalkInvertedClass {
         let streaming_class_ref     = TalkClass::class_object_in_context(&streaming_class, talk_context);
         let stream_dispatch_table   = talk_context.instance_dispatch_table(&streaming_class_ref);
 
+        stream_dispatch_table.define_message(*TALK_MSG_RECEIVE_FROM, |stream, args, talk_context| Self::receive_from(stream, args, talk_context));
         stream_dispatch_table.define_message(*TALK_MSG_NEXT, |stream, _, talk_context| {
             let stream      = TalkCellBlock(stream.data_handle().0 as _);
             let receiver    = talk_context.cell_block(stream)[1].clone_in_context(talk_context);
 
             receiver.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEXT), talk_context)
-        });
-        stream_dispatch_table.define_message(*TALK_MSG_RECEIVE_FROM, |stream, args, talk_context| {
-            ().into()
         });
 
         subclass.into()
