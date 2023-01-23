@@ -361,14 +361,14 @@ impl TalkInvertedClassAllocator {
     ///
     /// Unreceived targets are only called if `message_is_received` is false
     ///
-    fn call_targets(targets: Vec<(TalkReference, TalkPriority)>, message: TalkMessage, message_is_received: bool) -> TalkContinuation<'static> {
+    fn call_targets(targets: Vec<(TalkReference, TalkPriority)>, message: TalkMessage, result_value: Option<TalkValue>, message_is_received: bool) -> TalkContinuation<'static> {
         let mut targets = targets;
 
         if targets.len() == 0 {
             // Ran out of targets to send to
             TalkContinuation::soon(|context| {
                 message.release_in_context(context);
-                ().into()
+                result_value.unwrap_or(TalkValue::Nil).into()
             })
         } else {
             // Get the target to send to
@@ -378,18 +378,21 @@ impl TalkInvertedClassAllocator {
                 // Target should not receive the message (marked as unreceived, and message is received)
                 TalkContinuation::soon(move |context| {
                     target_ref.release(context);
-                    Self::call_targets(targets, message, message_is_received)
+                    Self::call_targets(targets, message, result_value, message_is_received)
                 })
             } else {
+                let old_result_value = result_value;
+
                 // Target should receive the message, then we should continue with the remaining targets (TODO: set message_is_received based on the return value)
                 TalkContinuation::soon(move |context| {
                     let target_message = message.clone_in_context(context);
                     target_ref.send_message_in_context(target_message, context)
-                        .and_then(move |result| {
+                        .and_then_soon(move |result, talk_context| {
                             // Message counts as received if it's already received or if the call did not return the 'unhandled' symbol
-                            let was_received = message_is_received || result != *INVERTED_UNHANDLED;
+                            let was_received        = message_is_received || result != *INVERTED_UNHANDLED;
+                            let new_result_value    = Self::result_value(result, old_result_value, talk_context);
 
-                            Self::call_targets(targets, message, was_received)
+                            Self::call_targets(targets, message, new_result_value, was_received)
                         })
                 })
             }
@@ -547,7 +550,7 @@ impl TalkInvertedClassAllocator {
                         }
 
                         // Begin calling the targets
-                        Self::call_targets(targets, inverted_message, false)
+                        Self::call_targets(targets, inverted_message, None, false)
                     }
                 }
             } else {
