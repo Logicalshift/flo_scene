@@ -606,7 +606,7 @@ fn return_value_from_single_sender() {
         | TestInverted1 invertedInstance1 object val |
 
         TestInverted1 := Inverted subclass.
-        TestInverted1 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 10. ].
+        TestInverted1 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 10 ].
 
         val                 := 0.
         invertedInstance1   := TestInverted1 new.
@@ -634,10 +634,10 @@ fn return_value_from_first_sender() {
         | TestInverted1 TestInverted2 invertedInstance1 invertedInstance2 object val |
 
         TestInverted1 := Inverted subclass.
-        TestInverted1 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 10. ].
+        TestInverted1 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 10 ].
 
         TestInverted2 := Inverted subclass.
-        TestInverted2 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 20. ].
+        TestInverted2 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 20 ].
 
         val                 := 0.
         invertedInstance1   := TestInverted1 new.
