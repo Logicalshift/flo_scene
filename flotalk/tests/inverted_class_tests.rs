@@ -692,3 +692,37 @@ fn return_value_from_second_sender() {
         assert!(*result == TalkValue::Int(20));
     });
 }
+
+#[test]
+fn stream_from_inverted_subclass() {
+    // Create an inverted stream and send a message to it from a 'normal' object
+    let test_source = "
+        | TestInverted1 object stream nextVal |
+
+        TestInverted1 := Inverted subclass.
+        TestInverted1 addInvertedMessage: #setValInverted: withAction: [ :val :sender :self | ].
+
+        stream := TestInverted1 stream.
+        object := Object new.
+
+        stream receiveFrom: object.
+
+        Later async: [
+            object setValInverted: 42.
+        ].
+
+        nextVal := stream next.
+        nextVal ifMatches: #setValueInverted:invertedFrom: 
+            do:             [ :val :invertedFrom | val ] 
+            ifDoesNotMatch: [ 0 ].
+    ";
+
+    executor::block_on(async { 
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        let result  = runtime.run(TalkScript::from(test_source)).await;
+
+        // We should read the value '42' from the stream
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
