@@ -660,7 +660,14 @@ impl TalkInvertedClass {
 
         // Also declare messages on the 'stream' class itself
         let streaming_class_ref     = TalkClass::class_object_in_context(&streaming_class, talk_context);
-        let stream_dispatch_table   = talk_context.class_dispatch_table(&streaming_class_ref);
+        let stream_dispatch_table   = talk_context.instance_dispatch_table(&streaming_class_ref);
+
+        stream_dispatch_table.define_message(*TALK_MSG_NEXT, |stream, _, talk_context| {
+            let stream      = TalkCellBlock(stream.data_handle().0 as _);
+            let receiver    = talk_context.cell_block(stream)[1].clone_in_context(talk_context);
+
+            receiver.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEXT), talk_context)
+        });
 
         subclass.into()
     }
@@ -682,7 +689,7 @@ impl TalkInvertedClass {
 
             // Store the sender and receiver in the cell block
             talk_context.cell_block_mut(cell_block)[0] = sender.into();
-            talk_context.cell_block_mut(cell_block)[0] = receiver.into();
+            talk_context.cell_block_mut(cell_block)[1] = receiver.into();
 
             // The instance is the result
             stream_instance.into()
