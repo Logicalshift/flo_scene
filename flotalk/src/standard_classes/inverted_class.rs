@@ -565,7 +565,7 @@ impl TalkInvertedClassAllocator {
     ///
     /// Sets it up so that 'target' will receive messages from 'source'
     ///
-    fn receive_from_specific(&mut self, source: &TalkReference, target: &TalkReference, when: TalkProcessWhen) {
+    fn receive_from_specific_class(&mut self, source: &TalkReference, target: &TalkReference, _target_class: TalkClass, when: TalkProcessWhen) {
         let source_class    = usize::from(source.class());
         let source_handle   = usize::from(source.data_handle());
         let priority        = TalkPriority(self.next_priority, when);
@@ -586,8 +586,8 @@ impl TalkInvertedClassAllocator {
     ///
     /// Sets it up so that 'target' will receive messages all possible sources
     ///
-    fn receive_from_all(&mut self, target: &TalkReference, when: TalkProcessWhen) {
-        let target_class    = usize::from(target.class());
+    fn receive_from_all_class(&mut self, target: &TalkReference, target_class: TalkClass, when: TalkProcessWhen) {
+        let target_class    = usize::from(target_class);
         let priority        = TalkPriority(self.next_priority, when);
 
         self.next_priority += 1;
@@ -753,7 +753,15 @@ impl TalkInvertedClass {
     ///
     /// Adds an instance for an inverted object to receive messages from 
     ///
-    fn receive_from(target: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _talk_context: &TalkContext) -> TalkContinuation<'static> {
+    fn receive_from(target: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, talk_context: &TalkContext) -> TalkContinuation<'static> {
+        let target_class = target.class();
+        Self::receive_from_class(target, target_class, args, talk_context)
+    }
+
+    ///
+    /// Adds an instance for an inverted object to receive messages from 
+    ///
+    fn receive_from_class(target: TalkOwned<TalkReference, &'_ TalkContext>, target_class: TalkClass, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _talk_context: &TalkContext) -> TalkContinuation<'static> {
         let target  = target.leak();
         let args    = args.leak();
 
@@ -783,12 +791,12 @@ impl TalkInvertedClass {
                 // Source must be a reference, can't receive from value types
                 let mut allocator = allocator.lock().unwrap();
 
-                allocator.receive_from_specific(source, &target, when);
+                allocator.receive_from_specific_class(source, &target, target_class, when);
             } else if source == &*INVERTED_ALL {
                 // Receive supported inverted messages from all objects
                 let mut allocator = allocator.lock().unwrap();
 
-                allocator.receive_from_all(&target, when);
+                allocator.receive_from_all_class(&target, target_class, when);
             }
 
             // Release the arguments
