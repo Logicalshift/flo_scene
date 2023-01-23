@@ -670,7 +670,7 @@ fn return_value_from_second_sender() {
         TestInverted1 addInvertedMessage: #invertedMessage withAction: [ :sender :self | ].
 
         TestInverted2 := Inverted subclass.
-        TestInverted2 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 20. ].
+        TestInverted2 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 20 ].
 
         val                 := 0.
         invertedInstance1   := TestInverted1 new.
