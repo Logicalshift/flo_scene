@@ -13,6 +13,8 @@ use crate::value_messages::*;
 
 use super::later_class::*;
 use super::script_class::*;
+use super::receiver_class::*;
+use super::sender_class::*;
 
 use smallvec::*;
 use once_cell::sync::{Lazy};
@@ -641,10 +643,50 @@ impl TalkInvertedClass {
     /// Given a continuation that generates a subclass, returns a continuation that adds the inverted class messages such as 'stream'
     ///
     fn declare_subclass_class_messages(subclass: TalkValue, talk_context: &mut TalkContext) -> TalkContinuation<'static> {
-        let subclass_reference = subclass.try_as_reference().unwrap();
+        static TALK_MSG_STREAM: Lazy<TalkMessageSignatureId>    = Lazy::new(|| "stream".into());
+        static TALK_MSG_NEXT: Lazy<TalkMessageSignatureId>      = Lazy::new(|| "next".into());
+
+        // Fetch the subclass reference
+        let subclass_reference  = subclass.try_as_reference().unwrap();
         debug_assert!(subclass_reference.is_class_object());
+        let inverted_class      = TalkClass(usize::from(subclass_reference.data_handle()));
+
+        // The streaming subclass is a cell block class. We need to declare the 'next' and 'receiveFrom:' messages on this class
+        let streaming_class = talk_context.empty_cell_block_class();
+
+        // Declare messages on the main inverted subclass
+        let inverted_dispatch_table = talk_context.class_dispatch_table(subclass_reference);
+        inverted_dispatch_table.define_message(*TALK_MSG_STREAM, move |_, _, _| Self::create_stream_class(streaming_class, inverted_class));
+
+        // Also declare messages on the 'stream' class itself
+        let streaming_class_ref     = TalkClass::class_object_in_context(&streaming_class, talk_context);
+        let stream_dispatch_table   = talk_context.class_dispatch_table(&streaming_class_ref);
 
         subclass.into()
+    }
+
+    ///
+    /// Given a stream class ID, creates a new instance that will stream as if it's receiving from the specified target class
+    ///
+    fn create_stream_class(stream_class_id: TalkClass, _target_class_id: TalkClass) -> TalkContinuation<'static> {
+        TalkContinuation::soon(move |talk_context| {
+            // Create a stream for the sender and receiver
+            let (sender, receiver)  = create_talk_sender::<TalkMessage>(talk_context);
+            let sender              = sender.leak();
+            let receiver            = create_talk_receiver(receiver, talk_context);
+            let receiver            = receiver.leak();
+
+            // The stream class ID is assumed to be a cell block class, create a new instance with a single cell
+            let cell_block      = talk_context.allocate_cell_block(2);
+            let stream_instance = TalkReference(stream_class_id, TalkDataHandle(cell_block.0 as _));
+
+            // Store the sender and receiver in the cell block
+            talk_context.cell_block_mut(cell_block)[0] = sender.into();
+            talk_context.cell_block_mut(cell_block)[0] = receiver.into();
+
+            // The instance is the result
+            stream_instance.into()
+        })
     }
 
     ///
