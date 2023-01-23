@@ -712,7 +712,7 @@ fn stream_from_inverted_subclass() {
         ].
 
         nextVal := stream next.
-        nextVal ifMatches: #setValueInverted:invertedFrom: 
+        nextVal ifMatches: #setValInverted:invertedFrom: 
             do:             [ :val :invertedFrom | val ] 
             ifDoesNotMatch: [ -1 ].
     ";
@@ -746,7 +746,7 @@ fn stream_from_inverted_subclass_all() {
         ].
 
         nextVal := stream next.
-        nextVal ifMatches: #setValueInverted:invertedFrom: 
+        nextVal ifMatches: #setValInverted:invertedFrom: 
             do:             [ :val :invertedFrom | val ] 
             ifDoesNotMatch: [ -1 ].
     ";
