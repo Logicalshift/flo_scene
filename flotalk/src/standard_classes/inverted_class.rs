@@ -328,6 +328,35 @@ impl TalkInvertedClassAllocator {
     }
 
     ///
+    /// Updates the expected return value after a block in an Inverted call has returned a value
+    ///
+    #[inline]
+    fn result_value(latest_return: TalkValue, last_value: Option<TalkValue>, talk_context: &TalkContext) -> Option<TalkValue> {
+        if last_value.is_some() {
+            latest_return.release_in_context(talk_context);
+            last_value
+        } else if let TalkValue::Message(msg) = latest_return {
+            // If the function returns the message `handled: xxx` then update the return value to be 'xxx'
+            if let TalkMessage::WithArguments(message_id, mut args) = *msg {
+                if message_id == *TALK_MSG_HANDLED {
+                    Some(args[0].take())
+                } else {
+                    // Is a message, but wrong message signature
+                    args.release_in_context(talk_context);
+                    None
+                }
+            } else {
+                // Is a unary message
+                msg.release_in_context(talk_context);
+                None
+            }
+        } else {
+            latest_return.release_in_context(talk_context);
+            None
+        }
+    }
+
+    ///
     /// Creates a continuation that will call the specified set targets, in reverse order (by popping values) with the specified message
     ///
     /// Unreceived targets are only called if `message_is_received` is false
@@ -458,7 +487,7 @@ impl TalkInvertedClassAllocator {
 
                         target.retain(talk_context);
                         target.send_message_in_context(inverted_message, talk_context)
-                            .and_then(|_| TalkValue::Nil.into())
+                            .and_then_soon_if_ok(|val, talk_context| Self::result_value(val, None, talk_context).unwrap_or(TalkValue::Nil).into())
                     }
 
                     _ => {
