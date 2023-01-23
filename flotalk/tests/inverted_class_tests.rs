@@ -600,6 +600,34 @@ fn send_inverted_message_to_several_targets_in_order_2() {
 }
 
 #[test]
+fn return_value_from_single_sender() {
+    // Create an inverted subclass and send a message to it from a 'normal' object
+    let test_source = "
+        | TestInverted1 invertedInstance1 object val |
+
+        TestInverted1 := Inverted subclass.
+        TestInverted1 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 10. ].
+
+        val                 := 0.
+        invertedInstance1   := TestInverted1 new.
+        object              := Object new.
+
+        invertedInstance1 receiveFrom: object.
+
+        object invertedMessage
+    ";
+
+    executor::block_on(async { 
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        let result  = runtime.run(TalkScript::from(test_source)).await;
+
+        // Return value should be '10' as there's only one receiver
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(10));
+    });
+}
+
+#[test]
 fn return_value_from_first_sender() {
     // Create an inverted subclass and send a message to it from a 'normal' object
     let test_source = "
@@ -659,7 +687,7 @@ fn return_value_from_second_sender() {
         let runtime = TalkRuntime::with_standard_symbols().await;
         let result  = runtime.run(TalkScript::from(test_source)).await;
 
-        // The first sender returns nil, so the value is returned from the second sender
+        // The first sender returns nil, so the value is returned from the second receiver
         println!("{:?}", result);
         assert!(*result == TalkValue::Int(20));
     });
