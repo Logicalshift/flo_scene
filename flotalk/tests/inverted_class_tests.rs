@@ -598,3 +598,69 @@ fn send_inverted_message_to_several_targets_in_order_2() {
         assert!(*result == TalkValue::Int(20));
     });
 }
+
+#[test]
+fn return_value_from_first_sender() {
+    // Create an inverted subclass and send a message to it from a 'normal' object
+    let test_source = "
+        | TestInverted1 TestInverted2 invertedInstance1 invertedInstance2 object val |
+
+        TestInverted1 := Inverted subclass.
+        TestInverted1 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 10. ].
+
+        TestInverted2 := Inverted subclass.
+        TestInverted2 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 20. ].
+
+        val                 := 0.
+        invertedInstance1   := TestInverted1 new.
+        invertedInstance2   := TestInverted2 new.
+        object              := Object new.
+
+        invertedInstance2 receiveFrom: object.
+        invertedInstance1 receiveFrom: object.
+
+        object invertedMessage
+    ";
+
+    executor::block_on(async { 
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        let result  = runtime.run(TalkScript::from(test_source)).await;
+
+        // Return value should be '10' as invertedInstance1 is the first one that's called
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(10));
+    });
+}
+
+#[test]
+fn return_value_from_second_sender() {
+    // Create an inverted subclass and send a message to it from a 'normal' object
+    let test_source = "
+        | TestInverted1 TestInverted2 invertedInstance1 invertedInstance2 object val |
+
+        TestInverted1 := Inverted subclass.
+        TestInverted1 addInvertedMessage: #invertedMessage withAction: [ :sender :self | ].
+
+        TestInverted2 := Inverted subclass.
+        TestInverted2 addInvertedMessage: #invertedMessage withAction: [ :sender :self | Inverted handled: 20. ].
+
+        val                 := 0.
+        invertedInstance1   := TestInverted1 new.
+        invertedInstance2   := TestInverted2 new.
+        object              := Object new.
+
+        invertedInstance2 receiveFrom: object.
+        invertedInstance1 receiveFrom: object.
+
+        object invertedMessage
+    ";
+
+    executor::block_on(async { 
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        let result  = runtime.run(TalkScript::from(test_source)).await;
+
+        // The first sender returns nil, so the value is returned from the second sender
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(20));
+    });
+}

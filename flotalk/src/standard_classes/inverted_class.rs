@@ -46,7 +46,8 @@ static TALK_MSG_RECEIVE_FROM: Lazy<TalkMessageSignatureId> = Lazy::new(|| "recei
 ///
 /// Another difference that 'inverted' messages have over the more traditional kind is that inverted messages know both the
 /// sender (the object on the left-hand side of the expresssion), and the receiver (the `Inverted` instance that receives
-/// the message). As there can be multiple receivers, inverted messages do not produce a return value.
+/// the message). When there are multiple receivers, only one can generate a return value: the first receiver to call
+/// `Inverted handled: <return value>` will set the return value of the stack of receivers as a whole.  
 ///
 /// This type is designed to support code structured using dependency inversion. For an example of what this means, consider
 /// the problem of designing a logging framework. If messages are sent directly to a logging object, then every object that
