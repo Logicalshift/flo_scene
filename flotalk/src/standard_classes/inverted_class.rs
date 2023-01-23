@@ -611,23 +611,40 @@ impl TalkInvertedClass {
     }
 
     ///
+    /// Given a continuation that generates a subclass, returns a continuation that adds the instance and class messages
+    ///
+    fn declare_subclass_messages(create_subclass: TalkContinuation<'static>) -> TalkContinuation<'static> {
+        create_subclass
+            .and_then_soon_if_ok(|subclass_reference, talk_context| Self::declare_subclass_instance_messages(subclass_reference, talk_context))
+            .and_then_soon_if_ok(|subclass_reference, talk_context| Self::declare_subclass_class_messages(subclass_reference, talk_context))
+    }
+
+    ///
     /// Given a continuation that generates a subclass, returns a continuation that adds the inverted instance messages such as 'receiveFrom:'
     ///
-    fn declare_subclass_instance_messages(create_subclass: TalkContinuation<'static>) -> TalkContinuation<'static> {
+    fn declare_subclass_instance_messages(subclass_reference: TalkValue, talk_context: &mut TalkContext) -> TalkContinuation<'static> {
         static TALK_MSG_WITH: Lazy<TalkMessageSignatureId>          = Lazy::new(|| "with:".into());
         static TALK_MSG_WITH_ASYNC: Lazy<TalkMessageSignatureId>    = Lazy::new(|| "withAsync:".into());
 
-        create_subclass.and_then_soon_if_ok(|subclass_reference, talk_context| {
-            // Modify the dispatch table
-            let dispatch_table = talk_context.instance_dispatch_table(subclass_reference.try_as_reference().unwrap());
+        // Modify the dispatch table
+        let dispatch_table = talk_context.instance_dispatch_table(subclass_reference.try_as_reference().unwrap());
 
-            dispatch_table.define_message(*TALK_MSG_RECEIVE_FROM,   |target, args, talk_context| Self::receive_from(target, args, talk_context));
-            dispatch_table.define_message(*TALK_MSG_WITH,           |target, args, talk_context| Self::with(target, args, talk_context));
-            dispatch_table.define_message(*TALK_MSG_WITH_ASYNC,     |target, args, talk_context| Self::with_async(target, args, talk_context));
+        dispatch_table.define_message(*TALK_MSG_RECEIVE_FROM,   |target, args, talk_context| Self::receive_from(target, args, talk_context));
+        dispatch_table.define_message(*TALK_MSG_WITH,           |target, args, talk_context| Self::with(target, args, talk_context));
+        dispatch_table.define_message(*TALK_MSG_WITH_ASYNC,     |target, args, talk_context| Self::with_async(target, args, talk_context));
 
-            // Result is the subclass
-            subclass_reference.into()
-        })
+        // Result is the subclass
+        subclass_reference.into()
+    }
+
+    ///
+    /// Given a continuation that generates a subclass, returns a continuation that adds the inverted class messages such as 'stream'
+    ///
+    fn declare_subclass_class_messages(subclass: TalkValue, talk_context: &mut TalkContext) -> TalkContinuation<'static> {
+        let subclass_reference = subclass.try_as_reference().unwrap();
+        debug_assert!(subclass_reference.is_class_object());
+
+        subclass.into()
     }
 
     ///
@@ -886,7 +903,7 @@ impl TalkClassDefinition for TalkInvertedClass {
         static TALK_MSG_UNHANDLED: Lazy<TalkMessageSignatureId>             = Lazy::new(|| "unhandled".into());
 
         TalkMessageDispatchTable::empty()
-            .with_message(*TALK_MSG_SUBCLASS,               |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| Self::declare_subclass_instance_messages(TalkScriptClassClass::create_subclass(*class_id, vec![*TALK_MSG_NEW])))
+            .with_message(*TALK_MSG_SUBCLASS,               |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| Self::declare_subclass_messages(TalkScriptClassClass::create_subclass(*class_id, vec![*TALK_MSG_NEW])))
             .with_message(*TALK_MSG_ADD_INVERTED_MESSAGE,   |class_id, args, talk_context|                          Self::add_inverted_message(class_id, args, talk_context))
             .with_message(*TALK_MSG_UNHANDLED,              |_, _, _|                                               TalkContinuation::Ready(INVERTED_UNHANDLED.clone()))
             .with_message(*TALK_MSG_HANDLED,                |_, args, _|                                            TalkValue::Message(Box::new(TalkMessage::WithArguments(*TALK_MSG_HANDLED, args.leak()))))
