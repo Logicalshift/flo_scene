@@ -139,7 +139,7 @@ impl TalkClassDefinition for TalkStreamWithReplyClass {
 
         } else if message_id == *TALK_MSG_SUBCLASS {
 
-            TalkScriptClassClass::create_subclass(class_id, vec![*TALK_MSG_WITHSENDER, *TALK_MSG_WITHRECEIVER])
+            TalkScriptClassClass::create_subclass(class_id, 0, vec![*TALK_MSG_WITHSENDER, *TALK_MSG_WITHRECEIVER])
 
         } else {
             TalkError::MessageNotSupported(message_id).into()

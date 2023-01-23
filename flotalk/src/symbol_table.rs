@@ -57,6 +57,16 @@ impl TalkSymbolTable {
     }
 
     ///
+    /// Reserves num_cells cells starting at the current cell (and returns the index of the first reserved cell)
+    ///
+    pub fn reserve_cells(&mut self, num_cells: usize) -> usize {
+        let reserve_start = self.next_cell as usize;
+        self.next_cell += num_cells as u32;
+
+        reserve_start
+    }
+
+    ///
     /// Defines a symbol within this table, assigning it a new cell (including if the symbol is already bound to something)
     ///
     pub fn define_symbol(&mut self, symbol: impl Into<TalkSymbol>) -> TalkFrameCell {

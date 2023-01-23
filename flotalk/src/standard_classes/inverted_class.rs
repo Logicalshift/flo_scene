@@ -903,7 +903,7 @@ impl TalkClassDefinition for TalkInvertedClass {
         static TALK_MSG_UNHANDLED: Lazy<TalkMessageSignatureId>             = Lazy::new(|| "unhandled".into());
 
         TalkMessageDispatchTable::empty()
-            .with_message(*TALK_MSG_SUBCLASS,               |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| Self::declare_subclass_messages(TalkScriptClassClass::create_subclass(*class_id, vec![*TALK_MSG_NEW])))
+            .with_message(*TALK_MSG_SUBCLASS,               |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| Self::declare_subclass_messages(TalkScriptClassClass::create_subclass(*class_id, 0, vec![*TALK_MSG_NEW])))
             .with_message(*TALK_MSG_ADD_INVERTED_MESSAGE,   |class_id, args, talk_context|                          Self::add_inverted_message(class_id, args, talk_context))
             .with_message(*TALK_MSG_UNHANDLED,              |_, _, _|                                               TalkContinuation::Ready(INVERTED_UNHANDLED.clone()))
             .with_message(*TALK_MSG_HANDLED,                |_, args, _|                                            TalkValue::Message(Box::new(TalkMessage::WithArguments(*TALK_MSG_HANDLED, args.leak()))))

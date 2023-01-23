@@ -115,7 +115,7 @@ impl TalkClassDefinition for TalkLaterClass {
 
         } else if message_id == *TALK_MSG_SUBCLASS {
 
-            TalkScriptClassClass::create_subclass(class_id, vec![*TALK_MSG_NEW])
+            TalkScriptClassClass::create_subclass(class_id, 0, vec![*TALK_MSG_NEW])
 
         } else if message_id == *TALK_MSG_ASYNC {
 

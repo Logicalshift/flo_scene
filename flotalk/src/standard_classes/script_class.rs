@@ -128,9 +128,10 @@ impl TalkScriptClassClass {
     ///
     /// Creates a subclass of a class that is not itself a script class
     ///
-    /// This provides a way to implement the `subclass` and `subclassWithInstanceVariables:` messages for any class
+    /// This provides a way to implement the `subclass` and `subclassWithInstanceVariables:` messages for any class. num_cells indicates the number of cells
+    /// to allocate to objects in the resulting subclass (indexed from 1 in the cell block allocated to each instance).
     ///
-    pub fn create_subclass(superclass: TalkClass, constructor_messages: Vec<TalkMessageSignatureId>) -> TalkContinuation<'static> {
+    pub fn create_subclass(superclass: TalkClass, num_cells: usize, constructor_messages: Vec<TalkMessageSignatureId>) -> TalkContinuation<'static> {
         TalkContinuation::soon(move |context| {
             // Generate a new script class reference
             SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEW), context)
@@ -147,6 +148,8 @@ impl TalkScriptClassClass {
 
                 // As this is a subclass, location 0 is a pointer to the superclass
                 script_class.instance_variables.lock().unwrap().define_symbol(*TALK_SUPER);
+                let _first_cell = script_class.instance_variables.lock().unwrap().reserve_cells(num_cells);
+                debug_assert!(_first_cell == 1);
 
                 // Fetch the class ID of the subclass (this will always be a cell class)
                 let cell_class_id       = script_class.class_id;
