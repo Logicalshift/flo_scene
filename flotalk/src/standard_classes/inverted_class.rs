@@ -668,6 +668,9 @@ impl TalkInvertedClass {
 
             receiver.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEXT), talk_context)
         });
+        stream_dispatch_table.define_message(*TALK_MSG_RECEIVE_FROM, |stream, args, talk_context| {
+            ().into()
+        });
 
         subclass.into()
     }
