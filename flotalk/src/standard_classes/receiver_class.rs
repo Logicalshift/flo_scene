@@ -135,14 +135,25 @@ where
 }
 
 ///
-/// Creates a receiver object for a message stream
+/// Creates a new TalkClass corresponding to a `TalkReceiverClass<TItem>`
 ///
-pub fn create_talk_receiver<'a, TStream>(message_stream: TStream, talk_context: &'a mut TalkContext) -> TalkOwned<TalkReference, &'a TalkContext> 
+/// This is useful when we want to be able to customise the messages that this class can receive
+///
+pub (crate) fn create_talk_receiver_class<TStream>() -> TalkClass 
+where
+    TStream: 'static + Send + Unpin + Stream<Item=TalkMessage>,
+{
+    TalkClass::create(TalkReceiverClass::<TStream> { stream: PhantomData })
+}
+
+///
+/// Creates a receiver object for a message stream, using a specific class (which should already have been declared for this stream type)
+///
+pub (crate) fn create_talk_receiver_for_specific_class<'a, TStream>(receiver_class: TalkClass, message_stream: TStream, talk_context: &'a mut TalkContext) -> TalkOwned<TalkReference, &'a TalkContext>
 where
     TStream: 'static + Send + Unpin + Stream<Item=TalkMessage>,
 {
     // Get the class to create and the allocator
-    let receiver_class  = talk_receiver_class::<TStream>();
     let allocator       = talk_context.get_callbacks_mut(receiver_class).allocator::<TalkStandardAllocator<_>>().unwrap();
 
     // Create the receiver and store it using the allocator
@@ -154,4 +165,16 @@ where
     let receiver = TalkOwned::new(receiver, &*talk_context);
 
     receiver
+}
+
+///
+/// Creates a receiver object for a message stream
+///
+pub fn create_talk_receiver<'a, TStream>(message_stream: TStream, talk_context: &'a mut TalkContext) -> TalkOwned<TalkReference, &'a TalkContext> 
+where
+    TStream: 'static + Send + Unpin + Stream<Item=TalkMessage>,
+{
+    // Get the class to create and the allocator
+    let receiver_class  = talk_receiver_class::<TStream>();
+    create_talk_receiver_for_specific_class(receiver_class, message_stream, talk_context)
 }
