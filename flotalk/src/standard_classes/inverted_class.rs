@@ -670,6 +670,7 @@ impl TalkInvertedClass {
         let streaming_class = talk_context.empty_cell_block_class();
 
         // Declare messages on the main inverted subclass
+        // TODO: 'Streaming' inverted classes should really have their own type (the current implementation ends up creating a lot of unwanted noise in the dispatch routines)
         let inverted_dispatch_table = talk_context.class_dispatch_table(subclass_reference);
         inverted_dispatch_table.define_message(*TALK_MSG_STREAM, move |_, _, _| Self::create_stream_class(streaming_class, inverted_class));
 
@@ -678,11 +679,21 @@ impl TalkInvertedClass {
         let stream_dispatch_table   = talk_context.instance_dispatch_table(&streaming_class_ref);
 
         stream_dispatch_table.define_message(*TALK_MSG_RECEIVE_FROM, |stream, args, talk_context| Self::receive_from(stream, args, talk_context));
+
+        // 'next' reads from the receiver
         stream_dispatch_table.define_message(*TALK_MSG_NEXT, |stream, _, talk_context| {
             let stream      = TalkCellBlock(stream.data_handle().0 as _);
             let receiver    = talk_context.cell_block(stream)[1].clone_in_context(talk_context);
 
             receiver.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEXT), talk_context)
+        });
+
+        // Not supported messages go to the sender (TODO: only the inverted messages for this type)
+        stream_dispatch_table.define_not_supported(|stream, message_id, args, talk_context| {
+            let stream = TalkCellBlock(stream.data_handle().0 as _);
+            let sender = talk_context.cell_block(stream)[0].clone_in_context(talk_context);
+
+            sender.send_message_in_context(TalkMessage::from_signature(message_id, args.leak()), talk_context)
         });
 
         subclass.into()
