@@ -191,7 +191,7 @@ impl TalkScriptClassClass {
                                     superclass.send_message_in_context(TalkMessage::WithArguments(constructor_message_id, args.leak()), context)
                                 }.and_then_soon_if_ok(move |new_class_value, context| {
                                     // Allocate space for this instance
-                                    let cell_block = context.allocate_cell_block(1);
+                                    let cell_block = context.allocate_cell_block(num_cells + 1);
 
                                     // The first value is always a reference to the superclass
                                     context.cell_block_mut(cell_block)[0] = new_class_value;
