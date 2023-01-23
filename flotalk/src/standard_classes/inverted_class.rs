@@ -437,12 +437,23 @@ impl TalkInvertedClassAllocator {
                 // if this mutex didn't exist and it were possible for another thread to be releasing a target reference as this continuation is
                 // starting to run (ie, this logic would need to be rethought if TalkContext needed to support multithreading).
 
+                let mut stream_classes = vec![];
+
                 // Find all of the Inverted objects that always respond to this message
                 for responder_class in responder_classes.iter() {
                     let responder_class_id = usize::from(*responder_class);
 
                     if responder_class_id < allocator.respond_to_all.len() {
                         targets.extend(allocator.respond_to_all[responder_class_id].iter().cloned());
+                    }
+
+                    if let Some(stream_class) = allocator.stream_classes.get(responder_class_id.into()) {
+                        let stream_class_id = usize::from(*stream_class);
+                        stream_classes.push(*stream_class);
+
+                        if stream_class_id < allocator.respond_to_all.len() {
+                            targets.extend(allocator.respond_to_all[stream_class_id].iter().cloned());
+                        }
                     }
                 }
 
@@ -457,7 +468,7 @@ impl TalkInvertedClassAllocator {
                     if let Some(specific_responders) = allocator.respond_to_specific[sender_class_id].get(sender_handle_id) {
                         // These responders may or may not respond to this message, so we need to filter them to the responder classes
                         targets.extend(specific_responders.iter()
-                            .filter(|(TalkReference(ref class_id, _) ,_)| responder_classes.contains(class_id))
+                            .filter(|(TalkReference(ref class_id, _) ,_)| responder_classes.contains(class_id) || stream_classes.contains(class_id))
                             .cloned());
                     }
                 }
