@@ -714,7 +714,7 @@ fn stream_from_inverted_subclass() {
         nextVal := stream next.
         nextVal ifMatches: #setValueInverted:invertedFrom: 
             do:             [ :val :invertedFrom | val ] 
-            ifDoesNotMatch: [ 0 ].
+            ifDoesNotMatch: [ -1 ].
     ";
 
     executor::block_on(async { 
@@ -748,7 +748,7 @@ fn stream_from_inverted_subclass_all() {
         nextVal := stream next.
         nextVal ifMatches: #setValueInverted:invertedFrom: 
             do:             [ :val :invertedFrom | val ] 
-            ifDoesNotMatch: [ 0 ].
+            ifDoesNotMatch: [ -1 ].
     ";
 
     executor::block_on(async { 
