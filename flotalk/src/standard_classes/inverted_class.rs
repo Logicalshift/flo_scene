@@ -153,6 +153,9 @@ pub struct TalkInvertedClassAllocator {
     /// The classes in the current context that can respond to each type of message ID (expectation is for there to be usually just one class per message)
     responder_classes: TalkSparseArray<SmallVec<[TalkClass; 2]>>,
 
+    /// For the 'main' class ID, the corresponding stream class that also responds to these messages, if available
+    stream_classes: TalkSparseArray<TalkClass>,
+
     /// The references that are registered as responders (have had receiveFrom: called on them)
     responder_instances: HashSet<TalkReference>,
 
@@ -280,6 +283,7 @@ impl TalkInvertedClassAllocator {
         Arc::new(Mutex::new(TalkInvertedClassAllocator {
             next_priority:          0,
             responder_classes:      TalkSparseArray::empty(),
+            stream_classes:         TalkSparseArray::empty(),
             responder_instances:    HashSet::new(),
             respond_to_all:         vec![],
             respond_to_specific:    vec![],
@@ -676,8 +680,14 @@ impl TalkInvertedClass {
     ///
     /// Given a stream class ID, creates a new instance that will stream as if it's receiving from the specified target class
     ///
-    fn create_stream_class(stream_class_id: TalkClass, _target_class_id: TalkClass) -> TalkContinuation<'static> {
+    fn create_stream_class(stream_class_id: TalkClass, target_class_id: TalkClass) -> TalkContinuation<'static> {
         TalkContinuation::soon(move |talk_context| {
+            // Map the stream class for this receiver
+            let callbacks       = talk_context.get_callbacks(*INVERTED_CLASS).unwrap();
+            callbacks.allocator.downcast_ref::<Arc<Mutex<TalkInvertedClassAllocator>>>()
+                .unwrap().lock().unwrap()
+                .stream_classes.insert(target_class_id.into(), stream_class_id);
+
             // Create a stream for the sender and receiver
             let (sender, receiver)  = create_talk_sender::<TalkMessage>(talk_context);
             let sender              = sender.leak();
