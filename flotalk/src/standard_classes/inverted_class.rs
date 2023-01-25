@@ -153,9 +153,6 @@ pub struct TalkInvertedClassAllocator {
     /// The classes in the current context that can respond to each type of message ID (expectation is for there to be usually just one class per message)
     responder_classes: TalkSparseArray<SmallVec<[TalkClass; 2]>>,
 
-    /// For the 'main' class ID, the corresponding stream class that also responds to these messages, if available
-    stream_classes: TalkSparseArray<TalkClass>,
-
     /// The references that are registered as responders (have had receiveFrom: called on them)
     responder_instances: HashSet<TalkReference>,
 
@@ -283,7 +280,6 @@ impl TalkInvertedClassAllocator {
         Arc::new(Mutex::new(TalkInvertedClassAllocator {
             next_priority:          0,
             responder_classes:      TalkSparseArray::empty(),
-            stream_classes:         TalkSparseArray::empty(),
             responder_instances:    HashSet::new(),
             respond_to_all:         vec![],
             respond_to_specific:    vec![],
@@ -437,23 +433,12 @@ impl TalkInvertedClassAllocator {
                 // if this mutex didn't exist and it were possible for another thread to be releasing a target reference as this continuation is
                 // starting to run (ie, this logic would need to be rethought if TalkContext needed to support multithreading).
 
-                let mut stream_classes = vec![];
-
                 // Find all of the Inverted objects that always respond to this message
                 for responder_class in responder_classes.iter() {
                     let responder_class_id = usize::from(*responder_class);
 
                     if responder_class_id < allocator.respond_to_all.len() {
                         targets.extend(allocator.respond_to_all[responder_class_id].iter().cloned());
-                    }
-
-                    if let Some(stream_class) = allocator.stream_classes.get(responder_class_id.into()) {
-                        let stream_class_id = usize::from(*stream_class);
-                        stream_classes.push(*stream_class);
-
-                        if stream_class_id < allocator.respond_to_all.len() {
-                            targets.extend(allocator.respond_to_all[stream_class_id].iter().cloned());
-                        }
                     }
                 }
 
@@ -468,7 +453,7 @@ impl TalkInvertedClassAllocator {
                     if let Some(specific_responders) = allocator.respond_to_specific[sender_class_id].get(sender_handle_id) {
                         // These responders may or may not respond to this message, so we need to filter them to the responder classes
                         targets.extend(specific_responders.iter()
-                            .filter(|(TalkReference(ref class_id, _) ,_)| responder_classes.contains(class_id) || stream_classes.contains(class_id))
+                            .filter(|(TalkReference(ref class_id, _) ,_)| responder_classes.contains(class_id))
                             .cloned());
                     }
                 }
@@ -704,12 +689,6 @@ impl TalkInvertedClass {
     ///
     fn create_stream_class(stream_class_id: TalkClass, target_class_id: TalkClass) -> TalkContinuation<'static> {
         TalkContinuation::soon(move |talk_context| {
-            // Map the stream class for this receiver
-            let callbacks       = talk_context.get_callbacks(*INVERTED_CLASS).unwrap();
-            callbacks.allocator.downcast_ref::<Arc<Mutex<TalkInvertedClassAllocator>>>()
-                .unwrap().lock().unwrap()
-                .stream_classes.insert(target_class_id.into(), stream_class_id);
-
             // Create a stream for the sender and receiver
             let (sender, receiver)  = create_talk_sender::<TalkMessage>(talk_context);
             let sender              = sender.leak();
