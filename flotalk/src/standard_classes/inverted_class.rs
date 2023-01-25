@@ -642,52 +642,52 @@ impl TalkInvertedClass {
     ///
     /// Given a continuation that generates a subclass, returns a continuation that adds the inverted class messages such as 'stream'
     ///
-    fn declare_subclass_class_messages(subclass: TalkValue, talk_context: &mut TalkContext) -> TalkContinuation<'static> {
-        static TALK_MSG_STREAM: Lazy<TalkMessageSignatureId>    = Lazy::new(|| "stream".into());
-        static TALK_MSG_NEXT: Lazy<TalkMessageSignatureId>      = Lazy::new(|| "next".into());
-
-        // Fetch the subclass reference
-        let subclass_reference  = subclass.try_as_reference().unwrap();
-        debug_assert!(subclass_reference.is_class_object());
-        let inverted_class      = TalkClass(usize::from(subclass_reference.data_handle()));
-
-        // The streaming subclass is a cell block class. We need to declare the 'next' and 'receiveFrom:' messages on this class
-        let streaming_class = talk_context.empty_cell_block_class();
-
-        // Declare messages on the main inverted subclass
-        // TODO: 'Streaming' inverted classes should really have their own type (the current implementation ends up creating a lot of unwanted noise in the dispatch routines)
-        let inverted_dispatch_table = talk_context.class_dispatch_table(subclass_reference);
-        inverted_dispatch_table.define_message(*TALK_MSG_STREAM, move |_, _, _| Self::create_stream_class(streaming_class, inverted_class));
-
-        // Also declare messages on the 'stream' class itself
-        let streaming_class_ref     = TalkClass::class_object_in_context(&streaming_class, talk_context);
-        let stream_dispatch_table   = talk_context.instance_dispatch_table(&streaming_class_ref);
-
-        stream_dispatch_table.define_message(*TALK_MSG_RECEIVE_FROM, |stream, args, talk_context| Self::receive_from(stream, args, talk_context));
-
-        // 'next' reads from the receiver
-        stream_dispatch_table.define_message(*TALK_MSG_NEXT, |stream, _, talk_context| {
-            let stream      = TalkCellBlock(stream.data_handle().0 as _);
-            let receiver    = talk_context.cell_block(stream)[1].clone_in_context(talk_context);
-
-            receiver.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEXT), talk_context)
-        });
-
-        // Not supported messages go to the sender (TODO: only the inverted messages for this type)
-        stream_dispatch_table.define_not_supported(|stream, message_id, args, talk_context| {
-            let stream = TalkCellBlock(stream.data_handle().0 as _);
-            let sender = talk_context.cell_block(stream)[0].clone_in_context(talk_context);
-
-            sender.send_message_in_context(TalkMessage::from_signature(message_id, args.leak()), talk_context)
-        });
-
+    fn declare_subclass_class_messages(subclass: TalkValue, _talk_context: &mut TalkContext) -> TalkContinuation<'static> {
         subclass.into()
     }
 
     ///
-    /// Given a stream class ID, creates a new instance that will stream as if it's receiving from the specified target class
+    /// Creates a function that generates a streaming Inverted subclas s
     ///
-    fn create_stream_class(stream_class_id: TalkClass, target_class_id: TalkClass) -> TalkContinuation<'static> {
+    fn create_stream_class() -> TalkContinuation<'static> {
+        static TALK_MSG_STREAM: Lazy<TalkMessageSignatureId>                = Lazy::new(|| "stream".into());
+        static TALK_MSG_NEXT: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| "next".into());
+        static TALK_MSG_ADD_INVERTED_MESSAGE: Lazy<TalkMessageSignatureId>  = Lazy::new(|| "addInvertedMessage:".into());
+
+        TalkContinuation::soon(move |talk_context| {
+            // Create a stream class as a cell block class
+            let stream_class_id     = talk_context.empty_cell_block_class();
+            let stream_class_ref    = TalkClass::class_object_in_context(&stream_class_id, talk_context);
+
+            // Wire up events for the new stream class
+            let stream_class_dispatch = talk_context.class_dispatch_table(&stream_class_ref);
+
+            stream_class_dispatch.define_message(*TALK_MSG_STREAM,                  move |_, _, _|                      Self::create_stream_instance(stream_class_id));
+            stream_class_dispatch.define_message(*TALK_MSG_ADD_INVERTED_MESSAGE,    move |class_id, args, talk_context| Self::add_stream_inverted_message(class_id, args, talk_context));
+
+            // Wire up events for the stream instance
+            let stream_instance_dispatch = talk_context.instance_dispatch_table(&stream_class_ref);
+
+            stream_instance_dispatch.define_message(*TALK_MSG_RECEIVE_FROM, move |stream, args, talk_context|   Self::receive_from(stream, args, talk_context));
+            stream_instance_dispatch.define_message(*TALK_MSG_NEXT,         move |stream, _, talk_context|      Self::stream_next(stream, talk_context));
+
+            // Not supported messages go to the sender (TODO: only the inverted messages for this type)
+            stream_instance_dispatch.define_not_supported(|stream, message_id, args, talk_context| {
+                let stream = TalkCellBlock(stream.data_handle().0 as _);
+                let sender = talk_context.cell_block(stream)[0].clone_in_context(talk_context);
+
+                sender.send_message_in_context(TalkMessage::from_signature(message_id, args.leak()), talk_context)
+            });
+
+            // Result is the reference to the new stream class
+            stream_class_ref.into()
+        })
+    }
+
+    ///
+    /// Creates an instance of the stream class
+    ///
+    fn create_stream_instance(stream_class_id: TalkClass) -> TalkContinuation<'static> {
         TalkContinuation::soon(move |talk_context| {
             // Create a stream for the sender and receiver
             let (sender, receiver)  = create_talk_sender::<TalkMessage>(talk_context);
@@ -709,7 +709,57 @@ impl TalkInvertedClass {
     }
 
     ///
-    /// Implements the 'addInvertedMessage:' message
+    /// Retrieves the next value from a stream subclass reference
+    ///
+    fn stream_next(stream: TalkOwned<TalkReference, &'_ TalkContext>, talk_context: &TalkContext) -> TalkContinuation<'static> {
+        static TALK_MSG_NEXT: Lazy<TalkMessageSignatureId> = Lazy::new(|| "next".into());
+
+        let stream      = TalkCellBlock(stream.data_handle().0 as _);
+        let receiver    = talk_context.cell_block(stream)[1].clone_in_context(talk_context);
+
+        receiver.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEXT), talk_context)
+    }
+
+    ///
+    /// Implements the 'addInvertedMessage:' message for the stream subclass
+    ///
+    fn add_stream_inverted_message(class_id: TalkOwned<TalkClass, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _talk_context: &TalkContext) -> TalkContinuation<'static> {
+        // First argument should be a message selector
+        let selector = match &args[0] {
+            TalkValue::Selector(selector)   => *selector,
+            _                               => { return TalkError::NotASelector.into(); }
+        };
+
+        // Leak the owned stuff so we can process it later on
+        let class_id    = class_id.leak();
+        let args        = args.leak();
+
+        TalkContinuation::soon(move |talk_context| {
+            // Mark the selector as inverted
+            talk_context.add_inverted_message(selector);
+
+            // Fetch the allocator for the inverted class so we can add this selector
+            let callbacks       = talk_context.get_callbacks(*INVERTED_CLASS).unwrap();
+            let mut allocator   = callbacks.allocator.downcast_ref::<Arc<Mutex<TalkInvertedClassAllocator>>>().unwrap().lock().unwrap();
+
+            // Declare this selector as handled by this class
+            if let Some(responder_classes) = allocator.responder_classes.get_mut(selector.into()) {
+                // Add the class to the list for this selector
+                if !responder_classes.iter().any(|existing_class| existing_class == &class_id) {
+                    responder_classes.push(class_id);
+                }
+            } else {
+                // Create a new class
+                allocator.responder_classes.insert(selector.into(), smallvec![class_id])
+            }
+
+            // Return value is nil
+            ().into()
+        })
+    }
+
+    ///
+    /// Implements the 'addInvertedMessage:withAction:' message
     ///
     fn add_inverted_message(class_id: TalkOwned<TalkClass, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _talk_context: &TalkContext) -> TalkContinuation<'static> {
         static TALK_MSG_ADD_INSTANCE_MESSAGE: Lazy<TalkMessageSignatureId>    = Lazy::new(|| ("addInstanceMessage:", "withAction:").into());
@@ -968,11 +1018,13 @@ impl TalkClassDefinition for TalkInvertedClass {
     ///
     fn default_class_dispatch_table(&self) -> TalkMessageDispatchTable<TalkClass> {
         static TALK_MSG_SUBCLASS: Lazy<TalkMessageSignatureId>              = Lazy::new(|| "subclass".into());
+        static TALK_MSG_STREAM_SUBCLASS: Lazy<TalkMessageSignatureId>       = Lazy::new(|| "streamSubclass".into());
         static TALK_MSG_ADD_INVERTED_MESSAGE: Lazy<TalkMessageSignatureId>  = Lazy::new(|| ("addInvertedMessage:", "withAction:").into());
         static TALK_MSG_UNHANDLED: Lazy<TalkMessageSignatureId>             = Lazy::new(|| "unhandled".into());
 
         TalkMessageDispatchTable::empty()
             .with_message(*TALK_MSG_SUBCLASS,               |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| Self::declare_subclass_messages(TalkScriptClassClass::create_subclass(*class_id, 0, vec![*TALK_MSG_NEW])))
+            .with_message(*TALK_MSG_STREAM_SUBCLASS,        |class_id: TalkOwned<TalkClass, &'_ TalkContext>, _, _| Self::create_stream_class())
             .with_message(*TALK_MSG_ADD_INVERTED_MESSAGE,   |class_id, args, talk_context|                          Self::add_inverted_message(class_id, args, talk_context))
             .with_message(*TALK_MSG_UNHANDLED,              |_, _, _|                                               TalkContinuation::Ready(INVERTED_UNHANDLED.clone()))
             .with_message(*TALK_MSG_HANDLED,                |_, args, _|                                            TalkValue::Message(Box::new(TalkMessage::WithArguments(*TALK_MSG_HANDLED, args.leak()))))
