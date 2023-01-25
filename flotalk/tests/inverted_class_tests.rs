@@ -700,7 +700,7 @@ fn stream_from_inverted_subclass() {
         | TestInverted1 object stream nextVal |
 
         TestInverted1 := Inverted streamSubclass.
-        TestInverted1 addInvertedMessage: #setValInverted.
+        TestInverted1 addInvertedMessage: #setValInverted:.
 
         stream := TestInverted1 stream.
         object := Object new.
@@ -734,7 +734,7 @@ fn stream_from_inverted_subclass_all() {
         | TestInverted1 object stream nextVal |
 
         TestInverted1 := Inverted streamSubclass.
-        TestInverted1 addInvertedMessage: #setValInverted.
+        TestInverted1 addInvertedMessage: #setValInverted:.
 
         stream := TestInverted1 stream.
         object := Object new.
