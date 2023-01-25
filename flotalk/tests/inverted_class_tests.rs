@@ -699,8 +699,8 @@ fn stream_from_inverted_subclass() {
     let test_source = "
         | TestInverted1 object stream nextVal |
 
-        TestInverted1 := Inverted subclass.
-        TestInverted1 addInvertedMessage: #setValInverted: withAction: [ :val :sender :self | ].
+        TestInverted1 := Inverted streamSubclass.
+        TestInverted1 addInvertedMessage: #setValInverted.
 
         stream := TestInverted1 stream.
         object := Object new.
@@ -733,8 +733,8 @@ fn stream_from_inverted_subclass_all() {
     let test_source = "
         | TestInverted1 object stream nextVal |
 
-        TestInverted1 := Inverted subclass.
-        TestInverted1 addInvertedMessage: #setValInverted: withAction: [ :val :sender :self | ].
+        TestInverted1 := Inverted streamSubclass.
+        TestInverted1 addInvertedMessage: #setValInverted.
 
         stream := TestInverted1 stream.
         object := Object new.
