@@ -732,7 +732,6 @@ impl TalkInvertedClass {
 
         // Leak the owned stuff so we can process it later on
         let class_id    = class_id.leak();
-        let args        = args.leak();
 
         TalkContinuation::soon(move |talk_context| {
             // Mark the selector as inverted
