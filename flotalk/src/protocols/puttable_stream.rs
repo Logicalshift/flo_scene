@@ -4,7 +4,7 @@ use crate::*;
 /// FloTalk's puttableStream protocol
 ///
 #[derive(TalkMessageType)]
-pub enum TalkPuttableStream {
+pub enum TalkPuttableStreamRequest {
     /// Writes a carriage return sequence to the stream
     Cr,
 
@@ -27,7 +27,16 @@ pub enum TalkPuttableStream {
 ///
 /// FlotTalk's simple stream protocol
 ///
-pub enum TalkSimpleStream {
+pub enum TalkSimpleStreamRequest {
     /// Writes a string to the stream
     Write(String),
 }
+
+/*
+///
+/// This creates a TalkPuttableStream
+///
+pub fn talk_puttable_character_stream(receive_stream: impl Into<TalkContinuation<'static>>) -> (TalkContinuation<'static>, impl Stream<Item = TalkSimpleStreamRequest>) {
+
+}
+*/
