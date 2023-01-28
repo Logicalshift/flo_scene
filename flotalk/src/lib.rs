@@ -38,6 +38,7 @@ mod script_continuation;
 mod initialization;
 
 pub mod sparse_array;
+pub mod protocols;
 
 pub use self::instruction::*;
 pub use self::expression::*;
