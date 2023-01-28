@@ -468,3 +468,20 @@ impl From<TalkValue> for Result<TalkValue, TalkError> {
         }
     }
 }
+
+///
+/// TalkValues can be converted to and from themselves, though it's the responsibility of the converter to ensure that
+/// they're properly freed if this is done
+///
+impl TalkValueType for TalkValue {
+    fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
+        let value = self.clone_in_context(context);
+        TalkOwned::new(TalkValue::from(value), context)
+    }
+
+    #[inline]
+    fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
+        Ok(value.leak())
+    }
+}
+
