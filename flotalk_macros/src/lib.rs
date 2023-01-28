@@ -12,9 +12,21 @@ use std::iter;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 ///
+/// Returns the target crate for the macro (ie, the crate containing the flo_talk definitions)
+///
+fn flo_talk_crate() -> TokenStream2 {
+    // By default, this is flo_talk
+    quote! {
+        ::flo_talk
+    }
+}
+
+///
 /// Creates a static value for a symbol with a unique ID
 ///
 fn symbol_static(name: &str) -> (TokenStream2, Ident) {
+    let flo_talk_crate = flo_talk_crate();
+
     // All symbol types have a unique ID (we call them SYMBOL_x later on)
     static NEXT_SYMBOL_ID: Lazy<AtomicU64> = Lazy::new(|| { AtomicU64::new(0) });
 
@@ -26,7 +38,7 @@ fn symbol_static(name: &str) -> (TokenStream2, Ident) {
 
     // Create the declaration, using the version of once_cell linked from flo_talk
     let declaration = quote! { 
-        static #symbol_id: ::flo_talk::once_cell::sync::Lazy<::flo_talk::TalkSymbol> = ::flo_talk::once_cell::sync::Lazy::new(|| ::flo_talk::TalkSymbol::from(#name));
+        static #symbol_id: #flo_talk_crate::once_cell::sync::Lazy<#flo_talk_crate::TalkSymbol> = #flo_talk_crate::once_cell::sync::Lazy::new(|| #flo_talk_crate::TalkSymbol::from(#name));
     };
 
     (declaration.into(), symbol_id)
@@ -36,6 +48,8 @@ fn symbol_static(name: &str) -> (TokenStream2, Ident) {
 /// Creates a static value for a message signature
 ///
 fn message_signature_static(symbols: Vec<String>) -> (TokenStream2, Ident) {
+    let flo_talk_crate = flo_talk_crate();
+
     // All symbol types have a unique ID (we call them MSG_SIG_X later on)
     static NEXT_MESSAGE_ID: Lazy<AtomicU64> = Lazy::new(|| { AtomicU64::new(0) });
 
@@ -47,9 +61,9 @@ fn message_signature_static(symbols: Vec<String>) -> (TokenStream2, Ident) {
 
     // Create the declaration, using the version of once_cell linked from flo_talk
     let declaration = quote! { 
-        static #symbol_id: ::flo_talk::once_cell::sync::Lazy<::flo_talk::TalkMessageSignatureId> = ::flo_talk::once_cell::sync::Lazy::new(|| 
+        static #symbol_id: #flo_talk_crate::once_cell::sync::Lazy<#flo_talk_crate::TalkMessageSignatureId> = #flo_talk_crate::once_cell::sync::Lazy::new(|| 
             vec![
-                #(::flo_talk::TalkSymbol::from(#symbols)),*
+                #(#flo_talk_crate::TalkSymbol::from(#symbols)),*
             ].into()
         );
     };
@@ -144,6 +158,8 @@ fn signature_for_fields(parent_name: &Ident, fields: &Fields, attributes: Option
 /// Creates a match arm for 'to_message' for an enum variant
 ///
 fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
+    let flo_talk_crate = flo_talk_crate();
+
     // Get the signature
     let signature                       = signature_for_fields(&variant.ident, &variant.fields, Some(&variant.attrs));
     let (signature, signature_ident)    = message_signature_static(signature);
@@ -184,7 +200,7 @@ fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
         quote_spanned! { variant.span() => #match_fields => {
                 #signature
 
-                ::flo_talk::TalkMessage::Unary(*#signature_ident)
+                #flo_talk_crate::TalkMessage::Unary(*#signature_ident)
             }
         }
     } else {
@@ -194,7 +210,7 @@ fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
         quote_spanned! { variant.span() => #match_fields => {
                 #signature
 
-                ::flo_talk::TalkMessage::WithArguments(*#signature_ident, smallvec![#(#field_names.into_talk_value(context).leak()),*])
+                #flo_talk_crate::TalkMessage::WithArguments(*#signature_ident, smallvec![#(#field_names.into_talk_value(context).leak()),*])
             }
          }
     }
@@ -204,6 +220,8 @@ fn enum_variant_to_message(name: &Ident, variant: &Variant) -> TokenStream2 {
 /// Creates a match arm for 'to_message' for a struct
 ///
 fn struct_to_message(name: &Ident, data_struct: &DataStruct, attributes: &Vec<Attribute>) -> TokenStream2 {
+    let flo_talk_crate = flo_talk_crate();
+
     // Get the signature
     let signature                       = signature_for_fields(name, &data_struct.fields, Some(attributes));
     let (signature, signature_ident)    = message_signature_static(signature);
@@ -242,7 +260,7 @@ fn struct_to_message(name: &Ident, data_struct: &DataStruct, attributes: &Vec<At
         quote_spanned! { data_struct.fields.span() =>
             #signature
 
-            let message = ::flo_talk::TalkMessage::Unary(*#signature_ident);
+            let message = #flo_talk_crate::TalkMessage::Unary(*#signature_ident);
         }
     } else {
         // Multiple-argument message
@@ -251,7 +269,7 @@ fn struct_to_message(name: &Ident, data_struct: &DataStruct, attributes: &Vec<At
         quote_spanned! { data_struct.fields.span() =>
             #signature
             let #match_fields = self;
-            let message       = ::flo_talk::TalkMessage::WithArguments(*#signature_ident, smallvec![#(#field_names.into_talk_value(context).leak()),*]);
+            let message       = #flo_talk_crate::TalkMessage::WithArguments(*#signature_ident, smallvec![#(#field_names.into_talk_value(context).leak()),*]);
          }
     }
 }
@@ -482,6 +500,8 @@ fn struct_from_message_alternate(name: &Ident, data_struct: &DataStruct) -> Opti
 /// Creates the code to implement TalkMessageType and TalkValueType for an enum
 ///
 fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> TokenStream {
+    let flo_talk_crate = flo_talk_crate();
+
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // Create match arms for each variant for the 'to_message' call
@@ -501,13 +521,13 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
 
     // An enum value like 'Int(i64)' is converted to a message 'withInt: 64'
     let talk_message_type = quote! {
-        impl #impl_generics ::flo_talk::TalkMessageType for #name #ty_generics #where_clause {
+        impl #impl_generics #flo_talk_crate::TalkMessageType for #name #ty_generics #where_clause {
             /// Converts a message to an object of this type
-            fn from_message<'a>(message: ::flo_talk::TalkOwned<::flo_talk::TalkMessage, &'a ::flo_talk::TalkContext>, _context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+            fn from_message<'a>(message: #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkMessage, &'a #flo_talk_crate::TalkContext>, _context: &'a #flo_talk_crate::TalkContext) -> Result<Self, #flo_talk_crate::TalkError> {
                 let mut message             = message;
                 let (signature_id, _args)   = {
-                    use ::flo_talk::smallvec::*;
-                    use ::flo_talk::TalkMessage;
+                    use #flo_talk_crate::smallvec::*;
+                    use #flo_talk_crate::TalkMessage;
 
                     match &mut *message {
                         TalkMessage::Unary(sig)                 => (sig, None),
@@ -525,9 +545,9 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
             }
 
             /// Converts an object of this type to a message
-            fn to_message<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<::flo_talk::TalkMessage, &'a ::flo_talk::TalkContext> {
-                use ::flo_talk::smallvec::*;
-                use ::flo_talk::{TalkValueType};
+            fn to_message<'a>(&self, context: &'a #flo_talk_crate::TalkContext) -> #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkMessage, &'a #flo_talk_crate::TalkContext> {
+                use #flo_talk_crate::smallvec::*;
+                use #flo_talk_crate::{TalkValueType};
 
                 let message = match self {
                     #(#to_message_arms),*
@@ -540,17 +560,17 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
 
     // We also implement the TalkValueType trait for things that can be messages (they create message objects)
     let talk_value_type = quote! {
-        impl #impl_generics ::flo_talk::TalkValueType for #name #ty_generics #where_clause {
-            fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext> {
+        impl #impl_generics #flo_talk_crate::TalkValueType for #name #ty_generics #where_clause {
+            fn into_talk_value<'a>(&self, context: &'a #flo_talk_crate::TalkContext) -> #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkValue, &'a #flo_talk_crate::TalkContext> {
                 use flo_talk::{TalkOwned, TalkValue};
 
                 TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context)
             }
 
-            fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+            fn try_from_talk_value<'a>(value: #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkValue, &'a #flo_talk_crate::TalkContext>, context: &'a #flo_talk_crate::TalkContext) -> Result<Self, #flo_talk_crate::TalkError> {
                 let value = value.map(|val| {
                     match val {
-                        ::flo_talk::TalkValue::Message(msg) => Some(*msg),
+                        #flo_talk_crate::TalkValue::Message(msg) => Some(*msg),
                         _                                   => { val.release_in_context(context); None }
                     }
                 });
@@ -574,6 +594,8 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
 /// Creates the code to implement TalkMessageType and TalkValueType for a struct
 ///
 fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Attribute>, data: &DataStruct) -> TokenStream {
+    let flo_talk_crate = flo_talk_crate();
+
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // Create the 'to_message' call
@@ -587,13 +609,13 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
 
     // A struct like `struct Foo { bar: i64 baz: i64}` is converted to a message `withFooBar:baz:`
     let talk_message_type = quote! {
-        impl #impl_generics ::flo_talk::TalkMessageType for #name #ty_generics #where_clause {
+        impl #impl_generics #flo_talk_crate::TalkMessageType for #name #ty_generics #where_clause {
             /// Converts a message to an object of this type
-            fn from_message<'a>(message: ::flo_talk::TalkOwned<::flo_talk::TalkMessage, &'a ::flo_talk::TalkContext>, _context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+            fn from_message<'a>(message: #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkMessage, &'a #flo_talk_crate::TalkContext>, _context: &'a #flo_talk_crate::TalkContext) -> Result<Self, #flo_talk_crate::TalkError> {
                 let mut message             = message;
                 let (signature_id, _args)   = {
-                    use ::flo_talk::smallvec::*;
-                    use ::flo_talk::TalkMessage;
+                    use #flo_talk_crate::smallvec::*;
+                    use #flo_talk_crate::TalkMessage;
 
                     match &mut *message {
                         TalkMessage::Unary(sig)                 => (sig, None),
@@ -611,9 +633,9 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
             }
 
             /// Converts an object of this type to a message
-            fn to_message<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<::flo_talk::TalkMessage, &'a ::flo_talk::TalkContext> {
-                use ::flo_talk::smallvec::*;
-                use ::flo_talk::{TalkValueType};
+            fn to_message<'a>(&self, context: &'a #flo_talk_crate::TalkContext) -> #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkMessage, &'a #flo_talk_crate::TalkContext> {
+                use #flo_talk_crate::smallvec::*;
+                use #flo_talk_crate::{TalkValueType};
 
                 #to_message
 
@@ -647,19 +669,19 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
         };
 
         quote! {
-            impl #impl_generics ::flo_talk::TalkValueType for #name #ty_generics #where_clause {
+            impl #impl_generics #flo_talk_crate::TalkValueType for #name #ty_generics #where_clause {
                 #[inline]
-                fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext> {
+                fn into_talk_value<'a>(&self, context: &'a #flo_talk_crate::TalkContext) -> #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkValue, &'a #flo_talk_crate::TalkContext> {
                     #fetch_field.into_talk_value(context)
                 }
 
-                fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+                fn try_from_talk_value<'a>(value: #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkValue, &'a #flo_talk_crate::TalkContext>, context: &'a #flo_talk_crate::TalkContext) -> Result<Self, #flo_talk_crate::TalkError> {
                     if let Ok(field_value) = #field_ty::try_from_talk_value(TalkOwned::new(value.clone_in_context(context), context), context) {
                         Ok(#create_struct)
                     } else {
                         let value = value.map(|val| {
                             match val {
-                                ::flo_talk::TalkValue::Message(msg) => Some(*msg),
+                                #flo_talk_crate::TalkValue::Message(msg) => Some(*msg),
                                 _                                   => { val.release_in_context(context); None }
                             }
                         });
@@ -675,17 +697,17 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
     } else { 
         // Structs with more than one field can only be decoded as a message
         quote! {
-            impl #impl_generics ::flo_talk::TalkValueType for #name #ty_generics #where_clause {
-                fn into_talk_value<'a>(&self, context: &'a ::flo_talk::TalkContext) -> ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext> {
+            impl #impl_generics #flo_talk_crate::TalkValueType for #name #ty_generics #where_clause {
+                fn into_talk_value<'a>(&self, context: &'a #flo_talk_crate::TalkContext) -> #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkValue, &'a #flo_talk_crate::TalkContext> {
                     use flo_talk::{TalkOwned, TalkValue};
 
                     TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context)
                 }
 
-                fn try_from_talk_value<'a>(value: ::flo_talk::TalkOwned<::flo_talk::TalkValue, &'a ::flo_talk::TalkContext>, context: &'a ::flo_talk::TalkContext) -> Result<Self, ::flo_talk::TalkError> {
+                fn try_from_talk_value<'a>(value: #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkValue, &'a #flo_talk_crate::TalkContext>, context: &'a #flo_talk_crate::TalkContext) -> Result<Self, #flo_talk_crate::TalkError> {
                     let value = value.map(|val| {
                         match val {
-                            ::flo_talk::TalkValue::Message(msg) => Some(*msg),
+                            #flo_talk_crate::TalkValue::Message(msg) => Some(*msg),
                             _                                   => { val.release_in_context(context); None }
                         }
                     });
