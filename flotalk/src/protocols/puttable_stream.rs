@@ -3,7 +3,7 @@ use crate::*;
 ///
 /// FloTalk's puttableStream protocol
 ///
-// #[derive(TalkMessageType)]
+#[derive(TalkMessageType)]
 pub enum TalkPuttableStream {
     /// Writes a carriage return sequence to the stream
     Cr,
