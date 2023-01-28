@@ -238,7 +238,8 @@ impl TalkRuntime {
     ///
     /// This seems complicated, but really is pretty simple to use in practice - just use  a block with a parameter:
     ///
-    /// ```no_run
+    /// ```ignore
+    /// # // Can't compile this as cargo will say the crate is 'flo_talk' when it's not, which breaks the macro
     /// # #[macro_use] extern crate flo_talk_macros;
     /// # use flo_talk::*;
     /// # let runtime = TalkRuntime::empty();
