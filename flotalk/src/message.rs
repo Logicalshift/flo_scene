@@ -630,7 +630,7 @@ impl TalkValueType for TalkMessage {
                 }
             }
 
-            _                       => Err(TalkError::NotAMessage)
+            _ => Err(TalkError::NotAMessage)
         }
     }
 }
