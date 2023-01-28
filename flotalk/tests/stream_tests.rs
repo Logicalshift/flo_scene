@@ -128,7 +128,7 @@ fn receive_two_messages() {
 }
 
 #[test]
-fn stream_messages() {
+fn stream_messages_using_runtime() {
     executor::block_on(async {
         let runtime = TalkRuntime::empty();
         
@@ -151,6 +151,40 @@ fn stream_messages() {
         let third = source_stream.next().await;
         println!("{:?}", third);
         assert!(third == Some(Ok(TalkMessage::with_arguments(vec![("add:", 22)]))));
+    })
+}
+
+#[test]
+fn stream_messages_using_continuation() {
+    executor::block_on(async {
+        use futures::future;
+
+        let runtime = TalkRuntime::empty();
+        
+        // Create a source stream, which is itself a script
+        let (mut source_stream, stream_continuation) = talk_stream_from::<TalkMessage>(TalkScript::from("
+            [ :output | 
+                output add: 200 . 
+                output sub: 180 .
+                output add: 22 .
+            ]"));
+
+        future::join(
+            runtime.run(stream_continuation),
+            async {
+                let first = source_stream.next().await;
+                println!("{:?}", first);
+                assert!(first == Some(TalkMessage::with_arguments(vec![("add:", 200)])));
+
+                let second = source_stream.next().await;
+                println!("{:?}", second);
+                assert!(second == Some(TalkMessage::with_arguments(vec![("sub:", 180)])));
+
+                let third = source_stream.next().await;
+                println!("{:?}", third);
+                assert!(third == Some(TalkMessage::with_arguments(vec![("add:", 22)])));
+            }
+        ).await;
     })
 }
 
