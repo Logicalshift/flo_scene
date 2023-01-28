@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 ///
 fn flo_talk_crate() -> TokenStream2 {
     // When we're compiling the flo_talk crate itself, we can't refer to it as 'flo_talk' as Rust does not support this, so we need to know if we're compiling flo_talk itself
-    let crate_name = std::env::var("CARGO_PKG_NAME").unwrap();
+    let crate_name = env::var("CARGO_PKG_NAME").unwrap();
 
     if crate_name == "flo_talk" {
         // If we're compiling flo_talk itself, we can't call the declarations `::flo_talk::foo` as Rust doesn't map `::flo_talk` to `crate` in this case
@@ -575,7 +575,7 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
     let talk_value_type = quote! {
         impl #impl_generics #flo_talk_crate::TalkValueType for #name #ty_generics #where_clause {
             fn into_talk_value<'a>(&self, context: &'a #flo_talk_crate::TalkContext) -> #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkValue, &'a #flo_talk_crate::TalkContext> {
-                use flo_talk::{TalkOwned, TalkValue};
+                use #flo_talk_crate::{TalkOwned, TalkValue};
 
                 TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context)
             }
@@ -712,7 +712,7 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
         quote! {
             impl #impl_generics #flo_talk_crate::TalkValueType for #name #ty_generics #where_clause {
                 fn into_talk_value<'a>(&self, context: &'a #flo_talk_crate::TalkContext) -> #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkValue, &'a #flo_talk_crate::TalkContext> {
-                    use flo_talk::{TalkOwned, TalkValue};
+                    use #flo_talk_crate::{TalkOwned, TalkValue};
 
                     TalkOwned::new(TalkValue::Message(Box::new(self.to_message(context).leak())), context)
                 }
