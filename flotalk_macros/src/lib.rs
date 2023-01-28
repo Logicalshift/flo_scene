@@ -8,16 +8,29 @@ use syn::{Ident, Generics, Data, DataEnum, DataStruct, Variant, Fields, Field, A
 use syn::spanned::Spanned;
 
 use once_cell::sync::{Lazy};
+use std::env;
 use std::iter;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 ///
 /// Returns the target crate for the macro (ie, the crate containing the flo_talk definitions)
 ///
+/// This is `::flo_talk` usually but will be `crate` if compiling flo_talk itself
+///
 fn flo_talk_crate() -> TokenStream2 {
-    // By default, this is flo_talk
-    quote! {
-        ::flo_talk
+    // When we're compiling the flo_talk crate itself, we can't refer to it as 'flo_talk' as Rust does not support this, so we need to know if we're compiling flo_talk itself
+    let crate_name = std::env::var("CARGO_PKG_NAME").unwrap();
+
+    if crate_name == "flo_talk" {
+        // If we're compiling flo_talk itself, we can't call the declarations `::flo_talk::foo` as Rust doesn't map `::flo_talk` to `crate` in this case
+        quote! {
+            crate
+        }
+    } else {
+        // By default, this refers to the 'flo_talk' crate
+        quote! {
+            ::flo_talk
+        }
     }
 }
 
