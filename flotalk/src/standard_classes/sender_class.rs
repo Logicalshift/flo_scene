@@ -148,3 +148,31 @@ where
 
     (sender, receive)
 }
+
+///
+/// Creates a sender object in a continuation, along with a receiver stream for a specific item type
+///
+pub fn create_talk_sender<'a, TItem>() -> (TalkContinuation<'static>, impl Send + Stream<Item=TItem>)
+where
+    TItem: 'static + Send + TalkMessageType,
+{
+    // Create a sender and a receiver
+    let sender_class    = talk_sender_class::<TItem>();
+    let (send, receive) = mpsc::channel(1);
+
+    // Create a continuation to create the sender object
+    let continuation = TalkContinuation::soon(move |talk_context| {
+        // Get the class to create and the allocator
+        let allocator           = talk_context.get_callbacks_mut(sender_class).allocator::<TalkStandardAllocator<TalkSender<TItem>>>().unwrap();
+
+        // Create the sender and store it using the allocator
+        let sender              = TalkSender { sender: Arc::new(lock::Mutex::new(send)) };
+        let sender_data_handle  = allocator.lock().unwrap().store(sender);
+
+        // Result is a reference to the sender object
+        let sender              = TalkReference(sender_class, sender_data_handle);
+        sender.into()
+    });
+
+    (continuation, receive)
+}
