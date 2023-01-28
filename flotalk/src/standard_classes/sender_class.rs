@@ -127,7 +127,7 @@ where
 ///
 /// Creates a sender object and a receiver stream for a specific item type
 ///
-pub fn create_talk_sender<'a, TItem>(talk_context: &'a mut TalkContext) -> (TalkOwned<TalkReference, &'a TalkContext>, impl Send + Stream<Item=TItem>)
+pub fn create_talk_sender_in_context<'a, TItem>(talk_context: &'a mut TalkContext) -> (TalkOwned<TalkReference, &'a TalkContext>, impl Send + Stream<Item=TItem>)
 where
     TItem: 'static + Send + TalkMessageType,
 {

@@ -690,7 +690,7 @@ impl TalkInvertedClass {
     fn create_stream_instance(stream_class_id: TalkClass) -> TalkContinuation<'static> {
         TalkContinuation::soon(move |talk_context| {
             // Create a stream for the sender and receiver
-            let (sender, receiver)  = create_talk_sender::<TalkMessage>(talk_context);
+            let (sender, receiver)  = create_talk_sender_in_context::<TalkMessage>(talk_context);
             let sender              = sender.leak();
             let receiver            = create_talk_receiver(receiver, talk_context);
             let receiver            = receiver.leak();

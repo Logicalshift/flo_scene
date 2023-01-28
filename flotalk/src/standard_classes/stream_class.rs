@@ -59,7 +59,7 @@ impl TalkClassDefinition for TalkStreamClass {
 
             TalkContinuation::soon(move |context| {
                 // Create a sender and a receiver
-                let (sender_value, receiver_stream) = create_talk_sender::<TalkMessage>(context);
+                let (sender_value, receiver_stream) = create_talk_sender_in_context::<TalkMessage>(context);
                 let sender_value                    = sender_value.leak();
                 let receiver                        = create_talk_receiver(receiver_stream, context);
                 let receiver                        = receiver.leak();
@@ -77,7 +77,7 @@ impl TalkClassDefinition for TalkStreamClass {
 
             TalkContinuation::soon(move |context| {
                 // Create a sender and a receiver
-                let (sender_value, receiver_stream) = create_talk_sender::<TalkMessage>(context);
+                let (sender_value, receiver_stream) = create_talk_sender_in_context::<TalkMessage>(context);
                 let sender_value                    = sender_value.leak();
                 let receiver                        = create_talk_receiver(receiver_stream, context);
                 let receiver                        = receiver.leak();

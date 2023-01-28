@@ -265,7 +265,7 @@ impl TalkRuntime {
                 // Create the sender object and the receiver stream
                 let (sender, receiver)  = {
                     let mut context         = context.lock().await;
-                    let (sender, receiver)  = create_talk_sender::<TStreamItem>(&mut *context);
+                    let (sender, receiver)  = create_talk_sender_in_context::<TStreamItem>(&mut *context);
                     (sender.leak(), receiver)
                 };
 
