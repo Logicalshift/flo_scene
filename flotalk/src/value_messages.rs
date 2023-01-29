@@ -443,10 +443,53 @@ pub static TALK_DISPATCH_NUMBER: Lazy<TalkMessageDispatchTable<TalkNumber>> = La
     );
 
 ///
+/// Reads the characters in a string and passes them to a block object
+///
+#[inline]
+fn string_do(string: Arc<String>, do_object: TalkValue) -> TalkContinuation<'static> {
+    // Need to collect the characters into a vec
+    let string_chrs = string.chars().collect::<Vec<_>>();
+
+    string_do_iter(0, string_chrs, do_object)
+}
+
+///
+/// Performs a single iteration of the string's 'do' operation
+///
+#[inline]
+fn string_do_iter(idx: usize, chars: Vec<char>, do_object: TalkValue) -> TalkContinuation<'static> {
+    TalkContinuation::soon(move |talk_context| {
+        if idx < chars.len() {
+            // Send the next character
+            let do_now = do_object.clone_in_context(talk_context);
+            do_now.send_message_in_context(TalkMessage::WithArguments(*TALK_MSG_VALUE_COLON, smallvec![TalkValue::Character(chars[idx])]), talk_context)
+                .and_then_soon(move |result, talk_context| {
+                    // Move to the next index
+                    let idx = idx + 1;
+
+                    if result.is_error() || idx >= chars.len() {
+                        // Stop if there's an error or we've reached the end of the list of characters
+                        do_object.release_in_context(talk_context);
+                        result.into()
+                    } else {
+                        // Continue to the next iteration
+                        string_do_iter(idx, chars, do_object)
+                    }
+                })
+        } else {
+            // Finished (no characters)
+            do_object.release_in_context(talk_context);
+            ().into()
+        }
+    })
+}
+
+///
 /// The default message dispatcher for string values
 ///
 pub static TALK_DISPATCH_STRING: Lazy<TalkMessageDispatchTable<Arc<String>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
     .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |string_value| TalkValue::from(string_value))
+    .with_message(*TALK_MSG_DO, |val: TalkOwned<Arc<String>, &'_ TalkContext>, mut args, _| string_do(val.leak(), args[0].take()))
     );
 
 ///
