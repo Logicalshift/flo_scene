@@ -34,29 +34,32 @@ fn send_single_character() {
         })).await;
 
         let mut puttable_stream = puttable_stream;
-        future::join3(
+        future::select(
             async {
                 // TODO: add a way to merge the background tasks into the stream request as with runtime.stream_from
                 runtime.run_background_tasks().await;
-            },
-            async {
-                // Send 'a' to the stream we just created
-                println!("Running 'put' script");
-                let result = runtime.run(TalkScript::from("
-                    testStream nextPut: $a.
-                ")).await;
+            }.boxed(),
+            
+            future::join(
+                async {
+                    // Send 'a' to the stream we just created
+                    println!("Running 'put' script");
+                    let result = runtime.run(TalkScript::from("
+                        testStream nextPut: $a.
+                    ")).await;
 
-                println!("Script: {:?}", result);
-                assert!(!result.is_error());
-            },
-            async {
-                // Receive the character
-                println!("Waiting for next value...");
-                let next_value = puttable_stream.next().await;
+                    println!("Script: {:?}", result);
+                    assert!(!result.is_error());
+                },
+                async {
+                    // Receive the character
+                    println!("Waiting for next value...");
+                    let next_value = puttable_stream.next().await;
 
-                println!("Stream: {:?}", next_value);
-                assert!(next_value == Some(TalkSimpleStreamRequest::Write("a".into())));
-            }
+                    println!("Stream: {:?}", next_value);
+                    assert!(next_value == Some(TalkSimpleStreamRequest::Write("a".into())));
+                }
+            ).boxed()
         ).await;
     });
 }
