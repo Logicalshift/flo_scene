@@ -7,6 +7,7 @@ use crate::message::*;
 use crate::releasable::*;
 use crate::reference::*;
 use crate::value::*;
+use crate::value_messages::*;
 
 use smallvec::*;
 use once_cell::sync::{Lazy};
@@ -84,8 +85,34 @@ where
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _reference: TalkReference, _allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
-        TalkError::MessageNotSupported(message_id).into()
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
+        if message_id == *TALK_MSG_VALUE_COLON {
+            // Data handle points to the function data in the allocator
+            let data_handle = reference.data_handle();
+
+            // Retrieve the function reference
+            let callback = allocator.lock().unwrap().retrieve(data_handle).func.clone();
+
+            // Convert the argument to the parameter type
+            let mut args = args;
+            let argument = TalkOwned::new(args[0].take(), args.context());
+
+            match TParamType::try_from_talk_value(argument, args.context()) {
+                Err(err)        => err.into(),
+
+                Ok(parameter)   =>  {
+                    // Invoke the function in a continuation (so any locks used by send_instance_message are released)
+                    TalkContinuation::soon(move |talk_context| {
+                        let result = (callback.lock().unwrap())(parameter);
+
+                        // Result is converted back into a FloTalk value
+                        result.into_talk_value(talk_context).leak().into()
+                    })
+                }
+            }
+        } else {
+            TalkError::MessageNotSupported(message_id).into()
+        }
     }
 }
 
