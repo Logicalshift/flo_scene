@@ -443,6 +443,13 @@ pub static TALK_DISPATCH_NUMBER: Lazy<TalkMessageDispatchTable<TalkNumber>> = La
     );
 
 ///
+/// The default message dispatcher for string values
+///
+pub static TALK_DISPATCH_STRING: Lazy<TalkMessageDispatchTable<Arc<String>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
+    .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |string_value| TalkValue::from(string_value))
+    );
+
+///
 /// The default message dispatcher for symbol values
 ///
 pub static TALK_DISPATCH_SYMBOL: Lazy<TalkMessageDispatchTable<TalkSymbol>> = Lazy::new(|| TalkMessageDispatchTable::empty()
@@ -757,7 +764,7 @@ impl Default for TalkValueDispatchTables {
             bool_dispatch:      TALK_DISPATCH_BOOLEAN.clone(),
             int_dispatch:       TALK_DISPATCH_NUMBER.clone(),
             float_dispatch:     TALK_DISPATCH_NUMBER.clone(),
-            string_dispatch:    TalkMessageDispatchTable::empty(),
+            string_dispatch:    TALK_DISPATCH_STRING.clone(),
             character_dispatch: TalkMessageDispatchTable::empty(),
             symbol_dispatch:    TALK_DISPATCH_SYMBOL.clone(),
             selector_dispatch:  TALK_DISPATCH_SELECTOR.clone(),
@@ -780,7 +787,7 @@ impl TalkValue {
             TalkValue::Bool(val)                => TALK_DISPATCH_BOOLEAN.send_message(val, message, context),
             TalkValue::Int(val)                 => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Int(val), message, context),
             TalkValue::Float(val)               => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Float(val), message, context),
-            TalkValue::String(_val)             => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::String(val)              => TALK_DISPATCH_STRING.send_message(val, message, context),
             TalkValue::Character(_val)          => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Symbol(symbol)           => TALK_DISPATCH_SYMBOL.send_message(symbol, message, context),
             TalkValue::Selector(selector)       => TALK_DISPATCH_SELECTOR.send_message(selector, message, context),
