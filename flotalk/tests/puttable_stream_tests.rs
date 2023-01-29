@@ -57,7 +57,7 @@ fn send_single_character() {
                     let next_value = puttable_stream.next().await;
 
                     println!("Stream: {:?}", next_value);
-                    assert!(next_value == Some(TalkSimpleStreamRequest::Write("a".into())));
+                    assert!(next_value == Some(TalkSimpleStreamRequest::WriteChr('a')));
                 }
             ).boxed()
         ).await;

@@ -37,7 +37,15 @@ pub enum TalkPuttableStreamRequest {
 #[derive(Debug, TalkMessageType, PartialEq)]
 pub enum TalkSimpleStreamRequest {
     /// Writes a string to the stream
+    #[message("write:")]
     Write(String),
+
+    /// Writes a single character to the stream
+    #[message("writeChr:")]
+    WriteChr(char),
+
+    /// Flushes the output to the target
+    Flush,
 }
 
 ///
@@ -56,11 +64,11 @@ pub fn talk_puttable_character_stream(receive_stream: impl Into<TalkContinuation
         use TalkPuttableStreamRequest::*;
 
         match request {
-            Flush                               => TalkSimpleStreamRequest::Write("".into()).into_talk_value(talk_context).leak().into(),
-            Cr                                  => TalkSimpleStreamRequest::Write("\n".into()).into_talk_value(talk_context).leak().into(),
-            Space                               => TalkSimpleStreamRequest::Write(" ".into()).into_talk_value(talk_context).leak().into(),
-            Tab                                 => TalkSimpleStreamRequest::Write("\t".into()).into_talk_value(talk_context).leak().into(),
-            NextPut(TalkValue::Character(chr))  => TalkSimpleStreamRequest::Write(chr.into()).into_talk_value(talk_context).leak().into(),
+            Flush                               => TalkSimpleStreamRequest::Flush.into_talk_value(talk_context).leak().into(),
+            Cr                                  => TalkSimpleStreamRequest::WriteChr('\n').into_talk_value(talk_context).leak().into(),
+            Space                               => TalkSimpleStreamRequest::WriteChr(' ').into_talk_value(talk_context).leak().into(),
+            Tab                                 => TalkSimpleStreamRequest::WriteChr('\t').into_talk_value(talk_context).leak().into(),
+            NextPut(TalkValue::Character(chr))  => TalkSimpleStreamRequest::WriteChr(chr).into_talk_value(talk_context).leak().into(),
             NextPutAll(sequence_val)            => {
                 // A place to gather the string in
                 let string      = Arc::new(Mutex::new(String::default()));
