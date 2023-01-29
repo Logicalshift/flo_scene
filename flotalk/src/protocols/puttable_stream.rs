@@ -17,9 +17,11 @@ pub enum TalkPuttableStreamRequest {
     Flush,
 
     /// Writes the value of an object to the stream
+    #[message("nextPut:")]
     NextPut(TalkValue),
 
     /// Writes all of the values in a collection to the stream
+    #[message("nextPutAll:")]
     NextPutAll(TalkValue),
 
     /// Writes a space to the stream
