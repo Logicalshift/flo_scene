@@ -34,7 +34,11 @@ fn send_single_character() {
         })).await;
 
         let mut puttable_stream = puttable_stream;
-        future::join(
+        future::join3(
+            async {
+                // TODO: add a way to merge the background tasks into the stream request as with runtime.stream_from
+                runtime.run_background_tasks().await;
+            },
             async {
                 // Send 'a' to the stream we just created
                 println!("Running 'put' script");
