@@ -30,6 +30,7 @@ pub enum TalkPuttableStreamRequest {
 ///
 /// FlotTalk's simple stream protocol
 ///
+#[derive(TalkMessageType)]
 pub enum TalkSimpleStreamRequest {
     /// Writes a string to the stream
     Write(String),
@@ -41,14 +42,32 @@ pub enum TalkSimpleStreamRequest {
 /// This is the type of stream that SmallTalk uses for the 'transcript' object, and forms the basis of the output mechanism for FloTalk
 ///
 pub fn talk_puttable_character_stream(receive_stream: impl Into<TalkContinuation<'static>>) -> (impl Stream<Item = TalkSimpleStreamRequest>, TalkContinuation<'static>) {
+    use futures::stream;
+
     // Create a 'puttable' stream and pass it to the block created by the receive_stream continuation
     let (create_sender_continuation, stream) = create_talk_sender::<TalkPuttableStreamRequest>();
 
     // Every value needs to be properly released when done, and we also need to evaluate the characters in the sequence passed to NextPutAll, so we need a stream processing continuation
-    let (simple_stream, simple_continuation) = talk_map_stream(stream, |request, talk_context| {
-        // TODO: we need to deal with put all by running another continuation :-/
-        TalkSimpleStreamRequest::Write("".to_string())
+    let (simple_stream, simple_continuation) = talk_pipe_stream(stream, |request, talk_context| {
+        use TalkPuttableStreamRequest::*;
+
+        match request {
+            Flush                               => TalkSimpleStreamRequest::Write("".into()).into_talk_value(talk_context).leak().into(),
+            Cr                                  => TalkSimpleStreamRequest::Write("\n".into()).into_talk_value(talk_context).leak().into(),
+            Space                               => TalkSimpleStreamRequest::Write(" ".into()).into_talk_value(talk_context).leak().into(),
+            Tab                                 => TalkSimpleStreamRequest::Write("\t".into()).into_talk_value(talk_context).leak().into(),
+            NextPut(TalkValue::Character(chr))  => TalkSimpleStreamRequest::Write(chr.into()).into_talk_value(talk_context).leak().into(),
+            NextPutAll(sequence_val)            => todo!(),
+
+            NextPut(other)                      => {
+                other.release_in_context(talk_context);
+                TalkSimpleStreamRequest::Write("?".into()).into_talk_value(talk_context).leak().into()
+            }
+
+        }
     });
+
+    let simple_stream = simple_stream.flat_map(|val| stream::iter(val.ok()));
 
     // Put the simple continuation in the background
     let receive_stream  = receive_stream.into();
