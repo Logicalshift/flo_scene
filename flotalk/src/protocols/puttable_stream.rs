@@ -8,7 +8,7 @@ use std::sync::*;
 ///
 /// FloTalk's puttableStream protocol
 ///
-#[derive(TalkMessageType)]
+#[derive(Debug, TalkMessageType, PartialEq)]
 pub enum TalkPuttableStreamRequest {
     /// Writes a carriage return sequence to the stream
     Cr,
@@ -32,7 +32,7 @@ pub enum TalkPuttableStreamRequest {
 ///
 /// FlotTalk's simple stream protocol
 ///
-#[derive(TalkMessageType)]
+#[derive(Debug, TalkMessageType, PartialEq)]
 pub enum TalkSimpleStreamRequest {
     /// Writes a string to the stream
     Write(String),
