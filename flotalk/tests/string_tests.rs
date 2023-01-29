@@ -16,7 +16,7 @@ fn string_do_count_characters() {
 
             'Test string' do: [ :char | count := count + 1. ].
             count
-            ")).await;
+        ")).await;
 
         println!("{:?}", result);
         assert!(*result == TalkValue::Int(11));
