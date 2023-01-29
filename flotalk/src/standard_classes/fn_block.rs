@@ -9,9 +9,14 @@ use crate::reference::*;
 use crate::value::*;
 
 use smallvec::*;
+use once_cell::sync::{Lazy};
 
+use std::any::{TypeId};
+use std::collections::{HashMap};
 use std::marker::{PhantomData};
 use std::sync::*;
+
+static FN_BLOCK_CLASS: Lazy<Mutex<HashMap<TypeId, TalkClass>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 ///
 /// Represents a function block class (a call to a particular rust function, invoked by calling 'value:' on any instance)
@@ -82,4 +87,58 @@ where
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _reference: TalkReference, _allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
     }
+}
+
+impl<TFn, TParamType, TReturnValue> TalkFnBlock<TFn, TParamType, TReturnValue>
+where
+    TFn:            'static + Send + Fn(TParamType) -> TReturnValue,
+    TParamType:     'static + Send + TalkValueType,
+    TReturnValue:   'static + Send + TalkValueType,
+{
+    ///
+    /// Returns the class ID for this function block type
+    ///
+    pub fn class() -> TalkClass {
+        let our_type    = TypeId::of::<Self>();
+        let mut classes = FN_BLOCK_CLASS.lock().unwrap();
+
+        if let Some(class_id) = classes.get(&our_type) {
+            *class_id
+        } else {
+            let class_id = TalkClass::create(TalkFnBlock { callback: PhantomData::<Arc<Mutex<TFn>>>, param: PhantomData, return_value: PhantomData });
+            classes.insert(our_type, class_id);
+
+            class_id
+        }
+    }
+}
+
+///
+/// Creates a function block in a context (supports the 'value:' message to call the rust function)
+///
+pub fn talk_fn_block_in_context<'a, TFn, TParamType, TReturnValue>(callback: TFn, context: &'a mut TalkContext) -> TalkOwned<TalkReference, &'a TalkContext> 
+where
+    TFn:            'static + Send + Fn(TParamType) -> TReturnValue,
+    TParamType:     'static + Send + TalkValueType,
+    TReturnValue:   'static + Send + TalkValueType,
+{
+    // Fetch the allocator for this class ID
+    let class_id    = TalkFnBlock::<TFn, TParamType, TReturnValue>::class();
+    let callbacks   = context.get_callbacks_mut(class_id);
+    let allocator   = callbacks.allocator.downcast_ref::<Arc<Mutex<<TalkFnBlock::<TFn, TParamType, TReturnValue> as TalkClassDefinition>::Allocator>>>()
+            .map(|defn| Arc::clone(defn))
+            .unwrap();
+
+    // Create a data object with the function definition in it
+    let data        = TalkFnData {
+        func:           Arc::new(Mutex::new(callback)),
+        param:          PhantomData,
+        return_value:   PhantomData
+    };
+
+    let data_handle = allocator.lock().unwrap().store(data);
+
+    // Reference is made up of the class and data handle
+    let reference = TalkReference(class_id, data_handle);
+    TalkOwned::new(reference, context)
 }
