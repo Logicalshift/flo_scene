@@ -3,6 +3,8 @@ use crate::*;
 use smallvec::*;
 use futures::prelude::*;
 
+use std::sync::*;
+
 ///
 /// FloTalk's puttableStream protocol
 ///
@@ -57,7 +59,29 @@ pub fn talk_puttable_character_stream(receive_stream: impl Into<TalkContinuation
             Space                               => TalkSimpleStreamRequest::Write(" ".into()).into_talk_value(talk_context).leak().into(),
             Tab                                 => TalkSimpleStreamRequest::Write("\t".into()).into_talk_value(talk_context).leak().into(),
             NextPut(TalkValue::Character(chr))  => TalkSimpleStreamRequest::Write(chr.into()).into_talk_value(talk_context).leak().into(),
-            NextPutAll(sequence_val)            => todo!(),
+            NextPutAll(sequence_val)            => {
+                // A place to gather the string in
+                let string      = Arc::new(Mutex::new(String::default()));
+
+                // Create the block function to pass to the 'do:' message
+                let string_copy = Arc::clone(&string);
+                let fill_string = talk_fn_block_in_context(move |next_chr: TalkValue /* TODO: use an owned value? Will leak otherwise */| {
+                    let chr = match next_chr {
+                        TalkValue::Character(chr)   => chr,
+                        _                           => '?'
+                    };
+
+                    string_copy.lock().unwrap().push(chr);
+                }, talk_context);
+
+                // Call 'do:' on the target with the block function we just created, then send the string once the iteration completes
+                sequence_val.send_message_in_context(TalkMessage::WithArguments(*TALK_MSG_DO, smallvec![fill_string.leak().into()]), talk_context)
+                    .and_then_soon(move |_, talk_context| {
+                        // String has been generated: send it to the stream
+                        let string = string.lock().unwrap().clone();
+                        TalkSimpleStreamRequest::Write(string).into_talk_value(talk_context).leak().into()
+                    })
+            },
 
             NextPut(other)                      => {
                 other.release_in_context(talk_context);
