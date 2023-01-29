@@ -45,7 +45,7 @@ pub fn talk_puttable_character_stream(receive_stream: impl Into<TalkContinuation
     let (create_sender_continuation, stream) = create_talk_sender::<TalkPuttableStreamRequest>();
 
     // Every value needs to be properly released when done, and we also need to evaluate the characters in the sequence passed to NextPutAll, so we need a stream processing continuation
-    let (simple_stream, simple_continuation) = talk_pipe_stream(stream, |request, talk_context| {
+    let (simple_stream, simple_continuation) = talk_map_stream(stream, |request, talk_context| {
         // TODO: we need to deal with put all by running another continuation :-/
         TalkSimpleStreamRequest::Write("".to_string())
     });

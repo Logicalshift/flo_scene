@@ -308,7 +308,7 @@ fn stream_through_receiver_from_script() {
 }
 
 #[test]
-fn stream_via_pipe() {
+fn stream_via_map() {
     executor::block_on(async {
         use futures::future;
         use futures::stream;
@@ -317,7 +317,7 @@ fn stream_via_pipe() {
         let stream  = stream::iter(vec![1, 2, 3]);
 
         // Create a piped stream that just preserves the items (we want to make sure we can read the items)
-        let (stream, continuation) = talk_pipe_stream(stream, |item, _talk_context| item);
+        let (stream, continuation) = talk_map_stream(stream, |item, _talk_context| item);
 
         // Run the continuation and check the stream
         let mut stream = stream;
@@ -327,6 +327,32 @@ fn stream_via_pipe() {
                 assert!(stream.next().await == Some(1));
                 assert!(stream.next().await == Some(2));
                 assert!(stream.next().await == Some(3));
+                assert!(stream.next().await == None);
+            }
+        ).await;
+    });
+}
+
+#[test]
+fn stream_via_pipe() {
+    executor::block_on(async {
+        use futures::future;
+        use futures::stream;
+
+        let runtime = TalkRuntime::empty();
+        let stream  = stream::iter(vec![1, 2, 3]);
+
+        // Create a piped stream that just preserves the items (we want to make sure we can read the items)
+        let (stream, continuation) = talk_pipe_stream(stream, |item, _talk_context| TalkValue::Int(item).into());
+
+        // Run the continuation and check the stream
+        let mut stream = stream;
+        future::join(
+            runtime.run(continuation),
+            async {
+                assert!(stream.next().await == Some(Ok(1)));
+                assert!(stream.next().await == Some(Ok(2)));
+                assert!(stream.next().await == Some(Ok(3)));
                 assert!(stream.next().await == None);
             }
         ).await;
