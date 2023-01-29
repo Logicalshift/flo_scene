@@ -90,6 +90,9 @@ pub enum TalkError {
 
     /// An object is already busy servicing another request so the new request cannot be processed
     Busy,
+
+    /// A message can't be sent because the target stream is closed
+    StreamClosed,
 }
 
 impl From<TalkParseError> for TalkError {
