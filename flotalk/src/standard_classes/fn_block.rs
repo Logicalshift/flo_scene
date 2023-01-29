@@ -173,6 +173,22 @@ where
 ///
 /// Creates a function block using a continuation (the returned reference supports the 'value:' message to call the rust function)
 ///
+/// A function block can be used in a case where a FloTalk routine needs to call back into a rust routine: it acts like a FloTalk block
+/// that is declared with a single parameter. For example, the `do:` iterator callback can be made to call into a Rust routine using
+/// something like:
+///
+/// ```
+/// # use flo_talk::*;
+/// # let target_reference = TalkValue::Nil;
+/// let call_do = talk_fn_block(|x: i32| { println!("{}", x); })
+///     .and_then_soon_if_ok(move |do_block, talk_context| {
+///         target_reference.send_message_in_context(TalkMessage::with_arguments(vec![("do:", do_block)]), talk_context)
+///     });
+/// ```
+///
+/// Note that using a stream is generally a much more straightforward way to interface between Rust and FloTalk: this is mostly useful
+/// when a stream type is not available for some reason (the 'do:' function on a collection in this case).
+///
 pub fn talk_fn_block<'a, TFn, TParamType, TReturnValue>(callback: TFn) -> TalkContinuation<'static> 
 where
     TFn:            'static + Send + Fn(TParamType) -> TReturnValue,
