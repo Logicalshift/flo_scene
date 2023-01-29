@@ -142,3 +142,15 @@ where
     let reference = TalkReference(class_id, data_handle);
     TalkOwned::new(reference, context)
 }
+
+///
+/// Creates a function block using a continuation (the returned reference supports the 'value:' message to call the rust function)
+///
+pub fn talk_fn_block<'a, TFn, TParamType, TReturnValue>(callback: TFn) -> TalkContinuation<'static> 
+where
+    TFn:            'static + Send + Fn(TParamType) -> TReturnValue,
+    TParamType:     'static + Send + TalkValueType,
+    TReturnValue:   'static + Send + TalkValueType,
+{
+    TalkContinuation::soon(move |talk_context| talk_fn_block_in_context(callback, talk_context).leak().into())
+}
