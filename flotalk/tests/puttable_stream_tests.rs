@@ -16,8 +16,8 @@ fn send_single_character() {
 
         // Create a puttable stream for our test
         // TODO: the way we do this is currently somewhat inelegant
-        let mut test_stream_value   = Arc::new(Mutex::new(None));
-        let stream_value            = test_stream_value.clone();
+        let test_stream_value   = Arc::new(Mutex::new(None));
+        let stream_value        = test_stream_value.clone();
 
         // Create the stream and assign the 'puttable stream value'
         let (puttable_stream, puttable_continuation) = talk_puttable_character_stream(talk_fn_block(move |new_stream: TalkValue| {
@@ -37,6 +37,7 @@ fn send_single_character() {
         future::join(
             async {
                 // Send 'a' to the stream we just created
+                println!("Running 'put' script");
                 let result = runtime.run(TalkScript::from("
                     testStream nextPut: $a.
                 ")).await;
@@ -46,7 +47,8 @@ fn send_single_character() {
             },
             async {
                 // Receive the character
-                let mut next_value = puttable_stream.next().await;
+                println!("Waiting for next value...");
+                let next_value = puttable_stream.next().await;
 
                 println!("Stream: {:?}", next_value);
                 assert!(next_value == Some(TalkSimpleStreamRequest::Write("a".into())));
