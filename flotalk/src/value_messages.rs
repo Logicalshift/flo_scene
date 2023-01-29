@@ -117,6 +117,7 @@ pub static TALK_MSG_UNRECEIVED: Lazy<TalkMessageSignatureId>                  = 
 // Valuable protocol messages
 
 pub static TALK_MSG_VALUE: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| "value".into());
+pub static TALK_MSG_VALUE_COLON: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| "value:".into());
 pub static TALK_MSG_WHILE_FALSE: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| "whileFalse".into());
 pub static TALK_MSG_WHILE_FALSE_COLON: Lazy<TalkMessageSignatureId>           = Lazy::new(|| ("whileFalse:").into());
 pub static TALK_MSG_WHILE_TRUE: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| "whileTrue".into());
