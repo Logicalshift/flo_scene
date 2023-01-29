@@ -34,9 +34,16 @@ pub enum TalkSimpleStreamRequest {
 
 /*
 ///
-/// This creates a TalkPuttableStream
+/// This creates a TalkPuttableStream and passes it to the result of the receive_stream continuation
+///
+/// This is the type of stream that SmallTalk uses for the 'transcript' object, and forms the basis of the output mechanism for FloTalk
 ///
 pub fn talk_puttable_character_stream(receive_stream: impl Into<TalkContinuation<'static>>) -> (TalkContinuation<'static>, impl Stream<Item = TalkSimpleStreamRequest>) {
+    // Create a 'puttable' stream and pass it to the block created by the receive_stream continuation
+    let (stream, continuation) = create_talk_stream::<TalkPuttableStreamRequest>(receive_stream);
 
+    // Every value needs to be properly released when done, and we also need to evaluate the characters in the sequence passed to NextPutAll, so we need a stream processing continuation
+
+    todo!()
 }
 */
