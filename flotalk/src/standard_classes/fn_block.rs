@@ -204,3 +204,14 @@ where
 {
     TalkContinuation::soon(move |talk_context| talk_fn_block_in_context(callback, talk_context).leak().into())
 }
+
+///
+/// Creates a function block that returns a continuation to generate its result
+///
+pub fn talk_fn_block_continuation<'a, TFn, TParamType>(callback: TFn) -> TalkContinuation<'static> 
+where
+    TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
+    TParamType:     'static + Send + TalkValueType,
+{
+    TalkContinuation::soon(move |talk_context| talk_fn_block_continuation_in_context(callback, talk_context).leak().into())
+}
