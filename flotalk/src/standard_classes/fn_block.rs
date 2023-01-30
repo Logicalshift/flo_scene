@@ -24,7 +24,7 @@ static FN_BLOCK_CLASS: Lazy<Mutex<HashMap<TypeId, TalkClass>>> = Lazy::new(|| Mu
 ///
 pub struct TalkFnBlock<TFn, TParamType, TReturnValue> 
 where
-    TFn:            'static + Send + Fn(TParamType) -> TReturnValue,
+    TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
     TParamType:     'static + Send + TalkValueType,
     TReturnValue:   'static + Send + TalkValueType,
 {
@@ -35,7 +35,7 @@ where
 
 pub struct TalkFnData<TFn, TParamType, TReturnValue>
 where
-    TFn:            'static + Send + Fn(TParamType) -> TReturnValue,
+    TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
     TParamType:     'static + Send + TalkValueType,
     TReturnValue:   'static + Send + TalkValueType,
 {
@@ -46,7 +46,7 @@ where
 
 impl<TFn, TParamType, TReturnValue> TalkReleasable for TalkFnData<TFn, TParamType, TReturnValue> 
 where
-    TFn:            'static + Send + Fn(TParamType) -> TReturnValue,
+    TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
     TParamType:     'static + Send + TalkValueType,
     TReturnValue:   'static + Send + TalkValueType,
 {
@@ -56,7 +56,7 @@ where
 
 impl<TFn, TParamType, TReturnValue> TalkClassDefinition for TalkFnBlock<TFn, TParamType, TReturnValue>
 where
-    TFn:            'static + Send + Fn(TParamType) -> TReturnValue,
+    TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
     TParamType:     'static + Send + TalkValueType,
     TReturnValue:   'static + Send + TalkValueType,
 {
@@ -102,12 +102,7 @@ where
 
                 Ok(parameter)   =>  {
                     // Invoke the function in a continuation (so any locks used by send_instance_message are released)
-                    TalkContinuation::soon(move |talk_context| {
-                        let result = (callback.lock().unwrap())(parameter);
-
-                        // Result is converted back into a FloTalk value
-                        result.into_talk_value(talk_context).leak().into()
-                    })
+                    (callback.lock().unwrap())(parameter)
                 }
             }
         } else {
@@ -118,7 +113,7 @@ where
 
 impl<TFn, TParamType, TReturnValue> TalkFnBlock<TFn, TParamType, TReturnValue>
 where
-    TFn:            'static + Send + Fn(TParamType) -> TReturnValue,
+    TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
     TParamType:     'static + Send + TalkValueType,
     TReturnValue:   'static + Send + TalkValueType,
 {
@@ -132,7 +127,7 @@ where
         if let Some(class_id) = classes.get(&our_type) {
             *class_id
         } else {
-            let class_id = TalkClass::create(TalkFnBlock { callback: PhantomData::<Arc<Mutex<TFn>>>, param: PhantomData, return_value: PhantomData });
+            let class_id = TalkClass::create(TalkFnBlock { callback: PhantomData::<Arc<Mutex<TFn>>>, param: PhantomData, return_value: PhantomData::<Arc<Mutex<()>>> });
             classes.insert(our_type, class_id);
 
             class_id
@@ -143,16 +138,15 @@ where
 ///
 /// Creates a function block in a context (supports the 'value:' message to call the rust function)
 ///
-pub fn talk_fn_block_in_context<'a, TFn, TParamType, TReturnValue>(callback: TFn, context: &'a mut TalkContext) -> TalkOwned<TalkReference, &'a TalkContext> 
+pub fn talk_fn_block_continuation_in_context<'a, TFn, TParamType>(callback: TFn, context: &'a mut TalkContext) -> TalkOwned<TalkReference, &'a TalkContext> 
 where
-    TFn:            'static + Send + Fn(TParamType) -> TReturnValue,
+    TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
     TParamType:     'static + Send + TalkValueType,
-    TReturnValue:   'static + Send + TalkValueType,
 {
     // Fetch the allocator for this class ID
-    let class_id    = TalkFnBlock::<TFn, TParamType, TReturnValue>::class();
+    let class_id    = TalkFnBlock::<TFn, TParamType, ()>::class();
     let callbacks   = context.get_callbacks_mut(class_id);
-    let allocator   = callbacks.allocator.downcast_ref::<Arc<Mutex<<TalkFnBlock::<TFn, TParamType, TReturnValue> as TalkClassDefinition>::Allocator>>>()
+    let allocator   = callbacks.allocator.downcast_ref::<Arc<Mutex<<TalkFnBlock::<TFn, TParamType, ()> as TalkClassDefinition>::Allocator>>>()
             .map(|defn| Arc::clone(defn))
             .unwrap();
 
@@ -168,6 +162,27 @@ where
     // Reference is made up of the class and data handle
     let reference = TalkReference(class_id, data_handle);
     TalkOwned::new(reference, context)
+}
+
+///
+/// Creates a function block in a context (supports the 'value:' message to call the rust function)
+///
+pub fn talk_fn_block_in_context<'a, TFn, TParamType, TReturnValue>(callback: TFn, context: &'a mut TalkContext) -> TalkOwned<TalkReference, &'a TalkContext> 
+where
+    TFn:            'static + Send + Fn(TParamType) -> TReturnValue,
+    TParamType:     'static + Send + TalkValueType,
+    TReturnValue:   'static + Send + TalkValueType,
+{
+    // Make the callback return a continuation
+    let callback    = move |param| {
+        let result = callback(param);
+        TalkContinuation::soon(move |talk_context| {
+            result.into_talk_value(talk_context).leak().into()
+        })
+    };
+
+    // Create a continuation fn_block
+    talk_fn_block_continuation_in_context(callback, context)
 }
 
 ///
