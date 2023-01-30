@@ -22,46 +22,40 @@ static FN_BLOCK_CLASS: Lazy<Mutex<HashMap<TypeId, TalkClass>>> = Lazy::new(|| Mu
 ///
 /// Represents a function block class (a call to a particular rust function, invoked by calling 'value:' on any instance)
 ///
-pub struct TalkFnBlock<TFn, TParamType, TReturnValue> 
+pub struct TalkFnBlock<TFn, TParamType> 
 where
     TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
     TParamType:     'static + Send + TalkValueType,
-    TReturnValue:   'static + Send + TalkValueType,
 {
     callback:       PhantomData<Arc<Mutex<TFn>>>,
     param:          PhantomData<Arc<Mutex<TParamType>>>,
-    return_value:   PhantomData<Arc<Mutex<TReturnValue>>>,
 }
 
-pub struct TalkFnData<TFn, TParamType, TReturnValue>
+pub struct TalkFnData<TFn, TParamType>
 where
     TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
     TParamType:     'static + Send + TalkValueType,
-    TReturnValue:   'static + Send + TalkValueType,
 {
     func:           Arc<Mutex<TFn>>,
     param:          PhantomData<Arc<Mutex<TParamType>>>,
-    return_value:   PhantomData<Arc<Mutex<TReturnValue>>>,
 }
 
-impl<TFn, TParamType, TReturnValue> TalkReleasable for TalkFnData<TFn, TParamType, TReturnValue> 
+impl<TFn, TParamType> TalkReleasable for TalkFnData<TFn, TParamType> 
 where
     TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
     TParamType:     'static + Send + TalkValueType,
-    TReturnValue:   'static + Send + TalkValueType,
 {
     #[inline]
     fn release_in_context(self, _context: &TalkContext) { }
 }
 
-impl<TFn, TParamType, TReturnValue> TalkClassDefinition for TalkFnBlock<TFn, TParamType, TReturnValue>
+impl<TFn, TParamType> TalkClassDefinition for TalkFnBlock<TFn, TParamType>
 where
     TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
     TParamType:     'static + Send + TalkValueType,
-    TReturnValue:   'static + Send + TalkValueType,
 {
     /// The type of the data stored by an object of this class
-    type Data = TalkFnData<TFn, TParamType, TReturnValue>;
+    type Data = TalkFnData<TFn, TParamType>;
 
     /// The allocator is used to manage the memory of this class within a context
     type Allocator = TalkStandardAllocator<Self::Data>;
@@ -111,11 +105,10 @@ where
     }
 }
 
-impl<TFn, TParamType, TReturnValue> TalkFnBlock<TFn, TParamType, TReturnValue>
+impl<TFn, TParamType> TalkFnBlock<TFn, TParamType>
 where
     TFn:            'static + Send + Fn(TParamType) -> TalkContinuation<'static>,
     TParamType:     'static + Send + TalkValueType,
-    TReturnValue:   'static + Send + TalkValueType,
 {
     ///
     /// Returns the class ID for this function block type
@@ -127,7 +120,7 @@ where
         if let Some(class_id) = classes.get(&our_type) {
             *class_id
         } else {
-            let class_id = TalkClass::create(TalkFnBlock { callback: PhantomData::<Arc<Mutex<TFn>>>, param: PhantomData, return_value: PhantomData::<Arc<Mutex<()>>> });
+            let class_id = TalkClass::create(TalkFnBlock { callback: PhantomData::<Arc<Mutex<TFn>>>, param: PhantomData });
             classes.insert(our_type, class_id);
 
             class_id
@@ -144,9 +137,9 @@ where
     TParamType:     'static + Send + TalkValueType,
 {
     // Fetch the allocator for this class ID
-    let class_id    = TalkFnBlock::<TFn, TParamType, ()>::class();
+    let class_id    = TalkFnBlock::<TFn, TParamType>::class();
     let callbacks   = context.get_callbacks_mut(class_id);
-    let allocator   = callbacks.allocator.downcast_ref::<Arc<Mutex<<TalkFnBlock::<TFn, TParamType, ()> as TalkClassDefinition>::Allocator>>>()
+    let allocator   = callbacks.allocator.downcast_ref::<Arc<Mutex<<TalkFnBlock::<TFn, TParamType> as TalkClassDefinition>::Allocator>>>()
             .map(|defn| Arc::clone(defn))
             .unwrap();
 
@@ -154,7 +147,6 @@ where
     let data        = TalkFnData {
         func:           Arc::new(Mutex::new(callback)),
         param:          PhantomData,
-        return_value:   PhantomData
     };
 
     let data_handle = allocator.lock().unwrap().store(data);
