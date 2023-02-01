@@ -62,9 +62,10 @@ pub enum TalkTerminalCmd {
 ///
 #[derive(Debug, TalkMessageType, PartialEq)]
 pub enum TalkTerminalEvent {
-    /// Sent to the stream when it's initialised with a true or false value to indicate if the terminal supports attributed text or not
-    #[message("supportsAttributes:")]
-    SupportsAttributes(bool),
+    /// Sent to the stream when it's initialised with a true or false value to indicate if the terminal supports terminal commands or not. If this is false, then
+    /// only the 'puttableStream' instructions will do anything
+    #[message("SupportsTerminalCommands:")]
+    SupportsTerminalCommands(bool),
 }
 
 ///
