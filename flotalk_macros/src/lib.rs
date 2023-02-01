@@ -85,6 +85,40 @@ fn message_signature_static(symbols: Vec<String>) -> (TokenStream2, Ident) {
 }
 
 ///
+/// Generates the body of a 'supports_message()' function
+///
+fn supports_message(messages_symbols: Vec<Vec<String>>) -> TokenStream2 {
+    let flo_talk_crate = flo_talk_crate();
+
+    if messages_symbols.len() > 0 {
+        // Generate SparseArray inserts for each supported message
+        let message_inserts = messages_symbols.iter()
+            .map(|symbol_list| {
+                let symbol_list = symbol_list.clone();
+                quote! {
+                    supported_message_ids.insert(TalkMessageSignatureId::from(vec![#(#flo_talk_crate::TalkSymbol::from(#symbol_list)),*]).into(), ());
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // supports_message is implemented by looking up each message in turn
+        quote! {
+            static SUPPORTED_MESSAGE_IDS: #flo_talk_crate::once_cell::sync::Lazy<#flo_talk_crate::sparse_array::TalkSparseArray<()>> = #flo_talk_crate::once_cell::sync::Lazy::new(|| {
+                let mut supported_message_ids = #flo_talk_crate::sparse_array::TalkSparseArray::empty();
+                #(#message_inserts);*
+                supported_message_ids
+            });
+
+            (*SUPPORTED_MESSAGE_IDS).get(id.into()).is_some()
+        }
+    } else {
+        quote! {
+            false
+        }
+    }
+}
+
+///
 /// Returns the message parameter name to use for a named field
 ///
 fn name_for_field(field: &Field) -> String {
@@ -517,6 +551,13 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
+    // Create the 'supports_message' body
+    let supports_message = supports_message(
+        data.variants.iter()
+            .map(|variant| signature_for_fields(&variant.ident, &variant.fields, Some(&variant.attrs)))
+            .collect()
+    );
+
     // Create match arms for each variant for the 'to_message' call
     let to_message_arms = data.variants.iter()
         .map(|variant| enum_variant_to_message(name, variant))
@@ -537,7 +578,7 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
         impl #impl_generics #flo_talk_crate::TalkMessageType for #name #ty_generics #where_clause {
             /// Returns true if a message signature ID can be converted to this type
             fn supports_message(id: TalkMessageSignatureId) -> bool {
-                false // TODO!
+                #supports_message
             }
 
             /// Converts a message to an object of this type
