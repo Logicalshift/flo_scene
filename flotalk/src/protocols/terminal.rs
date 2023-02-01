@@ -166,47 +166,47 @@ pub enum TalkTerminalEvent {
     SupportsTerminalCommands(bool),
 }
 
+static SYMBOL_RESET: Lazy<TalkMessageSignatureId>       = Lazy::new(|| "reset".into());
+static SYMBOL_BLACK: Lazy<TalkMessageSignatureId>       = Lazy::new(|| "black".into());
+static SYMBOL_DARKGREY: Lazy<TalkMessageSignatureId>    = Lazy::new(|| "darkGrey".into());
+static SYMBOL_RED: Lazy<TalkMessageSignatureId>         = Lazy::new(|| "red".into());
+static SYMBOL_DARKRED: Lazy<TalkMessageSignatureId>     = Lazy::new(|| "darkRed".into());
+static SYMBOL_GREEN: Lazy<TalkMessageSignatureId>       = Lazy::new(|| "green".into());
+static SYMBOL_DARKGREEN: Lazy<TalkMessageSignatureId>   = Lazy::new(|| "darkGreen".into());
+static SYMBOL_YELLOW: Lazy<TalkMessageSignatureId>      = Lazy::new(|| "yellow".into());
+static SYMBOL_DARKYELLOW: Lazy<TalkMessageSignatureId>  = Lazy::new(|| "darkYellow".into());
+static SYMBOL_BLUE: Lazy<TalkMessageSignatureId>        = Lazy::new(|| "blue".into());
+static SYMBOL_DARKBLUE: Lazy<TalkMessageSignatureId>    = Lazy::new(|| "darkBlue".into());
+static SYMBOL_MAGENTA: Lazy<TalkMessageSignatureId>     = Lazy::new(|| "magenta".into());
+static SYMBOL_DARKMAGENTA: Lazy<TalkMessageSignatureId> = Lazy::new(|| "darkMagenta".into());
+static SYMBOL_CYAN: Lazy<TalkMessageSignatureId>        = Lazy::new(|| "cyan".into());
+static SYMBOL_DARKCYAN: Lazy<TalkMessageSignatureId>    = Lazy::new(|| "darkCyan".into());
+static SYMBOL_WHITE: Lazy<TalkMessageSignatureId>       = Lazy::new(|| "white".into());
+static SYMBOL_GREY: Lazy<TalkMessageSignatureId>        = Lazy::new(|| "grey".into());
+static MSG_RGB: Lazy<TalkMessageSignatureId>            = Lazy::new(|| ("r:", "g:", "b:").into());
+
 impl TalkValueType for TalkStyleColor {
     fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         use TalkStyleColor::*;
 
-        static SYMBOL_RESET: Lazy<TalkValue>         = Lazy::new(|| TalkValue::Selector("reset".into()));
-        static SYMBOL_BLACK: Lazy<TalkValue>         = Lazy::new(|| TalkValue::Selector("black".into()));
-        static SYMBOL_DARKGREY: Lazy<TalkValue>      = Lazy::new(|| TalkValue::Selector("darkGrey".into()));
-        static SYMBOL_RED: Lazy<TalkValue>           = Lazy::new(|| TalkValue::Selector("red".into()));
-        static SYMBOL_DARKRED: Lazy<TalkValue>       = Lazy::new(|| TalkValue::Selector("darkRed".into()));
-        static SYMBOL_GREEN: Lazy<TalkValue>         = Lazy::new(|| TalkValue::Selector("green".into()));
-        static SYMBOL_DARKGREEN: Lazy<TalkValue>     = Lazy::new(|| TalkValue::Selector("darkGreen".into()));
-        static SYMBOL_YELLOW: Lazy<TalkValue>        = Lazy::new(|| TalkValue::Selector("yellow".into()));
-        static SYMBOL_DARKYELLOW: Lazy<TalkValue>    = Lazy::new(|| TalkValue::Selector("darkYellow".into()));
-        static SYMBOL_BLUE: Lazy<TalkValue>          = Lazy::new(|| TalkValue::Selector("blue".into()));
-        static SYMBOL_DARKBLUE: Lazy<TalkValue>      = Lazy::new(|| TalkValue::Selector("darkBlue".into()));
-        static SYMBOL_MAGENTA: Lazy<TalkValue>       = Lazy::new(|| TalkValue::Selector("magenta".into()));
-        static SYMBOL_DARKMAGENTA: Lazy<TalkValue>   = Lazy::new(|| TalkValue::Selector("darkMagenta".into()));
-        static SYMBOL_CYAN: Lazy<TalkValue>          = Lazy::new(|| TalkValue::Selector("cyan".into()));
-        static SYMBOL_DARKCYAN: Lazy<TalkValue>      = Lazy::new(|| TalkValue::Selector("darkCyan".into()));
-        static SYMBOL_WHITE: Lazy<TalkValue>         = Lazy::new(|| TalkValue::Selector("white".into()));
-        static SYMBOL_GREY: Lazy<TalkValue>          = Lazy::new(|| TalkValue::Selector("grey".into()));
-        static MSG_RGB: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("r:", "g:", "b:").into());
-
         let value = match self {
-            Reset           => (*SYMBOL_RESET).clone(),
-            Black           => (*SYMBOL_BLACK).clone(),
-            DarkGrey        => (*SYMBOL_DARKGREY).clone(),
-            Red             => (*SYMBOL_RED).clone(),
-            DarkRed         => (*SYMBOL_DARKRED).clone(),
-            Green           => (*SYMBOL_GREEN).clone(),
-            DarkGreen       => (*SYMBOL_DARKGREEN).clone(),
-            Yellow          => (*SYMBOL_YELLOW).clone(),
-            DarkYellow      => (*SYMBOL_DARKYELLOW).clone(),
-            Blue            => (*SYMBOL_BLUE).clone(),
-            DarkBlue        => (*SYMBOL_DARKBLUE).clone(),
-            Magenta         => (*SYMBOL_MAGENTA).clone(),
-            DarkMagenta     => (*SYMBOL_DARKMAGENTA).clone(),
-            Cyan            => (*SYMBOL_CYAN).clone(),
-            DarkCyan        => (*SYMBOL_DARKCYAN).clone(),
-            White           => (*SYMBOL_WHITE).clone(),
-            Grey            => (*SYMBOL_GREY).clone(),
+            Reset           => TalkValue::Selector(*SYMBOL_RESET),
+            Black           => TalkValue::Selector(*SYMBOL_BLACK),
+            DarkGrey        => TalkValue::Selector(*SYMBOL_DARKGREY),
+            Red             => TalkValue::Selector(*SYMBOL_RED),
+            DarkRed         => TalkValue::Selector(*SYMBOL_DARKRED),
+            Green           => TalkValue::Selector(*SYMBOL_GREEN),
+            DarkGreen       => TalkValue::Selector(*SYMBOL_DARKGREEN),
+            Yellow          => TalkValue::Selector(*SYMBOL_YELLOW),
+            DarkYellow      => TalkValue::Selector(*SYMBOL_DARKYELLOW),
+            Blue            => TalkValue::Selector(*SYMBOL_BLUE),
+            DarkBlue        => TalkValue::Selector(*SYMBOL_DARKBLUE),
+            Magenta         => TalkValue::Selector(*SYMBOL_MAGENTA),
+            DarkMagenta     => TalkValue::Selector(*SYMBOL_DARKMAGENTA),
+            Cyan            => TalkValue::Selector(*SYMBOL_CYAN),
+            DarkCyan        => TalkValue::Selector(*SYMBOL_DARKCYAN),
+            White           => TalkValue::Selector(*SYMBOL_WHITE),
+            Grey            => TalkValue::Selector(*SYMBOL_GREY),
             Rgb { r, g, b } => TalkValue::Message(Box::new(TalkMessage::from_signature(*MSG_RGB, smallvec![(*r).into(), (*g).into(), (*b).into()])))
         };
 
@@ -214,7 +214,45 @@ impl TalkValueType for TalkStyleColor {
     }
 
     fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
-        todo!()
+        use TalkStyleColor::*;
+
+        match &*value {
+            TalkValue::Selector(msg_id) => {
+                if *msg_id == *SYMBOL_RESET             { Ok(Reset) }
+                else if *msg_id == *SYMBOL_BLACK        { Ok(Black) }
+                else if *msg_id == *SYMBOL_DARKGREY     { Ok(DarkGrey) }
+                else if *msg_id == *SYMBOL_RED          { Ok(Red) }
+                else if *msg_id == *SYMBOL_DARKRED      { Ok(DarkRed) }
+                else if *msg_id == *SYMBOL_GREEN        { Ok(Green) }
+                else if *msg_id == *SYMBOL_DARKGREEN    { Ok(DarkGreen) }
+                else if *msg_id == *SYMBOL_YELLOW       { Ok(Yellow) }
+                else if *msg_id == *SYMBOL_DARKYELLOW   { Ok(DarkYellow) }
+                else if *msg_id == *SYMBOL_BLUE         { Ok(Blue) }
+                else if *msg_id == *SYMBOL_DARKBLUE     { Ok(DarkBlue) }
+                else if *msg_id == *SYMBOL_MAGENTA      { Ok(Magenta) }
+                else if *msg_id == *SYMBOL_DARKMAGENTA  { Ok(DarkMagenta) }
+                else if *msg_id == *SYMBOL_CYAN         { Ok(Cyan) }
+                else if *msg_id == *SYMBOL_DARKCYAN     { Ok(DarkCyan) }
+                else if *msg_id == *SYMBOL_WHITE        { Ok(White) }
+                else if *msg_id == *SYMBOL_GREY         { Ok(Grey) }
+                else                                    { Err(TalkError::UnexpectedSelector(*msg_id))}
+            }
+
+            TalkValue::Message(msg) => {
+                if msg.signature_id() == *MSG_RGB {
+                    let args    = msg.arguments().unwrap();
+                    let r       = i32::try_from_talk_value(TalkOwned::new(args[0].clone_in_context(context), context), context)?;
+                    let g       = i32::try_from_talk_value(TalkOwned::new(args[1].clone_in_context(context), context), context)?;
+                    let b       = i32::try_from_talk_value(TalkOwned::new(args[2].clone_in_context(context), context), context)?;
+
+                    Ok(Rgb { r, g, b })
+                } else {
+                    Err(TalkError::UnexpectedSelector(msg.signature_id()))
+                }
+            }
+
+            _ => Err(TalkError::NotASelector),
+        }
     }
 }
 
