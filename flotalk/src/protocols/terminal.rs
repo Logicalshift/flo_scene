@@ -1,38 +1,21 @@
+use super::puttable_stream::*;
+
 use crate::*;
 
 ///
 /// Protocol that represents a text terminal output stream
 ///
-#[derive(Debug, TalkMessageType, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum TalkTerminalOut {
-    // A TUI stream also acts as a puttable stream
+    /// Standard puttable stream request
+    Put(TalkPuttableStreamRequest),
 
-    /// Writes a carriage return sequence to the stream
-    #[message("cr")]
-    Cr,
+    /// Terminal command request
+    Terminal(TalkTerminalCmd),
+}
 
-    /// Flushes the stream's backing store
-    #[message("flush")]
-    Flush,
-
-    /// Writes a single character to the stream
-    #[message("nextPut:")]
-    NextPut(char),
-
-    /// Writes all of the values in a collection to the stream
-    #[message("nextPutAll:")]
-    NextPutAll(TalkValue),
-
-    /// Writes a space to the stream
-    #[message("space")]
-    Space,
-
-    /// Writes a tab character to the stream
-    #[message("tab")]
-    Tab,
-
-    // Crossterm commands
-
+#[derive(Debug, TalkMessageType, PartialEq)]
+pub enum TalkTerminalCmd {
     /// Clears the entire state from the TUI buffer
     #[message("clearAll")]
     ClearAll,
@@ -48,6 +31,30 @@ pub enum TalkTerminalOut {
     /// Enables linewrapping for the terminal
     #[message("enableLineWrap")]
     EnableLineWrap,
+
+    /// Displays the alternate screen
+    #[message("enterAlternateScreen")]
+    EnterAlternateScreen,
+
+    /// Leaves the alternate screen
+    #[message("leaveAlternateScreen")]
+    LeaveAlternateScreen,
+
+    /// Scrolls down
+    #[message("scrollDown:")]
+    ScrollDown(i32),
+
+    /// Scrolls up
+    #[message("scrollUp:")]
+    ScrollUp(i32),
+
+    /// Sets the size of the terminal buffer
+    #[message("setSizeWidth:height:")]
+    SetSize(i32, i32),
+
+    /// Changes the title of the terminal window
+    #[message("setTitle:")]
+    SetTitle(String),
 }
 
 ///
@@ -58,4 +65,32 @@ pub enum TalkTerminalEvent {
     /// Sent to the stream when it's initialised with a true or false value to indicate if the terminal supports attributed text or not
     #[message("supportsAttributes:")]
     SupportsAttributes(bool),
+}
+
+///
+/// TalkTerminalOut just uses the messages from its 'subtypes' directly
+///
+impl TalkMessageType for TalkTerminalOut {
+    /// Converts a message to an object of this type
+    fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
+        use TalkTerminalOut::*;
+
+        if let Ok(put) = TalkPuttableStreamRequest::from_message(message.clone(), context) {
+            Ok(Put(put))
+        } else if let Ok(terminal) = TalkTerminalCmd::from_message(message.clone(), context) {
+            Ok(Terminal(terminal))
+        } else {
+            Err(TalkError::MessageNotSupported(message.signature_id()))
+        }
+    }
+
+    /// Converts an object of this type to a message
+    fn to_message<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkMessage, &'a TalkContext> {
+        use TalkTerminalOut::*;
+
+        match self {
+            Put(put)            => put.to_message(context),
+            Terminal(terminal)  => terminal.to_message(context),
+        }
+    }
 }
