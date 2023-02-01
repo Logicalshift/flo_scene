@@ -31,8 +31,8 @@ fn test_enum_supports_messages() {
     assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withUnary")));
     assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withInt:")));
     assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withFloat:")));
-    assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withManyInts::")));
-    assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withStructuredOne:two:")));
+    assert!(TestEnum::supports_message(TalkMessageSignatureId::from(("withManyInts:", ":"))));
+    assert!(TestEnum::supports_message(TalkMessageSignatureId::from(("withStructuredOne:", "two:"))));
     assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withEmptyUnstructured")));
     assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withEmptyStructured")));
 }
