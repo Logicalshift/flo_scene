@@ -61,6 +61,9 @@ pub enum TalkError {
     /// Expected an object representing a code block
     ExpectedBlockType,
 
+    /// Expected a particular selector but not this one
+    UnexpectedSelector(TalkMessageSignatureId),
+
     /// A value was not of an expected class type
     UnexpectedClass,
 
