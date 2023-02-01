@@ -66,6 +66,9 @@ pub struct TalkSendMessage(pub TalkValue, pub TalkMessage);
 /// Trait implemented by types that can be converted to and from `TalkMessage`s
 ///
 pub trait TalkMessageType : Sized {
+    /// True if the specified message type is supported by this implementation
+    fn supports_message(signature_id: TalkMessageSignatureId) -> bool;
+
     /// Converts a message to an object of this type
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError>;
 
@@ -636,6 +639,11 @@ impl TalkValueType for TalkMessage {
 }
 
 impl TalkMessageType for TalkMessage {
+    /// True if the specified message type is supported by this implementation
+    fn supports_message(_id: TalkMessageSignatureId) -> bool {
+        true
+    }
+
     /// Converts a message to an object of this type
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         Ok(message.leak())

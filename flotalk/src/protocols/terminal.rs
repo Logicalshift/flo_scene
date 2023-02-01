@@ -71,6 +71,11 @@ pub enum TalkTerminalEvent {
 /// TalkTerminalOut just uses the messages from its 'subtypes' directly
 ///
 impl TalkMessageType for TalkTerminalOut {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        TalkPuttableStreamRequest::supports_message(id)
+            || TalkTerminalCmd::supports_message(id)
+    }
+
     /// Converts a message to an object of this type
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         use TalkTerminalOut::*;

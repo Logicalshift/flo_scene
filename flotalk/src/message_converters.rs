@@ -15,6 +15,10 @@ static VALUE_MSG: Lazy<TalkMessageSignatureId>        = Lazy::new(|| "value".int
 static VALUE_COLON_MSG: Lazy<TalkMessageSignatureId>  = Lazy::new(|| "value:".into());
 
 impl TalkMessageType for () {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_MSG
+    }
+
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         if let TalkMessage::Unary(_any_message) = &*message {
             Ok(())
@@ -29,6 +33,10 @@ impl TalkMessageType for () {
 }
 
 impl TalkMessageType for TalkReference {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     /// Note: the reference must be released by the caller
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         let signature = message.signature_id();
@@ -57,6 +65,10 @@ impl TalkMessageType for TalkReference {
 }
 
 impl TalkMessageType for TalkValue {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     /// Note: the reference must be released by the caller
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         let signature = message.signature_id();
@@ -92,6 +104,10 @@ fn read_argument(msg: &TalkMessage) -> Result<&TalkValue, TalkError> {
 }
 
 impl TalkMessageType for bool {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::Bool(val)    => Ok(*val),
@@ -105,6 +121,10 @@ impl TalkMessageType for bool {
 }
 
 impl TalkMessageType for i32 {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::Int(val)     => Ok(*val as _),
@@ -119,6 +139,10 @@ impl TalkMessageType for i32 {
 }
 
 impl TalkMessageType for i64 {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::Int(val)     => Ok(*val as _),
@@ -133,6 +157,10 @@ impl TalkMessageType for i64 {
 }
 
 impl TalkMessageType for f32 {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::Int(val)     => Ok(*val as _),
@@ -147,6 +175,10 @@ impl TalkMessageType for f32 {
 }
 
 impl TalkMessageType for f64 {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::Int(val)     => Ok(*val as _),
@@ -161,6 +193,10 @@ impl TalkMessageType for f64 {
 }
 
 impl TalkMessageType for TalkNumber {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::Int(val)     => Ok(TalkNumber::Int(*val)),
@@ -178,6 +214,10 @@ impl TalkMessageType for TalkNumber {
 }
 
 impl TalkMessageType for String {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::String(val)  => Ok((**val).clone()),
@@ -191,6 +231,10 @@ impl TalkMessageType for String {
 }
 
 impl TalkMessageType for Arc<String> {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::String(val)  => Ok(val.clone()),
@@ -204,6 +248,10 @@ impl TalkMessageType for Arc<String> {
 }
 
 impl TalkMessageType for char {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::Character(val)   => Ok(*val),
@@ -217,6 +265,10 @@ impl TalkMessageType for char {
 }
 
 impl TalkMessageType for TalkError {
+    fn supports_message(id: TalkMessageSignatureId) -> bool {
+        id == *VALUE_COLON_MSG
+    }
+
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, _context: &'a TalkContext) -> Result<Self, TalkError> {
         match read_argument(&*message)? {
             TalkValue::Error(val)   => Ok(val.clone()),

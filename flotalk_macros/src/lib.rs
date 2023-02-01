@@ -535,6 +535,11 @@ fn derive_enum_message(name: &Ident, generics: &Generics, data: &DataEnum) -> To
     // An enum value like 'Int(i64)' is converted to a message 'withInt: 64'
     let talk_message_type = quote! {
         impl #impl_generics #flo_talk_crate::TalkMessageType for #name #ty_generics #where_clause {
+            /// Returns true if a message signature ID can be converted to this type
+            fn supports_message(id: TalkMessageSignatureId) -> bool {
+                false // TODO!
+            }
+
             /// Converts a message to an object of this type
             fn from_message<'a>(message: #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkMessage, &'a #flo_talk_crate::TalkContext>, _context: &'a #flo_talk_crate::TalkContext) -> Result<Self, #flo_talk_crate::TalkError> {
                 let mut message             = message;
@@ -623,6 +628,11 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
     // A struct like `struct Foo { bar: i64 baz: i64}` is converted to a message `withFooBar:baz:`
     let talk_message_type = quote! {
         impl #impl_generics #flo_talk_crate::TalkMessageType for #name #ty_generics #where_clause {
+            /// Returns true if a message signature ID can be converted to this type
+            fn supports_message(id: TalkMessageSignatureId) -> bool {
+                false // TODO!
+            }
+
             /// Converts a message to an object of this type
             fn from_message<'a>(message: #flo_talk_crate::TalkOwned<#flo_talk_crate::TalkMessage, &'a #flo_talk_crate::TalkContext>, _context: &'a #flo_talk_crate::TalkContext) -> Result<Self, #flo_talk_crate::TalkError> {
                 let mut message             = message;
