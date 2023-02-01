@@ -80,10 +80,14 @@ impl TalkMessageType for TalkTerminalOut {
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         use TalkTerminalOut::*;
 
-        if let Ok(put) = TalkPuttableStreamRequest::from_message(message.clone(), context) {
-            Ok(Put(put))
-        } else if let Ok(terminal) = TalkTerminalCmd::from_message(message.clone(), context) {
-            Ok(Terminal(terminal))
+        if TalkPuttableStreamRequest::supports_message(message.signature_id()) {
+            
+            Ok(Put(TalkPuttableStreamRequest::from_message(message, context)?))
+        
+        } else if TalkTerminalCmd::supports_message(message.signature_id()) {
+            
+            Ok(Terminal(TalkTerminalCmd::from_message(message.clone(), context)?))
+
         } else {
             Err(TalkError::MessageNotSupported(message.signature_id()))
         }
