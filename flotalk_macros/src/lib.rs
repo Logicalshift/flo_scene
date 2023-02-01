@@ -657,6 +657,11 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
+    // Create the 'supports_message' body
+    let supports_message = supports_message(vec![
+        signature_for_fields(name, &data.fields, Some(attributes))
+    ]);
+
     // Create the 'to_message' call
     let to_message = struct_to_message(name, data, attributes);
 
@@ -671,7 +676,7 @@ fn derive_struct_message(name: &Ident, generics: &Generics, attributes: &Vec<Att
         impl #impl_generics #flo_talk_crate::TalkMessageType for #name #ty_generics #where_clause {
             /// Returns true if a message signature ID can be converted to this type
             fn supports_message(id: TalkMessageSignatureId) -> bool {
-                false // TODO!
+                #supports_message
             }
 
             /// Converts a message to an object of this type
