@@ -11,23 +11,27 @@ use std::sync::*;
 #[derive(Debug, TalkMessageType, PartialEq)]
 pub enum TalkPuttableStreamRequest {
     /// Writes a carriage return sequence to the stream
+    #[message("cr")]
     Cr,
 
     /// Flushes the stream's backing store
+    #[message("flush")]
     Flush,
 
-    /// Writes the value of an object to the stream
+    /// Writes a single character to the stream
     #[message("nextPut:")]
-    NextPut(TalkValue),
+    NextPut(char),
 
     /// Writes all of the values in a collection to the stream
     #[message("nextPutAll:")]
     NextPutAll(TalkValue),
 
     /// Writes a space to the stream
+    #[message("space")]
     Space,
 
     /// Writes a tab character to the stream
+    #[message("tab")]
     Tab,
 }
 
@@ -68,7 +72,7 @@ pub fn talk_puttable_character_stream(receive_stream: impl Into<TalkContinuation
             Cr                                  => TalkSimpleStreamRequest::WriteChr('\n').into_talk_value(talk_context).leak().into(),
             Space                               => TalkSimpleStreamRequest::WriteChr(' ').into_talk_value(talk_context).leak().into(),
             Tab                                 => TalkSimpleStreamRequest::WriteChr('\t').into_talk_value(talk_context).leak().into(),
-            NextPut(TalkValue::Character(chr))  => TalkSimpleStreamRequest::WriteChr(chr).into_talk_value(talk_context).leak().into(),
+            NextPut(chr)                        => TalkSimpleStreamRequest::WriteChr(chr).into_talk_value(talk_context).leak().into(),
             NextPutAll(sequence_val)            => {
                 // A place to gather the string in
                 let string      = Arc::new(Mutex::new(String::default()));
@@ -92,12 +96,6 @@ pub fn talk_puttable_character_stream(receive_stream: impl Into<TalkContinuation
                         TalkSimpleStreamRequest::Write(string).into_talk_value(talk_context).leak().into()
                     })
             },
-
-            NextPut(other)                      => {
-                other.release_in_context(talk_context);
-                TalkSimpleStreamRequest::Write("?".into()).into_talk_value(talk_context).leak().into()
-            }
-
         }
     });
 
