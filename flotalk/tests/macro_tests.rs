@@ -27,6 +27,22 @@ enum TestEnumRecursive {
 }
 
 #[test]
+fn test_enum_supports_messages() {
+    assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withUnary")));
+    assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withInt:")));
+    assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withFloat:")));
+    assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withManyInts::")));
+    assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withStructuredOne:two:")));
+    assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withEmptyUnstructured")));
+    assert!(TestEnum::supports_message(TalkMessageSignatureId::from("withEmptyStructured")));
+}
+
+#[test]
+fn test_enum_does_not_support_messages() {
+    assert!(!TestEnum::supports_message(TalkMessageSignatureId::from("unsupported")));
+}
+
+#[test]
 fn test_enum_unary_to_message() {
     let context             = TalkContext::empty();
     let unary_as_message    = TestEnum::Unary.to_message(&context);
@@ -182,6 +198,17 @@ fn test_enum_generic_from_message() {
     let back_to_enum    = TestEnumGeneric::<f64>::from_message(message, &context).unwrap();
 
     assert!(back_to_enum == TestEnumGeneric::Val(42.0f64));
+}
+
+#[test]
+fn test_named_struct_supports_message() {
+    #[derive(TalkMessageType, PartialEq)]
+    struct Test {
+        foo: i64,
+        bar: i64,
+    }
+
+    assert!(Test::supports_message(("withTestFoo:", "bar:").into()));
 }
 
 #[test]
