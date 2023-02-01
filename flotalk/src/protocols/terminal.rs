@@ -256,15 +256,110 @@ impl TalkValueType for TalkStyleColor {
     }
 }
 
+static SYMBOL_BOLD: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| "bold".into());
+static SYMBOL_DIM: Lazy<TalkMessageSignatureId>                     = Lazy::new(|| "dim".into());
+static SYMBOL_ITALIC: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| "italic".into());
+static SYMBOL_UNDERLINED: Lazy<TalkMessageSignatureId>              = Lazy::new(|| "underlined".into());
+static SYMBOL_DOUBLEUNDERLINED: Lazy<TalkMessageSignatureId>        = Lazy::new(|| "doubleUnderlined".into());
+static SYMBOL_UNDERCURLED: Lazy<TalkMessageSignatureId>             = Lazy::new(|| "undercurled".into());
+static SYMBOL_UNDERDOTTED: Lazy<TalkMessageSignatureId>             = Lazy::new(|| "underdotted".into());
+static SYMBOL_UNDERDASHED: Lazy<TalkMessageSignatureId>             = Lazy::new(|| "underdashed".into());
+static SYMBOL_SLOWBLINK: Lazy<TalkMessageSignatureId>               = Lazy::new(|| "slowBlink".into());
+static SYMBOL_RAPIDBLINK: Lazy<TalkMessageSignatureId>              = Lazy::new(|| "rapidBlink".into());
+static SYMBOL_REVERSE: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| "reverse".into());
+static SYMBOL_HIDDEN: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| "hidden".into());
+static SYMBOL_CROSSEDOUT: Lazy<TalkMessageSignatureId>              = Lazy::new(|| "crossedOut".into());
+static SYMBOL_FRAKTUR: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| "fraktur".into());
+static SYMBOL_NOBOLD: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| "noBold".into());
+static SYMBOL_NORMALINTENSITY: Lazy<TalkMessageSignatureId>         = Lazy::new(|| "normalIntensity".into());
+static SYMBOL_NOITALIC: Lazy<TalkMessageSignatureId>                = Lazy::new(|| "noItalic".into());
+static SYMBOL_NOUNDERLINE: Lazy<TalkMessageSignatureId>             = Lazy::new(|| "noUnderline".into());
+static SYMBOL_NOBLINK: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| "noBlink".into());
+static SYMBOL_NOREVERSE: Lazy<TalkMessageSignatureId>               = Lazy::new(|| "noReverse".into());
+static SYMBOL_NOHIDDEN: Lazy<TalkMessageSignatureId>                = Lazy::new(|| "noHidden".into());
+static SYMBOL_NOTCROSSEDOUT: Lazy<TalkMessageSignatureId>           = Lazy::new(|| "notCrossedOut".into());
+static SYMBOL_FRAMED: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| "framed".into());
+static SYMBOL_ENCIRCLED: Lazy<TalkMessageSignatureId>               = Lazy::new(|| "encircled".into());
+static SYMBOL_OVERLINED: Lazy<TalkMessageSignatureId>               = Lazy::new(|| "overLined".into());
+static SYMBOL_NOTFRAMEDORENCIRCLED: Lazy<TalkMessageSignatureId>    = Lazy::new(|| "notFramedOrEncircled".into());
+static SYMBOL_NOTOVERLINED: Lazy<TalkMessageSignatureId>            = Lazy::new(|| "notOverLined".into());
+
 impl TalkValueType for TalkStyleAttribute {
     fn into_talk_value<'a>(&self, context: &'a TalkContext) -> TalkOwned<TalkValue, &'a TalkContext> {
         use TalkStyleAttribute::*;
 
-        todo!()
+        let value = match self {
+            Reset                   => TalkValue::Selector(*SYMBOL_RESET),
+            Bold                    => TalkValue::Selector(*SYMBOL_BOLD),
+            Dim                     => TalkValue::Selector(*SYMBOL_DIM),
+            Italic                  => TalkValue::Selector(*SYMBOL_ITALIC),
+            Underlined              => TalkValue::Selector(*SYMBOL_UNDERLINED),
+            DoubleUnderlined        => TalkValue::Selector(*SYMBOL_DOUBLEUNDERLINED),
+            Undercurled             => TalkValue::Selector(*SYMBOL_UNDERCURLED),
+            Underdotted             => TalkValue::Selector(*SYMBOL_UNDERDOTTED),
+            Underdashed             => TalkValue::Selector(*SYMBOL_UNDERDASHED),
+            SlowBlink               => TalkValue::Selector(*SYMBOL_SLOWBLINK),
+            RapidBlink              => TalkValue::Selector(*SYMBOL_RAPIDBLINK),
+            Reverse                 => TalkValue::Selector(*SYMBOL_REVERSE),
+            Hidden                  => TalkValue::Selector(*SYMBOL_HIDDEN),
+            CrossedOut              => TalkValue::Selector(*SYMBOL_CROSSEDOUT),
+            Fraktur                 => TalkValue::Selector(*SYMBOL_FRAKTUR),
+            NoBold                  => TalkValue::Selector(*SYMBOL_NOBOLD),
+            NormalIntensity         => TalkValue::Selector(*SYMBOL_NORMALINTENSITY),
+            NoItalic                => TalkValue::Selector(*SYMBOL_NOITALIC),
+            NoUnderline             => TalkValue::Selector(*SYMBOL_NOUNDERLINE),
+            NoBlink                 => TalkValue::Selector(*SYMBOL_NOBLINK),
+            NoReverse               => TalkValue::Selector(*SYMBOL_NOREVERSE),
+            NoHidden                => TalkValue::Selector(*SYMBOL_NOHIDDEN),
+            NotCrossedOut           => TalkValue::Selector(*SYMBOL_NOTCROSSEDOUT),
+            Framed                  => TalkValue::Selector(*SYMBOL_FRAMED),
+            Encircled               => TalkValue::Selector(*SYMBOL_ENCIRCLED),
+            OverLined               => TalkValue::Selector(*SYMBOL_OVERLINED),
+            NotFramedOrEncircled    => TalkValue::Selector(*SYMBOL_NOTFRAMEDORENCIRCLED),
+            NotOverLined            => TalkValue::Selector(*SYMBOL_NOTOVERLINED),
+        };
+
+        TalkOwned::new(value, context)
     }
 
     fn try_from_talk_value<'a>(value: TalkOwned<TalkValue, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
-        todo!()
+        use TalkStyleAttribute::*;
+
+        match &*value {
+            TalkValue::Selector(msg_id) => {
+                if *msg_id == *SYMBOL_RESET                     { Ok(Reset) }
+                else if *msg_id == *SYMBOL_BOLD                 { Ok(Bold) }
+                else if *msg_id == *SYMBOL_DIM                  { Ok(Dim) }
+                else if *msg_id == *SYMBOL_ITALIC               { Ok(Italic) }
+                else if *msg_id == *SYMBOL_UNDERLINED           { Ok(Underlined) }
+                else if *msg_id == *SYMBOL_DOUBLEUNDERLINED     { Ok(DoubleUnderlined) }
+                else if *msg_id == *SYMBOL_UNDERCURLED          { Ok(Undercurled) }
+                else if *msg_id == *SYMBOL_UNDERDOTTED          { Ok(Underdotted) }
+                else if *msg_id == *SYMBOL_UNDERDASHED          { Ok(Underdashed) }
+                else if *msg_id == *SYMBOL_SLOWBLINK            { Ok(SlowBlink) }
+                else if *msg_id == *SYMBOL_RAPIDBLINK           { Ok(RapidBlink) }
+                else if *msg_id == *SYMBOL_REVERSE              { Ok(Reverse) }
+                else if *msg_id == *SYMBOL_HIDDEN               { Ok(Hidden) }
+                else if *msg_id == *SYMBOL_CROSSEDOUT           { Ok(CrossedOut) }
+                else if *msg_id == *SYMBOL_FRAKTUR              { Ok(Fraktur) }
+                else if *msg_id == *SYMBOL_NOBOLD               { Ok(NoBold) }
+                else if *msg_id == *SYMBOL_NORMALINTENSITY      { Ok(NormalIntensity) }
+                else if *msg_id == *SYMBOL_NOITALIC             { Ok(NoItalic) }
+                else if *msg_id == *SYMBOL_NOUNDERLINE          { Ok(NoUnderline) }
+                else if *msg_id == *SYMBOL_NOBLINK              { Ok(NoBlink) }
+                else if *msg_id == *SYMBOL_NOREVERSE            { Ok(NoReverse) }
+                else if *msg_id == *SYMBOL_NOHIDDEN             { Ok(NoHidden) }
+                else if *msg_id == *SYMBOL_NOTCROSSEDOUT        { Ok(NotCrossedOut) }
+                else if *msg_id == *SYMBOL_FRAMED               { Ok(Framed) }
+                else if *msg_id == *SYMBOL_ENCIRCLED            { Ok(Encircled) }
+                else if *msg_id == *SYMBOL_OVERLINED            { Ok(OverLined) }
+                else if *msg_id == *SYMBOL_NOTFRAMEDORENCIRCLED { Ok(NotFramedOrEncircled) }
+                else if *msg_id == *SYMBOL_NOTOVERLINED         { Ok(NotOverLined) }
+                else                                            { Err(TalkError::UnexpectedSelector(*msg_id)) }
+            }
+
+            _ => Err(TalkError::NotASelector)
+        }
     }
 }
 
