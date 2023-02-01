@@ -33,6 +33,10 @@ pub enum TalkPuttableStreamRequest {
     /// Writes a tab character to the stream
     #[message("tab")]
     Tab,
+
+    /// Writes a string to the stream
+    #[message("say:")]
+    Say(String),
 }
 
 ///
@@ -73,6 +77,7 @@ pub fn talk_puttable_character_stream(receive_stream: impl Into<TalkContinuation
             Space                               => TalkSimpleStreamRequest::WriteChr(' ').into_talk_value(talk_context).leak().into(),
             Tab                                 => TalkSimpleStreamRequest::WriteChr('\t').into_talk_value(talk_context).leak().into(),
             NextPut(chr)                        => TalkSimpleStreamRequest::WriteChr(chr).into_talk_value(talk_context).leak().into(),
+            Say(string)                         => TalkSimpleStreamRequest::Write(string).into_talk_value(talk_context).leak().into(),
             NextPutAll(sequence_val)            => {
                 // A place to gather the string in
                 let string      = Arc::new(Mutex::new(String::default()));
