@@ -138,6 +138,17 @@ impl TalkMessage {
     }
 
     ///
+    /// Retrieves the arguments from a message
+    ///
+    #[inline]
+    pub fn arguments(&self) -> Option<&SmallVec<[TalkValue; 4]>> {
+        match self {
+            TalkMessage::Unary(_)               => None,
+            TalkMessage::WithArguments(_, args) => Some(args),
+        }
+    }
+
+    ///
     /// Creates a message from a signature and its arguments (assumes the arguments matches the signature)
     ///
     #[inline]
