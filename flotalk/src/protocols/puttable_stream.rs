@@ -53,6 +53,7 @@ pub enum TalkSimpleStreamRequest {
     WriteChr(char),
 
     /// Flushes the output to the target
+    #[message("flush")]
     Flush,
 }
 
