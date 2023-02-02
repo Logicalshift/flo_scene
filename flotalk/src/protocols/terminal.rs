@@ -18,6 +18,9 @@ pub enum TalkTerminalOut {
 
     /// Styling command
     Style(TalkTextStyleCmd),
+
+    /// Cursor command
+    Cursor(TalkCursorCmd),
 }
 
 ///
@@ -67,7 +70,7 @@ pub enum TalkTerminalCmd {
 }
 
 ///
-/// Commands that related to styling text
+/// Commands related to styling text
 ///
 #[derive(Debug, TalkMessageType, PartialEq)]
 pub enum TalkTextStyleCmd {
@@ -85,6 +88,72 @@ pub enum TalkTextStyleCmd {
 
     #[message("underlineColor:")]
     SetUnderlineColor(TalkStyleColor),
+}
+
+///
+/// Commands related to changing the terminal cursor
+///
+#[derive(Debug, TalkMessageType, PartialEq)]
+pub enum TalkCursorCmd {
+    /// Stops the cursor from blinking
+    #[message("disableCursorBlink")]
+    DisableBlinking,
+
+    /// Enables cursor blinking
+    #[message("enableCursorBlink")]
+    EnableBlinking,
+
+    /// Hides the cursor
+    #[message("hideCursor")]
+    Hide,
+
+    /// Displays the cursor
+    #[message("showCursor")]
+    Show,
+
+    /// Move the cursor down a number of rows
+    #[message("moveCursorDown:")]
+    MoveDown(i32),
+
+    /// Move the cursor up a number of rows
+    #[message("moveCursorUp:")]
+    MoveUp(i32),
+
+    /// Move the cursor left a number of rows
+    #[message("moveCursorLeft:")]
+    MoveLeft(i32),
+
+    /// Move the cursor right a number of rows
+    #[message("moveCursorRight:")]
+    MoveRight(i32),
+
+    /// Move the cursor to a specific position
+    #[message("moveCursorToX:Y:")]
+    MoveTo(i32, i32),
+
+    /// Moves the cursor to a particular column
+    #[message("moveCursorToX:")]
+    MoveToColumn(i32),
+
+    /// Moves the cursor to a particular row
+    #[message("moveCursorToY:")]
+    MoveToRow(i32),
+
+    /// Moves the cursor down a number of lines, then to the start of the row
+    #[message("moveCursorToNextLine:")]
+    MoveToNextLine(i32),
+
+    /// Moves the cursor up a number of lines, then to the start of the row
+    #[message("moveCursorToPreviousLine:")]
+    MoveToPreviousLine(i32),
+
+    /// Puts the cursor back to the position it was in when SavePosition was called
+    #[message("restoreCursorPosition")]
+    RestorePosition,
+
+    /// Stores the current position of the cursor
+    #[message("saveCursorPosition")]
+    SavePosition,
 }
 
 ///
@@ -382,11 +451,15 @@ impl TalkMessageType for TalkTerminalOut {
         
         } else if TalkTerminalCmd::supports_message(message.signature_id()) {
             
-            Ok(Terminal(TalkTerminalCmd::from_message(message.clone(), context)?))
+            Ok(Terminal(TalkTerminalCmd::from_message(message, context)?))
 
         } else if TalkTextStyleCmd::supports_message(message.signature_id()) {
 
-            Ok(Style(TalkTextStyleCmd::from_message(message.clone(), context)?))
+            Ok(Style(TalkTextStyleCmd::from_message(message, context)?))
+
+        } else if TalkCursorCmd::supports_message(message.signature_id()) {
+
+            Ok(Cursor(TalkCursorCmd::from_message(message, context)?))
 
         } else {
             Err(TalkError::MessageNotSupported(message.signature_id()))
@@ -401,6 +474,7 @@ impl TalkMessageType for TalkTerminalOut {
             Put(put)            => put.to_message(context),
             Terminal(terminal)  => terminal.to_message(context),
             Style(style)        => style.to_message(context),
+            Cursor(cursor)      => cursor.to_message(context),
         }
     }
 }
