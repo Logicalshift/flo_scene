@@ -2,8 +2,17 @@ use super::puttable_stream::*;
 
 use crate::*;
 
+use futures::prelude::*;
+use futures::{pin_mut};
+
 use smallvec::*;
 use once_cell::sync::{Lazy};
+
+#[cfg(feature="crossterm")]
+use crossterm::*;
+
+use std::result::{Result};
+use std::fmt::{Write};
 
 ///
 /// Protocol that represents a text terminal output stream
@@ -477,4 +486,25 @@ impl TalkMessageType for TalkTerminalOut {
             Cursor(cursor)      => cursor.to_message(context),
         }
     }
+}
+
+///
+/// Processes a stream of commands destined for crossterm
+///
+#[cfg(feature="crossterm")]
+pub async fn talk_process_crossterm_output(stream: impl Send + Stream<Item=TalkTerminalOut>, output: impl Send + Write) {
+    let mut stream = stream;
+    pin_mut!(stream);
+
+    while let Some(cmd) = stream.next().await {
+        // TODO
+    }
+}
+
+///
+/// Creates a continuation that returns a crossterm terminal object
+///
+#[cfg(feature="crossterm")]
+pub fn talk_crossterm_terminal(output: impl 'static + Send + Write) -> TalkContinuation<'static> {
+    todo!()
 }
