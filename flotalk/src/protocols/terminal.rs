@@ -10,7 +10,7 @@ use smallvec::*;
 use once_cell::sync::{Lazy};
 
 #[cfg(feature="crossterm")]
-use crossterm::*;
+use crossterm;
 
 use std::result::{Result};
 use std::fmt::{Write};
@@ -447,17 +447,19 @@ impl TalkValueType for TalkStyleAttribute {
 ///
 impl TalkMessageType for TalkTerminalOut {
     fn supports_message(id: TalkMessageSignatureId) -> bool {
-        TalkPuttableStreamRequest::supports_message(id)
+        TalkSimpleStreamRequest::supports_message(id)
             || TalkTerminalCmd::supports_message(id)
+            || TalkTextStyleCmd::supports_message(id)
+            || TalkCursorCmd::supports_message(id)
     }
 
     /// Converts a message to an object of this type
     fn from_message<'a>(message: TalkOwned<TalkMessage, &'a TalkContext>, context: &'a TalkContext) -> Result<Self, TalkError> {
         use TalkTerminalOut::*;
 
-        if TalkPuttableStreamRequest::supports_message(message.signature_id()) {
+        if TalkSimpleStreamRequest::supports_message(message.signature_id()) {
             
-            Ok(Put(TalkPuttableStreamRequest::from_message(message, context)?))
+            Ok(Put(TalkSimpleStreamRequest::from_message(message, context)?))
         
         } else if TalkTerminalCmd::supports_message(message.signature_id()) {
             
@@ -489,16 +491,44 @@ impl TalkMessageType for TalkTerminalOut {
     }
 }
 
+#[cfg(feature="crossterm")]
+fn crossterm_put(req: TalkSimpleStreamRequest, output: &mut impl Write) {
+
+}
+
+#[cfg(feature="crossterm")]
+fn crossterm_terminal(req: TalkTerminalCmd, output: &mut impl Write) {
+
+}
+
+#[cfg(feature="crossterm")]
+fn crossterm_style(req: TalkTextStyleCmd, output: &mut impl Write) {
+
+}
+
+#[cfg(feature="crossterm")]
+fn crossterm_cursor(req: TalkCursorCmd, output: &mut impl Write) {
+
+}
+
 ///
 /// Processes a stream of commands destined for crossterm
 ///
 #[cfg(feature="crossterm")]
 pub async fn talk_process_crossterm_output(stream: impl Send + Stream<Item=TalkTerminalOut>, output: impl Send + Write) {
+    let mut output = output;
     let mut stream = stream;
     pin_mut!(stream);
 
     while let Some(cmd) = stream.next().await {
-        // TODO
+        use TalkTerminalOut::*;
+
+        match cmd {
+            Put(put)            => crossterm_put(put, &mut output), 
+            Terminal(terminal)  => crossterm_terminal(terminal, &mut output),
+            Style(style)        => crossterm_style(style, &mut output),
+            Cursor(cursor)      => crossterm_cursor(cursor, &mut output),
+        }
     }
 }
 
