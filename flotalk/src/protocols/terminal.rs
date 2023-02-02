@@ -20,7 +20,7 @@ use std::fmt::{Write};
 #[derive(Debug, PartialEq)]
 pub enum TalkTerminalOut {
     /// Standard puttable stream request
-    Put(TalkPuttableStreamRequest),
+    Put(TalkSimpleStreamRequest),
 
     /// Terminal command request
     Terminal(TalkTerminalCmd),
