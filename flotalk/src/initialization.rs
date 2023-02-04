@@ -161,6 +161,8 @@ pub fn talk_init_streaming_with_reply_class() -> TalkContinuation<'static> {
 pub fn talk_init_constants() -> TalkContinuation<'static> {
     TalkContinuation::soon(|talk_context| {
         talk_context.set_root_symbol_value("nil", TalkValue::Nil);
+        talk_context.set_root_symbol_value("true", TalkValue::Bool(true));
+        talk_context.set_root_symbol_value("false", TalkValue::Bool(false));
         ().into()
     })
 }
