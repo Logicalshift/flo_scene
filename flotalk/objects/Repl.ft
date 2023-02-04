@@ -3,7 +3,7 @@
 
     Implements the standard read-eval-print loop for FloTalk
 "
-Export Repl: [ :Self |
+Export class: [ :Self |
     "
         run - runs the REPL loop
     "
@@ -36,4 +36,4 @@ Export Repl: [ :Self |
     ].
 
     Self
-].
+] as: 'Repl'.
