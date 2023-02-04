@@ -19,9 +19,9 @@ Export defaultInvertedClassInstance: [ :Self |
                 ifMatches: #cr          do: [ terminalIO say: '\n'. ]
                 ifMatches: #space       do: [ terminalIO say: ' '. ]
                 ifMatches: #tab         do: [ terminalIO say: '\t'. ]
-                ifMatches: #nextPut:    do: [ :value | terminalIO say: ((value charValue) asString). ]
-                ifMatches: #nextPutAll: do: [ :value | value do: [ :chr | terminalIO say: ((chr charValue) asString). ] ]
-                ifMatches: #say:        do: [ :value | terminalIO say: (value asString) ]
+                ifMatches: #nextPut:    do: [ :value | terminalIO say: ((value charValue) printString). ]
+                ifMatches: #nextPutAll: do: [ :value | value do: [ :chr | terminalIO say: ((chr charValue) printString). ] ]
+                ifMatches: #say:        do: [ :value | terminalIO say: (value printString) ]
                 else: [ terminalIO perform: nextRemark. ].
         ] while: [
             nextRemark := conversation next.
