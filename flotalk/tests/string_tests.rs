@@ -71,6 +71,21 @@ fn string_print_int() {
 }
 
 #[test]
+fn string_print_bool() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Write out a string as as tring
+        let result = runtime.run(TalkScript::from("
+            true printString
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::String(Arc::new("true".into())));
+    })
+}
+
+#[test]
 fn string_print_array() {
     executor::block_on(async {
         let runtime = TalkRuntime::with_standard_symbols().await;
