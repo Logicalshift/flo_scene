@@ -21,6 +21,7 @@ Export defaultInvertedClassInstance: [ :Self |
                 ifMatches: #tab         do: [ terminalIO say: '\t'. ]
                 ifMatches: #nextPut:    do: [ :value | terminalIO say: ((value charValue) asString). ]
                 ifMatches: #nextPutAll: do: [ :value | value do: [ :chr | terminalIO say: ((chr charValue) asString). ] ]
+                ifMatches: #say:        do: [ :value | terminalIO say: (value asString) ]
                 else: [ terminalIO perform: nextRemark. ].
         ] while: [
             nextRemark := conversation next.
@@ -29,6 +30,6 @@ Export defaultInvertedClassInstance: [ :Self |
     ].
 
     "Define an inverse message, 'say' that returns the sayObject stream"
-    Self addInvertedMessage: #say withAction: [ :sender :self | Inverted handled: sayObject. ].
+    Self addInvertedMessage: #say  withAction: [ :sender :self | Inverted handled: sayObject. ].
     Self addInvertedMessage: #say: withAction: [ :val :sender :self | sayObject say: val ],
 ] as: 'terminal'.
