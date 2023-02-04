@@ -590,6 +590,13 @@ pub static TALK_DISPATCH_STRING: Lazy<TalkMessageDispatchTable<Arc<String>>> = L
     );
 
 ///
+/// The default message dispatcher for character values
+///
+pub static TALK_DISPATCH_CHARACTER: Lazy<TalkMessageDispatchTable<char>> = Lazy::new(|| TalkMessageDispatchTable::empty()
+    .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |char_value| TalkValue::from(char_value))
+    );
+
+///
 /// The default message dispatcher for symbol values
 ///
 pub static TALK_DISPATCH_SYMBOL: Lazy<TalkMessageDispatchTable<TalkSymbol>> = Lazy::new(|| TalkMessageDispatchTable::empty()
@@ -905,7 +912,7 @@ impl Default for TalkValueDispatchTables {
             int_dispatch:       TALK_DISPATCH_NUMBER.clone(),
             float_dispatch:     TALK_DISPATCH_NUMBER.clone(),
             string_dispatch:    TALK_DISPATCH_STRING.clone(),
-            character_dispatch: TalkMessageDispatchTable::empty(),
+            character_dispatch: TALK_DISPATCH_CHARACTER.clone(),
             symbol_dispatch:    TALK_DISPATCH_SYMBOL.clone(),
             selector_dispatch:  TALK_DISPATCH_SELECTOR.clone(),
             array_dispatch:     TALK_DISPATCH_ARRAY.clone(),
@@ -928,7 +935,7 @@ impl TalkValue {
             TalkValue::Int(val)                 => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Int(val), message, context),
             TalkValue::Float(val)               => TALK_DISPATCH_NUMBER.send_message(TalkNumber::Float(val), message, context),
             TalkValue::String(val)              => TALK_DISPATCH_STRING.send_message(val, message, context),
-            TalkValue::Character(_val)          => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Character(val)           => TALK_DISPATCH_CHARACTER.send_message(val, message, context),
             TalkValue::Symbol(symbol)           => TALK_DISPATCH_SYMBOL.send_message(symbol, message, context),
             TalkValue::Selector(selector)       => TALK_DISPATCH_SELECTOR.send_message(selector, message, context),
             TalkValue::Array(vals)              => TALK_DISPATCH_ARRAY.send_message(vals, message, context),
