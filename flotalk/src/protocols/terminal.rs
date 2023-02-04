@@ -668,3 +668,33 @@ pub fn talk_crossterm_terminal(output: impl 'static + Send + Write + crossterm::
         send.into()
     })
 }
+
+///
+/// Creates a continuation that returns a basic terminal object
+///
+pub fn talk_write_terminal(output: impl 'static + Send + Write + crossterm::QueueableCommand) -> TalkContinuation<'static> {
+    TalkContinuation::soon(move |talk_context| {
+        // Create the channel to send the requests
+        let (send, receive) = create_talk_sender_in_context(talk_context);
+        let send            = send.leak();
+
+        // Run the processing receiver as a background task in the context
+        let receive = TalkContinuation::future_value(async move {
+            talk_process_write_output(receive, output).await;
+            ().into()
+        });
+        talk_context.run_in_background(receive);
+
+        // Result is the sender object
+        send.into()
+    })
+}
+
+///
+/// Creates a terminal stream and a continuation to generate the terminal object
+///
+pub fn talk_terminal() -> (impl Send + Stream<Item=TalkTerminalOut>, TalkContinuation<'static>) {
+    let (send, receive) = create_talk_sender();
+
+    (receive, send)
+}
