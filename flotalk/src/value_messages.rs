@@ -533,6 +533,13 @@ pub static TALK_DISPATCH_NUMBER: Lazy<TalkMessageDispatchTable<TalkNumber>> = La
     );
 
 ///
+/// The default message dispatcher for array values
+///
+pub static TALK_DISPATCH_ARRAY: Lazy<TalkMessageDispatchTable<Vec<TalkValue>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
+    .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |array_value| TalkValue::Array(array_value))
+    );
+
+///
 /// Reads the characters in a string and passes them to a block object
 ///
 #[inline]
@@ -901,7 +908,7 @@ impl Default for TalkValueDispatchTables {
             character_dispatch: TalkMessageDispatchTable::empty(),
             symbol_dispatch:    TALK_DISPATCH_SYMBOL.clone(),
             selector_dispatch:  TALK_DISPATCH_SELECTOR.clone(),
-            array_dispatch:     TalkMessageDispatchTable::empty(),
+            array_dispatch:     TALK_DISPATCH_ARRAY.clone(),
             message_dispatch:   TALK_DISPATCH_MESSAGE.clone(),
             error_dispatch:     TalkMessageDispatchTable::empty(),
         }
@@ -924,7 +931,7 @@ impl TalkValue {
             TalkValue::Character(_val)          => TalkError::MessageNotSupported(message.signature_id()).into(),
             TalkValue::Symbol(symbol)           => TALK_DISPATCH_SYMBOL.send_message(symbol, message, context),
             TalkValue::Selector(selector)       => TALK_DISPATCH_SELECTOR.send_message(selector, message, context),
-            TalkValue::Array(_val)              => TalkError::MessageNotSupported(message.signature_id()).into(),
+            TalkValue::Array(vals)              => TALK_DISPATCH_ARRAY.send_message(vals, message, context),
             TalkValue::Message(target)          => TALK_DISPATCH_MESSAGE.send_message(target, message, context),
             TalkValue::Error(_err)              => TalkError::MessageNotSupported(message.signature_id()).into(),
         }
