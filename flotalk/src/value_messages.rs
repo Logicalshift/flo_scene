@@ -342,6 +342,29 @@ fn responds_to(val: TalkOwned<TalkValue, &'_ TalkContext>, args: TalkOwned<Small
 }
 
 ///
+/// Turns a value into a string
+///
+fn print_string(val: &TalkValue, context: &TalkContext) -> TalkContinuation<'static> {
+    use TalkValue::*;
+
+    match val {
+        Nil                                         => "(nil)".into(),
+        Reference(TalkReference(class, reference))  => format!("Ref({}, {})", usize::from(*class), usize::from(*reference)).into(),
+        Bool(bool_val)                              => format!("{}", bool_val).into(),
+        Int(ival)                                   => format!("{}", ival).into(),
+        Float(fval)                                 => format!("{}", fval).into(),
+        String(string)                              => Arc::clone(string).into(),
+        Character(chr)                              => format!("{}", chr).into(),
+        Symbol(symbol)                              => format!("{:?}", symbol).into(),
+        Selector(selector)                          => format!("{:?}", selector).into(),
+        Error(err)                                  => format!("{:?}", err).into(),
+
+        Message(msg)                                => { ().into() },
+        Array(values)                               => { ().into() },
+    }
+}
+
+///
 /// The default message dispatcher for 'any' type
 ///
 pub static TALK_DISPATCH_ANY: Lazy<TalkMessageDispatchTable<TalkValue>> = Lazy::new(|| TalkMessageDispatchTable::empty()
@@ -370,7 +393,7 @@ pub static TALK_DISPATCH_ANY: Lazy<TalkMessageDispatchTable<TalkValue>> = Lazy::
     .with_message(*TALK_MSG_PERFORM_WITH8,              |val, args, context| perform(val, args, context))
     .with_message(*TALK_MSG_PERFORM_WITH_ARGUMENTS,     |val, args, context| perform_with_arguments(val, args, context))
     .with_message(*TALK_MSG_PRINT_ON,                   |_, _, _| TalkError::NotImplemented)
-    .with_message(*TALK_MSG_PRINT_STRING,               |_, _, _| TalkError::NotImplemented)
+    .with_message(*TALK_MSG_PRINT_STRING,               |val, _, context| print_string(&*val, context))
     .with_message(*TALK_MSG_RESPONDS_TO,                |val, args, context| responds_to(val, args, context))
     .with_message(*TALK_MSG_YOURSELF,                   |mut val, _, _| val.take())
     .with_message(*TALK_MSG_UNRECEIVED,                 |val, _, _| TalkValue::Message(Box::new(TalkMessage::WithArguments(*INVERTED_UNRECEIVED_MSG, smallvec![val.leak()]))))
