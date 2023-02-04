@@ -410,7 +410,7 @@ fn print_string(val: &TalkValue, context: &TalkContext) -> TalkContinuation<'sta
 
                         for idx in 0..args.len() {
                             if idx > 0 { result += " "; }
-                            result += &format!("{:?} {}", &symbols[idx], &args[idx]);
+                            result += &format!("{} {}", symbols[idx].name(), &args[idx]);
                         }
 
                         result.into()
