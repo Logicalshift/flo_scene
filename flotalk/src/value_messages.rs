@@ -399,7 +399,7 @@ fn print_string(val: &TalkValue, context: &TalkContext) -> TalkContinuation<'sta
                 .map(|args| args.iter().map(|arg| arg.clone_in_context(context)).collect::<Vec<_>>())
                 .unwrap_or_else(|| vec![]);
 
-            // Run some continuations to turn the arguments into values
+            // Call printString on all the message arguments
             convert_strings(args, vec![], move |args| {
                 let sig = sig.to_signature();
 
@@ -418,7 +418,16 @@ fn print_string(val: &TalkValue, context: &TalkContext) -> TalkContinuation<'sta
                 }
             })
         },
-        TalkValue::Array(values)                                => { ().into() },
+
+        TalkValue::Array(values)                                => { 
+            // Copy the values
+            let values = values.iter().map(|arg| arg.clone_in_context(context)).collect::<Vec<_>>();
+
+            // Call printString on all the array values
+            convert_strings(values, vec![], move |values| {
+                format!("#({})", values.join(", ")).into()
+            })
+        },
     }
 }
 
