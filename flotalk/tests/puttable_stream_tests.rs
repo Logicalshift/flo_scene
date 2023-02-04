@@ -4,8 +4,6 @@ use flo_talk::protocols::*;
 use futures::prelude::*;
 use futures::executor;
 
-use std::sync::*;
-
 #[test]
 fn send_single_character() {
     executor::block_on(async {
