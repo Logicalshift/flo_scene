@@ -1,0 +1,34 @@
+"
+    # The 'terminal' instance
+
+    This adds the 'say' message to return a terminal object to send messages to
+"
+Export defaultInvertedClassInstance: [ :Self |
+    | terminalIO sayObject |
+
+    "This is created from the default terminal IO for the context, if there is one"
+    terminalIO := Import from: 'defaultTerminalIO'.
+
+    "'say' is a stream that talks to the main terminal IO object"
+    sayObject := Stream withReceiver: [ :conversation |
+        | nextRemark |
+
+        [
+            "Add the puttableStream protocol, and otherwise just send on to the terminal"
+            nextRemark 
+                ifMatches: #cr          do: [ terminalIO say: '\n'. ]
+                ifMatches: #space       do: [ terminalIO say: ' '. ]
+                ifMatches: #tab         do: [ terminalIO say: '\t'. ]
+                ifMatches: #nextPut:    do: [ :value | terminalIO say: ((value charValue) asString). ]
+                ifMatches: #nextPutAll: do: [ :value | value do: [ :chr | terminalIO say: ((chr charValue) asString). ] ]
+                else: [ terminalIO perform: nextRemark. ].
+        ] while: [
+            nextRemark := conversation next.
+            ^(nextRemark isNil) not
+        ]
+    ].
+
+    "Define an inverse message, 'say' that returns the sayObject stream"
+    Self addInvertedMessage: #say withAction: [ :sender :self | Inverted handled: sayObject. ].
+    Self addInvertedMessage: #say: withAction: [ :val :sender :self | sayObject say: val ],
+] as: 'terminal'.
