@@ -28,7 +28,7 @@ Export class: [ :Self |
             statement := self readLine.
 
             "Evaluate"
-            result: Evaluate statement: statement.
+            result := Evaluate statement: statement.
 
             "Print"
             (self say)
