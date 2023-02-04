@@ -13,7 +13,7 @@ use once_cell::sync::{Lazy};
 use crossterm;
 
 use std::result::{Result};
-use std::fmt::{Write};
+use std::io::{Write};
 
 ///
 /// Protocol that represents a text terminal output stream
@@ -41,10 +41,6 @@ pub enum TalkTerminalCmd {
     /// Clears the entire state from the TUI buffer
     #[message("clearAll")]
     ClearAll,
-
-    /// Writes a string to the stream
-    #[message("say:")]
-    Say(String),
 
     /// Turns off linewrap for the terminal
     #[message("disableLineWrap")]
@@ -171,7 +167,7 @@ pub enum TalkCursorCmd {
 ///
 /// (These match those in crossterm, but they support flotalk's conversion interfaces, they're passed in as selectors except for Rgb which needs to be a message)
 ///
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum TalkStyleColor {
     Reset,
     Black,
@@ -202,7 +198,7 @@ pub enum TalkStyleColor {
 ///
 /// (These match those in crossterm, but they support flotalk's conversion interfaces, they're passed in as selectors)
 ///
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum TalkStyleAttribute {
     Reset,
     Bold,
@@ -442,6 +438,68 @@ impl TalkValueType for TalkStyleAttribute {
     }
 }
 
+#[cfg(feature="crossterm")]
+impl Into<crossterm::style::Attribute> for TalkStyleAttribute {
+    fn into(self) -> crossterm::style::Attribute {
+        match self {
+            TalkStyleAttribute::Reset                   => crossterm::style::Attribute::Reset,
+            TalkStyleAttribute::Bold                    => crossterm::style::Attribute::Bold,
+            TalkStyleAttribute::Dim                     => crossterm::style::Attribute::Dim,
+            TalkStyleAttribute::Italic                  => crossterm::style::Attribute::Italic,
+            TalkStyleAttribute::Underlined              => crossterm::style::Attribute::Underlined,
+            TalkStyleAttribute::DoubleUnderlined        => crossterm::style::Attribute::DoubleUnderlined,
+            TalkStyleAttribute::Undercurled             => crossterm::style::Attribute::Undercurled,
+            TalkStyleAttribute::Underdotted             => crossterm::style::Attribute::Underdotted,
+            TalkStyleAttribute::Underdashed             => crossterm::style::Attribute::Underdashed,
+            TalkStyleAttribute::SlowBlink               => crossterm::style::Attribute::SlowBlink,
+            TalkStyleAttribute::RapidBlink              => crossterm::style::Attribute::RapidBlink,
+            TalkStyleAttribute::Reverse                 => crossterm::style::Attribute::Reverse,
+            TalkStyleAttribute::Hidden                  => crossterm::style::Attribute::Hidden,
+            TalkStyleAttribute::CrossedOut              => crossterm::style::Attribute::CrossedOut,
+            TalkStyleAttribute::Fraktur                 => crossterm::style::Attribute::Fraktur,
+            TalkStyleAttribute::NoBold                  => crossterm::style::Attribute::NoBold,
+            TalkStyleAttribute::NormalIntensity         => crossterm::style::Attribute::NormalIntensity,
+            TalkStyleAttribute::NoItalic                => crossterm::style::Attribute::NoItalic,
+            TalkStyleAttribute::NoUnderline             => crossterm::style::Attribute::NoUnderline,
+            TalkStyleAttribute::NoBlink                 => crossterm::style::Attribute::NoBlink,
+            TalkStyleAttribute::NoReverse               => crossterm::style::Attribute::NoReverse,
+            TalkStyleAttribute::NoHidden                => crossterm::style::Attribute::NoHidden,
+            TalkStyleAttribute::NotCrossedOut           => crossterm::style::Attribute::NotCrossedOut,
+            TalkStyleAttribute::Framed                  => crossterm::style::Attribute::Framed,
+            TalkStyleAttribute::Encircled               => crossterm::style::Attribute::Encircled,
+            TalkStyleAttribute::OverLined               => crossterm::style::Attribute::OverLined,
+            TalkStyleAttribute::NotFramedOrEncircled    => crossterm::style::Attribute::NotFramedOrEncircled,
+            TalkStyleAttribute::NotOverLined            => crossterm::style::Attribute::NotOverLined,
+        }
+    }
+}
+
+#[cfg(feature="crossterm")]
+impl Into<crossterm::style::Color> for TalkStyleColor {
+    fn into(self) -> crossterm::style::Color {
+        match self {
+            TalkStyleColor::Reset           => crossterm::style::Color::Reset,
+            TalkStyleColor::Black           => crossterm::style::Color::Black,
+            TalkStyleColor::DarkGrey        => crossterm::style::Color::DarkGrey,
+            TalkStyleColor::Red             => crossterm::style::Color::Red,
+            TalkStyleColor::DarkRed         => crossterm::style::Color::DarkRed,
+            TalkStyleColor::Green           => crossterm::style::Color::Green,
+            TalkStyleColor::DarkGreen       => crossterm::style::Color::DarkGreen,
+            TalkStyleColor::Yellow          => crossterm::style::Color::Yellow,
+            TalkStyleColor::DarkYellow      => crossterm::style::Color::DarkYellow,
+            TalkStyleColor::Blue            => crossterm::style::Color::Blue,
+            TalkStyleColor::DarkBlue        => crossterm::style::Color::DarkBlue,
+            TalkStyleColor::Magenta         => crossterm::style::Color::Magenta,
+            TalkStyleColor::DarkMagenta     => crossterm::style::Color::DarkMagenta,
+            TalkStyleColor::Cyan            => crossterm::style::Color::Cyan,
+            TalkStyleColor::DarkCyan        => crossterm::style::Color::DarkCyan,
+            TalkStyleColor::White           => crossterm::style::Color::White,
+            TalkStyleColor::Grey            => crossterm::style::Color::Grey,
+            TalkStyleColor::Rgb { r, g, b } => crossterm::style::Color::Rgb { r: r as _, g: g as _, b: b as _ },
+        }
+    }
+}
+
 ///
 /// TalkTerminalOut just uses the messages from its 'subtypes' directly
 ///
@@ -492,32 +550,67 @@ impl TalkMessageType for TalkTerminalOut {
 }
 
 #[cfg(feature="crossterm")]
-fn crossterm_put(req: TalkSimpleStreamRequest, output: &mut impl Write) {
-
+fn crossterm_put(req: TalkSimpleStreamRequest, output: &mut (impl Write + crossterm::QueueableCommand)) {
+    match req {
+        TalkSimpleStreamRequest::Write(string)  => { output.queue(crossterm::style::Print(string)).ok(); output.flush().ok(); }
+        TalkSimpleStreamRequest::WriteChr(chr)  => { output.queue(crossterm::style::Print(chr)).ok(); }
+        TalkSimpleStreamRequest::Flush          => { output.flush().ok(); }
+    }
 }
 
 #[cfg(feature="crossterm")]
-fn crossterm_terminal(req: TalkTerminalCmd, output: &mut impl Write) {
-
+fn crossterm_terminal(req: TalkTerminalCmd, output: &mut (impl Write + crossterm::QueueableCommand)) {
+    match req {
+        TalkTerminalCmd::ClearAll               => { output.queue(crossterm::terminal::Clear(crossterm::terminal::ClearType::All)).ok(); }
+        TalkTerminalCmd::DisableLineWrap        => { output.queue(crossterm::terminal::DisableLineWrap).ok(); }
+        TalkTerminalCmd::EnableLineWrap         => { output.queue(crossterm::terminal::EnableLineWrap).ok(); }
+        TalkTerminalCmd::EnterAlternateScreen   => { output.queue(crossterm::terminal::EnterAlternateScreen).ok(); }
+        TalkTerminalCmd::LeaveAlternateScreen   => { output.queue(crossterm::terminal::LeaveAlternateScreen).ok(); }
+        TalkTerminalCmd::ScrollDown(lines)      => { output.queue(crossterm::terminal::ScrollDown(lines as _)).ok(); }
+        TalkTerminalCmd::ScrollUp(lines)        => { output.queue(crossterm::terminal::ScrollUp(lines as _)).ok(); }
+        TalkTerminalCmd::SetSize(w, h)          => { output.queue(crossterm::terminal::SetSize(w as _, h as _)).ok(); }
+        TalkTerminalCmd::SetTitle(msg)          => { output.queue(crossterm::terminal::SetTitle(msg)).ok(); }
+    }
 }
 
 #[cfg(feature="crossterm")]
-fn crossterm_style(req: TalkTextStyleCmd, output: &mut impl Write) {
-
+fn crossterm_style(req: TalkTextStyleCmd, output: &mut (impl Write + crossterm::QueueableCommand)) {
+    match req {
+        TalkTextStyleCmd::SetAttribute(style)       => { output.queue(crossterm::style::SetAttribute(style.into())).ok(); }
+        TalkTextStyleCmd::SetForeground(col)        => { output.queue(crossterm::style::SetForegroundColor(col.into())).ok(); }
+        TalkTextStyleCmd::SetBackground(col)        => { output.queue(crossterm::style::SetBackgroundColor(col.into())).ok(); }
+        TalkTextStyleCmd::SetColors(fg_col, bg_col) => { output.queue(crossterm::style::SetColors(crossterm::style::Colors::new(fg_col.into(), bg_col.into()))).ok(); }
+        TalkTextStyleCmd::SetUnderlineColor(col)    => { output.queue(crossterm::style::SetUnderlineColor(col.into())).ok(); }
+    }
 }
 
 #[cfg(feature="crossterm")]
-fn crossterm_cursor(req: TalkCursorCmd, output: &mut impl Write) {
-
+fn crossterm_cursor(req: TalkCursorCmd, output: &mut (impl Write + crossterm::QueueableCommand)) {
+    match req {
+        TalkCursorCmd::DisableBlinking          => { output.queue(crossterm::cursor::DisableBlinking).ok(); },
+        TalkCursorCmd::EnableBlinking           => { output.queue(crossterm::cursor::EnableBlinking).ok(); },
+        TalkCursorCmd::Hide                     => { output.queue(crossterm::cursor::Hide).ok(); },
+        TalkCursorCmd::Show                     => { output.queue(crossterm::cursor::Show).ok(); },
+        TalkCursorCmd::MoveDown(n)              => { output.queue(crossterm::cursor::MoveDown(n as _)).ok(); },
+        TalkCursorCmd::MoveUp(n)                => { output.queue(crossterm::cursor::MoveUp(n as _)).ok(); },
+        TalkCursorCmd::MoveLeft(n)              => { output.queue(crossterm::cursor::MoveLeft(n as _)).ok(); },
+        TalkCursorCmd::MoveRight(n)             => { output.queue(crossterm::cursor::MoveRight(n as _)).ok(); },
+        TalkCursorCmd::MoveTo(x, y)             => { output.queue(crossterm::cursor::MoveTo(x as _, y as _)).ok(); },
+        TalkCursorCmd::MoveToColumn(n)          => { output.queue(crossterm::cursor::MoveToColumn(n as _)).ok(); },
+        TalkCursorCmd::MoveToRow(n)             => { output.queue(crossterm::cursor::MoveToRow(n as _)).ok(); },
+        TalkCursorCmd::MoveToNextLine(n)        => { output.queue(crossterm::cursor::MoveToNextLine(n as _)).ok(); },
+        TalkCursorCmd::MoveToPreviousLine(n)    => { output.queue(crossterm::cursor::MoveToPreviousLine(n as _)).ok(); },
+        TalkCursorCmd::RestorePosition          => { output.queue(crossterm::cursor::RestorePosition).ok(); },
+        TalkCursorCmd::SavePosition             => { output.queue(crossterm::cursor::SavePosition).ok(); },
+    }
 }
 
 ///
 /// Processes a stream of commands destined for crossterm
 ///
 #[cfg(feature="crossterm")]
-pub async fn talk_process_crossterm_output(stream: impl Send + Stream<Item=TalkTerminalOut>, output: impl Send + Write) {
+pub async fn talk_process_crossterm_output(stream: impl Send + Stream<Item=TalkTerminalOut>, output: impl Send + Write + crossterm::QueueableCommand) {
     let mut output = output;
-    let mut stream = stream;
     pin_mut!(stream);
 
     while let Some(cmd) = stream.next().await {
@@ -536,7 +629,7 @@ pub async fn talk_process_crossterm_output(stream: impl Send + Stream<Item=TalkT
 /// Creates a continuation that returns a crossterm terminal object
 ///
 #[cfg(feature="crossterm")]
-pub fn talk_crossterm_terminal(output: impl 'static + Send + Write) -> TalkContinuation<'static> {
+pub fn talk_crossterm_terminal(output: impl 'static + Send + Write + crossterm::QueueableCommand) -> TalkContinuation<'static> {
     TalkContinuation::soon(move |talk_context| {
         // Create the channel to send the requests
         let (send, receive) = create_talk_sender_in_context(talk_context);
