@@ -342,25 +342,83 @@ fn responds_to(val: TalkOwned<TalkValue, &'_ TalkContext>, args: TalkOwned<Small
 }
 
 ///
+/// Sends printString operations to a list of values, filling in a vector of strings as it goes
+///
+fn convert_strings(remaining_values: Vec<TalkValue>, so_far: Vec<String>, on_finish: impl 'static + Send + Fn(Vec<String>) -> TalkContinuation<'static>) -> TalkContinuation<'static> {
+    let mut remaining_values    = remaining_values;
+    let mut so_far              = so_far;
+
+    if let Some(next_value) = remaining_values.pop() {
+        // Convert the next value to a string
+        TalkContinuation::soon(move |talk_context| {
+            next_value.send_message_in_context(TalkMessage::Unary(*TALK_MSG_PRINT_STRING), talk_context)
+                .and_then_soon_if_ok(move |next_value, talk_context| {
+                    // Add to the list of results
+                    let next_string = match &next_value {
+                        TalkValue::String(string)   => (**string).clone(),
+                        _                           => "<??>".into()
+                    };
+                    so_far.push(next_string);
+
+                    // Finished with this value
+                    next_value.release_in_context(talk_context);
+
+                    // Keep on buildin the list
+                    convert_strings(remaining_values, so_far, on_finish)
+                })
+        })
+    } else {
+        // The values in so_far are all reversed
+        so_far.reverse();
+
+        // Finish up
+        on_finish(so_far)
+    }
+}
+
+///
 /// Turns a value into a string
 ///
 fn print_string(val: &TalkValue, context: &TalkContext) -> TalkContinuation<'static> {
-    use TalkValue::*;
-
     match val {
-        Nil                                         => "(nil)".into(),
-        Reference(TalkReference(class, reference))  => format!("Ref({}, {})", usize::from(*class), usize::from(*reference)).into(),
-        Bool(bool_val)                              => format!("{}", bool_val).into(),
-        Int(ival)                                   => format!("{}", ival).into(),
-        Float(fval)                                 => format!("{}", fval).into(),
-        String(string)                              => Arc::clone(string).into(),
-        Character(chr)                              => format!("{}", chr).into(),
-        Symbol(symbol)                              => format!("{:?}", symbol).into(),
-        Selector(selector)                          => format!("{:?}", selector).into(),
-        Error(err)                                  => format!("{:?}", err).into(),
+        TalkValue::Nil                                          => "(nil)".into(),
+        TalkValue::Reference(TalkReference(class, reference))   => format!("Ref({}, {})", usize::from(*class), usize::from(*reference)).into(),
+        TalkValue::Bool(bool_val)                               => format!("{}", bool_val).into(),
+        TalkValue::Int(ival)                                    => format!("{}", ival).into(),
+        TalkValue::Float(fval)                                  => format!("{}", fval).into(),
+        TalkValue::String(string)                               => Arc::clone(string).into(),
+        TalkValue::Character(chr)                               => format!("{}", chr).into(),
+        TalkValue::Symbol(symbol)                               => format!("{:?}", symbol).into(),
+        TalkValue::Selector(selector)                           => format!("{:?}", selector).into(),
+        TalkValue::Error(err)                                   => format!("{:?}", err).into(),
 
-        Message(msg)                                => { ().into() },
-        Array(values)                               => { ().into() },
+        TalkValue::Message(msg)                                 => {
+            // Copy the signature and the arguments
+            let sig     = msg.signature_id();
+            let args    = msg.arguments()
+                .map(|args| args.iter().map(|arg| arg.clone_in_context(context)).collect::<Vec<_>>())
+                .unwrap_or_else(|| vec![]);
+
+            // Run some continuations to turn the arguments into values
+            convert_strings(args, vec![], move |args| {
+                let sig = sig.to_signature();
+
+                match sig {
+                    TalkMessageSignature::Unary(symbol)         => format!("##{:?}", symbol).into(),
+                    TalkMessageSignature::Arguments(symbols)    => {
+                        let mut result = String::from("##");
+
+                        for idx in 0..args.len() {
+                            if idx > 0 { result += " "; }
+                            result += &format!("{:?} {}", &symbols[idx], &args[idx]);
+                        }
+
+                        result.into()
+                    }
+                }
+            })
+        },
+        TalkValue::Array(values)                                => { ().into() },
     }
 }
 
