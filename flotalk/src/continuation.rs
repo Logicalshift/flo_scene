@@ -5,6 +5,7 @@ use super::local_context::*;
 use super::message::*;
 use super::reference::*;
 use super::releasable::*;
+use super::symbol::*;
 use super::value::*;
 
 use futures::prelude::*;
@@ -195,6 +196,20 @@ impl<'a> TalkContinuation<'a> {
             }
         }))
     }
+
+    ///
+    /// Defines the value created by this continuation in the context's active symbol table 
+    ///
+    #[inline] 
+    pub fn define_as(self, name: impl Into<TalkSymbol>) -> TalkContinuation<'a> {
+        let symbol = name.into();
+
+        self.and_then_soon_if_ok(move |value, talk_context| {
+            talk_context.set_root_symbol_value(symbol, value.clone_in_context(talk_context));
+
+            value.into()
+        })
+    }
 }
 
 impl TalkContinuation<'static> {
@@ -324,6 +339,17 @@ impl TalkContinuation<'static> {
                 }
             }
         }))
+    }
+
+    ///
+    /// Creates a continuation that runs this continuation in the background 
+    ///
+    #[inline] 
+    pub fn run_in_background(self) -> TalkContinuation<'static> {
+        TalkContinuation::soon(move |talk_context| {
+            talk_context.run_in_background(self);
+            ().into()
+        })
     }
 }
 
