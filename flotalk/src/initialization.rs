@@ -25,10 +25,7 @@ pub fn talk_init_standard_classes() -> TalkContinuation<'static> {
 pub fn talk_init_object_class() -> TalkContinuation<'static> {
     TalkContinuation::soon(|talk_context| {
         SCRIPT_CLASS_CLASS.send_message_in_context(TalkMessage::unary("new"), talk_context)
-    }).and_then_soon(|script_class, talk_context| {
-        talk_context.set_root_symbol_value("Object", script_class);
-        ().into()
-    })
+    }).define_as("Object")
 }
 
 ///
@@ -90,11 +87,7 @@ pub fn talk_init_streaming_class() -> TalkContinuation<'static> {
     TalkContinuation::soon(|_talk_context| {
         // Subclass 'Stream' to make the 'Streaming' class
         TalkScript::from("Stream subclass").into()
-    }).and_then_soon_if_ok(|streaming_class, talk_context| {
-        // Store in the 'Streaming' variable
-        talk_context.set_root_symbol_value("Streaming", streaming_class);
-        ().into()
-    }).and_then_if_ok(|_| {
+    }).define_as("Streaming").and_then_if_ok(|_| {
         // Define the class methods
         TalkScript::from("
             | OriginalStreaming |
@@ -132,13 +125,7 @@ pub fn talk_init_streaming_with_reply_class() -> TalkContinuation<'static> {
     TalkContinuation::soon(|_talk_context| {
         // Subclass 'Stream' to make the 'Streaming' class
         TalkScript::from("StreamWithReply subclass").into()
-    }).and_then_if_ok(|streaming_class| {
-        // Store in the 'Streaming' variable
-        TalkContinuation::soon(move |talk_context| {
-            talk_context.set_root_symbol_value("StreamingWithReply", streaming_class);
-            ().into()
-        })
-    }).and_then_if_ok(|_| {
+    }).define_as("StreamingWithReply").and_then_if_ok(|_| {
         // Define the class methods
         TalkScript::from("
             | OriginalStreamingWithReply |
