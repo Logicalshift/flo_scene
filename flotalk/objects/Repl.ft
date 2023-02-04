@@ -1,0 +1,39 @@
+"
+    # REPL
+
+    Implements the standard read-eval-print loop for FloTalk
+"
+Export Repl: [ :Self |
+    "
+        run - runs the REPL loop
+    "
+    Self addInstanceMessage: #run withAction: [ :self |
+        [
+            | statement result |
+
+            "Prompt"
+            (self say) 
+                styleAttribute:     #reset;
+                say:                '\n';
+                styleAttribute:     #bold;
+                foregroundColor:    #green;
+                say:                'Flo>';
+                styleAttribute:     #reset;
+                say:                ' '.
+
+            "Read"
+            statement := self readLine.
+
+            "Evaluate"
+            result: Evaluate statement: statement.
+
+            "Print"
+            (self say)
+                say:            result;
+                styleAttribute: #reset;
+                say:            '\n'.
+        ] while: [ ^true ].
+    ].
+
+    Self
+].
