@@ -561,7 +561,7 @@ fn crossterm_put(req: TalkSimpleStreamRequest, output: &mut (impl Write + crosst
 #[cfg(feature="crossterm")]
 fn crossterm_terminal(req: TalkTerminalCmd, output: &mut (impl Write + crossterm::QueueableCommand)) {
     match req {
-        TalkTerminalCmd::ClearAll               => { output.queue(crossterm::terminal::Clear(crossterm::terminal::ClearType::All)).ok(); }
+        TalkTerminalCmd::ClearAll               => { output.queue(crossterm::terminal::Clear(crossterm::terminal::ClearType::All)).ok(); output.flush().ok(); }
         TalkTerminalCmd::DisableLineWrap        => { output.queue(crossterm::terminal::DisableLineWrap).ok(); }
         TalkTerminalCmd::EnableLineWrap         => { output.queue(crossterm::terminal::EnableLineWrap).ok(); }
         TalkTerminalCmd::EnterAlternateScreen   => { output.queue(crossterm::terminal::EnterAlternateScreen).ok(); }
@@ -606,7 +606,7 @@ fn crossterm_cursor(req: TalkCursorCmd, output: &mut (impl Write + crossterm::Qu
 }
 
 ///
-/// Processes a stream of commands destined for crossterm
+/// Processes a stream of commands using crossterm to generate the formatting instructions
 ///
 #[cfg(feature="crossterm")]
 pub async fn talk_process_crossterm_output(stream: impl Send + Stream<Item=TalkTerminalOut>, output: impl Send + Write + crossterm::QueueableCommand) {
@@ -621,6 +621,28 @@ pub async fn talk_process_crossterm_output(stream: impl Send + Stream<Item=TalkT
             Terminal(terminal)  => crossterm_terminal(terminal, &mut output),
             Style(style)        => crossterm_style(style, &mut output),
             Cursor(cursor)      => crossterm_cursor(cursor, &mut output),
+        }
+    }
+}
+
+///
+/// Processes a stream of terminal commands to a dumb terminal output
+///
+pub async fn talk_process_write_output(stream: impl Send + Stream<Item=TalkTerminalOut>, output: impl Send + Write) {
+    let mut output = output;
+    pin_mut!(stream);
+
+    while let Some(cmd) = stream.next().await {
+        use TalkTerminalOut::*;
+
+        match cmd {
+            Put(TalkSimpleStreamRequest::Write(string)) => { write!(output, "{}", string).ok(); output.flush().ok(); }
+            Put(TalkSimpleStreamRequest::WriteChr(chr)) => { write!(output, "{}", chr).ok(); }
+            Put(TalkSimpleStreamRequest::Flush)         => { output.flush().ok(); }
+
+            Terminal(TalkTerminalCmd::ClearAll)         => { output.write(&[12]).ok(); output.flush().ok(); }
+
+            _ => { }
         }
     }
 }
