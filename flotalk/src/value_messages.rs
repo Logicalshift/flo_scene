@@ -425,7 +425,7 @@ fn print_string(val: &TalkValue, context: &TalkContext) -> TalkContinuation<'sta
 
             // Call printString on all the array values
             convert_strings(values, vec![], move |values| {
-                format!("#({})", values.join(", ")).into()
+                format!("#({})", values.join(" ")).into()
             })
         },
     }
