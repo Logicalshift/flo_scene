@@ -7,7 +7,7 @@ Export defaultInvertedClassInstance: [ :Self |
     | terminalIO sayObject |
 
     "This is created from the default terminal IO for the context, if there is one"
-    terminalIO := Import from: 'defaultTerminalIO'.
+    terminalIO := Import item: 'terminalIO' from: 'defaultTerminalIO'.
 
     "'say' is a stream that talks to the main terminal IO object"
     sayObject := Stream withReceiver: [ :conversation |
