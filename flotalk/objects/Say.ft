@@ -4,10 +4,10 @@
     This adds the 'say' message to return a terminal object to send messages to
 "
 Export defaultInvertedClassInstance: [ :Self |
-    | terminalIO sayObject |
+    | terminalOut sayObject |
 
     "This is created from the default terminal IO for the context, if there is one"
-    terminalIO := Import item: 'terminalIO' from: 'defaultTerminalIO'.
+    terminalOut := Import item: 'terminalOut' from: 'Terminal'.
 
     "'say' is a stream that talks to the main terminal IO object"
     sayObject := Stream withReceiver: [ :conversation |
@@ -16,13 +16,13 @@ Export defaultInvertedClassInstance: [ :Self |
         [
             "Add the puttableStream protocol, and otherwise just send on to the terminal"
             nextRemark 
-                ifMatches: #cr          do: [ terminalIO say: '\n'. ]
-                ifMatches: #space       do: [ terminalIO say: ' '. ]
-                ifMatches: #tab         do: [ terminalIO say: '\t'. ]
-                ifMatches: #nextPut:    do: [ :value | terminalIO say: (value printString). ]
-                ifMatches: #nextPutAll: do: [ :value | value do: [ :chr | terminalIO say: (chr printString). ] ]
-                ifMatches: #say:        do: [ :value | terminalIO say: (value printString) ]
-                else: [ terminalIO perform: nextRemark. ].
+                ifMatches: #cr          do: [ terminalOut say: '\n'. ]
+                ifMatches: #space       do: [ terminalOut say: ' '. ]
+                ifMatches: #tab         do: [ terminalOut say: '\t'. ]
+                ifMatches: #nextPut:    do: [ :value | terminalOut say: (value printString). ]
+                ifMatches: #nextPutAll: do: [ :value | value do: [ :chr | terminalOut say: (chr printString). ] ]
+                ifMatches: #say:        do: [ :value | terminalOut say: (value printString) ]
+                else: [ terminalOut perform: nextRemark. ].
         ] while: [
             nextRemark := conversation next.
             ^(nextRemark isNil) not
