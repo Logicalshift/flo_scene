@@ -22,7 +22,7 @@ Export defaultInvertedClassInstance: [ :Self |
                 ifMatches: #nextPut:    do: [ :value | terminalOut say: (value printString). ]
                 ifMatches: #nextPutAll: do: [ :value | value do: [ :chr | terminalOut say: (chr printString). ] ]
                 ifMatches: #say:        do: [ :value | terminalOut say: (value printString) ]
-                else: [ terminalOut perform: nextRemark. ].
+                ifDoesNotMatch: [ terminalOut perform: nextRemark. ].
         ] while: [
             nextRemark := conversation next.
             ^(nextRemark isNil) not
