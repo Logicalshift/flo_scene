@@ -36,8 +36,8 @@ mod read_write_queue;
 mod symbol_table;
 mod script_continuation;
 mod stream;
-mod initialization;
 
+pub mod initialization;
 pub mod sparse_array;
 pub mod protocols;
 
@@ -65,7 +65,7 @@ pub use self::read_write_queue::*;
 pub use self::symbol_table::*;
 pub use self::script_continuation::*;
 pub use self::stream::*;
-pub use self::initialization::*;
+pub use self::initialization::{talk_init_standard_classes};
 
 #[doc(hidden)] pub use flo_talk_macros::*;
 #[doc(hidden)] pub use once_cell;
