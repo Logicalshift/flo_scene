@@ -13,6 +13,9 @@ keywords        = [ "flotalk", "smalltalk", "scripting" ]
 [features]
 default         = [ "crossterm", "tokio", "tui" ] 
 
+[[bin]]
+name            = "flo_talk"
+
 [dependencies]
 flo_talk_macros = "0.1"
 flo_stream      = "0.7"
