@@ -46,7 +46,7 @@ impl TalkClassDefinition for TalkEvaluateClass {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _class_id: TalkClass, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         static MSG_STATEMENT: Lazy<TalkMessageSignatureId>      = Lazy::new(|| "statement:".into());
         static MSG_CREATE_BLOCK: Lazy<TalkMessageSignatureId>   = Lazy::new(|| "createBlock:".into());
 
@@ -58,7 +58,37 @@ impl TalkClassDefinition for TalkEvaluateClass {
                 Ok(statement)   => continuation_from_script(statement),
             }
         } else if message_id == *MSG_CREATE_BLOCK {
-            todo!()
+            // Fetch the statement
+            let statement = args[0].try_as_string();
+            let statement = match statement {
+                Err(err)        => { return err.into(); },
+                Ok(statement)   => statement,
+            };
+
+            TalkContinuation::future_soon(async move {
+                // Parse the statement to instructions
+                let statement = TalkScript::from(statement).to_instructions().await;
+                let statement = match statement {
+                    Err(err)        => { return TalkError::from(err).into(); }
+                    Ok(statement)   => statement,
+                };
+
+                // Create a simple evaluator block
+                TalkContinuation::soon(move |talk_context| {
+                    let statement = Arc::new(statement);
+
+                    // Run with the root symbol table
+                    let root_symbol_table = talk_context.root_symbol_table();
+                    let root_symbol_block = talk_context.root_symbol_table_cell_block().leak();
+                    talk_context.retain_cell_block(root_symbol_block);
+
+                    // Any new symbols are local to the evaluation
+                    let eval_symbol_table = Arc::new(Mutex::new(TalkSymbolTable::with_parent_frame(root_symbol_table)));
+                    let eval_symbol_block = talk_context.allocate_cell_block(1);
+
+                    create_simple_evaluator_block_in_context(talk_context, vec![], vec![eval_symbol_block, root_symbol_block], eval_symbol_table, statement, None).into()
+                })
+            })
         } else {
             TalkError::MessageNotSupported(message_id).into()
         }
