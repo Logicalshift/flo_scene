@@ -35,6 +35,17 @@ fn multi_arg_conversion() {
 }
 
 #[test]
+fn unsupported_message() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        let msg     = runtime.run(TalkScript::from("((#signature:) withArguments: #(1)) unsupported")).await;
+
+        println!("{:?}", msg);
+        assert!(msg.is_error());
+    })
+}
+
+#[test]
 fn unary_signature_to_message() {
     executor::block_on(async {
         let runtime = TalkRuntime::empty();
