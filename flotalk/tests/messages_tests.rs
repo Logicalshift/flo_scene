@@ -322,6 +322,35 @@ fn multi_match_3() {
 }
 
 #[test]
+fn multi_match_4() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        let msg     = runtime.run(TalkScript::from("
+            (#signature:other: withArguments: #(1 2)) 
+                ifMatches: #test1 do: [ 100 ]
+                ifMatches: #signature:other: do: [ :one :two | one + two ]
+                ifMatches: #test2:withArg: do: [ :one :two | 100 + one ]
+                ifDoesNotMatch: [ 42 ].
+
+            (#signature:other: withArguments: #(1 2)) 
+                ifMatches: #test1 do: [ 100 ]
+                ifMatches: #signature:other: do: [ :one :two | one + two ]
+                ifMatches: #test2:withArg: do: [ :one :two | 100 + one ]
+                ifDoesNotMatch: [ 42 ].
+
+            (#signature:other: withArguments: #(1 2)) 
+                ifMatches: #test1 do: [ 100 ]
+                ifMatches: #signature:other: do: [ :one :two | one + two ]
+                ifMatches: #test2:withArg: do: [ :one :two | 100 + one ]
+                ifDoesNotMatch: [ 42 ]
+        ")).await;
+
+        println!("{:?}", msg);
+        assert!(*msg == TalkValue::Int(3));
+    })
+}
+
+#[test]
 fn message_is_not_nil() {
     executor::block_on(async {
         let runtime = TalkRuntime::empty();
