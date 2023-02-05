@@ -15,6 +15,7 @@ pub fn talk_init_standard_classes() -> TalkContinuation<'static> {
         .and_then_if_ok(|_| talk_init_later_class())
         .and_then_if_ok(|_| talk_init_streaming_class())
         .and_then_if_ok(|_| talk_init_streaming_with_reply_class())
+        .and_then_if_ok(|_| talk_init_evaluate_class())
         .and_then_if_ok(|_| talk_init_constants())
         .panic_on_error("While initializing")
 }
@@ -68,11 +69,8 @@ pub fn talk_init_stream_with_reply_class() -> TalkContinuation<'static> {
 /// Returns a continuation that will create the 'Stream' class definition
 ///
 pub fn talk_init_later_class() -> TalkContinuation<'static> {
-    TalkContinuation::soon(|talk_context| {
-        let later_class_object = LATER_CLASS.class_object_in_context(talk_context);
-        talk_context.set_root_symbol_value("Later", later_class_object.into());
-        ().into()
-    })
+    TalkContinuation::soon(|talk_context| LATER_CLASS.class_object_in_context(talk_context).into())
+        .define_as("Later")
 }
 
 ///
@@ -149,6 +147,14 @@ pub fn talk_init_streaming_with_reply_class() -> TalkContinuation<'static> {
             ].
         ").into()
     })
+}
+
+///
+/// Returns a continuation that will create the 'Evaluate' class definition
+///
+pub fn talk_init_evaluate_class() -> TalkContinuation<'static> {
+    TalkContinuation::soon(|talk_context| EVALUATE_CLASS.class_object_in_context(talk_context).into())
+        .define_as("Evaluate")
 }
 
 ///
