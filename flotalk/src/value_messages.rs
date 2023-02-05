@@ -1016,8 +1016,15 @@ fn message_send_long_if_matches_message(msg: TalkOwned<Box<TalkMessage>, &'_ Tal
 ///
 fn message_send_not_supported(msg: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &'_ TalkContext) -> TalkContinuation<'static> {
     if message_is_match_message(message_id) || message_is_match_with_default_message(message_id) {
-        // Send via the 'long if matches' routine
-        message_send_long_if_matches_message(msg, args, context)
+        // Start sending the message
+        let send_message = message_send_long_if_matches_message(msg, args, context);
+
+        // Declare this message in the dispatch table so it's faster next time
+        TalkContinuation::soon(move |talk_context| {
+            talk_context.value_dispatch_tables.message_dispatch.define_message(message_id, message_send_long_if_matches_message);
+
+            ().into()
+        }).and_then(move |_| send_message)
     } else {
         // Not a valid 'ifMatches' message
         TalkError::MessageNotSupported(message_id).into()
