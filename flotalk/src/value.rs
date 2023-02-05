@@ -134,6 +134,17 @@ impl TalkValue {
     }
 
     ///
+    /// Returns the string represented by this value
+    ///
+    pub fn try_as_string(&self) -> Result<Arc<String>, TalkError> {
+        match self {
+            TalkValue::Nil                  => Err(TalkError::IsNil),
+            TalkValue::String(string)       => Ok(Arc::clone(string)),
+            _                               => Err(TalkError::NotAString)
+        }
+    }
+
+    ///
     /// Returns the reference represented by this value
     ///
     pub fn try_as_float(&self) -> Result<f64, TalkError> {
