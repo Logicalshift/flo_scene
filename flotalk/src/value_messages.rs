@@ -873,6 +873,98 @@ fn message_if_matches_do(msg: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, sele
     }
 }
 
+static SYM_IF_MATCHES: Lazy<TalkSymbol>         = Lazy::new(|| ("ifMatches:").into());
+static SYM_DO: Lazy<TalkSymbol>                 = Lazy::new(|| ("do:").into());
+static SYM_IF_DOES_NOT_MATCH: Lazy<TalkSymbol>  = Lazy::new(|| ("ifDoesNotMatch:").into());
+
+///
+/// True if the signature matches '(ifMatches:do:)+'
+///
+fn message_is_match_message(sig: TalkMessageSignatureId) -> bool {
+    let sig = sig.to_signature();
+
+    match sig {
+        TalkMessageSignature::Unary(_)              => false,
+        TalkMessageSignature::Arguments(symbols)    => {
+            if (symbols.len()%2) != 0 {
+                // Must be an even number of parameters
+                return false;
+            }
+
+            let mut symbols = symbols;
+            symbols.reverse();
+            loop {
+                // Fetch the next symbol: have matched if we reach the end
+                let next_symbol = symbols.pop();
+                let next_symbol = if let Some(next_symbol) = next_symbol { next_symbol } else { return true; };
+
+                // Should be 'ifMatches:'
+                if next_symbol != *SYM_IF_MATCHES { 
+                    return false;
+                }
+
+                // Should be followed by a 'do:' symbol
+                let next_symbol = symbols.pop();
+                let next_symbol = if let Some(next_symbol) = next_symbol { next_symbol } else { return false; };
+
+                // Should be 'ifMatches:'
+                if next_symbol != *SYM_DO { 
+                    return false;
+                }
+            }
+        }
+    }
+}
+
+///
+/// True if the signature matches '(ifMatches:do:)+ifDoesNotMatch:'
+///
+fn message_is_match_with_default_message(sig: TalkMessageSignatureId) -> bool {
+    let sig = sig.to_signature();
+
+    match sig {
+        TalkMessageSignature::Unary(_)              => false,
+        TalkMessageSignature::Arguments(symbols)    => {
+            if (symbols.len()%2) != 1 || symbols.len() <= 1 {
+                // Must be an odd number of parameters (with than 1 total arguments)
+                return false;
+            }
+
+            let mut symbols = symbols;
+
+            // Last symbol should be 'ifDoesNotMatch:'
+            let next_symbol = symbols.pop();
+            let next_symbol = if let Some(next_symbol) = next_symbol { next_symbol } else { return false; };
+
+            if next_symbol != *SYM_IF_DOES_NOT_MATCH {
+                return false;
+            }
+
+            // Other symbols are 'ifMatches' and 'do'
+            symbols.reverse();
+            loop {
+                // Fetch the next symbol: have matched if we reach the end
+                let next_symbol = symbols.pop();
+                let next_symbol = if let Some(next_symbol) = next_symbol { next_symbol } else { return true; };
+
+                // Should be 'ifMatches:'
+                if next_symbol != *SYM_IF_MATCHES { 
+                    return false;
+                }
+
+                // Should be followed by a 'do:' symbol
+                let next_symbol = symbols.pop();
+                let next_symbol = if let Some(next_symbol) = next_symbol { next_symbol } else { return false; };
+
+                // Should be 'ifMatches:'
+                if next_symbol != *SYM_DO { 
+                    return false;
+                }
+            }
+        }
+    }
+}
+
 pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
     .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |msg_value| TalkValue::Message(msg_value))
     .with_message(*TALK_MSG_SELECTOR,                       |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkValue::Selector(val.signature_id()))
@@ -885,6 +977,8 @@ pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>
     .with_message(*TALK_MSG_IFMATCHES_DO,                   |val, mut args, context| { let do_if_matches = TalkOwned::new(args[1].take(), context); message_if_matches_do(val, &args[0], Some(do_if_matches), None, context) })
     .with_message(*TALK_MSG_IFMATCHES_DO_IF_DOES_NOT_MATCH, |val, mut args, context| { let do_if_matches = TalkOwned::new(args[1].take(), context); let do_if_does_not_match = TalkOwned::new(args[2].take(), context); message_if_matches_do(val, &args[0], Some(do_if_matches), Some(do_if_does_not_match), context) })
     .with_message(*TALK_MSG_IFDOESNOTMATCH_DO,              |val, mut args, context| { let do_if_does_not_match = TalkOwned::new(args[1].take(), context); message_if_matches_do(val, &args[0], None, Some(do_if_does_not_match), context) })
+    .with_is_also_supported(|message_id|                    message_is_match_message(message_id) || message_is_match_with_default_message(message_id))
+    .with_not_supported(|msg, message_id, args, context|    { ().into() })
     );
 
 ///
