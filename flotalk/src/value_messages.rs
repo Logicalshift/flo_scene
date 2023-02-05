@@ -965,6 +965,65 @@ fn message_is_match_with_default_message(sig: TalkMessageSignatureId) -> bool {
     }
 }
 
+///
+/// Deals with a 'long' ifMatches message
+///
+fn message_send_long_if_matches_message(msg: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &'_ TalkContext) -> TalkContinuation<'static> {
+    // Args are groups of 'ifMatches:' and 'do:' blocks
+    let mut args    = args;
+    let mut arg_idx = 0;
+
+    loop {
+        // If there's no space for a 'ifMatches:do:' then there are no more args
+        if (arg_idx + 1) >= args.len() {
+            break;
+        }
+
+        // Fetch the two arguments for this comparison
+        let if_matches = &args[arg_idx];
+
+        if message_matches_selector(&**msg, if_matches) {
+            // This is the resulting do block
+            let do_block        = &mut args[arg_idx+1];
+
+            // Decode the message arguments
+            let value_signature = value_message_signature(msg.len());
+            let arguments       = msg.leak().to_arguments();
+
+            let do_message      = if arguments.len() == 0 { TalkMessage::Unary(value_signature) } else { TalkMessage::WithArguments(value_signature, arguments) };
+
+            return do_block.take().send_message_in_context(do_message, context);
+        }
+
+        // Move on to the next argument
+        arg_idx += 2;
+    }
+
+    // If there's one remaining argument, that's an 'ifDoesNotMatch' message
+    if arg_idx < args.len() {
+        let do_if_does_not_match    = &mut args[arg_idx];
+        let no_match_message        = TalkMessage::Unary(*TALK_MSG_VALUE);
+
+        return do_if_does_not_match.take().send_message_in_context(no_match_message, context);
+    }
+
+    // Result is nil if nothing happened at all
+    ().into()
+}
+
+///
+/// Processes unsupported messages sent to TALK_DISPATCH_MESSAGE
+///
+fn message_send_not_supported(msg: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &'_ TalkContext) -> TalkContinuation<'static> {
+    if message_is_match_message(message_id) || message_is_match_with_default_message(message_id) {
+        // Send via the 'long if matches' routine
+        message_send_long_if_matches_message(msg, args, context)
+    } else {
+        // Not a valid 'ifMatches' message
+        TalkError::MessageNotSupported(message_id).into()
+    }
+}
+
 pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>>> = Lazy::new(|| TalkMessageDispatchTable::empty()
     .with_mapped_messages_from(&*TALK_DISPATCH_ANY, |msg_value| TalkValue::Message(msg_value))
     .with_message(*TALK_MSG_SELECTOR,                       |val: TalkOwned<Box<TalkMessage>, &'_ TalkContext>, _, _| TalkValue::Selector(val.signature_id()))
@@ -978,7 +1037,7 @@ pub static TALK_DISPATCH_MESSAGE: Lazy<TalkMessageDispatchTable<Box<TalkMessage>
     .with_message(*TALK_MSG_IFMATCHES_DO_IF_DOES_NOT_MATCH, |val, mut args, context| { let do_if_matches = TalkOwned::new(args[1].take(), context); let do_if_does_not_match = TalkOwned::new(args[2].take(), context); message_if_matches_do(val, &args[0], Some(do_if_matches), Some(do_if_does_not_match), context) })
     .with_message(*TALK_MSG_IFDOESNOTMATCH_DO,              |val, mut args, context| { let do_if_does_not_match = TalkOwned::new(args[1].take(), context); message_if_matches_do(val, &args[0], None, Some(do_if_does_not_match), context) })
     .with_is_also_supported(|message_id|                    message_is_match_message(message_id) || message_is_match_with_default_message(message_id))
-    .with_not_supported(|msg, message_id, args, context|    { ().into() })
+    .with_not_supported(|msg, message_id, args, context|    message_send_not_supported(msg, message_id, args, context))
     );
 
 ///
