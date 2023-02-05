@@ -30,6 +30,18 @@ impl From<String> for TalkScript {
     }
 }
 
+impl From<Arc<String>> for TalkScript {
+    fn from(script: Arc<String>) -> TalkScript {
+        TalkScript(Arc::try_unwrap(script).unwrap_or_else(|script| (*script).clone()))
+    }
+}
+
+impl From<&Arc<String>> for TalkScript {
+    fn from(script: &Arc<String>) -> TalkScript {
+        TalkScript((**script).clone())
+    }
+}
+
 impl TalkScript {
     ///
     /// Converts this script to a list of expressions
