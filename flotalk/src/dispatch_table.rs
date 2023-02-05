@@ -109,6 +109,17 @@ where
     }
 
     ///
+    /// Set a function to determine if a message that is not in the main message table is supported by this table
+    ///
+    /// This is useful to make `responds_to()` return true for messages that are not in the dispatch table but are enabled by the 'not supported' callback.
+    ///
+    pub fn with_is_also_supported(mut self, is_also_supported: impl 'static + Send + Sync + Fn(TalkMessageSignatureId) -> bool) -> Self {
+        self.is_also_supported = Arc::new(is_also_supported);
+
+        self
+    }
+
+    ///
     /// Sends a message to an item in this dispatch table (freeing the target when done)
     ///
     #[inline]
