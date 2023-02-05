@@ -281,6 +281,15 @@ fn perform(mut val: TalkOwned<TalkValue, &'_ TalkContext>, mut args: TalkOwned<S
         // Remove the first argument to create the arguments for the message
         let _ = TalkOwned::new(args.remove(0), context);
         val.take().perform_message_in_context(selector, args, context)
+    } else if let TalkValue::Message(_) = args[0] {
+        // Providing a message as the first argument will call that message directly (this is mainly for 'perform:')
+        let message = args.remove(0);
+
+        if let TalkValue::Message(message) = message {
+            val.take().send_message_in_context(*message, context)
+        } else {
+            unreachable!()
+        }
     } else {
         // First argument was not a selector
         TalkError::NotASelector.into()

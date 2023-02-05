@@ -291,8 +291,24 @@ fn call_block_with_arguments() {
 }
 
 #[test]
-fn perform_message() {
+fn perform_selector() {
     let test_source     = "42 perform: #yourself";
+    let runtime         = TalkRuntime::empty();
+
+    executor::block_on(async { 
+        let test_source     = stream::iter(test_source.chars());
+        let expr            = parse_flotalk_expression(test_source).next().await.unwrap().unwrap();
+        let instructions    = expr.value.to_instructions();
+
+        let result          = runtime.run_with_symbols(|_| vec![], |symbol_table, cells| talk_evaluate_simple(symbol_table, cells, Arc::new(instructions))).await;
+
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn perform_message() {
+    let test_source     = "41 perform: (#+ withArguments: #(1))";
     let runtime         = TalkRuntime::empty();
 
     executor::block_on(async { 
