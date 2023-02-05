@@ -9,7 +9,7 @@ mod stream_with_reply_class;
 mod later_class;
 mod inverted_class;
 mod fn_block;
-mod evaluate;
+mod evaluate_class;
 
 pub (crate) use self::class_class::*;
 pub use self::simple_evaluator_block::*;
@@ -22,4 +22,4 @@ pub use self::stream_with_reply_class::*;
 pub use self::later_class::*;
 pub use self::inverted_class::*;
 pub use self::fn_block::*;
-pub use self::evaluate::*;
+pub use self::evaluate_class::*;
