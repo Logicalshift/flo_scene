@@ -272,6 +272,56 @@ fn if_does_not_match_2() {
 }
 
 #[test]
+fn multi_match_1() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        let msg     = runtime.run(TalkScript::from("
+            (#signature:other: withArguments: #(1 2)) 
+                ifMatches: #test1 do: [ 100 ]
+                ifMatches: #signature:other: do: [ :one :two | one + two ]
+                ifMatches: #test2:withArg: do: [ :one :two | 100 + one ]
+                ifDoesNotMatch: [ 42 ]
+        ")).await;
+
+        println!("{:?}", msg);
+        assert!(*msg == TalkValue::Int(3));
+    })
+}
+
+#[test]
+fn multi_match_2() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        let msg     = runtime.run(TalkScript::from("
+            (#signature:other: withArguments: #(1 2)) 
+                ifMatches: #test1 do: [ 100 ]
+                ifMatches: #anotherSig:other: do: [ :one :two | one + two ]
+                ifMatches: #test2:withArg: do: [ :one :two | 100 + one ]
+                ifDoesNotMatch: [ 42 ]
+        ")).await;
+
+        println!("{:?}", msg);
+        assert!(*msg == TalkValue::Int(42));
+    })
+}
+
+#[test]
+fn multi_match_3() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::empty();
+        let msg     = runtime.run(TalkScript::from("
+            (#signature:other: withArguments: #(1 2)) 
+                ifMatches: #test1 do: [ 100 ]
+                ifMatches: #signature:other: do: [ :one :two | one + two ]
+                ifMatches: #test2:withArg: do: [ :one :two | 100 + one ]
+        ")).await;
+
+        println!("{:?}", msg);
+        assert!(*msg == TalkValue::Int(3));
+    })
+}
+
+#[test]
 fn message_is_not_nil() {
     executor::block_on(async {
         let runtime = TalkRuntime::empty();
