@@ -167,6 +167,7 @@ impl TalkClassDefinition for TalkEvaluateClass {
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         static MSG_STATEMENT: Lazy<TalkMessageSignatureId>      = Lazy::new(|| "statement:".into());
         static MSG_CREATE_BLOCK: Lazy<TalkMessageSignatureId>   = Lazy::new(|| "createBlock:".into());
+        static MSG_DEFINE_AS: Lazy<TalkMessageSignatureId>      = Lazy::new(||  ("define:", "as:").into());
 
         let data_handle = reference.data_handle();
 
@@ -211,6 +212,70 @@ impl TalkClassDefinition for TalkEvaluateClass {
 
                     create_simple_evaluator_block_in_context(talk_context, vec![], vec![eval_symbol_block, root_symbol_block], eval_symbol_table, statement, None).into()
                 })
+            })
+
+        } else if message_id == *MSG_DEFINE_AS {
+
+            // First argument must be a symbol
+            let mut args    = args;
+
+            let context     = args.context();
+            let symbol      = match &args[0] {
+                TalkValue::Symbol(sym)  => *sym,
+                _                       => { return TalkError::NotASymbol.into(); }
+            };
+
+            // Second argument is the value
+            let value = args[1].take();
+
+            // Read the symbol tables from the instance
+            let (root_symbol_table, root_symbol_block) = allocator.lock().unwrap().retrieve(data_handle).symbol_tables(context);
+
+            TalkContinuation::soon(move |talk_context| {
+                {
+                    use std::mem;
+
+                    // Assign a handle to the symbol
+                    let mut root_symbol_table = root_symbol_table.lock().unwrap();
+
+                    // Must be defined in the 'main' symbol table
+                    let frame_cell  = root_symbol_table.symbol(symbol);
+                    let cell        = if let Some(frame_cell) = frame_cell {
+                        if frame_cell.frame == 0 {
+                            Some(TalkCell(root_symbol_block, frame_cell.cell))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    // Update or define a new cell value
+                    if let Some(cell) = cell {
+                        mem::drop(root_symbol_table);
+
+                        // Cell already exists
+                        *talk_context.get_cell_mut(cell) = value;
+                    } else {
+                        // Define a new cell for this value
+                        let new_cell = root_symbol_table.define_symbol(symbol);
+                        let new_cell = TalkCell(root_symbol_block, new_cell.cell);
+                        mem::drop(root_symbol_table);
+
+                        // Resize the root block to fit
+                        while talk_context.cell_block(&root_symbol_block).len() <= new_cell.1 as _ {
+                            let new_len = talk_context.cell_block(&root_symbol_block).len()*2;
+                            let new_len = if new_len == 0 { 16 } else { new_len };
+
+                            talk_context.resize_cell_block(root_symbol_block, new_len);
+                        }
+
+                        // Store the new cell value
+                        *talk_context.get_cell_mut(new_cell) = value;
+                    }
+                }
+
+                ().into()
             })
 
         } else {
