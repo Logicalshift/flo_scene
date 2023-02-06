@@ -154,6 +154,26 @@ fn instance_redefine_value_3() {
 }
 
 #[test]
+fn instance_redefine_value_4() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        runtime.run(TalkContinuation::from(20).define_as("test")).await;
+        let msg     = runtime.run(TalkScript::from("
+            | evaluator block |
+
+            evaluator := Evaluate new.
+            evaluator define: #'test' as: 22.
+
+            block := evaluator createBlock: 'test'.
+            (block value) + test
+        ")).await;
+
+        println!("{:?}", msg);
+        assert!(*msg == TalkValue::Int(42));
+    })
+}
+
+#[test]
 fn instance_redefine_value_from_empty() {
     executor::block_on(async {
         let runtime = TalkRuntime::with_standard_symbols().await;
