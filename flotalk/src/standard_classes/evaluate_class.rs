@@ -78,6 +78,7 @@ impl TalkClassDefinition for TalkEvaluateClass {
     fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, class_id: TalkClass, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         static MSG_STATEMENT: Lazy<TalkMessageSignatureId>      = Lazy::new(|| "statement:".into());
         static MSG_CREATE_BLOCK: Lazy<TalkMessageSignatureId>   = Lazy::new(|| "createBlock:".into());
+        static MSG_NEW_EMPTY: Lazy<TalkMessageSignatureId>      = Lazy::new(|| "newEmpty".into());
 
         if message_id == *MSG_STATEMENT {
 
@@ -142,6 +143,28 @@ impl TalkClassDefinition for TalkEvaluateClass {
                 for (idx, val) in root_cells.drain(..).enumerate() {
                     cells[idx] = val;
                 }
+
+                // Create the evaluator object
+                let evaluate = TalkEvaluate {
+                    root_cell_block:    cell_block,
+                    root_symbol_table:  symbol_table
+                };
+
+                // Store in the allocator
+                let data_handle = allocator.lock().unwrap().store(evaluate);
+                let reference   = TalkReference(class_id, data_handle);
+
+                reference.into()
+            })
+
+        } else if message_id == *MSG_NEW_EMPTY {
+
+            let allocator       = Arc::clone(allocator);
+
+            TalkContinuation::soon(move |talk_context| {
+                // Create a new cell block and symbol table
+                let cell_block      = talk_context.allocate_cell_block(1);
+                let symbol_table    = Arc::new(Mutex::new(TalkSymbolTable::empty()));
 
                 // Create the evaluator object
                 let evaluate = TalkEvaluate {
