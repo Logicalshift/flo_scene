@@ -167,7 +167,7 @@ impl TalkScriptClassClass {
                         let cell_block = TalkCellBlock(cell_block_reference.1.0 as _);
 
                         // For classes with a superclass, the first value in the cell block is the superclass reference
-                        let superclass_ref = &context.cell_block(cell_block)[0];
+                        let superclass_ref = &context.cell_block(&cell_block)[0];
                         let superclass_ref = superclass_ref.clone_in_context(context);
 
                         if args.len() == 0 {
@@ -194,7 +194,7 @@ impl TalkScriptClassClass {
                                     let cell_block = context.allocate_cell_block(num_cells + 1);
 
                                     // The first value is always a reference to the superclass
-                                    context.cell_block_mut(cell_block)[0] = new_class_value;
+                                    context.cell_block_mut(&cell_block)[0] = new_class_value;
 
                                     // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
                                     let handle      = TalkDataHandle(cell_block.0 as _);
@@ -277,7 +277,7 @@ impl TalkScriptClassClass {
                         let cell_block = TalkCellBlock(cell_block_reference.1.0 as _);
 
                         // For classes with a superclass, the first value in the cell block is the superclass reference
-                        let superclass_ref = &context.cell_block(cell_block)[0];
+                        let superclass_ref = &context.cell_block(&cell_block)[0];
                         let superclass_ref = superclass_ref.clone_in_context(context);
 
                         if args.len() == 0 {
@@ -497,7 +497,7 @@ impl TalkScriptClassClass {
                         let cell_block = context.allocate_cell_block(instance_size);
 
                         // The first value is always a reference to the superclass
-                        context.cell_block_mut(cell_block)[0] = superclass;
+                        context.cell_block_mut(&cell_block)[0] = superclass;
 
                         // The result is a reference to the newly created object (cell block classes use their cell block as the data handle)
                         let handle      = TalkDataHandle(cell_block.0 as _);

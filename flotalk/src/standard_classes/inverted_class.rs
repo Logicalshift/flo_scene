@@ -674,7 +674,7 @@ impl TalkInvertedClass {
             // Not supported messages go to the sender (TODO: only the inverted messages for this type)
             stream_instance_dispatch.define_not_supported(|stream, message_id, args, talk_context| {
                 let stream = TalkCellBlock(stream.data_handle().0 as _);
-                let sender = talk_context.cell_block(stream)[0].clone_in_context(talk_context);
+                let sender = talk_context.cell_block(&stream)[0].clone_in_context(talk_context);
 
                 sender.send_message_in_context(TalkMessage::from_signature(message_id, args.leak()), talk_context)
             });
@@ -700,8 +700,8 @@ impl TalkInvertedClass {
             let stream_instance = TalkReference(stream_class_id, TalkDataHandle(cell_block.0 as _));
 
             // Store the sender and receiver in the cell block
-            talk_context.cell_block_mut(cell_block)[0] = sender.into();
-            talk_context.cell_block_mut(cell_block)[1] = receiver.into();
+            talk_context.cell_block_mut(&cell_block)[0] = sender.into();
+            talk_context.cell_block_mut(&cell_block)[1] = receiver.into();
 
             // The instance is the result
             stream_instance.into()
@@ -715,7 +715,7 @@ impl TalkInvertedClass {
         static TALK_MSG_NEXT: Lazy<TalkMessageSignatureId> = Lazy::new(|| "next".into());
 
         let stream      = TalkCellBlock(stream.data_handle().0 as _);
-        let receiver    = talk_context.cell_block(stream)[1].clone_in_context(talk_context);
+        let receiver    = talk_context.cell_block(&stream)[1].clone_in_context(talk_context);
 
         receiver.send_message_in_context(TalkMessage::Unary(*TALK_MSG_NEXT), talk_context)
     }

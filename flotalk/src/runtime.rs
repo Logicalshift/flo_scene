@@ -565,7 +565,7 @@ impl TalkRuntime {
             let mut symbol_table    = TalkSymbolTable::empty();
 
             // Load the values into the symbol table
-            let cells               = talk_context.cell_block_mut(cell_block);
+            let cells               = talk_context.cell_block_mut(&cell_block);
             for (symbol, value) in symbols {
                 let pos                     = symbol_table.define_symbol(symbol);
                 cells[pos.cell as usize]    = value;

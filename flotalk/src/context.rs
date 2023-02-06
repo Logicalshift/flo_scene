@@ -376,16 +376,16 @@ impl TalkContext {
     /// Retrieves a cell block for reading
     ///
     #[inline]
-    pub fn cell_block(&self, TalkCellBlock(idx): TalkCellBlock) -> &[TalkValue] {
-        &self.cells[idx as usize].values
+    pub fn cell_block(&self, TalkCellBlock(idx): &TalkCellBlock) -> &[TalkValue] {
+        &self.cells[*idx as usize].values
     }
 
     ///
     /// Retrieves a cell block for writing
     ///
     #[inline]
-    pub fn cell_block_mut(&mut self, TalkCellBlock(idx): TalkCellBlock) -> &mut [TalkValue] {
-        &mut self.cells[idx as usize].values
+    pub fn cell_block_mut(&mut self, TalkCellBlock(idx): &TalkCellBlock) -> &mut [TalkValue] {
+        &mut self.cells[*idx as usize].values
     }
 
     ///
@@ -501,7 +501,7 @@ impl TalkContext {
         let symbol_index = symbol_index.cell as usize;
 
         // Make sure that there are enough cells defined
-        let root_cell_block = self.cell_block(self.root_cell_block);
+        let root_cell_block = self.cell_block(&self.root_cell_block);
 
         if root_cell_block.len() <= symbol_index {
             // Decide how big to make the new root cell block
@@ -516,7 +516,8 @@ impl TalkContext {
         }
 
         // Re-fetch the root cell block
-        let root_cell_block = self.cell_block_mut(self.root_cell_block);
+        let root_cell_block = self.root_cell_block.clone();
+        let root_cell_block = self.cell_block_mut(&root_cell_block);
 
         // Release any existing value and store the new value
         let old_value = root_cell_block[symbol_index].take();

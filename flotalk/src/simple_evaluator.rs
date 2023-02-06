@@ -58,7 +58,7 @@ impl TalkFrame {
     pub fn with_symbol_value<TResult>(&mut self, symbol: TalkSymbol, context: &mut TalkContext, action: impl FnOnce(&mut TalkValue) -> TResult) -> Option<TResult> {
         if let Some(binding) = self.symbol_table.symbol(symbol) {
             let cell_block  = self.bindings[binding.frame as usize];
-            let cell_block  = context.cell_block_mut(cell_block);
+            let cell_block  = context.cell_block_mut(&cell_block);
 
             Some(action(&mut cell_block[binding.cell as usize]))
         } else {
@@ -86,7 +86,7 @@ impl TalkFrame {
         let new_symbol = self.symbol_table.define_symbol(symbol);
 
         // Expand the list of cells if needed
-        let cells = context.cell_block(self.bindings[0]);
+        let cells = context.cell_block(&self.bindings[0]);
         if cells.len() <= new_symbol.cell as _ {
             // Reserve space by doubling what we have
             let mut new_len = cells.len();
@@ -158,7 +158,7 @@ where
         let local_cell_block = context.allocate_cell_block(arguments.len());
 
         // Move the arguments into the cell block
-        let cell_block_values = context.cell_block_mut(local_cell_block);
+        let cell_block_values = context.cell_block_mut(&local_cell_block);
         for (idx, arg) in arguments.into_iter().enumerate() {
             cell_block_values[idx] = arg;
         }
@@ -254,7 +254,7 @@ where
 
                     // Fetch the cell block containing the value
                     let cell_block  = frame.bindings[binding.frame as usize];
-                    let cell_block  = context.cell_block_mut(cell_block);
+                    let cell_block  = context.cell_block_mut(&cell_block);
 
                     // Swap the new value into the cell block
                     let mut old_value = new_value;
