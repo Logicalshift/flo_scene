@@ -74,7 +74,7 @@ where
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, arguments: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         // Turn the arguments back into a message
         let message = if arguments.len() == 0 {
             TalkMessage::Unary(message_id)

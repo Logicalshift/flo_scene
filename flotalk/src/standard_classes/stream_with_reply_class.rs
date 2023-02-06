@@ -149,7 +149,7 @@ impl TalkClassDefinition for TalkStreamWithReplyClass {
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static> {
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         static TALK_MSG_NEW: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| ("new").into());
         static TALK_MSG_VALUE: Lazy<TalkMessageSignatureId>                     = Lazy::new(|| ("value").into());
         static SIG_CACHE: Lazy<Mutex<TalkSparseArray<TalkMessageSignatureId>>>  = Lazy::new(|| Mutex::new(TalkSparseArray::empty()));

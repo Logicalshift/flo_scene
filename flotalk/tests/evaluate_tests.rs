@@ -75,6 +75,25 @@ fn instance_read_defined_value() {
 }
 
 #[test]
+fn instance_read_defined_from_block() {
+    executor::block_on(async {
+        let runtime = TalkRuntime::with_standard_symbols().await;
+        runtime.run(TalkContinuation::from(42).define_as("test")).await;
+        let msg     = runtime.run(TalkScript::from("
+            | evaluator block |
+
+            evaluator := Evaluate new.
+
+            block := evaluator createBlock: 'test'.
+            block value
+        ")).await;
+
+        println!("{:?}", msg);
+        assert!(*msg == TalkValue::Int(42));
+    })
+}
+
+#[test]
 fn instance_redefine_value_1() {
     executor::block_on(async {
         let runtime = TalkRuntime::with_standard_symbols().await;

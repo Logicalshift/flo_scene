@@ -223,7 +223,7 @@ pub trait TalkClassDefinition : Send + Sync {
     ///
     /// Sends a message to an instance of this class
     ///
-    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Mutex<Self::Allocator>) -> TalkContinuation<'static>;
+    fn send_instance_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, reference: TalkReference, allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static>;
 
     ///
     /// Generates default dispatch table for an instance of this class
@@ -284,7 +284,7 @@ impl TalkClass {
 
                     Err((reference, message_id, message_args))  => {
                         let data_handle = reference.1;
-                        class_definition.send_instance_message(message_id, message_args, TalkReference(class_id, data_handle), &*allocator)
+                        class_definition.send_instance_message(message_id, message_args, TalkReference(class_id, data_handle), &allocator)
                     }
                 }
             })
