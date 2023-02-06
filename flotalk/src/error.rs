@@ -46,6 +46,9 @@ pub enum TalkError {
     /// Tried to send a message using something that is not a selector
     NotASelector,
 
+    /// Tried to send a message using something that is not a symbol
+    NotASymbol,
+
     /// Tried to send a message using something that is not a string
     NotAString,
 
