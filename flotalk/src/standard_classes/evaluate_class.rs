@@ -112,7 +112,6 @@ impl TalkClassDefinition for TalkEvaluateClass {
                     // Run with the root symbol table
                     let root_symbol_table = talk_context.root_symbol_table();
                     let root_symbol_block = talk_context.root_symbol_table_cell_block().leak();
-                    talk_context.retain_cell_block(root_symbol_block);
 
                     // Any new symbols are local to the evaluation
                     let eval_symbol_table = Arc::new(Mutex::new(TalkSymbolTable::with_parent_frame(root_symbol_table)));
@@ -182,6 +181,8 @@ impl TalkClassDefinition for TalkEvaluateClass {
 
         } else if message_id == *MSG_CREATE_BLOCK {
 
+            let allocator = Arc::clone(allocator);
+
             // Fetch the statement
             let statement = args[0].try_as_string();
             let statement = match statement {
@@ -201,10 +202,8 @@ impl TalkClassDefinition for TalkEvaluateClass {
                 TalkContinuation::soon(move |talk_context| {
                     let statement = Arc::new(statement);
 
-                    // Run with the root symbol table
-                    let root_symbol_table = talk_context.root_symbol_table();
-                    let root_symbol_block = talk_context.root_symbol_table_cell_block().leak();
-                    talk_context.retain_cell_block(root_symbol_block);
+                    // Read the symbol tables from the instance
+                    let (root_symbol_table, root_symbol_block) = allocator.lock().unwrap().retrieve(data_handle).symbol_tables(talk_context);
 
                     // Any new symbols are local to the evaluation
                     let eval_symbol_table = Arc::new(Mutex::new(TalkSymbolTable::with_parent_frame(root_symbol_table)));
@@ -217,5 +216,18 @@ impl TalkClassDefinition for TalkEvaluateClass {
         } else {
             TalkError::MessageNotSupported(message_id).into()
         }
+    }
+}
+
+impl TalkEvaluate {
+    ///
+    /// Read & retain the symbol table from this evaluate instance
+    ///
+    fn symbol_tables(&self, talk_context: &TalkContext) -> (Arc<Mutex<TalkSymbolTable>>, TalkCellBlock) {
+        let symbol_table    = Arc::clone(&self.root_symbol_table);
+        let cell_block      = self.root_cell_block;
+        talk_context.retain_cell_block(cell_block);
+
+        (symbol_table, cell_block)
     }
 }
