@@ -200,7 +200,10 @@ impl TalkClassDefinition for TalkEvaluateClass {
 
             match statement {
                 Err(err)        => err.into(),
-                Ok(statement)   => continuation_from_script(statement),
+                Ok(statement)   => {
+                    let (root_symbol_table, root_symbol_block) = allocator.lock().unwrap().retrieve(data_handle).symbol_tables(args.context());
+                    continuation_from_script_with_symbol_table(statement, root_symbol_table, vec![root_symbol_block])
+                },
             }
 
         } else if message_id == *MSG_CREATE_BLOCK {
