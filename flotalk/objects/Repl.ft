@@ -11,6 +11,9 @@ Export class: [ :Self |
         run - runs the REPL loop
     "
     Self addInstanceMessage: #run withAction: [ :self |
+        | eval |
+        eval := Evaluate new.
+
         [
             | statement result |
 
@@ -28,7 +31,7 @@ Export class: [ :Self |
             statement := self readLine.
 
             "Evaluate"
-            result := Evaluate statement: statement.
+            result := eval statement: statement.
 
             "Print"
             (self say)
