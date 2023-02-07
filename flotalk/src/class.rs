@@ -1,3 +1,4 @@
+use super::allocator::*;
 use super::context::*;
 use super::continuation::*;
 use super::dispatch_table::*;
@@ -51,20 +52,6 @@ static CLASS_DATA_READERS: Lazy<Mutex<HashMap<TypeId, HashMap<TypeId, Box<dyn Se
 
 thread_local! {
     static LOCAL_CLASS_CALLBACKS: RefCell<Vec<Option<&'static TalkClassCallbacks>>> = RefCell::new(vec![]);
-}
-
-///
-/// Represents the action that was taken when a reference was released
-///
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum TalkReleaseAction {
-    /// The item was fully released and dropped (and is no longer a valid reference anywhere in the code)
-    Dropped,
-
-    /// The item still has other references that are valid so is still in memory
-    ///
-    /// Other references are still valid, but callers shouldn't consider that the specific reference that was released is still valid
-    Retained,
 }
 
 ///
@@ -238,29 +225,6 @@ pub trait TalkClassDefinition : Send + Sync {
     /// Messages are dispatched here ahead of the 'send_instance_message' callback (note in particular `respondsTo:` may need to be overridden)
     ///
     fn default_class_dispatch_table(&self) -> TalkMessageDispatchTable<TalkClass> { TalkMessageDispatchTable::empty() }
-}
-
-///
-/// A class allocator is used to manage the memory of a class
-///
-pub trait TalkClassAllocator : Send {
-    /// The type of data stored for this class
-    type Data: Send;
-
-    ///
-    /// Retrieves a reference to the data attached to a handle (panics if the handle has been released)
-    ///
-    fn retrieve<'a>(&'a mut self, handle: TalkDataHandle) -> &'a mut Self::Data;
-
-    ///
-    /// Adds to the reference count for a data handle
-    ///
-    fn retain(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext);
-
-    ///
-    /// Removes from the reference count for a data handle (freeing it if the count reaches 0)
-    ///
-    fn release(allocator: &Arc<Mutex<Self>>, handle: TalkDataHandle, context: &TalkContext) -> TalkReleaseAction;
 }
 
 impl TalkClass {

@@ -1,3 +1,4 @@
+use crate::allocator::*;
 use super::class::*;
 use super::context::*;
 use super::error::*;

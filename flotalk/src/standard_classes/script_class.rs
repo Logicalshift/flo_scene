@@ -1,5 +1,6 @@
 use super::talk_message_handler::*;
 
+use crate::allocator::*;
 use crate::class::*;
 use crate::context::*;
 use crate::continuation::*;

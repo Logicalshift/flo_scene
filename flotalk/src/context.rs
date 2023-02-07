@@ -1,3 +1,4 @@
+use super::allocator::*;
 use super::class::*;
 use super::continuation::*;
 use super::dispatch_table::*;

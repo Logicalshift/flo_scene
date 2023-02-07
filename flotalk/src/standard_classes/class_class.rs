@@ -1,3 +1,4 @@
+use crate::allocator::*;
 use crate::class::*;
 use crate::context::*;
 use crate::continuation::*;
