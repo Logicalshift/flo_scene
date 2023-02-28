@@ -2,9 +2,12 @@ use crate::*;
 
 use futures::future::{BoxFuture};
 use smallvec::*;
+use once_cell::sync::{Lazy};
 
 use std::collections::{HashMap};
 use std::sync::*;
+
+pub (crate) static IMPORT_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkImportClass));
 
 ///
 /// The `Import` class is used to request values loaded externally
@@ -43,14 +46,79 @@ pub struct TalkImportAllocator {
     /// the entire module.
     ///
     /// Once a module has been loaded, it will be cached, and this won't be consulted again
-    importers: Vec<Box<dyn Send + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>>>,
+    importers: Vec<Arc<dyn Send + Sync + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>>>,
 
     /// The modules that have been loaded from the importers. 
     modules: HashMap<String, TalkValue>,
 }
 
 impl TalkImportClass {
-    
+    ///
+    /// Attempts to load a module from the importer in the continuation context (returning the module object, which responds to the `item:` message or nil
+    /// if the module is not available)
+    ///
+    pub fn load_module(module_name: impl Into<String>) -> TalkContinuation<'static> {
+        let module_name = module_name.into();
+
+        TalkContinuation::soon(move |context| {
+            // Get the import allocator from the context
+            let import_allocator = IMPORT_CLASS.allocator::<TalkImportAllocator>(context);
+            let import_allocator = if let Some(import_allocator) = import_allocator { import_allocator } else { return ().into(); };
+
+            // If the module is already loaded, then just use that module
+            let import_allocator = import_allocator.lock().unwrap();
+
+            if let Some(module) = import_allocator.modules.get(&module_name) {
+                // Return the module previously loaded
+                module.clone_in_context(context).into()
+            } else {
+                // Try to load from each importer in turn
+                let all_importers = import_allocator.importers.clone().into_iter();
+
+                Self::try_load_module(module_name, all_importers)
+            }
+        })
+    }
+
+    ///
+    /// Attempts to load a module
+    ///
+    fn try_load_module(module_name: String, importers: impl 'static + Send + Iterator<Item=Arc<dyn Send + Sync + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>>>) -> TalkContinuation<'static> {
+        let mut importers = importers;
+
+        if let Some(next_importer) = importers.next() {
+            // Try to load this next importer
+            TalkContinuation::future_soon(async move {
+                if let Some(import_module) = next_importer(&module_name).await {
+                    // Try to load this module
+                    import_module.and_then_soon(move |module, context| {
+                        // Module should return non-nil to have been successfully loaded
+                        if module.is_nil() {
+                            // Did not load a module: try the next importer
+                            return Self::try_load_module(module_name, importers);
+                        }
+
+                        // Loaded a module
+                        let import_allocator        = IMPORT_CLASS.allocator::<TalkImportAllocator>(context);
+                        let import_allocator        = if let Some(import_allocator) = import_allocator { import_allocator } else { return ().into(); };
+                        let mut import_allocator    = import_allocator.lock().unwrap();
+
+                        // Store the module in the cache
+                        import_allocator.modules.insert(module_name, module.clone_in_context(context));
+
+                        // Result is the module we just loaded
+                        module.into()
+                    })
+                } else {
+                    // Module does not exist: try to load the next module
+                    Self::try_load_module(module_name, importers)
+                }
+            })
+        } else {
+            // Module could not be loaded
+            ().into()
+        }
+    }
 }
 
 impl TalkClassDefinition for TalkImportClass {
