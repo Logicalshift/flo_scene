@@ -180,6 +180,17 @@ impl TalkValue {
     }
 
     ///
+    /// Returns the error represented by this value
+    ///
+    pub fn try_as_error(&self) -> Result<TalkError, TalkError> {
+        match self {
+            TalkValue::Nil                  => Err(TalkError::IsNil),
+            TalkValue::Error(err)           => Ok(err.clone()),
+            _                               => Err(TalkError::NotAnError)
+        }
+    }
+
+    ///
     /// Returns true if this reference is to a `TalkClass` object
     ///
     pub fn is_class_object(&self) -> bool {
