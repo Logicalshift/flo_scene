@@ -88,11 +88,18 @@ where
     /// Creates an allocator with no values in it
     ///
     pub fn empty() -> Arc<Mutex<TalkStandardAllocator<TValue>>> {
-        Arc::new(Mutex::new(TalkStandardAllocator {
+        Arc::new(Mutex::new(Self::new()))
+    }
+
+    ///
+    /// Creates an allocator with no values in it
+    ///
+    pub fn new() -> TalkStandardAllocator<TValue> {
+        TalkStandardAllocator {
             data:               vec![],
             reference_counts:   vec![],
             free_slots:         vec![],
-        }))
+        }
     }
 
     ///
