@@ -99,6 +99,9 @@ pub enum TalkError {
 
     /// A message can't be sent because the target stream is closed
     StreamClosed,
+
+    /// A module requested for import could not be found
+    ImportModuleNotFound,
 }
 
 impl From<TalkParseError> for TalkError {
