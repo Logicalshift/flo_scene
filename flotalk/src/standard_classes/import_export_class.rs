@@ -1,7 +1,9 @@
 use crate::*;
 
+use futures::future::{BoxFuture};
 use smallvec::*;
 
+use std::collections::{HashMap};
 use std::sync::*;
 
 ///
@@ -20,6 +22,36 @@ pub struct TalkImportClass;
 /// * `Export class: [ :Self | "..." ]` as: SampleClass.` - define a class
 ///
 pub struct TalkExportClass;
+
+///
+/// The export allocator is used to define things that are exported by the `Export` class 
+///
+pub struct TalkExportAllocator {
+
+}
+
+///
+/// The Import allocator manages the data associated with the TalkImportClass
+///
+/// TalkImportClass doesn't generate instances as usual (its data type is `()`), but the allocator manages importers within a context.
+///
+pub struct TalkImportAllocator {
+    allocator: TalkStandardAllocator<()>,
+
+    /// Returns an importer for a module. The result of the continuation is either 'nil' to indicate that the exporter did not load a
+    /// module, or an object that responds to the `item:` message to return the exported items. The first importer to respond will define
+    /// the entire module.
+    ///
+    /// Once a module has been loaded, it will be cached, and this won't be consulted again
+    importers: Vec<Box<dyn Send + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>>>,
+
+    /// The modules that have been loaded from the importers. 
+    modules: HashMap<String, TalkValue>,
+}
+
+impl TalkImportClass {
+    
+}
 
 impl TalkClassDefinition for TalkImportClass {
     /// The type of the data stored by an object of this class
@@ -57,7 +89,7 @@ impl TalkClassDefinition for TalkExportClass {
     type Data = ();
 
     /// The allocator is used to manage the memory of this class within a context
-    type Allocator = TalkStandardAllocator<()>;
+    type Allocator = TalkImportAllocator;
 
     ///
     /// Creates the allocator for this class in a particular context
@@ -65,7 +97,11 @@ impl TalkClassDefinition for TalkExportClass {
     /// This is also an opportunity for a class to perform any other initialization it needs to do within a particular `TalkContext`
     ///
     fn create_allocator(&self, _talk_context: &mut TalkContext) -> Arc<Mutex<Self::Allocator>> {
-        TalkStandardAllocator::empty()
+        Arc::new(Mutex::new(TalkImportAllocator { 
+            allocator:  TalkStandardAllocator::new(), 
+            importers:  vec![],
+            modules:    HashMap::new(),
+        }))
     }
 
     ///
@@ -80,5 +116,22 @@ impl TalkClassDefinition for TalkExportClass {
     ///
     fn send_instance_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _reference: TalkReference, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         TalkError::MessageNotSupported(message_id).into()
+    }
+}
+
+impl TalkClassAllocator for TalkImportAllocator {
+    type Data = ();
+
+    fn retrieve<'a>(&'a mut self, handle: TalkDataHandle) -> &'a mut Self::Data {
+        self.allocator.retrieve(handle)
+    }
+
+    fn retain(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) {
+        // No data is stored in the underlying allocator
+    }
+
+    fn release(_allocator: &Arc<Mutex<Self>>, _handle: TalkDataHandle, _context: &TalkContext) -> TalkReleaseAction {
+        // No data is stored in the underlying allocator
+        TalkReleaseAction::Dropped
     }
 }
