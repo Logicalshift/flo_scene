@@ -91,7 +91,7 @@ impl TalkImportClass {
             TalkContinuation::future_soon(async move {
                 if let Some(import_module) = next_importer(&module_name).await {
                     // Try to load this module
-                    import_module.and_then_soon(move |module, context| {
+                    import_module.and_then_soon_if_ok(move |module, context| {
                         // Module should return non-nil to have been successfully loaded
                         if module.is_nil() {
                             // Did not load a module: try the next importer
@@ -140,8 +140,43 @@ impl TalkClassDefinition for TalkImportClass {
     ///
     /// Sends a message to the class object itself
     ///
-    fn send_class_message(&self, message_id: TalkMessageSignatureId, _args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _class_id: TalkClass, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
-        TalkError::MessageNotSupported(message_id).into()
+    fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _class_id: TalkClass, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
+        static MSG_ITEM_FROM:   Lazy<TalkMessageSignatureId> = Lazy::new(|| ("item:", "from:").into());
+        static MSG_ITEM:        Lazy<TalkMessageSignatureId> = Lazy::new(|| ("item:").into());
+
+        if message_id == *MSG_ITEM_FROM {
+            let mut args    = args;
+            let item        = args[0].take();
+            let from        = args[1].take();
+
+            if let Ok(from) = from.try_as_string() {
+                // Try to load the module
+                Self::load_module((*from).clone())
+                    .and_then_soon(move |module, context| {
+                        if module.is_nil() {
+                            // Module could not be found
+                            item.release_in_context(context);
+                            TalkError::ImportModuleNotFound.into()
+                        } else if let Ok(err) = module.try_as_error() {
+                            // Some kind of error occurred while loading the module
+                            item.release_in_context(context);
+                            err.into()
+                        } else {
+                            // Module loaded OK: send the item message to the module to generate the final result
+                            module.send_message(TalkMessage::WithArguments(*MSG_ITEM, smallvec![item]))
+                        }
+                    })
+            } else {
+                // Expected string
+                item.release_in_context(args.context());
+                from.release_in_context(args.context());
+
+                TalkError::NotAString.into()
+            }
+        } else {
+
+            TalkError::MessageNotSupported(message_id).into()
+        }
     }
 
     ///
