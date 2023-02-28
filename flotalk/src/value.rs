@@ -100,6 +100,17 @@ impl TalkValue {
     }
 
     ///
+    /// Returns true if this value is 'nil'
+    ///
+    #[inline]
+    pub fn is_nil(&self) -> bool {
+        match self {
+            TalkValue::Nil  => true,
+            _               => false,
+        }
+    }
+
+    ///
     /// Returns the reference represented by this value
     ///
     pub fn try_as_reference(&self) -> Result<&TalkReference, TalkError> {
