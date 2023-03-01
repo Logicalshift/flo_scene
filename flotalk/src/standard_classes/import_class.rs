@@ -37,6 +37,47 @@ pub struct TalkImportAllocator {
 
 impl TalkImportClass {
     ///
+    /// Defines a new importer function, which will defined at a high priority (if there are other importers that define the same module, this one will be checked first)
+    ///
+    /// Note that if a module is already loaded, this won't unload it for the importer
+    ///
+    pub fn define_high_priority_importer(importer: impl 'static + Send + Sync + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>) -> TalkContinuation<'static> {
+        Self::define_importer(true, importer)
+    }
+
+    ///
+    /// Defines a new importer function, which will defined at a low priority (will only be loaded if the existing importers don't provide this module)
+    ///
+    pub fn define_low_priority_importer(importer: impl 'static + Send + Sync + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>) -> TalkContinuation<'static> {
+        Self::define_importer(false, importer)
+    }
+
+    ///
+    /// Defines a new importer function in the context the returned continuation is evaluated in
+    ///
+    fn define_importer(check_first: bool, importer: impl 'static + Send + Sync + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>) -> TalkContinuation<'static> {
+        TalkContinuation::soon(move |context| {
+            // Call get_callbacks_mut() to make sure the import class is loaded
+            context.get_callbacks_mut(*IMPORT_CLASS);
+
+            // Fetch the allocator
+            let import_allocator        = IMPORT_CLASS.allocator::<TalkImportAllocator>(context);
+            let import_allocator        = if let Some(import_allocator) = import_allocator { import_allocator } else { return ().into(); };
+            let mut import_allocator    = import_allocator.lock().unwrap();
+
+            // Define the importer function in the importer
+            if check_first {
+                import_allocator.importers.insert(0, Arc::new(importer));
+            } else {
+                import_allocator.importers.push(Arc::new(importer));
+            }
+
+            // Result is just nil
+            ().into()
+        })
+    }
+
+    ///
     /// Attempts to load a module from the importer in the continuation context (returning the module object, which responds to the `item:` message or nil
     /// if the module is not available)
     ///
