@@ -1,5 +1,6 @@
 use crate::*;
 
+use futures::prelude::*;
 use futures::future::{BoxFuture};
 use smallvec::*;
 use once_cell::sync::{Lazy};
@@ -13,6 +14,21 @@ pub (crate) static IMPORT_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::creat
 /// The `Import` class is used to request values loaded externally
 ///
 /// This is used to import single items from external modules. For example, `Import item: 'terminalOut' from: 'Terminal'.`
+///
+/// The importer class manages multiple importers, which maps module names to module objects. Module objects just respond
+/// to the `item:` message by returning the corresponding item. Importers can be added to a context by evaluating the
+/// continuation returned by the `TalkImportClass::define_high_prority_importer()` or 
+/// `TalkImportClass::define_low_priority_importer()` functions.
+///
+/// ```ignore
+/// TalkImportClass::define_low_priority_importer(move |module_name| async move {
+///     if &module_name == "TestModule" {
+///         Some(TalkContinuation::soon(|_| /* ... Create test module object ... */))
+///     } else {
+///         None
+///     }
+/// })
+/// ```
 ///
 pub struct TalkImportClass;
 
@@ -29,7 +45,7 @@ pub struct TalkImportAllocator {
     /// the entire module.
     ///
     /// Once a module has been loaded, it will be cached, and this won't be consulted again
-    importers: Vec<Arc<dyn Send + Sync + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>>>,
+    importers: Vec<Arc<dyn Send + Sync + Fn(String) -> BoxFuture<'static, Option<TalkContinuation<'static>>>>>,
 
     /// The modules that have been loaded from the importers. 
     modules: HashMap<String, TalkValue>,
@@ -41,21 +57,30 @@ impl TalkImportClass {
     ///
     /// Note that if a module is already loaded, this won't unload it for the importer
     ///
-    pub fn define_high_priority_importer(importer: impl 'static + Send + Sync + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>) -> TalkContinuation<'static> {
+    pub fn define_high_priority_importer<TFuture>(importer: impl 'static + Send + Sync + Fn(String) -> TFuture) -> TalkContinuation<'static>
+    where
+        TFuture: 'static + Send + Future<Output=Option<TalkContinuation<'static>>>,
+    {
         Self::define_importer(true, importer)
     }
 
     ///
     /// Defines a new importer function, which will defined at a low priority (will only be loaded if the existing importers don't provide this module)
     ///
-    pub fn define_low_priority_importer(importer: impl 'static + Send + Sync + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>) -> TalkContinuation<'static> {
+    pub fn define_low_priority_importer<TFuture>(importer: impl 'static + Send + Sync + Fn(String) -> TFuture) -> TalkContinuation<'static> 
+    where
+        TFuture: 'static + Send + Future<Output=Option<TalkContinuation<'static>>>,
+    {
         Self::define_importer(false, importer)
     }
 
     ///
     /// Defines a new importer function in the context the returned continuation is evaluated in
     ///
-    fn define_importer(check_first: bool, importer: impl 'static + Send + Sync + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>) -> TalkContinuation<'static> {
+    fn define_importer<TFuture>(check_first: bool, importer: impl 'static + Send + Sync + Fn(String) -> TFuture) -> TalkContinuation<'static> 
+    where
+        TFuture: 'static + Send + Future<Output=Option<TalkContinuation<'static>>>,
+    {
         TalkContinuation::soon(move |context| {
             // Call get_callbacks_mut() to make sure the import class is loaded
             context.get_callbacks_mut(*IMPORT_CLASS);
@@ -64,6 +89,10 @@ impl TalkImportClass {
             let import_allocator        = IMPORT_CLASS.allocator::<TalkImportAllocator>(context);
             let import_allocator        = if let Some(import_allocator) = import_allocator { import_allocator } else { return ().into(); };
             let mut import_allocator    = import_allocator.lock().unwrap();
+
+            let importer = move |module_name| {
+                importer(module_name).boxed()
+            };
 
             // Define the importer function in the importer
             if check_first {
@@ -107,13 +136,13 @@ impl TalkImportClass {
     ///
     /// Attempts to load a module
     ///
-    fn try_load_module(module_name: String, importers: impl 'static + Send + Iterator<Item=Arc<dyn Send + Sync + Fn(&str) -> BoxFuture<'static, Option<TalkContinuation<'static>>>>>) -> TalkContinuation<'static> {
+    fn try_load_module(module_name: String, importers: impl 'static + Send + Iterator<Item=Arc<dyn Send + Sync + Fn(String) -> BoxFuture<'static, Option<TalkContinuation<'static>>>>>) -> TalkContinuation<'static> {
         let mut importers = importers;
 
         if let Some(next_importer) = importers.next() {
             // Try to load this next importer
             TalkContinuation::future_soon(async move {
-                if let Some(import_module) = next_importer(&module_name).await {
+                if let Some(import_module) = next_importer(module_name.clone()).await {
                     // Try to load this module
                     import_module.and_then_soon_if_ok(move |module, context| {
                         // Module should return non-nil to have been successfully loaded
