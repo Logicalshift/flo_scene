@@ -183,10 +183,94 @@ pub static TALK_MSG_TRUNCATED: Lazy<TalkMessageSignatureId>                   = 
 pub static TALK_MSG_TRUNCATE_TO: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| ("truncateTo:").into());
 
 
-// SequencedReadableCollection protocol messages
+// Collection protocol messages
+pub static TALK_MSG_ALL_SATISFY: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| ("allSatisfy:").into());
+pub static TALK_MSG_ANY_SATISFY: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| ("anySatisfy:").into());
+pub static TALK_MSG_AS_ARRAY: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| ("asArray").into());
+pub static TALK_MSG_AS_BAG: Lazy<TalkMessageSignatureId>                      = Lazy::new(|| ("asBag").into());
+pub static TALK_MSG_AS_BYTE_ARRAY: Lazy<TalkMessageSignatureId>               = Lazy::new(|| ("asByteArray").into());
+pub static TALK_MSG_AS_ORDERED_COLLECTION: Lazy<TalkMessageSignatureId>       = Lazy::new(|| ("asOrderedCollection").into());
+pub static TALK_MSG_AS_SET: Lazy<TalkMessageSignatureId>                      = Lazy::new(|| ("asSet").into());
+pub static TALK_MSG_AS_SORTED_COLLECTION: Lazy<TalkMessageSignatureId>        = Lazy::new(|| ("asSortedCollection").into());
+pub static TALK_MSG_AS_SORTED_COLLECTION_COLON: Lazy<TalkMessageSignatureId>  = Lazy::new(|| ("asSortedCollection:").into());
+//pub static TALK_MSG_COLLECT: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("collect:").into());
+pub static TALK_MSG_DETECT: Lazy<TalkMessageSignatureId>                      = Lazy::new(|| ("detect:").into());
+pub static TALK_MSG_DETECT_IF_NONE: Lazy<TalkMessageSignatureId>              = Lazy::new(|| ("detect:", "ifNone:").into());
+//pub static TALK_MSG_DO: Lazy<TalkMessageSignatureId>                        = Lazy::new(|| ("do:").into());
+pub static TALK_MSG_DO_SEPARATED_BY: Lazy<TalkMessageSignatureId>             = Lazy::new(|| ("do:separatedBy:").into());
+pub static TALK_MSG_INCLUDES: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| ("includes:").into());
+pub static TALK_MSG_INJECT_INTO: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| ("inject:", "into:").into());
+pub static TALK_MSG_IS_EMPTY: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| ("isEmpty").into());
+pub static TALK_MSG_NOT_EMPTY: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("notEmpty").into());
+pub static TALK_MSG_OCCURRENCES_OF: Lazy<TalkMessageSignatureId>              = Lazy::new(|| ("occurrencesOf:").into());
+pub static TALK_MSG_REHASH: Lazy<TalkMessageSignatureId>                      = Lazy::new(|| ("rehash").into());
+//pub static TALK_MSG_REJECT: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| ("reject:").into());
+//pub static TALK_MSG_SELECT: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| ("select:").into());
+pub static TALK_MSG_SIZE: Lazy<TalkMessageSignatureId>                        = Lazy::new(|| ("size").into());
 
-pub static TALK_MSG_DO: Lazy<TalkMessageSignatureId>                            = Lazy::new(|| ("do:").into());
-// TODO: add the rest of th protocol
+
+// SequencedReadableCollection protocol messages (is-a Collection)
+
+//pub static TALK_BINARY_COMMA: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| (",").into());
+//pub static TALK_BINARY_EQUALS: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| ("=").into());
+pub static TALK_MSG_AFTER: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| ("after:").into());
+//pub static TALK_MSG_AT: Lazy<TalkMessageSignatureId>                        = Lazy::new(|| ("at:").into());
+//pub static TALK_MSG_AT_IF_ABSENT: Lazy<TalkMessageSignatureId>              = Lazy::new(|| ("at:", "ifAbsent:").into());
+pub static TALK_MSG_BEFORE: Lazy<TalkMessageSignatureId>                      = Lazy::new(|| ("before:").into());
+pub static TALK_MSG_COPY_FROM_TO: Lazy<TalkMessageSignatureId>                = Lazy::new(|| ("copyFrom:", "to:").into());
+pub static TALK_MSG_COPY_REPLACE_ALL_WITH: Lazy<TalkMessageSignatureId>       = Lazy::new(|| ("copyReplaceAll:", "with:").into());
+pub static TALK_MSG_COPY_REPLACE_FROM_TO_WITH: Lazy<TalkMessageSignatureId>   = Lazy::new(|| ("copyReplaceFrom:", "to:", "with:").into());
+pub static TALK_MSG_COPY_REPLACE_FROM_TO_WITH_OBJECT: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("copyReplaceFrom:", "to:", "withObject:").into());
+pub static TALK_MSG_COPY_REPLACING_WITH_OBJECT: Lazy<TalkMessageSignatureId>  = Lazy::new(|| ("copyReplacing:", "withObject:").into());
+pub static TALK_MSG_COPY_WITH: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("copyWith:").into());
+pub static TALK_MSG_COPY_WITHOUT: Lazy<TalkMessageSignatureId>                = Lazy::new(|| ("copyWithout:").into());
+pub static TALK_MSG_DO: Lazy<TalkMessageSignatureId>                          = Lazy::new(|| ("do:").into());
+pub static TALK_MSG_FIND_FIRST: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| ("findFirst:").into());
+pub static TALK_MSG_FIND_LAST: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("findLast:").into());
+pub static TALK_MSG_FIRST: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| ("first").into());
+pub static TALK_MSG_FROM_TO_DO: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| ("from:", "to:", "do:").into());
+pub static TALK_MSG_FROM_TO_KEYS_AND_VALUES_DO: Lazy<TalkMessageSignatureId>  = Lazy::new(|| ("from:", "to:", "keysAndValuesDo:").into());
+pub static TALK_MSG_INDEX_OF: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| ("indexOf:").into());
+pub static TALK_MSG_INDEX_OF_IF_ABSENT: Lazy<TalkMessageSignatureId>          = Lazy::new(|| ("indexOf:", "ifAbsent:").into());
+pub static TALK_MSG_INDEX_OF_SUB_COLLECTION_STARTING_AT: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("indexOfSubCollections:", "startingAt:").into());
+pub static TALK_MSG_INDEX_OF_SUB_COLLECTION_STARTING_AT_IF_ABSENT: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("IndexOfSubCollection:", "startingAt:", "ifAbsent:").into());
+//pub static TALK_MSG_KEYS_AND_VALUES_DO: Lazy<TalkMessageSignatureId>        = Lazy::new(|| ("keysAndValuesDo:").into());
+pub static TALK_MSG_LAST: Lazy<TalkMessageSignatureId>                        = Lazy::new(|| ("last").into());
+//pub static TALK_MSG_REVERSE: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("reverse").into());
+pub static TALK_MSG_REVERSE_DO: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| ("reverseDo:").into());
+pub static TALK_MSG_WITH_DO: Lazy<TalkMessageSignatureId>                     = Lazy::new(|| ("with:", "do:").into());
+
+
+// SequencedCollection protocol messages (is-a SequencedReadableCollection)
+
+pub static TALK_MSG_AT_PUT: Lazy<TalkMessageSignatureId>                      = Lazy::new(|| ("at:", "put:").into());
+pub static TALK_MSG_AT_ALL_PUT: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| ("atAll:", "put:").into());
+pub static TALK_MSG_AT_ALLPUT: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("atAllPut:").into());
+pub static TALK_MSG_REPLACE_FROM_TO_WITH: Lazy<TalkMessageSignatureId>        = Lazy::new(|| ("replaceFrom:", "to:", "with:").into());
+pub static TALK_MSG_REPLACE_FROM_TO_WITH_STARTING_AT: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("replaceFrom:", "to:", "with:", "startingAt:").into());
+pub static TALK_MSG_REPLACE_FROM_TO_WITH_OBJECT: Lazy<TalkMessageSignatureId> = Lazy::new(|| ("replaceFrom:", "to:", "withObject:").into());
+
+
+// AbstractDictionary protocol messages
+
+pub static TALK_MSG_ADD_ALL: Lazy<TalkMessageSignatureId>                     = Lazy::new(|| ("addAll:").into());
+pub static TALK_MSG_AT: Lazy<TalkMessageSignatureId>                          = Lazy::new(|| ("at:").into());
+pub static TALK_MSG_AT_IF_ABSENT: Lazy<TalkMessageSignatureId>                = Lazy::new(|| ("at:", "ifAbsent:").into());
+//pub static TALK_MSG_AT_PUT: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| ("at:", "put:").into());
+//pub static TALK_MSG_COLLECT: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("collect:").into());
+pub static TALK_MSG_INCLUDES_KEY: Lazy<TalkMessageSignatureId>                = Lazy::new(|| ("includesKey:").into());
+pub static TALK_MSG_KEY_AT_VALUE: Lazy<TalkMessageSignatureId>                = Lazy::new(|| ("keyAtValue:").into());
+pub static TALK_MSG_KEY_AT_VALUE_IF_ABSENT: Lazy<TalkMessageSignatureId>      = Lazy::new(|| ("keyAtValue:", "ifAbsent:").into());
+pub static TALK_MSG_KEYS: Lazy<TalkMessageSignatureId>                        = Lazy::new(|| ("keys").into());
+pub static TALK_MSG_KEYS_AND_VALUES_DO: Lazy<TalkMessageSignatureId>          = Lazy::new(|| ("keysAndValuesDo:").into());
+pub static TALK_MSG_KEYS_DO: Lazy<TalkMessageSignatureId>                     = Lazy::new(|| ("keysDo:").into());
+//pub static TALK_MSG_REJECT: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| ("reject:").into());
+pub static TALK_MSG_REMOVE_ALL_KEYS: Lazy<TalkMessageSignatureId>             = Lazy::new(|| ("removeAllKeys:").into());
+pub static TALK_MSG_REMOVE_ALL_KEYS_IF_ABSENT: Lazy<TalkMessageSignatureId>   = Lazy::new(|| ("removeAllKeys:", "ifAbsent:").into());
+pub static TALK_MSG_REMOVE_KEY: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| ("removeKey:").into());
+pub static TALK_MSG_REMOVE_KEY_IF_ABSENT: Lazy<TalkMessageSignatureId>        = Lazy::new(|| ("removeKey:", "ifAbsent:").into());
+// pub static TALK_MSG_SELECT: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("").into());
+pub static TALK_MSG_VALUES: Lazy<TalkMessageSignatureId>                      = Lazy::new(|| ("values").into());
 
 
 // Interval protocol messages
