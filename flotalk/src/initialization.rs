@@ -17,6 +17,7 @@ pub fn talk_init_standard_classes() -> TalkContinuation<'static> {
         .and_then_if_ok(|_| talk_init_streaming_with_reply_class())
         .and_then_if_ok(|_| talk_init_evaluate_class())
         .and_then_if_ok(|_| talk_init_constants())
+        .and_then_if_ok(|_| talk_init_modules())
         .panic_on_error("While initializing")
 }
 
@@ -171,4 +172,13 @@ pub fn talk_init_constants() -> TalkContinuation<'static> {
         talk_context.set_root_symbol_value("false", TalkValue::Bool(false));
         ().into()
     })
+}
+
+///
+/// Returns a continuation that will initialise the module system (the Import and Export classes)
+///
+pub fn talk_init_modules() -> TalkContinuation<'static> {
+    TalkContinuation::soon(|talk_context| {
+        IMPORT_CLASS.class_object_in_context(talk_context).into()
+    }).define_as("Import")
 }
