@@ -184,6 +184,7 @@ pub static TALK_MSG_TRUNCATE_TO: Lazy<TalkMessageSignatureId>                 = 
 
 
 // Collection protocol messages
+
 pub static TALK_MSG_ALL_SATISFY: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| ("allSatisfy:").into());
 pub static TALK_MSG_ANY_SATISFY: Lazy<TalkMessageSignatureId>                 = Lazy::new(|| ("anySatisfy:").into());
 pub static TALK_MSG_AS_ARRAY: Lazy<TalkMessageSignatureId>                    = Lazy::new(|| ("asArray").into());
