@@ -496,6 +496,20 @@ impl TalkClass {
         callbacks.allocator.downcast_ref::<Arc<Mutex<TAllocator>>>()
             .map(|defn| Arc::clone(defn))
     }
+
+    ///
+    /// Retrieves the allocator for this class in a context, or None if the definition is not of the right type or the type
+    /// has not been initialized yet.
+    ///
+    pub fn allocator_ref<TAllocator>(&self, context: &TalkContext) -> Option<Arc<Mutex<TAllocator>>>
+    where
+        TAllocator: 'static + TalkClassAllocator
+    {
+        let callbacks = context.get_callbacks(*self)?;
+
+        callbacks.allocator.downcast_ref::<Arc<Mutex<TAllocator>>>()
+            .map(|defn| Arc::clone(defn))
+    }
 }
 
 ///
