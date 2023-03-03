@@ -25,11 +25,11 @@ impl TalkDictionary {
     ///
     /// Adds a new value to this dictionary
     ///
-    pub (crate) fn add_value(dictionary: TalkValue, key: TalkValue, value: TalkValue, context: &mut TalkContext) -> TalkContinuation<'static> {
+    pub (crate) fn add_value(dictionary: TalkOwned<TalkValue, &'_ TalkContext>, key: TalkOwned<TalkValue, &'_ TalkContext>, value: TalkOwned<TalkValue, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
         // Fetch the allocator for the dictionary class
         let dictionary = dictionary.try_as_reference();
         let dictionary = if let Ok(dictionary) = dictionary { dictionary } else { return TalkError::NotAReference.into(); };
-        let allocator  = dictionary.class().allocator::<TalkStandardAllocator<TalkDictionary>>(context);
+        let allocator  = dictionary.class().allocator_ref::<TalkStandardAllocator<TalkDictionary>>(context);
         let allocator  = if let Some(allocator) = allocator { allocator } else { return TalkError::UnexpectedClass.into(); };
 
         todo!()
