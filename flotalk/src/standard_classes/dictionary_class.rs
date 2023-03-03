@@ -21,6 +21,21 @@ pub struct TalkDictionary {
     buckets: TalkSparseArray<SmallVec<[(TalkValue, TalkValue); 4]>>
 }
 
+impl TalkDictionary {
+    ///
+    /// Adds a new value to this dictionary
+    ///
+    pub (crate) fn add_value(dictionary: TalkValue, key: TalkValue, value: TalkValue, context: &mut TalkContext) -> TalkContinuation<'static> {
+        // Fetch the allocator for the dictionary class
+        let dictionary = dictionary.try_as_reference();
+        let dictionary = if let Ok(dictionary) = dictionary { dictionary } else { return TalkError::NotAReference.into(); };
+        let allocator  = dictionary.class().allocator::<TalkStandardAllocator<TalkDictionary>>(context);
+        let allocator  = if let Some(allocator) = allocator { allocator } else { return TalkError::UnexpectedClass.into(); };
+
+        todo!()
+    }
+}
+
 impl TalkReleasable for TalkDictionary {
     fn release_in_context(self, context: &TalkContext) {
         // Release all the values contained in the dictionary
