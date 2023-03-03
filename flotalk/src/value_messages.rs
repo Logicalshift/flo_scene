@@ -270,7 +270,7 @@ pub static TALK_MSG_REMOVE_ALL_KEYS: Lazy<TalkMessageSignatureId>             = 
 pub static TALK_MSG_REMOVE_ALL_KEYS_IF_ABSENT: Lazy<TalkMessageSignatureId>   = Lazy::new(|| ("removeAllKeys:", "ifAbsent:").into());
 pub static TALK_MSG_REMOVE_KEY: Lazy<TalkMessageSignatureId>                  = Lazy::new(|| ("removeKey:").into());
 pub static TALK_MSG_REMOVE_KEY_IF_ABSENT: Lazy<TalkMessageSignatureId>        = Lazy::new(|| ("removeKey:", "ifAbsent:").into());
-// pub static TALK_MSG_SELECT: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("").into());
+//pub static TALK_MSG_SELECT: Lazy<TalkMessageSignatureId>                   = Lazy::new(|| ("").into());
 pub static TALK_MSG_VALUES: Lazy<TalkMessageSignatureId>                      = Lazy::new(|| ("values").into());
 
 

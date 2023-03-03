@@ -12,6 +12,7 @@ mod fn_block;
 mod evaluate_class;
 mod import_class;
 mod export_class;
+mod dictionary_class;
 
 pub (crate) use self::class_class::*;
 pub use self::simple_evaluator_block::*;
@@ -27,3 +28,4 @@ pub use self::fn_block::*;
 pub use self::evaluate_class::*;
 pub use self::import_class::*;
 pub use self::export_class::*;
+pub use self::dictionary_class::*;
