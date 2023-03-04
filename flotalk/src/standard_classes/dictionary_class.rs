@@ -25,20 +25,18 @@ impl TalkDictionary {
     ///
     /// Adds a new value to this dictionary
     ///
-    pub (crate) fn add_value(dictionary: TalkOwned<TalkValue, &'_ TalkContext>, key: TalkOwned<TalkValue, &'_ TalkContext>, value: TalkOwned<TalkValue, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
+    pub (crate) fn add_value(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, key: TalkOwned<TalkValue, &'_ TalkContext>, value: TalkOwned<TalkValue, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
         // Fetch the allocator for the dictionary class
         let mut dictionary  = dictionary;
         let mut key         = key;
         let mut value       = value;
 
-        let dictionary      = dictionary.take();
-        let dictionary      = dictionary.try_as_reference();
-        let dictionary      = if let Ok(dictionary) = dictionary { dictionary.clone() } else { return TalkError::NotAReference.into(); };
+        let dictionary      = dictionary.leak();
         let allocator       = dictionary.class().allocator_ref::<TalkStandardAllocator<TalkDictionary>>(context);
         let allocator       = if let Some(allocator) = allocator { allocator } else { return TalkError::UnexpectedClass.into(); };
 
-        let key             = key.take();
-        let value           = value.take();
+        let key             = key.leak();
+        let value           = value.leak();
 
         // Fetch the hash value from the key to start with
         key.clone_in_context(context)
