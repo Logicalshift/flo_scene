@@ -27,24 +27,20 @@ impl TalkDictionary {
     ///
     pub (crate) fn add_value(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, key: TalkOwned<TalkValue, &'_ TalkContext>, value: TalkOwned<TalkValue, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
         // Fetch the allocator for the dictionary class
-        let mut dictionary  = dictionary;
-        let mut key         = key;
-        let mut value       = value;
+        let dictionary  = dictionary.leak();
+        let allocator   = dictionary.class().allocator_ref::<TalkStandardAllocator<TalkDictionary>>(context);
+        let allocator   = if let Some(allocator) = allocator { allocator } else { return TalkError::UnexpectedClass.into(); };
 
-        let dictionary      = dictionary.leak();
-        let allocator       = dictionary.class().allocator_ref::<TalkStandardAllocator<TalkDictionary>>(context);
-        let allocator       = if let Some(allocator) = allocator { allocator } else { return TalkError::UnexpectedClass.into(); };
-
-        let key             = key.leak();
-        let value           = value.leak();
+        let key         = key.leak();
+        let value       = value.leak();
 
         // Fetch the hash value from the key to start with
         key.clone_in_context(context)
-            .send_message(TalkMessage::Unary(*TALK_MSG_HASH))
+            .send_message_in_context(TalkMessage::Unary(*TALK_MSG_HASH), context)
             .and_then_soon(move |hash_value, context| {
                 // If there's an error, free up the various values
                 if let Ok(err) = hash_value.try_as_error() {
-                    vec![TalkValue::from(dictionary), key, value].release_in_context(context);
+                    vec![TalkValue::from(dictionary), key, value, hash_value].release_in_context(context);
                     return err.into();
                 }
 
@@ -111,9 +107,113 @@ impl TalkDictionary {
                     }
                 } else {
                     // Hash value is not an integer: free up the various values
-                    vec![TalkValue::from(dictionary), key, value].release_in_context(context);
+                    vec![TalkValue::from(dictionary), key, value, hash_value].release_in_context(context);
                     TalkError::NotAnInteger.into()
                 }
+            })
+    }
+
+    ///
+    /// Looks up a key in the dictionary, then performs one of two actions depending on whether or not it exists 
+    ///
+    pub (crate) fn process_value(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, key: TalkOwned<TalkValue, &'_ TalkContext>, 
+        if_exists: impl 'static + Send + FnOnce(TalkOwned<TalkValue, &'_ TalkContext>, &TalkContext) -> TalkContinuation<'static>, 
+        if_doesnt_exist: impl 'static + Send + FnOnce(&mut TalkContext) -> TalkContinuation<'static>,
+        context: &TalkContext) -> TalkContinuation<'static> {
+        // Grab the dictionary to pass on to the following continuation
+        let dictionary  = dictionary.leak();
+        let key         = key.leak();
+
+        // Also need the allocator to get at the dictionary data
+        let allocator   = dictionary.class().allocator_ref::<TalkStandardAllocator<TalkDictionary>>(context);
+        let allocator   = if let Some(allocator) = allocator { allocator } else { return TalkError::UnexpectedClass.into(); };
+
+        // Start by requesting the hash value from the key (we need to keep it around for comparisons later too)
+        key.clone_in_context(context)
+            .send_message_in_context(TalkMessage::Unary(*TALK_MSG_HASH), context)
+            .and_then_soon(move |hash_value, context| {
+                // Stop if there's an error
+                if let Ok(err) = hash_value.try_as_error() {
+                    vec![key, dictionary.into(), hash_value].release_in_context(context);
+                    return err.into();
+                }
+
+                // Also stop if there's no hash value
+                let hash_value = if let TalkValue::Int(hash_value) = hash_value {
+                    hash_value as usize
+                } else {
+                    // Not a hash value
+                    vec![key, dictionary.into(), hash_value].release_in_context(context);
+                    return TalkError::NotAnInteger.into();
+                };
+
+                // Look up the bucket and search it for the key
+                let mut allocator_lock  = allocator.lock().unwrap();
+                let dictionary_data     = allocator_lock.retrieve(dictionary.data_handle());
+                let bucket              = dictionary_data.buckets.get(hash_value);
+
+                let bucket = if let Some(bucket) = bucket {
+                    bucket
+                } else {
+                    // Bucket not found, so the key is not in the dictionary
+                    vec![key, dictionary.into()].release_in_context(context);
+                    return if_doesnt_exist(context);
+                };
+
+                // Check the bucket for a reference duplicate of the key, and return 'if_exists' if found
+                for (bucket_key, bucket_value) in bucket.iter() {
+                    if &key == bucket_key {
+                        // Key is the same reference as the value in the dictionary, so we can avoid using the '=' message
+                        let context         = &*context;
+                        let bucket_value    = TalkOwned::new(bucket_value.clone_in_context(context), context);
+
+                        vec![key, dictionary.into()].release_in_context(context);
+                        return if_exists(bucket_value, context);
+                    }
+                }
+
+                // If an exact reference match of the key is not found, try harder by checking for equality with the '=' message
+                let bucket = bucket.iter()
+                    .map(|(key, value)| (key.clone_in_context(context), value.clone_in_context(context)))
+                    .collect::<SmallVec<[_; 4]>>();
+
+                let bucket = bucket.into_iter();
+
+                // next_bucket is a function used to repeatedly generate continuations while there are still items to compare in the bucket
+                fn next_bucket(key: TalkValue, mut bucket: impl 'static + Send + Iterator<Item=(TalkValue, TalkValue)>,
+                    if_exists: impl 'static + Send + FnOnce(TalkOwned<TalkValue, &'_ TalkContext>, &TalkContext) -> TalkContinuation<'static>, 
+                    if_doesnt_exist: impl 'static + Send + FnOnce(&mut TalkContext) -> TalkContinuation<'static>,
+                    context: &mut TalkContext) -> TalkContinuation<'static> {
+                    if let Some((bucket_key, bucket_value)) = bucket.next() {
+                        // Check the next key and then decide what to do
+                        key.clone_in_context(context).send_message_in_context(TalkMessage::WithArguments(*TALK_BINARY_EQUALS, smallvec![bucket_key]), context)
+                            .and_then_soon(move |is_equal, context| {
+                                if is_equal == TalkValue::Bool(true) {
+                                    // Found the value: release the remaining other values
+                                    for (unused_key, unused_value) in bucket {
+                                        unused_key.release_in_context(context);
+                                        unused_value.release_in_context(context);
+                                    }
+
+                                    key.release_in_context(context);
+
+                                    // Pass the value we found on to if_exists
+                                    if_exists(TalkOwned::new(bucket_value, context), context)
+                                } else {
+                                    // Continue to the next value
+                                    is_equal.release_in_context(context);
+                                    next_bucket(key, bucket, if_exists, if_doesnt_exist, context)
+                                }
+                            })
+                    } else {
+                        // Reached the end of the iterator without finding the key
+                        key.release_in_context(context);
+                        if_doesnt_exist(context)
+                    }
+                }
+
+                dictionary.release_in_context(context);
+                next_bucket(key, bucket, if_exists, if_doesnt_exist, context)
             })
     }
 }
