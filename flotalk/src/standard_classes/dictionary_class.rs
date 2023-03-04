@@ -116,7 +116,7 @@ impl TalkDictionary {
     ///
     /// Looks up a key in the dictionary, then performs one of two actions depending on whether or not it exists 
     ///
-    pub (crate) fn process_value(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, key: TalkOwned<TalkValue, &'_ TalkContext>, 
+    pub (crate) fn process_value_for_key(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, key: TalkOwned<TalkValue, &'_ TalkContext>, 
         if_exists: impl 'static + Send + FnOnce(TalkOwned<TalkValue, &'_ TalkContext>, &TalkContext) -> TalkContinuation<'static>, 
         if_doesnt_exist: impl 'static + Send + FnOnce(&mut TalkContext) -> TalkContinuation<'static>,
         context: &TalkContext) -> TalkContinuation<'static> {
