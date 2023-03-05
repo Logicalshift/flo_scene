@@ -16,7 +16,7 @@ pub (crate) static IMPORT_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::creat
 /// This is used to import single items from external modules. For example, `Import item: 'terminalOut' from: 'Terminal'.`
 ///
 /// The importer class manages multiple importers, which maps module names to module objects. Module objects just respond
-/// to the `item:` message by returning the corresponding item. Importers can be added to a context by evaluating the
+/// to the `at:` message by returning the corresponding item. Importers can be added to a context by evaluating the
 /// continuation returned by the `TalkImportClass::define_high_prority_importer()` or 
 /// `TalkImportClass::define_low_priority_importer()` functions.
 ///
@@ -41,7 +41,7 @@ pub struct TalkImportAllocator {
     allocator: TalkStandardAllocator<()>,
 
     /// Returns an importer for a module. The result of the continuation is either 'nil' to indicate that the exporter did not load a
-    /// module, or an object that responds to the `item:` message to return the exported items. The first importer to respond will define
+    /// module, or an object that responds to the `at:` message to return the exported items. The first importer to respond will define
     /// the entire module.
     ///
     /// Once a module has been loaded, it will be cached, and this won't be consulted again
@@ -107,7 +107,7 @@ impl TalkImportClass {
     }
 
     ///
-    /// Attempts to load a module from the importer in the continuation context (returning the module object, which responds to the `item:` message or nil
+    /// Attempts to load a module from the importer in the continuation context (returning the module object, which responds to the `at:` message or nil
     /// if the module is not available)
     ///
     pub fn load_module(module_name: impl Into<String>) -> TalkContinuation<'static> {
@@ -195,7 +195,6 @@ impl TalkClassDefinition for TalkImportClass {
     ///
     fn send_class_message(&self, message_id: TalkMessageSignatureId, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, _class_id: TalkClass, _allocator: &Arc<Mutex<Self::Allocator>>) -> TalkContinuation<'static> {
         static MSG_ITEM_FROM:   Lazy<TalkMessageSignatureId> = Lazy::new(|| ("item:", "from:").into());
-        static MSG_ITEM:        Lazy<TalkMessageSignatureId> = Lazy::new(|| ("item:").into());
 
         if message_id == *MSG_ITEM_FROM {
             let mut args    = args;
@@ -216,7 +215,7 @@ impl TalkClassDefinition for TalkImportClass {
                             err.into()
                         } else {
                             // Module loaded OK: send the item message to the module to generate the final result
-                            module.send_message(TalkMessage::WithArguments(*MSG_ITEM, smallvec![item]))
+                            module.send_message(TalkMessage::WithArguments(*TALK_MSG_AT, smallvec![item]))
                         }
                     })
             } else {
