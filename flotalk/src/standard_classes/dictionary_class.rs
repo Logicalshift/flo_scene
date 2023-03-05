@@ -78,6 +78,12 @@ impl TalkDictionary {
                 }
 
                 if !found_key && bucket.len() > 1 {
+                    // Clone the bucket contents (they'll stick around until we release the dictionary so it's safe to have the values without the lock)
+                    let bucket = bucket.clone();
+
+                    // Release the allocator lock so we can safely retain the dictionary
+                    mem::drop(allocator_lock);
+
                     // The bucket has more than one item and we didn't find the key we've just added: we need to call '=' on the 
                     // remaining values in order to determine if we should remove them. This reverses the values so removal operations
                     // don't interfere with each other
@@ -87,6 +93,7 @@ impl TalkDictionary {
                         .map(|(idx, (item_key, _))| {
                             let allocator   = Arc::clone(&allocator);
                             let dictionary  = dictionary.clone_in_context(context);
+
                             key.clone_in_context(context).send_message(TalkMessage::WithArguments(*TALK_BINARY_EQUALS, smallvec![item_key.clone_in_context(context)]))
                                 .and_then_soon(move |is_equal, context| {
                                     if is_equal == TalkValue::Bool(true) {
