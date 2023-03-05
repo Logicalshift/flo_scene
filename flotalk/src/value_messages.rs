@@ -217,6 +217,7 @@ pub static TALK_MSG_SIZE: Lazy<TalkMessageSignatureId>                        = 
 pub static TALK_MSG_AFTER: Lazy<TalkMessageSignatureId>                       = Lazy::new(|| ("after:").into());
 //pub static TALK_MSG_AT: Lazy<TalkMessageSignatureId>                        = Lazy::new(|| ("at:").into());
 //pub static TALK_MSG_AT_IF_ABSENT: Lazy<TalkMessageSignatureId>              = Lazy::new(|| ("at:", "ifAbsent:").into());
+pub static TALK_MSG_AT_IF_ABSENT_PUT: Lazy<TalkMessageSignatureId>            = Lazy::new(|| ("at:", "ifAbsentPut:").into());
 pub static TALK_MSG_BEFORE: Lazy<TalkMessageSignatureId>                      = Lazy::new(|| ("before:").into());
 pub static TALK_MSG_COPY_FROM_TO: Lazy<TalkMessageSignatureId>                = Lazy::new(|| ("copyFrom:", "to:").into());
 pub static TALK_MSG_COPY_REPLACE_ALL_WITH: Lazy<TalkMessageSignatureId>       = Lazy::new(|| ("copyReplaceAll:", "with:").into());
