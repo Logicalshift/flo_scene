@@ -4,6 +4,7 @@ use crate::sparse_array::*;
 use smallvec::*;
 use once_cell::sync::{Lazy};
 
+use std::mem;
 use std::sync::*;
 
 pub (crate) static DICTIONARY_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkDictionaryClass));
@@ -109,6 +110,8 @@ impl TalkDictionary {
                     result
                 } else {
                     // The bucket only has the one entry or we found a copy of the key already in the bucket: result is successful
+                    mem::drop(allocator_lock);
+
                     dictionary.release_in_context(context);
                     ().into()
                 }
@@ -158,6 +161,8 @@ impl TalkDictionary {
                     bucket
                 } else {
                     // Bucket not found, so the key is not in the dictionary
+                    mem::drop(allocator_lock);
+
                     vec![key, dictionary.into()].release_in_context(context);
                     return if_doesnt_exist(context);
                 };
@@ -168,6 +173,8 @@ impl TalkDictionary {
                         // Key is the same reference as the value in the dictionary, so we can avoid using the '=' message
                         let context         = &*context;
                         let bucket_value    = TalkOwned::new(bucket_value.clone_in_context(context), context);
+
+                        mem::drop(allocator_lock);
 
                         vec![key, dictionary.into()].release_in_context(context);
                         return if_exists(bucket_value, context);
@@ -213,6 +220,8 @@ impl TalkDictionary {
                         if_doesnt_exist(context)
                     }
                 }
+
+                mem::drop(allocator_lock);
 
                 dictionary.release_in_context(context);
                 next_bucket(key, bucket, if_exists, if_doesnt_exist, context)
