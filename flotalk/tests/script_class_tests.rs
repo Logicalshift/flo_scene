@@ -413,6 +413,37 @@ fn define_instance_message() {
 }
 
 #[test]
+fn define_binary_instance_message() {
+    // Binary operators (like === here) have a parameter even though they look like unary messages
+    let test_source     = "
+    [ 
+        | NewClass one two | 
+        NewClass := Object subclassWithInstanceVariables: #val. 
+        NewClass addInstanceMessage: #=== withAction: [ :newVal :self | val := newVal ].
+        NewClass addInstanceMessage: #getVal withAction: [ :self | val ].
+
+        one := NewClass new.
+        two := NewClass new.
+
+        one === 12.
+        two === 30.
+
+        ^(one getVal) + (two getVal)
+    ] value";
+
+    executor::block_on(async { 
+        // Set up the runtime with the standard set of symbols (which includes 'Object')
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Run the test script with the 'Object' class defined
+        let result = runtime.run(TalkScript::from(test_source)).await;
+
+        // Should return 42
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
 fn call_instance_message_in_superclass() {
     let test_source     = "
     [ 
