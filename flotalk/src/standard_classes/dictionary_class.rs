@@ -189,9 +189,16 @@ impl TalkDictionary {
                 }
 
                 // If an exact reference match of the key is not found, try harder by checking for equality with the '=' message
-                let bucket = bucket.iter()
-                    .map(|(key, value)| (key.clone_in_context(context), value.clone_in_context(context)))
-                    .collect::<SmallVec<[_; 4]>>();
+                let bucket = bucket.clone();
+
+                // Have to drop the allocator before it's safe to retain or release objects (in this case it would only deadlock if one of the keys was a dictionary)
+                mem::drop(allocator_lock);
+
+                // Retain the contents of the bucket
+                for (key, value) in bucket.iter() {
+                    key.retain(context);
+                    value.retain(context);
+                }
 
                 let bucket = bucket.into_iter();
 
@@ -227,8 +234,6 @@ impl TalkDictionary {
                         if_doesnt_exist(context)
                     }
                 }
-
-                mem::drop(allocator_lock);
 
                 dictionary.release_in_context(context);
                 next_bucket(key, bucket, if_exists, if_doesnt_exist, context)
