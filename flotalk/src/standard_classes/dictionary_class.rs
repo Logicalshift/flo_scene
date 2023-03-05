@@ -45,70 +45,72 @@ impl TalkDictionary {
                 }
 
                 // Look up the hash in the buckets
-                if let TalkValue::Int(hash_value) = hash_value {
-                    // Store the value at the end of the buckets
-                    let hash_value          = hash_value as usize;
-                    let mut allocator_lock  = allocator.lock().unwrap();
-                    let dictionary_data     = allocator_lock.retrieve(dictionary.data_handle());
-
-                    let bucket = if let Some(bucket) = dictionary_data.buckets.get_mut(hash_value) {
-                        bucket
-                    } else {
-                        dictionary_data.buckets.insert(hash_value, smallvec![]);
-                        dictionary_data.buckets.get_mut(hash_value).unwrap()
-                    };
-
-                    bucket.push((key.clone(), value));
-
-                    // (Success) Remove anything that has a duplicate of the key
-                    let mut found_key = false;
-                    for idx in 0..(bucket.len()-1) {
-                        if bucket[idx].0 == key {
-                            bucket.remove(idx);
-                            found_key = true;
-                        }
-                    }
-
-                    if !found_key && bucket.len() > 1 {
-                        // The bucket has more than one item and we didn't find the key we've just added: we need to call '=' on the 
-                        // remaining values in order to determine if we should remove them. This reverses the values so removal operations
-                        // don't interfere with each other
-                        let continuations = bucket.iter().enumerate()
-                            .take(bucket.len()-1)
-                            .rev()
-                            .map(|(idx, (item_key, _))| {
-                                let allocator   = Arc::clone(&allocator);
-                                let dictionary  = dictionary.clone_in_context(context);
-                                key.clone_in_context(context).send_message(TalkMessage::WithArguments(*TALK_BINARY_EQUALS, smallvec![item_key.clone_in_context(context)]))
-                                    .and_then_soon(move |is_equal, context| {
-                                        if is_equal == TalkValue::Bool(true) {
-                                            let mut allocator_lock  = allocator.lock().unwrap();
-                                            let dictionary_data     = allocator_lock.retrieve(dictionary.data_handle());
-
-                                            dictionary_data.buckets.get_mut(hash_value).unwrap().remove(idx);
-                                        }
-
-                                        dictionary.release_in_context(context);
-                                        ().into()
-                                    })
-                            }).collect::<SmallVec<[_; 4]>>();
-
-                        // Chain the continuations together into a single continuation
-                        let mut result = TalkContinuation::from(());
-                        for continuation in continuations {
-                            result = result.and_then_soon(move |_, _| continuation);
-                        }
-
-                        result
-                    } else {
-                        // The bucket only has the one entry or we found a copy of the key already in the bucket: result is successful
-                        dictionary.release_in_context(context);
-                        ().into()
-                    }
-                } else {
+                let hash_value = if let TalkValue::Int(hash_value) = hash_value {
+                    hash_value
+                } else { 
                     // Hash value is not an integer: free up the various values
                     vec![TalkValue::from(dictionary), key, value, hash_value].release_in_context(context);
-                    TalkError::NotAnInteger.into()
+                    return TalkError::NotAnInteger.into();
+                };
+
+                // Store the value at the end of the buckets
+                let hash_value          = hash_value as usize;
+                let mut allocator_lock  = allocator.lock().unwrap();
+                let dictionary_data     = allocator_lock.retrieve(dictionary.data_handle());
+
+                let bucket = if let Some(bucket) = dictionary_data.buckets.get_mut(hash_value) {
+                    bucket
+                } else {
+                    dictionary_data.buckets.insert(hash_value, smallvec![]);
+                    dictionary_data.buckets.get_mut(hash_value).unwrap()
+                };
+
+                bucket.push((key.clone(), value));
+
+                // (Success) Remove anything that has a duplicate of the key
+                let mut found_key = false;
+                for idx in 0..(bucket.len()-1) {
+                    if bucket[idx].0 == key {
+                        bucket.remove(idx);
+                        found_key = true;
+                    }
+                }
+
+                if !found_key && bucket.len() > 1 {
+                    // The bucket has more than one item and we didn't find the key we've just added: we need to call '=' on the 
+                    // remaining values in order to determine if we should remove them. This reverses the values so removal operations
+                    // don't interfere with each other
+                    let continuations = bucket.iter().enumerate()
+                        .take(bucket.len()-1)
+                        .rev()
+                        .map(|(idx, (item_key, _))| {
+                            let allocator   = Arc::clone(&allocator);
+                            let dictionary  = dictionary.clone_in_context(context);
+                            key.clone_in_context(context).send_message(TalkMessage::WithArguments(*TALK_BINARY_EQUALS, smallvec![item_key.clone_in_context(context)]))
+                                .and_then_soon(move |is_equal, context| {
+                                    if is_equal == TalkValue::Bool(true) {
+                                        let mut allocator_lock  = allocator.lock().unwrap();
+                                        let dictionary_data     = allocator_lock.retrieve(dictionary.data_handle());
+
+                                        dictionary_data.buckets.get_mut(hash_value).unwrap().remove(idx);
+                                    }
+
+                                    dictionary.release_in_context(context);
+                                    ().into()
+                                })
+                        }).collect::<SmallVec<[_; 4]>>();
+
+                    // Chain the continuations together into a single continuation
+                    let mut result = TalkContinuation::from(());
+                    for continuation in continuations {
+                        result = result.and_then_soon(move |_, _| continuation);
+                    }
+
+                    result
+                } else {
+                    // The bucket only has the one entry or we found a copy of the key already in the bucket: result is successful
+                    dictionary.release_in_context(context);
+                    ().into()
                 }
             })
     }
