@@ -100,3 +100,65 @@ fn store_and_retrieve_several_values() {
         assert!(*result == TalkValue::Int(42));
     });
 }
+
+#[test]
+fn store_and_retrieve_several_values_with_same_hash() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Store several values and read them back
+        let result = runtime.run(TalkScript::from("
+            | testDictionary KeyClass key1 key2 key3 |
+
+            KeyClass := Object subclass.
+            KeyClass addInstanceMessage: #hash withAction: [ 0 ].
+
+            key1 := KeyClass new.
+            key2 := KeyClass new.
+            key3 := KeyClass new.
+
+            testDictionary := Dictionary new.
+            testDictionary at: key1 put: 12.
+            testDictionary at: key2 put: 20.
+            testDictionary at: key3 put: 10.
+
+            (testDictionary at: key1) + (testDictionary at: key2) + (testDictionary at: key3)
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn store_replace_and_retrieve_several_values_with_same_hash() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Store several values and read them back
+        let result = runtime.run(TalkScript::from("
+            | testDictionary KeyClass key1 key2 key3 |
+
+            KeyClass := Object subclass.
+            KeyClass addInstanceMessage: #hash withAction: [ 0 ].
+
+            key1 := KeyClass new.
+            key2 := KeyClass new.
+            key3 := KeyClass new.
+
+            testDictionary := Dictionary new.
+            testDictionary at: key1 put: 12.
+            testDictionary at: key2 put: 60.
+            testDictionary at: key3 put: 10.
+
+            testDictionary at: key2 put: 20.
+
+            (testDictionary at: key1) + (testDictionary at: key2) + (testDictionary at: key3)
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
