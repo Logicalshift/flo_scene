@@ -58,6 +58,27 @@ fn store_and_retrieve_value() {
 }
 
 #[test]
+fn replace_and_retrieve_value() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Store and retrieve a value using a string key in a dictionary
+        let result = runtime.run(TalkScript::from("
+            | testDictionary |
+
+            testDictionary := Dictionary new.
+            testDictionary at: 'test' put: 20.
+            testDictionary at: 'test' put: 42.
+            testDictionary at: 'test'
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
 fn store_and_retrieve_several_values() {
     executor::block_on(async {
         // Set up the standard runtime
