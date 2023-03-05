@@ -216,6 +216,23 @@ impl TalkDictionary {
                 next_bucket(key, bucket, if_exists, if_doesnt_exist, context)
             })
     }
+
+    #[inline]
+    fn at(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
+        let mut args    = args.leak();
+        let key         = TalkOwned::new(args[0].take(), context);
+
+        Self::process_value_for_key(dictionary, key, |value, _| value.leak().into(), |_| ().into(), context)
+    }
+
+    #[inline]
+    fn at_put(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
+        let mut args    = args.leak();
+        let key         = TalkOwned::new(args[0].take(), context);
+        let value       = TalkOwned::new(args[1].take(), context);
+
+        Self::add_value(dictionary, key, value, context)
+    }
 }
 
 impl TalkReleasable for TalkDictionary {
@@ -294,9 +311,9 @@ impl TalkClassDefinition for TalkDictionaryClass {
             .with_message(*TALK_MSG_SIZE,                       |_, _, _| TalkError::NotImplemented)
 
             .with_message(*TALK_MSG_ADD_ALL,                    |_, _, _| TalkError::NotImplemented)
-            .with_message(*TALK_MSG_AT,                         |_, _, _| TalkError::NotImplemented)
+            .with_message(*TALK_MSG_AT,                         |dict, args, context| TalkDictionary::at(dict, args, context))
             .with_message(*TALK_MSG_AT_IF_ABSENT,               |_, _, _| TalkError::NotImplemented)
-            .with_message(*TALK_MSG_AT_PUT,                     |_, _, _| TalkError::NotImplemented)
+            .with_message(*TALK_MSG_AT_PUT,                     |dict, args, context| TalkDictionary::at_put(dict, args, context))
             .with_message(*TALK_MSG_INCLUDES_KEY,               |_, _, _| TalkError::NotImplemented)
             .with_message(*TALK_MSG_KEY_AT_VALUE,               |_, _, _| TalkError::NotImplemented)
             .with_message(*TALK_MSG_KEY_AT_VALUE_IF_ABSENT,     |_, _, _| TalkError::NotImplemented)
