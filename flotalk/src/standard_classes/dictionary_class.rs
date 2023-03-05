@@ -288,12 +288,59 @@ impl TalkDictionary {
     }
 
     #[inline]
+    fn at_if_absent_put(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
+        // Get the key from the arguments
+        let mut args    = args.leak();
+        let key         = TalkOwned::new(args[0].take(), context);
+
+        // Leak the 'if_absent' operation. We take two copies as it has to be freed both when successful and unsuccessful
+        let if_absent           = args[1].take();
+        let if_absent_not_used  = if_absent.clone();
+
+        // Also we need another copy of the key in case we need to add the value when it's absent (plus extra copies of these to release if the key is found later on)
+        // TODO: we calculate the hash twice here and that's probably not necessary
+        let new_dictionary      = dictionary.clone_in_context(context);
+        let new_key             = key.clone_in_context(context);
+        let unused_dictionary   = new_dictionary.clone();
+        let unused_key          = new_key.clone();
+
+        Self::process_value_for_key(dictionary, key, |value, context| {
+            // If the key is found, then free up the 'if_absent' operation and return
+            if_absent_not_used.release_in_context(context);
+            unused_dictionary.release_in_context(context);
+            unused_key.release_in_context(context);
+
+            // Return value is the value that's already in the dictionary
+            value.leak().into()
+        }, move |context| {
+            // Send the 'value' message to the 'if_absent' operation and return that as the result
+            if_absent.send_message_in_context(TalkMessage::Unary(*TALK_MSG_VALUE), context)
+                .and_then_soon(move |new_value, context| {
+                    // Copy the new value to create a result to return
+                    let result_value = new_value.clone_in_context(context);
+
+                    // Put the new value in the dictionary
+                    new_dictionary.send_message_in_context(TalkMessage::WithArguments(*TALK_MSG_AT_PUT, smallvec![new_key, new_value]), context)
+                        .and_then(|_| result_value.into())
+                })
+        }, context)
+    }
+
+    #[inline]
     fn at_put(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
         let mut args    = args.leak();
         let key         = TalkOwned::new(args[0].take(), context);
         let value       = TalkOwned::new(args[1].take(), context);
 
         Self::add_value(dictionary, key, value, context)
+    }
+
+    #[inline]
+    fn includes_key(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
+        let mut args    = args.leak();
+        let key         = TalkOwned::new(args[0].take(), context);
+
+        Self::process_value_for_key(dictionary, key, |_, _| true.into(), |_| false.into(), context)
     }
 }
 
@@ -375,8 +422,9 @@ impl TalkClassDefinition for TalkDictionaryClass {
             .with_message(*TALK_MSG_ADD_ALL,                    |_, _, _| TalkError::NotImplemented)
             .with_message(*TALK_MSG_AT,                         |dict, args, context| TalkDictionary::at(dict, args, context))
             .with_message(*TALK_MSG_AT_IF_ABSENT,               |dict, args, context| TalkDictionary::at_if_absent(dict, args, context))
+            .with_message(*TALK_MSG_AT_IF_ABSENT_PUT,           |dict, args, context| TalkDictionary::at_if_absent_put(dict, args, context))
             .with_message(*TALK_MSG_AT_PUT,                     |dict, args, context| TalkDictionary::at_put(dict, args, context))
-            .with_message(*TALK_MSG_INCLUDES_KEY,               |_, _, _| TalkError::NotImplemented)
+            .with_message(*TALK_MSG_INCLUDES_KEY,               |dict, args, context| TalkDictionary::includes_key(dict, args, context))
             .with_message(*TALK_MSG_KEY_AT_VALUE,               |_, _, _| TalkError::NotImplemented)
             .with_message(*TALK_MSG_KEY_AT_VALUE_IF_ABSENT,     |_, _, _| TalkError::NotImplemented)
             .with_message(*TALK_MSG_KEYS,                       |_, _, _| TalkError::NotImplemented)

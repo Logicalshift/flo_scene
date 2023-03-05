@@ -38,6 +38,44 @@ fn store_value() {
 }
 
 #[test]
+fn if_absent_put_new_value() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Store a value in the dictionary using the 'ifAbsentPut:' version of the message
+        let result = runtime.run(TalkScript::from("
+            | testDictionary |
+
+            testDictionary := Dictionary new.
+            testDictionary at: 'test' ifAbsentPut: [ 42 ]
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn if_absent_put_existing_value() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        let result = runtime.run(TalkScript::from("
+            | testDictionary |
+
+            testDictionary := Dictionary new.
+            testDictionary at: 'test' put: 42.
+            testDictionary at: 'test' ifAbsentPut: [ 20 ].
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
 fn store_and_retrieve_value() {
     executor::block_on(async {
         // Set up the standard runtime
@@ -136,6 +174,75 @@ fn store_and_retrieve_several_values() {
 
         println!("{:?}", result);
         assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn store_and_retrieve_several_values_using_if_absent_put() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Store several values and read them back. 'ifAbsentPut:' will read or set the value according to an operation
+        let result = runtime.run(TalkScript::from("
+            | testDictionary |
+
+            testDictionary := Dictionary new.
+            testDictionary at: 'test1' ifAbsentPut: [ 12 ].
+            testDictionary at: 'test2' ifAbsentPut: [ 20 ].
+            testDictionary at: 'test3' ifAbsentPut: [ 10 ].
+
+            (testDictionary at: 'test1') + (testDictionary at: 'test2') + (testDictionary at: 'test3')
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
+
+#[test]
+fn includes_key() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Store several values and read them back
+        let result = runtime.run(TalkScript::from("
+            | testDictionary |
+
+            testDictionary := Dictionary new.
+            testDictionary at: 'test1' put: 12.
+            testDictionary at: 'test2' put: 20.
+            testDictionary at: 'test3' put: 10.
+
+            testDictionary includesKey: 'test1'
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Bool(true));
+    });
+}
+
+#[test]
+fn does_not_include_key() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Store several values and read them back
+        let result = runtime.run(TalkScript::from("
+            | testDictionary |
+
+            testDictionary := Dictionary new.
+            testDictionary at: 'test1' put: 12.
+            testDictionary at: 'test2' put: 20.
+            testDictionary at: 'test3' put: 10.
+
+            testDictionary includesKey: 'test4'
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Bool(false));
     });
 }
 
