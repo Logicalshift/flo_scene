@@ -70,7 +70,7 @@ impl TalkDictionary {
 
                 // (Success) Remove anything that has a duplicate of the key
                 let mut found_key = false;
-                for idx in 0..(bucket.len()-1) {
+                for idx in (0..(bucket.len()-1)).into_iter().rev() {
                     if bucket[idx].0 == key {
                         bucket.remove(idx);
                         found_key = true;
