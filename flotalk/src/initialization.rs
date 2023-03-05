@@ -16,6 +16,7 @@ pub fn talk_init_standard_classes() -> TalkContinuation<'static> {
         .and_then_if_ok(|_| talk_init_streaming_class())
         .and_then_if_ok(|_| talk_init_streaming_with_reply_class())
         .and_then_if_ok(|_| talk_init_evaluate_class())
+        .and_then_if_ok(|_| talk_init_dictionary_class())
         .and_then_if_ok(|_| talk_init_constants())
         .and_then_if_ok(|_| talk_init_modules())
         .panic_on_error("While initializing")
@@ -154,8 +155,13 @@ pub fn talk_init_streaming_with_reply_class() -> TalkContinuation<'static> {
 /// Returns a continuation that will create the 'Evaluate' class definition
 ///
 pub fn talk_init_evaluate_class() -> TalkContinuation<'static> {
-    TalkContinuation::soon(|talk_context| EVALUATE_CLASS.class_object_in_context(talk_context).into())
+    EVALUATE_CLASS.class_object()
         .define_as("Evaluate")
+}
+
+pub fn talk_init_dictionary_class() -> TalkContinuation<'static> {
+    DICTIONARY_CLASS.class_object()
+        .define_as("Dictionary")
 }
 
 ///
@@ -178,7 +184,6 @@ pub fn talk_init_constants() -> TalkContinuation<'static> {
 /// Returns a continuation that will initialise the module system (the Import and Export classes)
 ///
 pub fn talk_init_modules() -> TalkContinuation<'static> {
-    TalkContinuation::soon(|talk_context| {
-        IMPORT_CLASS.class_object_in_context(talk_context).into()
-    }).define_as("Import")
+    IMPORT_CLASS.class_object()
+        .define_as("Import")
 }
