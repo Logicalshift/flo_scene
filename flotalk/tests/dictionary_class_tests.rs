@@ -162,3 +162,40 @@ fn store_replace_and_retrieve_several_values_with_same_hash() {
         assert!(*result == TalkValue::Int(42));
     });
 }
+
+#[test]
+fn store_replace_and_retrieve_several_values_with_same_hash_different_instances() {
+    executor::block_on(async {
+        // Set up the standard runtime
+        let runtime = TalkRuntime::with_standard_symbols().await;
+
+        // Store several values and read them back. This implements the equality operators as well as the hash function so 
+        // we can create new objects to store/retrieve the key
+        let result = runtime.run(TalkScript::from("
+            | testDictionary KeyClass key1 key2 key3 |
+
+            KeyClass := Object subclassWithInstanceVariables: #val.
+            KeyClass addInstanceMessage: #getVal    withAction: [ val ].
+            KeyClass addInstanceMessage: #setVal:   withAction: [ :newVal | val := newVal ].
+            KeyClass addClassMessage: #withVal:     withAction: [ :newVal | | newKey | newKey := KeyClass new. newKey setVal: newVal. newKey ].
+            KeyClass addInstanceMessage: #hash      withAction: [ 0 ].
+            KeyClass addInstanceMessage: #=         withAction: [ :compareTo | (compareTo getVal) = val ].
+
+            key1 := KeyClass withVal: 1.
+            key2 := KeyClass withVal: 2.
+            key3 := KeyClass withVal: 3.
+
+            testDictionary := Dictionary new.
+            testDictionary at: key1 put: 12.
+            testDictionary at: key2 put: 60.
+            testDictionary at: key3 put: 10.
+
+            testDictionary at: (KeyClass withVal: 2) put: 20.
+
+            (testDictionary at: key1) + (testDictionary at: key2) + (testDictionary at: (KeyClass withVal: 3))
+        ")).await;
+
+        println!("{:?}", result);
+        assert!(*result == TalkValue::Int(42));
+    });
+}
