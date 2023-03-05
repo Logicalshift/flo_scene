@@ -218,6 +218,25 @@ impl TalkDictionary {
     }
 
     #[inline]
+    fn new(context: &TalkContext) -> TalkContinuation<'static> {
+        // Fetch the allocator from the context
+        let allocator       = DICTIONARY_CLASS.allocator_ref::<TalkStandardAllocator<TalkDictionary>>(context);
+        let allocator       = if let Some(allocator) = allocator { allocator } else { return TalkError::UnexpectedClass.into(); };
+        let mut allocator   = allocator.lock().unwrap();
+
+        // Create a new dictionary object
+        let new_dictionary = TalkDictionary { 
+            buckets: TalkSparseArray::empty()
+        };
+
+        // Store in the allocator
+        let new_dictionary = allocator.store(new_dictionary);
+
+        // Result is a reference to the new dictionary object
+        TalkReference(*DICTIONARY_CLASS, new_dictionary).into()
+    }
+
+    #[inline]
     fn at(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
         let mut args    = args.leak();
         let key         = TalkOwned::new(args[0].take(), context);
@@ -334,6 +353,7 @@ impl TalkClassDefinition for TalkDictionaryClass {
     /// Messages are dispatched here ahead of the 'send_instance_message' callback (note in particular `respondsTo:` may need to be overridden)
     ///
     fn default_class_dispatch_table(&self) -> TalkMessageDispatchTable<TalkClass> { 
-        TalkMessageDispatchTable::empty() 
+        TalkMessageDispatchTable::empty()
+            .with_message(*TALK_MSG_NEW, |_, _, context| TalkDictionary::new(context))
     }
 }
