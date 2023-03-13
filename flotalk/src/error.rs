@@ -102,6 +102,9 @@ pub enum TalkError {
 
     /// A module requested for import could not be found
     ImportModuleNotFound,
+
+    /// The value for an object was lost while something was trying to retrieve it (eg, because it was released)
+    ObjectValueLost,
 }
 
 impl From<TalkParseError> for TalkError {
