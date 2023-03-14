@@ -58,10 +58,10 @@ where
     ///
     /// The continuation is expected to eventually return the value with the `give()` function.
     ///
-    pub fn take(&mut self, when_available: impl 'static + Send + FnOnce(TValue) -> TalkContinuation<'static>) -> TalkContinuation<'static> {
+    pub fn take(&mut self, when_available: impl 'static + Send + FnOnce(TValue, &mut TalkContext) -> TalkContinuation<'static>) -> TalkContinuation<'static> {
         if let Some(value) = self.value_at_rest.take() {
             // If the value is available, then invoke the function immediately and return the resulting continuation
-            when_available(value)
+            TalkContinuation::soon(move |context| when_available(value, context))
         } else {
             // If the value is not available, create a channel to send it when it's returned to this object
             let (send, recv) = oneshot::channel();
@@ -70,11 +70,10 @@ where
 
             // Continuation waits for the value to be returned before calling when_available
             TalkContinuation::future_soon(async move {
-                let mut recv    = recv;
-                let value       = recv.await;
+                let value   = recv.await;
 
                 if let Ok(value) = value {
-                    when_available(value)
+                    TalkContinuation::soon(move |context| when_available(value, context))
                 } else {
                     TalkContinuation::from(TalkError::ObjectValueLost)
                 }
