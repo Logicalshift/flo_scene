@@ -1,10 +1,10 @@
 use crate::*;
 use crate::sparse_array::*;
+use crate::sequential_mutex::*;
 
 use smallvec::*;
 use once_cell::sync::{Lazy};
 
-use std::mem;
 use std::sync::*;
 
 pub (crate) static DICTIONARY_CLASS: Lazy<TalkClass> = Lazy::new(|| TalkClass::create(TalkDictionaryClass));
@@ -24,13 +24,25 @@ pub struct TalkDictionary {
 
 impl TalkDictionary {
     ///
+    /// Fetches the allocator for this dictionary
+    ///
+    #[inline]
+    pub (crate) fn allocator(dictionary: &TalkReference, context: &TalkContext) -> Result<Arc<Mutex<TalkStandardAllocator<TalkSequentialMutex<TalkDictionary>>>>, TalkError> {
+        let allocator   = dictionary.class().allocator_ref::<TalkStandardAllocator<TalkSequentialMutex<TalkDictionary>>>(context);
+        let allocator   = if let Some(allocator) = allocator { allocator } else { return Err(TalkError::UnexpectedClass); };
+
+        Ok(allocator)
+    }
+
+    ///
     /// Adds a new value to this dictionary
     ///
     pub (crate) fn add_value(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, key: TalkOwned<TalkValue, &'_ TalkContext>, value: TalkOwned<TalkValue, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
         // Fetch the allocator for the dictionary class
+        let allocator   = Self::allocator(&dictionary, context);
+        let allocator   = match allocator { Ok(allocator) => allocator, Err(err) => { return err.into() } };
+
         let dictionary  = dictionary.leak();
-        let allocator   = dictionary.class().allocator_ref::<TalkStandardAllocator<TalkDictionary>>(context);
-        let allocator   = if let Some(allocator) = allocator { allocator } else { return TalkError::UnexpectedClass.into(); };
 
         let key         = key.leak();
         let value       = value.leak();
@@ -57,71 +69,78 @@ impl TalkDictionary {
                 // Store the value at the end of the buckets
                 let hash_value          = hash_value as usize;
                 let mut allocator_lock  = allocator.lock().unwrap();
+                let allocator           = Arc::clone(&allocator);
                 let dictionary_data     = allocator_lock.retrieve(dictionary.data_handle());
 
-                let bucket = if let Some(bucket) = dictionary_data.buckets.get_mut(hash_value) {
-                    bucket
-                } else {
-                    dictionary_data.buckets.insert(hash_value, smallvec![]);
-                    dictionary_data.buckets.get_mut(hash_value).unwrap()
-                };
+                dictionary_data.take(move |mut dictionary_data, context| {
+                    let bucket = if let Some(bucket) = dictionary_data.buckets.get_mut(hash_value) {
+                        bucket
+                    } else {
+                        dictionary_data.buckets.insert(hash_value, smallvec![]);
+                        dictionary_data.buckets.get_mut(hash_value).unwrap()
+                    };
 
-                bucket.push((key.clone(), value));
+                    bucket.push((key.clone(), value));
 
-                // (Success) Remove anything that has a duplicate of the key
-                let mut found_key = false;
-                for idx in (0..(bucket.len()-1)).into_iter().rev() {
-                    if bucket[idx].0 == key {
-                        bucket.remove(idx);
-                        found_key = true;
-                    }
-                }
-
-                if !found_key && bucket.len() > 1 {
-                    // Clone the bucket contents (they'll stick around until we release the dictionary so it's safe to have the values without the lock)
-                    let bucket = bucket.clone();
-
-                    // Release the allocator lock so we can safely retain the dictionary
-                    mem::drop(allocator_lock);
-
-                    // The bucket has more than one item and we didn't find the key we've just added: we need to call '=' on the 
-                    // remaining values in order to determine if we should remove them. This reverses the values so removal operations
-                    // don't interfere with each other
-                    let continuations = bucket.iter().enumerate()
-                        .take(bucket.len()-1)
-                        .rev()
-                        .map(|(idx, (item_key, _))| {
-                            let allocator   = Arc::clone(&allocator);
-                            let dictionary  = dictionary.clone_in_context(context);
-
-                            key.clone_in_context(context).send_message(TalkMessage::WithArguments(*TALK_BINARY_EQUALS, smallvec![item_key.clone_in_context(context)]))
-                                .and_then_soon(move |is_equal, context| {
-                                    if is_equal == TalkValue::Bool(true) {
-                                        let mut allocator_lock  = allocator.lock().unwrap();
-                                        let dictionary_data     = allocator_lock.retrieve(dictionary.data_handle());
-
-                                        dictionary_data.buckets.get_mut(hash_value).unwrap().remove(idx);
-                                    }
-
-                                    dictionary.release_in_context(context);
-                                    ().into()
-                                })
-                        }).collect::<SmallVec<[_; 4]>>();
-
-                    // Chain the continuations together into a single continuation
-                    let mut result = TalkContinuation::from(());
-                    for continuation in continuations {
-                        result = result.and_then_soon(move |_, _| continuation);
+                    // (Success) Remove anything that has a duplicate of the key
+                    let mut found_key = false;
+                    for idx in (0..(bucket.len()-1)).into_iter().rev() {
+                        if bucket[idx].0 == key {
+                            bucket.remove(idx);
+                            found_key = true;
+                        }
                     }
 
-                    result
-                } else {
-                    // The bucket only has the one entry or we found a copy of the key already in the bucket: result is successful
-                    mem::drop(allocator_lock);
+                    if !found_key && bucket.len() > 1 {
+                        // Clone the bucket contents (they'll stick around until we release the dictionary so it's safe to have the values without the lock)
+                        let bucket = bucket.clone();
 
-                    dictionary.release_in_context(context);
-                    ().into()
-                }
+                        // Return the dictionary to the allocator
+                        allocator.lock().unwrap().retrieve(dictionary.data_handle()).give(dictionary_data);
+
+                        // The bucket has more than one item and we didn't find the key we've just added: we need to call '=' on the 
+                        // remaining values in order to determine if we should remove them. This reverses the values so removal operations
+                        // don't interfere with each other
+                        let continuations = bucket.iter().enumerate()
+                            .take(bucket.len()-1)
+                            .rev()
+                            .map(|(idx, (item_key, _))| {
+                                let allocator   = Arc::clone(&allocator);
+                                let dictionary  = dictionary.clone_in_context(context);
+
+                                key.clone_in_context(context).send_message(TalkMessage::WithArguments(*TALK_BINARY_EQUALS, smallvec![item_key.clone_in_context(context)]))
+                                    .and_then_soon(move |is_equal, context| {
+                                        if is_equal == TalkValue::Bool(true) {
+                                            let allocator_2 = Arc::clone(&allocator);
+
+                                            allocator.lock().unwrap().retrieve(dictionary.data_handle()).take(move |mut dictionary_data, _| {
+                                                dictionary_data.buckets.get_mut(hash_value).unwrap().remove(idx);
+                                                allocator_2.lock().unwrap().retrieve(dictionary.data_handle()).give(dictionary_data);
+
+                                                ().into()
+                                            })
+                                        } else {
+                                            dictionary.release_in_context(context);
+                                            ().into()
+                                        }
+                                    })
+                            }).collect::<SmallVec<[_; 4]>>();
+
+                        // Chain the continuations together into a single continuation
+                        let mut result = TalkContinuation::from(());
+                        for continuation in continuations {
+                            result = result.and_then_soon(move |_, _| continuation);
+                        }
+
+                        dictionary.release_in_context(context);
+                        result
+                    } else {
+                        // The bucket only has the one entry or we found a copy of the key already in the bucket: result is successful
+                        allocator.lock().unwrap().retrieve(dictionary.data_handle()).give(dictionary_data);
+                        dictionary.release_in_context(context);
+                        ().into()
+                    }
+                })
             })
     }
 
@@ -132,13 +151,13 @@ impl TalkDictionary {
         if_exists: impl 'static + Send + FnOnce(TalkOwned<TalkValue, &'_ TalkContext>, &TalkContext) -> TalkContinuation<'static>, 
         if_doesnt_exist: impl 'static + Send + FnOnce(&mut TalkContext) -> TalkContinuation<'static>,
         context: &TalkContext) -> TalkContinuation<'static> {
+        // Need the allocator to get at the dictionary data
+        let allocator   = Self::allocator(&dictionary, context);
+        let allocator   = match allocator { Ok(allocator) => allocator, Err(err) => { return err.into() } };
+
         // Grab the dictionary to pass on to the following continuation
         let dictionary  = dictionary.leak();
         let key         = key.leak();
-
-        // Also need the allocator to get at the dictionary data
-        let allocator   = dictionary.class().allocator_ref::<TalkStandardAllocator<TalkDictionary>>(context);
-        let allocator   = if let Some(allocator) = allocator { allocator } else { return TalkError::UnexpectedClass.into(); };
 
         // Start by requesting the hash value from the key (we need to keep it around for comparisons later too)
         key.clone_in_context(context)
@@ -161,89 +180,91 @@ impl TalkDictionary {
 
                 // Look up the bucket and search it for the key
                 let mut allocator_lock  = allocator.lock().unwrap();
+                let allocator           = Arc::clone(&allocator);
                 let dictionary_data     = allocator_lock.retrieve(dictionary.data_handle());
-                let bucket              = dictionary_data.buckets.get(hash_value);
 
-                let bucket = if let Some(bucket) = bucket {
-                    bucket
-                } else {
-                    // Bucket not found, so the key is not in the dictionary
-                    mem::drop(allocator_lock);
+                dictionary_data.take(move |dictionary_data, context| {
+                    let bucket = dictionary_data.buckets.get(hash_value);
 
-                    vec![key, dictionary.into()].release_in_context(context);
-                    return if_doesnt_exist(context);
-                };
-
-                // Check the bucket for a reference duplicate of the key, and return 'if_exists' if found
-                for (bucket_key, bucket_value) in bucket.iter() {
-                    if &key == bucket_key {
-                        // Key is the same reference as the value in the dictionary, so we can avoid using the '=' message
-                        let context         = &*context;
-                        let bucket_value    = TalkOwned::new(bucket_value.clone_in_context(context), context);
-
-                        mem::drop(allocator_lock);
-
-                        vec![key, dictionary.into()].release_in_context(context);
-                        return if_exists(bucket_value, context);
-                    }
-                }
-
-                // If an exact reference match of the key is not found, try harder by checking for equality with the '=' message
-                let bucket = bucket.clone();
-
-                // Have to drop the allocator before it's safe to retain or release objects (in this case it would only deadlock if one of the keys was a dictionary)
-                mem::drop(allocator_lock);
-
-                // Retain the contents of the bucket
-                for (key, value) in bucket.iter() {
-                    key.retain(context);
-                    value.retain(context);
-                }
-
-                let bucket = bucket.into_iter();
-
-                // next_bucket is a function used to repeatedly generate continuations while there are still items to compare in the bucket
-                fn next_bucket(key: TalkValue, mut bucket: impl 'static + Send + Iterator<Item=(TalkValue, TalkValue)>,
-                    if_exists: impl 'static + Send + FnOnce(TalkOwned<TalkValue, &'_ TalkContext>, &TalkContext) -> TalkContinuation<'static>, 
-                    if_doesnt_exist: impl 'static + Send + FnOnce(&mut TalkContext) -> TalkContinuation<'static>,
-                    context: &mut TalkContext) -> TalkContinuation<'static> {
-                    if let Some((bucket_key, bucket_value)) = bucket.next() {
-                        // Check the next key and then decide what to do
-                        key.clone_in_context(context).send_message_in_context(TalkMessage::WithArguments(*TALK_BINARY_EQUALS, smallvec![bucket_key]), context)
-                            .and_then_soon(move |is_equal, context| {
-                                if is_equal == TalkValue::Bool(true) {
-                                    // Found the value: release the remaining other values
-                                    for (unused_key, unused_value) in bucket {
-                                        unused_key.release_in_context(context);
-                                        unused_value.release_in_context(context);
-                                    }
-
-                                    key.release_in_context(context);
-
-                                    // Pass the value we found on to if_exists
-                                    if_exists(TalkOwned::new(bucket_value, context), context)
-                                } else {
-                                    // Continue to the next value
-                                    is_equal.release_in_context(context);
-                                    next_bucket(key, bucket, if_exists, if_doesnt_exist, context)
-                                }
-                            })
+                    let bucket = if let Some(bucket) = bucket {
+                        bucket
                     } else {
-                        // Reached the end of the iterator without finding the key
-                        key.release_in_context(context);
-                        if_doesnt_exist(context)
-                    }
-                }
+                        // Bucket not found, so the key is not in the dictionary
+                        allocator.lock().unwrap().retrieve(dictionary.data_handle()).give(dictionary_data);
+                        vec![key, dictionary.into()].release_in_context(context);
+                        return if_doesnt_exist(context);
+                    };
 
-                dictionary.release_in_context(context);
-                next_bucket(key, bucket, if_exists, if_doesnt_exist, context)
+                    // Check the bucket for a reference duplicate of the key, and return 'if_exists' if found
+                    for (bucket_key, bucket_value) in bucket.iter() {
+                        if &key == bucket_key {
+                            // Key is the same reference as the value in the dictionary, so we can avoid using the '=' message
+                            let context         = &*context;
+                            let bucket_value    = TalkOwned::new(bucket_value.clone_in_context(context), context);
+
+                            allocator.lock().unwrap().retrieve(dictionary.data_handle()).give(dictionary_data);
+                            vec![key, dictionary.into()].release_in_context(context);
+                            return if_exists(bucket_value, context);
+                        }
+                    }
+
+                    // If an exact reference match of the key is not found, try harder by checking for equality with the '=' message
+                    let bucket = bucket.clone();
+
+                    // Retain the contents of the bucket
+                    for (key, value) in bucket.iter() {
+                        key.retain(context);
+                        value.retain(context);
+                    }
+
+                    let bucket = bucket.into_iter();
+
+                    // Done with the dictionary data for now
+                    allocator.lock().unwrap().retrieve(dictionary.data_handle()).give(dictionary_data);
+
+                    // next_bucket is a function used to repeatedly generate continuations while there are still items to compare in the bucket
+                    fn next_bucket(key: TalkValue, mut bucket: impl 'static + Send + Iterator<Item=(TalkValue, TalkValue)>,
+                        if_exists: impl 'static + Send + FnOnce(TalkOwned<TalkValue, &'_ TalkContext>, &TalkContext) -> TalkContinuation<'static>, 
+                        if_doesnt_exist: impl 'static + Send + FnOnce(&mut TalkContext) -> TalkContinuation<'static>,
+                        context: &mut TalkContext) -> TalkContinuation<'static> {
+                        if let Some((bucket_key, bucket_value)) = bucket.next() {
+                            // Check the next key and then decide what to do
+                            key.clone_in_context(context).send_message_in_context(TalkMessage::WithArguments(*TALK_BINARY_EQUALS, smallvec![bucket_key]), context)
+                                .and_then_soon(move |is_equal, context| {
+                                    if is_equal == TalkValue::Bool(true) {
+                                        // Found the value: release the remaining other values
+                                        for (unused_key, unused_value) in bucket {
+                                            unused_key.release_in_context(context);
+                                            unused_value.release_in_context(context);
+                                        }
+
+                                        key.release_in_context(context);
+
+                                        // Pass the value we found on to if_exists
+                                        if_exists(TalkOwned::new(bucket_value, context), context)
+                                    } else {
+                                        // Continue to the next value
+                                        is_equal.release_in_context(context);
+                                        next_bucket(key, bucket, if_exists, if_doesnt_exist, context)
+                                    }
+                                })
+                        } else {
+                            // Reached the end of the iterator without finding the key
+                            key.release_in_context(context);
+                            if_doesnt_exist(context)
+                        }
+                    }
+
+                    dictionary.release_in_context(context);
+                    next_bucket(key, bucket, if_exists, if_doesnt_exist, context)
+                })
             })
     }
 
     #[inline]
     fn new(context: &TalkContext) -> TalkContinuation<'static> {
         // Fetch the allocator from the context
-        let allocator       = DICTIONARY_CLASS.allocator_ref::<TalkStandardAllocator<TalkDictionary>>(context);
+        let allocator       = DICTIONARY_CLASS.allocator_ref::<TalkStandardAllocator<TalkSequentialMutex<TalkDictionary>>>(context);
         let allocator       = if let Some(allocator) = allocator { allocator } else { return TalkError::UnexpectedClass.into(); };
         let mut allocator   = allocator.lock().unwrap();
 
@@ -251,6 +272,7 @@ impl TalkDictionary {
         let new_dictionary = TalkDictionary { 
             buckets: TalkSparseArray::empty()
         };
+        let new_dictionary = TalkSequentialMutex::new(new_dictionary);
 
         // Store in the allocator
         let new_dictionary = allocator.store(new_dictionary);
@@ -342,6 +364,18 @@ impl TalkDictionary {
 
         Self::process_value_for_key(dictionary, key, |_, _| true.into(), |_| false.into(), context)
     }
+
+    // (The 'do:' message, but 'do' is a reserved word)
+    #[inline]
+    fn iterate(dictionary: TalkOwned<TalkReference, &'_ TalkContext>, args: TalkOwned<SmallVec<[TalkValue; 4]>, &'_ TalkContext>, context: &TalkContext) -> TalkContinuation<'static> {
+        // Take a copy of the operation to perform on each element
+        let mut args    = args.leak();
+        let operation   = args[0].take();
+
+        todo!();
+
+        ().into()
+    }
 }
 
 impl TalkReleasable for TalkDictionary {
@@ -358,10 +392,10 @@ impl TalkReleasable for TalkDictionary {
 
 impl TalkClassDefinition for TalkDictionaryClass {
     /// The type of the data stored by an object of this class
-    type Data = TalkDictionary;
+    type Data = TalkSequentialMutex<TalkDictionary>;
 
     /// The allocator is used to manage the memory of this class within a context
-    type Allocator = TalkStandardAllocator<TalkDictionary>;
+    type Allocator = TalkStandardAllocator<Self::Data>;
 
     ///
     /// Creates the allocator for this class in a particular context
@@ -407,7 +441,7 @@ impl TalkClassDefinition for TalkDictionaryClass {
             .with_message(*TALK_MSG_COLLECT,                    |_, _, _| TalkError::NotImplemented)
             .with_message(*TALK_MSG_DETECT,                     |_, _, _| TalkError::NotImplemented)
             .with_message(*TALK_MSG_DETECT_IF_NONE,             |_, _, _| TalkError::NotImplemented)
-            .with_message(*TALK_MSG_DO,                         |_, _, _| TalkError::NotImplemented)
+            .with_message(*TALK_MSG_DO,                         |dict, args, context| TalkDictionary::iterate(dict, args, context))
             .with_message(*TALK_MSG_DO_SEPARATED_BY,            |_, _, _| TalkError::NotImplemented)
             .with_message(*TALK_MSG_INCLUDES,                   |_, _, _| TalkError::NotImplemented)
             .with_message(*TALK_MSG_INJECT_INTO,                |_, _, _| TalkError::NotImplemented)
