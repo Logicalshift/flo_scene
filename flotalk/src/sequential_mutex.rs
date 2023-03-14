@@ -1,5 +1,7 @@
+use crate::context::*;
 use crate::continuation::*;
 use crate::error::*;
+use crate::releasable::*;
 
 use futures::channel::oneshot;
 
@@ -24,6 +26,18 @@ where
     waiting_values: Option<Box<VecDeque<oneshot::Sender<TValue>>>>,
 }
 
+impl<TValue> TalkReleasable for TalkSequentialMutex<TValue>
+where
+    TValue: 'static + Send + TalkReleasable
+{
+    fn release_in_context(mut self, context: &TalkContext) {
+        if let Some(value) = self.value_at_rest.take() {
+            value.release_in_context(context);
+        } else {
+            // TODO: value has leaked somehow
+        }
+    }
+}
 
 impl<TValue> TalkSequentialMutex<TValue>
 where
