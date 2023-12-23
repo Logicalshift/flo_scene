@@ -23,6 +23,7 @@ name = "flo_scene"
 version = "0.2.0"
 dependencies = [
  "desync",
+ "futures",
 ]
 
 [[package]]
