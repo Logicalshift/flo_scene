@@ -1,4 +1,4 @@
-use crate::{SubProgramId, StreamId, StreamSource, StreamTarget};
+use crate::{SceneContext, SubProgramId, StreamId, StreamSource, StreamTarget};
 
 use futures::prelude::*;
 use futures::channel::mpsc;
@@ -39,7 +39,7 @@ impl Scene {
     where
         TFuture:        Send + Sync +Future<Output=()>,
         TInputMessage:  Send + Sync,
-        TProgramFn:     'static + Fn(mpsc::Receiver<TInputMessage>, &Scene) -> TFuture,
+        TProgramFn:     'static + Fn(mpsc::Receiver<TInputMessage>, &SceneContext) -> TFuture,
     {
         todo!()
     }
