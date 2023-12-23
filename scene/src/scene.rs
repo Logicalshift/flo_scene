@@ -53,9 +53,9 @@ impl Scene {
     }
 
     ///
-    /// Runs the programs in this scene
+    /// Returns a future that will run any waiting programs on the current thread
     ///
-    pub fn run_scene(self) -> impl Future<Output=()> {
+    pub fn run_scene(&self) -> impl Future<Output=()> {
         async {
             todo!()
         }
