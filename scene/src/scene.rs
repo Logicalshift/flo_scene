@@ -1,4 +1,4 @@
-use crate::{SubProgramId, StreamId, StreamSource};
+use crate::{SubProgramId, StreamId, StreamSource, StreamTarget};
 
 use futures::prelude::*;
 use futures::channel::mpsc;
@@ -48,7 +48,7 @@ impl Scene {
     ///
     /// Specifies that an output of `source` (identified by the StreamId) should be connected to the input of `target`
     ///
-    pub fn connect_programs(&self, source: impl Into<StreamSource>, target: SubProgramId, stream: impl Into<StreamId>) -> Result<(), ()> {
+    pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ()> {
         todo!()
     }
 
