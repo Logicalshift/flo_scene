@@ -11,7 +11,27 @@ pub struct Scene {
 
 }
 
+impl Default for Scene {
+    fn default() -> Self {
+        // Create an empty scene
+        let scene = Scene::empty();
+
+        // Populate with the default programs
+
+        scene
+    }
+}
+
 impl Scene {
+    ///
+    /// Creates an empty scene (this has no control program so it won't start or connect any programs by default)
+    ///
+    pub fn empty() -> Self {
+        Scene {
+
+        }
+    }
+
     ///
     /// Adds a subprogram to run in this scene
     ///
