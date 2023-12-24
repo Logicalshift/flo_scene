@@ -18,9 +18,6 @@ pub (crate) struct SubProgramCore {
     /// The ID of this program
     id: SubProgramId,
 
-    /// The input stream for this subprogram
-    input: Box<dyn Send + Sync + Any>,
-
     /// The pending future that represents this running subprogram
     run: BoxFuture<'static, ()>,
 
@@ -46,6 +43,9 @@ pub (crate) struct SceneCore {
     /// The sub-programs that are active in this scene
     sub_programs: Vec<Option<Arc<Mutex<SubProgramCore>>>>,
 
+    /// The input streams for each sub-program
+    sub_program_inputs: Vec<Option<Arc<Mutex<dyn Send + Sync + Any>>>>,
+
     /// The next free sub-program
     next_subprogram: usize,
 
@@ -66,6 +66,7 @@ impl SceneCore {
     pub fn new() -> SceneCore {
         SceneCore {
             sub_programs:       vec![],
+            sub_program_inputs: vec![],
             next_subprogram:    0,
             program_indexes:    HashMap::new(),
             awake_programs:     VecDeque::new(),
@@ -193,7 +194,8 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                         // Remove the program from the core when it's finished
                         let mut core = core.lock().unwrap();
 
-                        core.sub_programs[program_handle] = None;
+                        core.sub_programs[program_handle]       = None;
+                        core.sub_program_inputs[program_handle] = None;
                         core.program_indexes.remove(&program_id);
 
                         // Re-use this handle if a new program is started
