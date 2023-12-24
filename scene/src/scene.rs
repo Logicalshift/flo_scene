@@ -40,7 +40,7 @@ impl Scene {
     ///
     pub fn add_subprogram<TProgramFn, TInputMessage, TFuture>(&self, program_id: SubProgramId, program: TProgramFn)
     where
-        TFuture:        Send + Sync +Future<Output=()>,
+        TFuture:        Send + Sync + Future<Output=()>,
         TInputMessage:  Send + Sync,
         TProgramFn:     'static + Fn(mpsc::Receiver<TInputMessage>, &SceneContext) -> TFuture,
     {
@@ -58,8 +58,6 @@ impl Scene {
     /// Returns a future that will run any waiting programs on the current thread
     ///
     pub fn run_scene(&self) -> impl Future<Output=()> {
-        async {
-            todo!()
-        }
+        run_core(&self.core)
     }
 }
