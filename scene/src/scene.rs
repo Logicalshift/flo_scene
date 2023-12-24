@@ -1,14 +1,17 @@
 use crate::{SceneContext, SubProgramId, StreamId, StreamSource, StreamTarget};
+use crate::scene_core::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
+
+use std::sync::*;
 
 ///
 /// A scene represents a set of running co-programs, creating a larger self-contained piece of
 /// software out of a set of smaller pieces of software that communicate via streams.
 ///
 pub struct Scene {
-
+    core: Arc<Mutex<SceneCore>>,
 }
 
 impl Default for Scene {
@@ -28,7 +31,7 @@ impl Scene {
     ///
     pub fn empty() -> Self {
         Scene {
-
+            core: Arc::new(Mutex::new(SceneCore::new()))
         }
     }
 
@@ -43,7 +46,6 @@ impl Scene {
     {
         todo!()
     }
-
 
     ///
     /// Specifies that an output of `source` (identified by the StreamId) should be connected to the input of `target`
