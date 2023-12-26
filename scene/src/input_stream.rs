@@ -1,7 +1,7 @@
 use crate::{SubProgramId};
 
 use futures::prelude::*;
-use futures::task::{Waker, Poll};
+use futures::task::{Waker, Poll, Context};
 
 use std::collections::*;
 use std::sync::*;
@@ -67,6 +67,13 @@ impl<TMessage> InputStreamCore<TMessage> {
         } else {
             Err(message)
         }
+    }
+
+    ///
+    /// Wakes the future specified by a context as soon as a slot becomes available
+    ///
+    pub (crate) fn wake_when_slots_available(&mut self, context: &mut Context) {
+        self.when_slots_available.push_back(context.waker().clone());
     }
 }
 
