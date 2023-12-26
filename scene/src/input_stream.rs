@@ -88,11 +88,11 @@ impl<TMessage> Stream for InputStream<TMessage> {
         if let Some(message) = core.waiting_messages.pop_front() {
             // If any of the output sinks are waiting to write a value, wake them up as the queue has reduced
             let next_available = core.when_slots_available.pop_front();
+
+            // Release the core lock before waking anything
             mem::drop(core);
 
-            if let Some(next_available) = next_available {
-                next_available.wake()
-            }
+            next_available.into_iter().for_each(|waker| waker.wake());
 
             // Return the message
             Poll::Ready(Some(message))
@@ -102,6 +102,15 @@ impl<TMessage> Stream for InputStream<TMessage> {
         } else {
             // Wait for the next message to be delivered
             core.when_message_sent = Some(cx.waker().clone());
+
+            // Don't go to sleep until everything that's waiting for a slot has been woken up
+            let next_available = core.when_slots_available.drain(..).collect::<Vec<_>>();
+
+            // Release the core lock before waking anything
+            mem::drop(core);
+
+            next_available.into_iter().for_each(|waker| waker.wake());
+
             Poll::Pending
         }
     }
