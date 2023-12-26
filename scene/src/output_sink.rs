@@ -135,7 +135,10 @@ where
                 Poll::Pending
             },
 
-            OutputSinkTarget::Discard       => Poll::Ready(Ok(())),
+            OutputSinkTarget::Discard       => {
+                self.waiting_message = None;
+                Poll::Ready(Ok(()))
+            },
 
             OutputSinkTarget::Input(core)   => {
                 if let Some(core) = core.upgrade() {
