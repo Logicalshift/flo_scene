@@ -180,7 +180,7 @@ where
 mod test {
     use super::*;
 
-    use futures::future::{maybe_done};
+    use futures::future::{poll_fn};
     use futures::executor;
     use futures::pin_mut;
 
@@ -252,6 +252,28 @@ mod test {
 
             // Should now send the next value to the sink
             assert!((&mut blocked_send).now_or_never().is_some());
+            assert!(input_stream.next().await == Some(2));
+        })
+    }
+
+    #[test]
+    fn send_message_to_disconnected_input_stream() {
+        // Create an input stream and an output sink
+        let program_id          = SubProgramId::new();
+        let mut input_stream    = InputStream::<u32>::new(program_id.clone(), 0);
+        let mut output_sink     = OutputSink::new(program_id.clone());
+
+        executor::block_on(async move {
+            // Sending a message will block while the output sink is disconnected
+            let _ = poll_fn(|ctxt| Poll::Ready(output_sink.poll_ready_unpin(ctxt))).await;
+            output_sink.start_send_unpin(2).unwrap();
+            assert!(poll_fn(|ctxt| Poll::Ready(output_sink.poll_flush_unpin(ctxt))).await == Poll::Pending);
+
+            // Attach the input stream to the output
+            output_sink.attach_to(&input_stream);
+
+            // Should now send the blocked value to the sink
+            assert!(poll_fn(|ctxt| Poll::Ready(output_sink.poll_flush_unpin(ctxt))).await == Poll::Ready(Ok(())));
             assert!(input_stream.next().await == Some(2));
         })
     }
