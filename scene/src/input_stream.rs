@@ -33,7 +33,7 @@ pub (crate) struct InputStreamCore<TMessage> {
 /// An input stream for a subprogram
 ///
 pub struct InputStream<TMessage> {
-    core: Arc<Mutex<InputStreamCore<TMessage>>>,
+    pub (crate) core: Arc<Mutex<InputStreamCore<TMessage>>>,
 }
 
 impl<TMessage> InputStream<TMessage> {

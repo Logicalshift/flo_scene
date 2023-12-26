@@ -1,7 +1,7 @@
 use crate::{input_stream::*, SubProgramId};
 
 use futures::prelude::*;
-use futures::task::{Poll};
+use futures::task::{Poll, Waker};
 
 use std::pin::*;
 use std::sync::*;
@@ -38,6 +38,9 @@ pub struct OutputSink<TMessage> {
 
     /// The message that is being sent
     waiting_message: Option<TMessage>,
+
+    /// Waker that is notified when the target is changed
+    when_target_changed: Option<Waker>,
 }
 
 impl<TMessage> OutputSink<TMessage> {
@@ -46,10 +49,31 @@ impl<TMessage> OutputSink<TMessage> {
     ///
     pub (crate) fn new(program_id: SubProgramId) -> OutputSink<TMessage> {
         OutputSink {
-            identifier:         NEXT_IDENTIFIER.fetch_add(1, Ordering::Relaxed),
-            program_id:         program_id,
-            target:             OutputSinkTarget::Disconnected,
-            waiting_message:    None,
+            identifier:             NEXT_IDENTIFIER.fetch_add(1, Ordering::Relaxed),
+            program_id:             program_id,
+            target:                 OutputSinkTarget::Disconnected,
+            waiting_message:        None,
+            when_target_changed:    None,
+        }
+    }
+
+    ///
+    /// Sends the messages from this sink to a particular input stream
+    ///
+    pub (crate) fn attach_to(&mut self, input_stream: &InputStream<TMessage>) {
+        self.attach_to_core(&input_stream.core);
+    }
+
+    ///
+    /// Sends the messages from this sink to an input stream core
+    ///
+    pub (crate) fn attach_to_core(&mut self, input_stream_core: &Arc<Mutex<InputStreamCore<TMessage>>>) {
+        // Connect to the target
+        self.target = OutputSinkTarget::Input(Arc::downgrade(input_stream_core));
+
+        // Wake anything waiting for the stream to become ready or to send a message
+        if let Some(waker) = self.when_target_changed.take() {
+            waker.wake();
         }
     }
 }
@@ -60,10 +84,13 @@ where
 {
     type Error = ();
 
-    fn poll_ready(self: Pin<&mut Self>, _context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         // Always say that we're ready (we store the message in the sink while we're flushing instead)
         match &self.target {
-            OutputSinkTarget::Disconnected  => Poll::Pending,
+            OutputSinkTarget::Disconnected  => {
+                self.when_target_changed = Some(context.waker().clone());
+                Poll::Pending
+            },
             OutputSinkTarget::Discard       => Poll::Ready(Ok(())),
             OutputSinkTarget::Input(_)      => Poll::Ready(Ok(())),
         }
@@ -99,8 +126,15 @@ where
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.when_target_changed = None;
+
         match &self.target {
-            OutputSinkTarget::Disconnected  => Poll::Pending,
+            OutputSinkTarget::Disconnected  => {
+                // Wait for the target to change
+                self.when_target_changed = Some(context.waker().clone());
+                Poll::Pending
+            },
+
             OutputSinkTarget::Discard       => Poll::Ready(Ok(())),
 
             OutputSinkTarget::Input(core)   => {
@@ -117,7 +151,8 @@ where
 
                             Err(message) => {
                                 // Need to wait for a slot in the stream
-                                self.waiting_message = Some(message);
+                                self.waiting_message        = Some(message);
+                                self.when_target_changed    = Some(context.waker().clone());
                                 core.wake_when_slots_available(context);
                                 Poll::Pending
                             }
@@ -128,6 +163,7 @@ where
                     }
                 } else {
                     // Core has been released, so we wait as if disconnected
+                    self.when_target_changed = Some(context.waker().clone());
                     Poll::Pending
                 }
             }
@@ -137,5 +173,86 @@ where
     fn poll_close(self: Pin<&mut Self>, _context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         // Output is always flushed straight to the input stream, and the input stream is closed when the program finishes
         Poll::Ready(Ok(()))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use futures::future::{maybe_done};
+    use futures::executor;
+    use futures::pin_mut;
+
+    #[test]
+    fn send_message_to_input_stream() {
+        // Create an input stream and an output sink
+        let program_id          = SubProgramId::new();
+        let mut input_stream    = InputStream::<u32>::new(program_id.clone(), 1000);
+        let mut output_sink     = OutputSink::new(program_id.clone());
+
+        // Attach the output sink to the input stream
+        output_sink.attach_to(&input_stream);
+
+        executor::block_on(async move {
+            // Send some messages to the stream from the sink
+            output_sink.send(1).await.unwrap();
+            output_sink.send(2).await.unwrap();
+
+            // Stream should retrieve those messages
+            assert!(input_stream.next().await == Some(1));
+            assert!(input_stream.next().await == Some(2));
+        })
+    }
+
+    #[test]
+    fn send_message_to_input_stream_from_multiple_sinks() {
+        // Create an input stream and an output sink
+        let program_id          = SubProgramId::new();
+        let mut input_stream    = InputStream::<u32>::new(program_id.clone(), 1000);
+        let mut output_sink_1   = OutputSink::new(program_id.clone());
+        let mut output_sink_2   = OutputSink::new(program_id.clone());
+
+        // Attach the output sink to the input stream
+        output_sink_1.attach_to(&input_stream);
+        output_sink_2.attach_to(&input_stream);
+
+        executor::block_on(async move {
+            // Send some messages to the stream from both sinks (we shouldn't block here because )
+            output_sink_1.send(1).await.unwrap();
+            output_sink_2.send(2).await.unwrap();
+
+            // Stream should retrieve those messages
+            assert!(input_stream.next().await == Some(1));
+            assert!(input_stream.next().await == Some(2));
+        })
+    }
+
+    #[test]
+    fn send_message_to_full_input_stream() {
+        // Create an input stream and an output sink
+        let program_id          = SubProgramId::new();
+        let mut input_stream    = InputStream::<u32>::new(program_id.clone(), 0);
+        let mut output_sink     = OutputSink::new(program_id.clone());
+
+        // Attach the output sink to the input stream
+        output_sink.attach_to(&input_stream);
+
+        executor::block_on(async move {
+            // First message will send OK
+            output_sink.send(1).await.unwrap();
+
+            // Second message will be blocked by the first
+            let blocked_send = output_sink.send(2);
+            pin_mut!(blocked_send);
+            assert!((&mut blocked_send).now_or_never().is_none());
+
+            // Stream should retrieve those messages
+            assert!(input_stream.next().await == Some(1));
+
+            // Should now send the next value to the sink
+            assert!((&mut blocked_send).now_or_never().is_some());
+            assert!(input_stream.next().await == Some(2));
+        })
     }
 }
