@@ -34,7 +34,7 @@ pub struct OutputSink<TMessage> {
     program_id: SubProgramId,
 
     /// Where the data for this sink should be sent
-    target: OutputSinkTarget<TMessage>,
+    target: Arc<Mutex<OutputSinkTarget<TMessage>>>,
 
     /// The message that is being sent
     waiting_message: Option<TMessage>,
@@ -54,7 +54,7 @@ impl<TMessage> OutputSink<TMessage> {
         OutputSink {
             identifier:             NEXT_IDENTIFIER.fetch_add(1, Ordering::Relaxed),
             program_id:             program_id,
-            target:                 OutputSinkTarget::Disconnected,
+            target:                 Arc::new(Mutex::new(OutputSinkTarget::Disconnected)),
             waiting_message:        None,
             when_target_changed:    None,
             when_message_sent:      None,
@@ -73,7 +73,7 @@ impl<TMessage> OutputSink<TMessage> {
     ///
     pub (crate) fn attach_to_core(&mut self, input_stream_core: &Arc<Mutex<InputStreamCore<TMessage>>>) {
         // Connect to the target
-        self.target = OutputSinkTarget::Input(Arc::downgrade(input_stream_core));
+        *self.target.lock().unwrap() = OutputSinkTarget::Input(Arc::downgrade(input_stream_core));
 
         // Wake anything waiting for the stream to become ready or to send a message
         if let Some(waker) = self.when_target_changed.take() {
@@ -89,6 +89,8 @@ where
     type Error = ();
 
     fn poll_ready(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        use std::mem;
+
         // Say we're waiting if there's an input value waiting
         if self.waiting_message.is_some() {
             // Wait for the message to finish sending
@@ -96,8 +98,11 @@ where
             Poll::Pending
         } else {
             // Always say that we're ready (we store the message in the sink while we're flushing instead)
-            match &self.target {
+            let target = self.target.lock().unwrap();
+
+            match &*target {
                 OutputSinkTarget::Disconnected  => {
+                    mem::drop(target);
                     self.when_target_changed = Some(context.waker().clone());
                     Poll::Pending
                 },
@@ -110,8 +115,10 @@ where
     fn start_send(mut self: Pin<&mut Self>, item: TMessage) -> Result<(), Self::Error> {
         use std::mem;
 
-        match &self.target {
+        let target = self.target.lock().unwrap();
+        match &*target {
             OutputSinkTarget::Disconnected  => {
+                mem::drop(target);
                 self.waiting_message = Some(item);
                 Ok(())
             },
@@ -121,6 +128,7 @@ where
             OutputSinkTarget::Input(core)   => {
                 if let Some(core) = core.upgrade() {
                     // Either directly send the item or add to the callback list for when there's enough space in the input
+                    mem::drop(target);
                     let mut core = core.lock().unwrap();
 
                     match core.send(item) {
@@ -154,15 +162,18 @@ where
         self.when_target_changed = None;
 
         // Action depends on the state of the target
-        match &self.target {
+        let target = self.target.lock().unwrap();
+        match &*target {
             OutputSinkTarget::Disconnected  => {
                 // Wait for the target to change
+                mem::drop(target);
                 self.when_target_changed = Some(context.waker().clone());
                 Poll::Pending
             },
 
             OutputSinkTarget::Discard       => {
                 // Throw away any waiting message and say we're done
+                mem::drop(target);
                 if let Some(when_message_sent) = self.when_message_sent.take() { when_message_sent.wake(); }
                 self.waiting_message = None;
                 Poll::Ready(Ok(()))
@@ -171,6 +182,8 @@ where
             OutputSinkTarget::Input(core)   => {
                 // Try to send to the attached core
                 if let Some(core) = core.upgrade() {
+                    mem::drop(target);
+
                     if let Some(message) = self.waiting_message.take() {
                         // Try sending the waiting message
                         let mut core = core.lock().unwrap();
@@ -200,6 +213,7 @@ where
                     }
                 } else {
                     // Core has been released, so we wait as if disconnected
+                    mem::drop(target);
                     self.when_target_changed = Some(context.waker().clone());
                     Poll::Pending
                 }
