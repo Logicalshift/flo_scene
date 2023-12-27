@@ -98,8 +98,13 @@ where
 
     fn start_send(mut self: Pin<&mut Self>, item: TMessage) -> Result<(), Self::Error> {
         match &self.target {
-            OutputSinkTarget::Disconnected  => Ok(()),
+            OutputSinkTarget::Disconnected  => {
+                self.waiting_message = Some(item);
+                Ok(())
+            },
+
             OutputSinkTarget::Discard       => Ok(()),
+
             OutputSinkTarget::Input(core)   => {
                 if let Some(core) = core.upgrade() {
                     // Either directly send the item or add to the callback list for when there's enough space in the input
