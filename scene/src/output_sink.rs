@@ -41,6 +41,9 @@ pub struct OutputSink<TMessage> {
 
     /// Waker that is notified when the target is changed
     when_target_changed: Option<Waker>,
+
+    /// Waker that is notified when a pending message is sent
+    when_message_sent: Option<Waker>,
 }
 
 impl<TMessage> OutputSink<TMessage> {
@@ -54,6 +57,7 @@ impl<TMessage> OutputSink<TMessage> {
             target:                 OutputSinkTarget::Disconnected,
             waiting_message:        None,
             when_target_changed:    None,
+            when_message_sent:      None,
         }
     }
 
@@ -85,14 +89,21 @@ where
     type Error = ();
 
     fn poll_ready(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // Always say that we're ready (we store the message in the sink while we're flushing instead)
-        match &self.target {
-            OutputSinkTarget::Disconnected  => {
-                self.when_target_changed = Some(context.waker().clone());
-                Poll::Pending
-            },
-            OutputSinkTarget::Discard       => Poll::Ready(Ok(())),
-            OutputSinkTarget::Input(_)      => Poll::Ready(Ok(())),
+        // Say we're waiting if there's an input value waiting
+        if self.waiting_message.is_some() {
+            // Wait for the message to finish sending
+            self.when_message_sent = Some(context.waker().clone());
+            Poll::Pending
+        } else {
+            // Always say that we're ready (we store the message in the sink while we're flushing instead)
+            match &self.target {
+                OutputSinkTarget::Disconnected  => {
+                    self.when_target_changed = Some(context.waker().clone());
+                    Poll::Pending
+                },
+                OutputSinkTarget::Discard       => Poll::Ready(Ok(())),
+                OutputSinkTarget::Input(_)      => Poll::Ready(Ok(())),
+            }
         }
     }
 
@@ -152,6 +163,7 @@ where
 
             OutputSinkTarget::Discard       => {
                 // Throw away any waiting message and say we're done
+                if let Some(when_message_sent) = self.when_message_sent.take() { when_message_sent.wake(); }
                 self.waiting_message = None;
                 Poll::Ready(Ok(()))
             },
@@ -170,6 +182,7 @@ where
                                 mem::drop(core);
 
                                 if let Some(waker) = waker { waker.wake() };
+                                if let Some(when_message_sent) = self.when_message_sent.take() { when_message_sent.wake(); }
                                 Poll::Ready(Ok(()))
                             }
 
