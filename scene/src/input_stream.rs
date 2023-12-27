@@ -58,12 +58,12 @@ impl<TMessage> InputStream<TMessage> {
 
 impl<TMessage> InputStreamCore<TMessage> {
     ///
-    /// Adds a message to this core if there's space for it
+    /// Adds a message to this core if there's space for it, returning the waker to be called if successful (the waker must be called with the core unlocked)
     ///
-    pub (crate) fn send(&mut self, message: TMessage) -> Result<(), TMessage> {
+    pub (crate) fn send(&mut self, message: TMessage) -> Result<Option<Waker>, TMessage> {
         if self.waiting_messages.len() <= self.max_waiting {
             self.waiting_messages.push_back(message);
-            Ok(())
+            Ok(self.when_message_sent.take())
         } else {
             Err(message)
         }

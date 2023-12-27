@@ -97,6 +97,8 @@ where
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: TMessage) -> Result<(), Self::Error> {
+        use std::mem;
+
         match &self.target {
             OutputSinkTarget::Disconnected  => {
                 self.waiting_message = Some(item);
@@ -111,8 +113,12 @@ where
                     let mut core = core.lock().unwrap();
 
                     match core.send(item) {
-                        Ok(()) => {
+                        Ok(waker) => {
+                            // Sent the message: wake up anything waiting for the input stream
                             self.waiting_message = None;
+                            mem::drop(core);
+
+                            if let Some(waker) = waker { waker.wake() };
                             Ok(())
                         }
 
@@ -131,8 +137,12 @@ where
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        use std::mem;
+
+        // Disable any existing waker for this future
         self.when_target_changed = None;
 
+        // Action depends on the state of the target
         match &self.target {
             OutputSinkTarget::Disconnected  => {
                 // Wait for the target to change
@@ -141,19 +151,25 @@ where
             },
 
             OutputSinkTarget::Discard       => {
+                // Throw away any waiting message and say we're done
                 self.waiting_message = None;
                 Poll::Ready(Ok(()))
             },
 
             OutputSinkTarget::Input(core)   => {
+                // Try to send to the attached core
                 if let Some(core) = core.upgrade() {
                     if let Some(message) = self.waiting_message.take() {
                         // Try sending the waiting message
                         let mut core = core.lock().unwrap();
 
                         match core.send(message) {
-                            Ok(()) => {
+                            Ok(waker) => {
+                                // Sent the message: wake up anything waiting for the input stream
                                 self.waiting_message = None;
+                                mem::drop(core);
+
+                                if let Some(waker) = waker { waker.wake() };
                                 Poll::Ready(Ok(()))
                             }
 
