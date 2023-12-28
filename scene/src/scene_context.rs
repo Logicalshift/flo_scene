@@ -1,4 +1,5 @@
 use crate::scene_core::*;
+use crate::stream_target::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
@@ -15,7 +16,7 @@ pub struct SceneContext {
     /// The core of the running scene (if it still exists)
     scene_core: Weak<Mutex<SceneCore>>,
 
-    /// The program the 
+    /// The program that's running in this context
     program_core: Weak<Mutex<SubProgramCore>>,
 }
 
@@ -30,9 +31,14 @@ impl SceneContext {
     ///
     /// Retrieves a stream for sending messages of the specified type
     ///
-    /// If no receiver is attached to this stream type for this program, the 
+    /// The target can be used to define the default destination for the stream. If the target is a specific program, that program should
+    /// have an input type that matches the message type. If the target is `None` or `Any`, the stream can be connected by the scene (by the
+    /// `connect_programs()` request), so the exact target does not need to be known.
     ///
-    pub fn send<TMessageType>(&self) -> impl Sink<TMessageType>
+    /// The `None` target will discard any messages received while the stream is disconnected, but the `Any` target will block until something
+    /// connects the stream. Streams with a specified target will connect to that target immediately.
+    ///
+    pub fn send<TMessageType>(&self, target: StreamTarget) -> impl Sink<TMessageType>
     where
         TMessageType: 'static + Send + Sync,
     {
