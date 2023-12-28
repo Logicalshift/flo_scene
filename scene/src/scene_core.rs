@@ -1,3 +1,4 @@
+use crate::OutputSinkTarget;
 use crate::input_stream::*;
 use crate::stream_id::*;
 use crate::subprogram_id::*;
@@ -24,7 +25,7 @@ pub (crate) struct SubProgramCore {
     run: BoxFuture<'static, ()>,
 
     /// The output sink targets for this sub-program
-    outputs: HashMap<StreamId, Arc<Mutex<dyn Send + Sync + Any>>>,
+    outputs: HashMap<StreamId, Arc<dyn Send + Sync + Any>>,
 
     /// Set to true if this subprogram has been awakened since it was last polled
     awake: bool,
@@ -265,4 +266,28 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
             }
         }
     })
+}
+
+impl SubProgramCore {
+    ///
+    /// Retrieves the ID of this subprogram
+    ///
+    pub (crate) fn program_id(&self) -> &SubProgramId {
+        &self.id
+    }
+
+    ///
+    /// Returns the existing output target for a stream ID, if it exists in this subprogram
+    ///
+    pub (crate) fn output_target<TMessageType>(&self, id: &StreamId) -> Option<Arc<Mutex<OutputSinkTarget<TMessageType>>>> 
+    where
+        TMessageType: 'static + Send + Sync,
+    {
+        // Fetch the existing target and clone it
+        let existing_target = self.outputs.get(id)?;
+        let existing_target = Arc::clone(existing_target);
+
+        // Convert to the appropriate output type
+        existing_target.downcast::<Mutex<OutputSinkTarget<TMessageType>>>().ok()
+    }
 }
