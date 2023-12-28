@@ -78,7 +78,7 @@ impl SceneCore {
     ///
     /// Adds a program to the list being run by this scene
     ///
-    pub fn start_subprogram<TMessage>(&mut self, program_id: SubProgramId, program: impl 'static + Send + Sync + Future<Output=()>, input_core: Arc<Mutex<InputStreamCore<TMessage>>>) -> Option<Waker>
+    pub fn start_subprogram<TMessage>(&mut self, program_id: SubProgramId, program: impl 'static + Send + Sync + Future<Output=()>, input_core: Arc<Mutex<InputStreamCore<TMessage>>>) -> (Arc<Mutex<SubProgramCore>>, Option<Waker>)
     where
         TMessage: 'static + Unpin + Send + Sync,
     {
@@ -101,7 +101,8 @@ impl SceneCore {
         debug_assert!(self.sub_programs[handle].is_none());
 
         // Store the program details
-        self.sub_programs[handle]       = Some(Arc::new(Mutex::new(subprogram)));
+        let subprogram                  = Arc::new(Mutex::new(subprogram));
+        self.sub_programs[handle]       = Some(Arc::clone(&subprogram));
         self.sub_program_inputs[handle] = Some(input_core);
         self.program_indexes.insert(program_id.clone(), handle);
 
@@ -121,7 +122,7 @@ impl SceneCore {
             }
         }
 
-        waker
+        (subprogram, waker)
     }
 }
 

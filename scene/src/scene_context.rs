@@ -10,15 +10,20 @@ use std::sync::*;
 ///
 /// The context is passed to the program when it starts, and can also be retrieved from any code executing as part of that subprogram.
 ///
+#[derive(Clone)]
 pub struct SceneContext {
     /// The core of the running scene (if it still exists)
-    core: Weak<Mutex<SceneCore>>,
+    scene_core: Weak<Mutex<SceneCore>>,
+
+    /// The program the 
+    program_core: Weak<Mutex<SubProgramCore>>,
 }
 
 impl SceneContext {
-    pub (crate) fn new(core: &Arc<Mutex<SceneCore>>) -> Self {
+    pub (crate) fn new(scene_core: &Arc<Mutex<SceneCore>>, program_core: &Arc<Mutex<SubProgramCore>>) -> Self {
         SceneContext {
-            core: Arc::downgrade(core),
+            scene_core:     Arc::downgrade(scene_core),
+            program_core:   Arc::downgrade(program_core),
         }
     }
 

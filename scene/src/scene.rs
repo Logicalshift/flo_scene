@@ -7,6 +7,7 @@ use crate::stream_target::*;
 use crate::subprogram_id::*;
 
 use futures::prelude::*;
+use futures::channel::oneshot;
 
 use std::sync::*;
 
@@ -50,20 +51,26 @@ impl Scene {
         TProgramFn:     'static + Send + Sync + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
         // Create the context and input stream for the program
-        let context         = SceneContext::new(&self.core);
         let input_stream    = InputStream::new(program_id.clone(), max_input_waiting);
         let input_core      = input_stream.core();
 
         // Create the future that will be used to run the future
+        let (send_context, recv_context) = oneshot::channel();
         let run_program = async move {
-            program(input_stream, context).await;
+            if let Ok(context) = recv_context.await {
+                program(input_stream, context).await;
+            }
         };
 
         // Start the program running
-        let waker = {
+        let (subprogram, waker) = {
             let mut core = self.core.lock().unwrap();
             core.start_subprogram(program_id, run_program, input_core)
         };
+
+        // Create the scene context, and send it to the subprogram
+        let context = SceneContext::new(&self.core, &subprogram);
+        send_context.send(context).ok();
 
         // Wake the scene up
         if let Some(waker) = waker {
