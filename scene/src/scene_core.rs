@@ -50,8 +50,8 @@ pub (crate) struct SceneCore {
     /// The sub-programs that are active in this scene
     sub_programs: Vec<Option<Arc<Mutex<SubProgramCore>>>>,
 
-    /// The input streams for each sub-program
-    sub_program_inputs: Vec<Option<Arc<Mutex<dyn Send + Sync + Any>>>>,
+    /// The input stream cores for each sub-program
+    sub_program_inputs: Vec<Option<Arc<dyn Send + Sync + Any>>>,
 
     /// The next free sub-program
     next_subprogram: usize,
@@ -132,8 +132,31 @@ impl SceneCore {
         (subprogram, waker)
     }
 
-    pub (crate) fn sink_for_target<TMessageType>(&mut self, target: StreamTarget) -> Option<Arc<Mutex<OutputSinkTarget<TMessageType>>>> {
-        todo!()
+    ///
+    /// Returns the output sink target configured for a particular stream
+    ///
+    pub (crate) fn sink_for_target<TMessageType>(&mut self, source: &SubProgramId, target: StreamTarget) -> Option<Arc<Mutex<OutputSinkTarget<TMessageType>>>>
+    where
+        TMessageType: 'static + Send + Sync,
+    {
+        match target {
+            StreamTarget::None  |
+            StreamTarget::Any   => {
+                // Return the general stream for the message type, if there is one
+                todo!()
+            }
+
+            StreamTarget::Program(target_program_id) => {
+                // Attempt to find the target stream for this specific program
+                // TODO: perhaps a way to redirect these streams using `connect_programs`?
+                // TODO: if the program hasn't started yet, we should connect
+                let target_program_handle   = self.program_indexes.get(&target_program_id)?;
+                let target_program_input    = self.sub_program_inputs.get(*target_program_handle)?.clone()?;
+                let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>().ok()?;
+
+                Some(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))))
+            }
+        }
     }
 }
 
