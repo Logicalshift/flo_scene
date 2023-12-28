@@ -1,5 +1,10 @@
-use crate::{SceneContext, SubProgramId, StreamId, StreamSource, StreamTarget, InputStream};
+use crate::input_stream::*;
+use crate::scene_context::*;
 use crate::scene_core::*;
+use crate::stream_id::*;
+use crate::stream_source::*;
+use crate::stream_target::*;
+use crate::subprogram_id::*;
 
 use futures::prelude::*;
 
@@ -19,6 +24,7 @@ impl Default for Scene {
         let scene = Scene::empty();
 
         // Populate with the default programs
+        // TODO: 'main' program for starting/stopping other programs and wiring streams
 
         scene
     }
@@ -37,13 +43,32 @@ impl Scene {
     ///
     /// Adds a subprogram to run in this scene
     ///
-    pub fn add_subprogram<TProgramFn, TInputMessage, TFuture>(&self, program_id: SubProgramId, program: TProgramFn)
+    pub fn add_subprogram<TProgramFn, TInputMessage, TFuture>(&self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)
     where
         TFuture:        Send + Sync + Future<Output=()>,
-        TInputMessage:  Send + Sync,
-        TProgramFn:     'static + Fn(InputStream<TInputMessage>, &SceneContext) -> TFuture,
+        TInputMessage:  'static + Unpin + Send + Sync,
+        TProgramFn:     'static + Send + Sync + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
-        todo!()
+        // Create the context and input stream for the program
+        let context         = SceneContext::new(&self.core);
+        let input_stream    = InputStream::new(program_id.clone(), max_input_waiting);
+        let input_core      = input_stream.core();
+
+        // Create the future that will be used to run the future
+        let run_program = async move {
+            program(input_stream, context).await;
+        };
+
+        // Start the program running
+        let waker = {
+            let mut core = self.core.lock().unwrap();
+            core.start_subprogram(program_id, run_program, input_core)
+        };
+
+        // Wake the scene up
+        if let Some(waker) = waker {
+            waker.wake()
+        }
     }
 
     ///
