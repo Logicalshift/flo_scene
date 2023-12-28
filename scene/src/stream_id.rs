@@ -1,12 +1,17 @@
+use crate::stream_target::*;
+
 use std::any::{TypeId};
 
 ///
 /// Identifies a stream produced by a subprogram 
 ///
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Hash, Debug)]
 pub enum StreamId {
     /// A stream identified by its message type
-    MessageType(TypeId)
+    MessageType(TypeId),
+
+    /// A stream sending data to a specific target
+    Target(TypeId, StreamTarget),
 }
 
 impl StreamId {
@@ -18,6 +23,16 @@ impl StreamId {
         TMessageType: 'static,
     {
         StreamId::MessageType(TypeId::of::<TMessageType>())
+    }
+
+    ///
+    /// ID of a stream that is assigned to a particular target
+    ///
+    pub fn for_target<TMessageType>(target: impl Into<StreamTarget>) -> Self
+    where
+        TMessageType: 'static,
+    {
+        StreamId::Target(TypeId::of::<TMessageType>(), target.into())
     }
 }
 
