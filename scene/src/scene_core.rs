@@ -1,4 +1,5 @@
 use crate::input_stream::*;
+use crate::stream_id::*;
 use crate::subprogram_id::*;
 
 use futures::prelude::*;
@@ -21,6 +22,9 @@ pub (crate) struct SubProgramCore {
 
     /// The pending future that represents this running subprogram
     run: BoxFuture<'static, ()>,
+
+    /// The output sink targets for this sub-program
+    outputs: HashMap<StreamId, Arc<Mutex<dyn Send + Sync + Any>>>,
 
     /// Set to true if this subprogram has been awakened since it was last polled
     awake: bool,
@@ -90,6 +94,7 @@ impl SceneCore {
             handle:     handle,
             id:         program_id.clone(),
             run:        program.boxed(),
+            outputs:    HashMap::new(),
             awake:      true,
         };
 
