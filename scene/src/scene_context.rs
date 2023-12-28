@@ -1,4 +1,6 @@
+use crate::output_sink::*;
 use crate::scene_core::*;
+use crate::stream_id::*;
 use crate::stream_target::*;
 
 use futures::prelude::*;
@@ -38,13 +40,37 @@ impl SceneContext {
     /// The `None` target will discard any messages received while the stream is disconnected, but the `Any` target will block until something
     /// connects the stream. Streams with a specified target will connect to that target immediately.
     ///
-    pub fn send<TMessageType>(&self, target: StreamTarget) -> impl Sink<TMessageType>
+    pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<impl Sink<TMessageType>, ()>
     where
-        TMessageType: 'static + Send + Sync,
+        TMessageType: 'static + Unpin + Send + Sync,
     {
-        todo!();
+        if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
+            // Convert the target to a stream ID. If we need to create the sink target, we can create it in 'wait' or 'discard' mode
+            let target                          = target.into();
+            let (stream_id, discard_by_default) = match target {
+                StreamTarget::None              => (StreamId::with_message_type::<TMessageType>(), true),
+                StreamTarget::Any               => (StreamId::with_message_type::<TMessageType>(), false),
+                StreamTarget::Program(prog_id)  => (StreamId::for_target::<TMessageType>(prog_id), false),
+            };
 
-        let (send, _recv ) = mpsc::channel(1);
-        send
+            // Try to re-use an existing target
+            let (existing_target, program_id) = {
+                let program_core = program_core.lock().unwrap();
+                (program_core.output_target(&stream_id), program_core.program_id().clone())
+            };
+
+            if let Some(existing_target) = existing_target {
+                // This program has previously created a stream for this target (or had a stream connected by the scene)
+                let sink = OutputSink::attach(program_id, existing_target);
+
+                Ok(sink)
+            } else {
+                // Create a new target
+                todo!()
+            }
+        } else {
+            // TODO: Return an error (scene or program has finished)
+            todo!()
+        }
     }
 }
