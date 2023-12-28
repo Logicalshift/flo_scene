@@ -159,6 +159,10 @@ impl ArcWake for SceneCoreWaker {
             // Retrieve the program from the core
             let program = core.sub_programs.get(subprogram_handle).cloned().unwrap_or_default();
 
+            if program.is_some() {
+                core.awake_programs.push_back(subprogram_handle);
+            }
+
             (waker, program)
         };
 
