@@ -62,6 +62,20 @@ impl<TMessage> OutputSink<TMessage> {
     }
 
     ///
+    /// Creates a new output sink that is attached to a known target
+    ///
+    pub (crate) fn attach(program_id: SubProgramId, target: Arc<Mutex<OutputSinkTarget<TMessage>>>) -> OutputSink<TMessage> {
+        OutputSink {
+            identifier:             NEXT_IDENTIFIER.fetch_add(1, Ordering::Relaxed),
+            program_id:             program_id,
+            target:                 target,
+            waiting_message:        None,
+            when_target_changed:    None,
+            when_message_sent:      None,
+        }
+    }
+
+    ///
     /// Sends the messages from this sink to a particular input stream
     ///
     pub (crate) fn attach_to(&mut self, input_stream: &InputStream<TMessage>) {
