@@ -5,7 +5,7 @@ use std::any::{TypeId};
 ///
 /// Identifies a stream produced by a subprogram 
 ///
-#[derive(Clone, PartialEq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum StreamId {
     /// A stream identified by its message type
     MessageType(TypeId),

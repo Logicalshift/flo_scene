@@ -3,7 +3,7 @@ use crate::{SubProgramId};
 ///
 /// Describes the source of a stream
 ///
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum StreamSource {
     /// All sources of this type of stream
     All,

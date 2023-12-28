@@ -3,7 +3,7 @@ use crate::{SubProgramId};
 ///
 /// A stream target describes where the output of a particular stream should be sent
 ///
-#[derive(Clone, PartialEq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum StreamTarget {
     /// Discard any output sent to this stream
     None,
