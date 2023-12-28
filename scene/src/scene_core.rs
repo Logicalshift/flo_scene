@@ -1,4 +1,5 @@
-use crate::{SubProgramId};
+use crate::input_stream::*;
+use crate::subprogram_id::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture, poll_fn};
@@ -72,6 +73,55 @@ impl SceneCore {
             awake_programs:     VecDeque::new(),
             thread_wakers:      vec![],
         }
+    }
+
+    ///
+    /// Adds a program to the list being run by this scene
+    ///
+    pub fn start_subprogram<TMessage>(&mut self, program_id: SubProgramId, program: impl 'static + Send + Sync + Future<Output=()>, input_core: Arc<Mutex<InputStreamCore<TMessage>>>) -> Option<Waker>
+    where
+        TMessage: 'static + Unpin + Send + Sync,
+    {
+        // next_subprogram should always indicate the handle we'll use for the new program (it should be either a None entry in the list or sub_programs.len())
+        let handle      = self.next_subprogram;
+
+        // Create the sub-program
+        let subprogram  = SubProgramCore {
+            handle:     handle,
+            id:         program_id.clone(),
+            run:        program.boxed(),
+            awake:      true,
+        };
+
+        // Allocate space for the program
+        while self.sub_programs.len() <= handle {
+            self.sub_programs.push(None);
+            self.sub_program_inputs.push(None);
+        }
+        debug_assert!(self.sub_programs[handle].is_none());
+
+        // Store the program details
+        self.sub_programs[handle]       = Some(Arc::new(Mutex::new(subprogram)));
+        self.sub_program_inputs[handle] = Some(input_core);
+        self.program_indexes.insert(program_id.clone(), handle);
+
+        self.awake_programs.push_back(handle);
+
+        // Update the 'next_subprogram' value to an empty slot
+        while self.next_subprogram < self.sub_programs.len() && self.sub_programs[self.next_subprogram].is_some() {
+            self.next_subprogram += 1;
+        }
+
+        // Return a waker if one is available (we want to wake it with the core unlocked, so this is just returned)
+        let mut waker   = None;
+        for maybe_waker in self.thread_wakers.iter_mut() {
+            waker = maybe_waker.take();
+            if waker.is_some() {
+                break;
+            }
+        }
+
+        waker
     }
 }
 
