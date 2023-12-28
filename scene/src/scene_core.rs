@@ -1,6 +1,7 @@
-use crate::OutputSinkTarget;
+use crate::output_sink::*;
 use crate::input_stream::*;
 use crate::stream_id::*;
+use crate::stream_target::*;
 use crate::subprogram_id::*;
 
 use futures::prelude::*;
@@ -129,6 +130,60 @@ impl SceneCore {
         }
 
         (subprogram, waker)
+    }
+
+    pub (crate) fn sink_for_target<TMessageType>(&mut self, target: StreamTarget) -> Option<Arc<Mutex<OutputSinkTarget<TMessageType>>>> {
+        todo!()
+    }
+}
+
+impl SubProgramCore {
+    ///
+    /// Retrieves the ID of this subprogram
+    ///
+    pub (crate) fn program_id(&self) -> &SubProgramId {
+        &self.id
+    }
+
+    ///
+    /// Returns the existing output target for a stream ID, if it exists in this subprogram
+    ///
+    pub (crate) fn output_target<TMessageType>(&self, id: &StreamId) -> Option<Arc<Mutex<OutputSinkTarget<TMessageType>>>> 
+    where
+        TMessageType: 'static + Send + Sync,
+    {
+        // Fetch the existing target and clone it
+        let existing_target = self.outputs.get(id)?;
+        let existing_target = Arc::clone(existing_target);
+
+        // Convert to the appropriate output type
+        existing_target.downcast::<Mutex<OutputSinkTarget<TMessageType>>>().ok()
+    }
+
+    ///
+    /// Tries to set the output target for a stream ID. Returns Ok() if the new output target was defined or Err() if there's already a valid output for this stream
+    ///
+    /// Panics if the stream ID doesn't match the message type and the stream already exists.
+    ///
+    pub (crate) fn try_create_output_target<TMessageType>(&mut self, id: &StreamId, new_output_target: Arc<Mutex<OutputSinkTarget<TMessageType>>>) -> Result<Arc<Mutex<OutputSinkTarget<TMessageType>>>, Arc<Mutex<OutputSinkTarget<TMessageType>>>>
+    where
+        TMessageType: 'static + Send + Sync,
+    {
+        let existing_target = self.outputs.get(id);
+        if let Some(existing_target) = existing_target {
+            // Return the already existing target
+            let existing_target = Arc::clone(existing_target);
+            let existing_target = existing_target.downcast::<Mutex<OutputSinkTarget<TMessageType>>>().unwrap();
+
+            Err(existing_target)
+        } else {
+            // Store a new target in the outputs
+            let cloned_target = Arc::clone(&new_output_target);
+            self.outputs.insert(id.clone(), cloned_target);
+
+            // Use the new target for the output stream
+            Ok(new_output_target)
+        }
     }
 }
 
@@ -266,28 +321,4 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
             }
         }
     })
-}
-
-impl SubProgramCore {
-    ///
-    /// Retrieves the ID of this subprogram
-    ///
-    pub (crate) fn program_id(&self) -> &SubProgramId {
-        &self.id
-    }
-
-    ///
-    /// Returns the existing output target for a stream ID, if it exists in this subprogram
-    ///
-    pub (crate) fn output_target<TMessageType>(&self, id: &StreamId) -> Option<Arc<Mutex<OutputSinkTarget<TMessageType>>>> 
-    where
-        TMessageType: 'static + Send + Sync,
-    {
-        // Fetch the existing target and clone it
-        let existing_target = self.outputs.get(id)?;
-        let existing_target = Arc::clone(existing_target);
-
-        // Convert to the appropriate output type
-        existing_target.downcast::<Mutex<OutputSinkTarget<TMessageType>>>().ok()
-    }
 }
