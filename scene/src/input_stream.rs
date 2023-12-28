@@ -54,6 +54,13 @@ impl<TMessage> InputStream<TMessage> {
             core: Arc::new(Mutex::new(core))
         }
     }
+
+    ///
+    /// Fetches the core of this stream
+    ///
+    pub (crate) fn core(&self) -> Arc<Mutex<InputStreamCore<TMessage>>> {
+        Arc::clone(&self.core)
+    }
 }
 
 impl<TMessage> InputStreamCore<TMessage> {
