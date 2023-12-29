@@ -81,6 +81,15 @@ impl Scene {
     ///
     /// Specifies that an output of `source` (identified by the StreamId) should be connected to the input of `target`
     ///
+    /// Streams can be connected either from any program that outputs that particular message type or from a specific program.
+    ///
+    /// The target is usually a specific program, but can also be `StreamTarget::None` to indicate that any messages should be
+    /// dropped with no further action. `StreamTarget::Any` is the default, and will result in the stream blocking until another
+    /// call connects it.
+    ///
+    /// The stream ID specifies which of the streams belonging to the target should be connected: this is usually the `MessageType`
+    /// identfier, which will connect a stream that produces data of a known type.
+    ///
     pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ()> {
         todo!()
     }
