@@ -91,6 +91,29 @@ impl Scene {
     /// identfier, which will connect a stream that produces data of a known type, but can also be used to redirect a stream that
     /// was going to a particular target.
     ///
+    /// Examples:
+    ///
+    /// ```
+    /// #   use flo_scene::*;
+    /// #   enum ExampleMessage { Test };
+    /// #   let scene           = Scene::default();
+    /// #   let subprogram      = SubProgramId::new();
+    /// #   let source_program  = SubProgramId::new();
+    /// #   let other_program   = SubProgramId::new();
+    /// #
+    /// // Connect all the 'ExampleMessage' streams to one program
+    /// scene.connect_programs((), &subprogram, StreamId::with_message_type::<ExampleMessage>());
+    /// 
+    /// // Direct the messages for the source_program to other_program instead (takes priority over the 'any' example set up above)
+    /// scene.connect_programs(&source_program, &other_program, StreamId::with_message_type::<ExampleMessage>());
+    ///
+    /// // Make 'other_program' throw away its messages
+    /// scene.connect_programs(&other_program, StreamTarget::None, StreamId::with_message_type::<ExampleMessage>());
+    ///
+    /// // When 'source_program' tries to connect directly to 'subprogram', send its output to 'other_program' instead
+    /// scene.connect_programs(&source_program, &other_program, StreamId::for_target::<ExampleMessage>(&subprogram));
+    /// ```
+    ///
     pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ()> {
         let source = source.into();
         let target = target.into();
