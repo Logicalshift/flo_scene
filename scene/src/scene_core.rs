@@ -149,7 +149,7 @@ impl SceneCore {
             StreamTarget::Program(target_program_id) => {
                 // Attempt to find the target stream for this specific program
                 // TODO: perhaps a way to redirect these streams using `connect_programs`?
-                // TODO: if the program hasn't started yet, we should connect
+                // TODO: if the program hasn't started yet, we should create a disconnected stream and connect it later on
                 let target_program_handle   = self.program_indexes.get(&target_program_id)?;
                 let target_program_input    = self.sub_program_inputs.get(*target_program_handle)?.clone()?;
                 let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>().ok()?;
