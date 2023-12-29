@@ -160,7 +160,32 @@ impl SceneCore {
             StreamTarget::None  |
             StreamTarget::Any   => {
                 // Return the general stream for the message type, if there is one
-                todo!()
+                let maybe_connection = self.connections
+                    .get(&(source.into(), StreamId::with_message_type::<TMessageType>()))
+                    .or_else(|| self.connections.get(&(StreamSource::All, StreamId::with_message_type::<TMessageType>())));
+
+                if let Some(connection) = maybe_connection {
+                    // Stream is connected to a specific program (or is configured to discard its input)
+                    match connection {
+                        StreamTarget::None                          => Some(Arc::new(Mutex::new(OutputSinkTarget::Discard))),
+                        StreamTarget::Any                           => Some(Arc::new(Mutex::new(OutputSinkTarget::Disconnected))),
+                        StreamTarget::Program(target_program_id)    => {
+                            // Connect the stream to the input of a specific program
+                            let target_program_handle   = self.program_indexes.get(&target_program_id)?;
+                            let target_program_input    = self.sub_program_inputs.get(*target_program_handle)?.clone()?;
+                            let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>().ok()?;
+
+                            Some(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))))
+                        }
+                    }
+                } else {
+                    // Stream is not connected, either use a discard or a disconnected stream
+                    match target {
+                        StreamTarget::None  => Some(Arc::new(Mutex::new(OutputSinkTarget::Discard))),
+                        StreamTarget::Any   => Some(Arc::new(Mutex::new(OutputSinkTarget::Disconnected))),
+                        _                   => None
+                    }
+                }
             }
 
             StreamTarget::Program(target_program_id) => {
