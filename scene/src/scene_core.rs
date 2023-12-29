@@ -189,8 +189,18 @@ impl SceneCore {
             }
 
             StreamTarget::Program(target_program_id) => {
+                // The connections can define a redirect stream by using a StreamId target
+                let target_program_id = self.connections.get(&(source.into(), StreamId::for_target::<TMessageType>(&target_program_id)))
+                    .or_else(|| self.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
+                    .and_then(|target| {
+                        match target {
+                            StreamTarget::Program(program_id)   => Some(program_id.clone()),
+                            _                                   => None,
+                        }
+                    })
+                    .unwrap_or(target_program_id);
+
                 // Attempt to find the target stream for this specific program
-                // TODO: perhaps a way to redirect these streams using `connect_programs`?
                 // TODO: if the program hasn't started yet, we should create a disconnected stream and connect it later on
                 let target_program_handle   = self.program_indexes.get(&target_program_id)?;
                 let target_program_input    = self.sub_program_inputs.get(*target_program_handle)?.clone()?;
