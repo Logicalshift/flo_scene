@@ -19,6 +19,13 @@ impl From<SubProgramId> for StreamSource {
     }
 }
 
+impl<'a> From<&'a SubProgramId> for StreamSource {
+    #[inline]
+    fn from(program: &'a SubProgramId) -> StreamSource {
+        StreamSource::Program(program.clone())
+    }
+}
+
 impl From<()> for StreamSource {
     #[inline]
     fn from(_: ()) -> StreamSource {
