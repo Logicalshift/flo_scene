@@ -9,6 +9,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 static NEXT_IDENTIFIER: AtomicUsize = AtomicUsize::new(0);
 
+// TODO: close the sink when the target program finishes
+
 ///
 /// The target of an output sink
 ///
