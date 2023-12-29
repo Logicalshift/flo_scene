@@ -6,6 +6,8 @@ use futures::task::{Waker, Poll, Context};
 use std::collections::*;
 use std::sync::*;
 
+// TODO: add a way to read a message along with its source
+
 ///
 /// The input stream core is a shareable part of an input stream for a program
 ///
