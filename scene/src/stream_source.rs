@@ -18,3 +18,10 @@ impl From<SubProgramId> for StreamSource {
         StreamSource::Program(program)
     }
 }
+
+impl From<()> for StreamSource {
+    #[inline]
+    fn from(_: ()) -> StreamSource {
+        StreamSource::All
+    }
+}
