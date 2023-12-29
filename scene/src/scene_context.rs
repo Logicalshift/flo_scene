@@ -4,7 +4,6 @@ use crate::stream_id::*;
 use crate::stream_target::*;
 
 use futures::prelude::*;
-use futures::channel::mpsc;
 
 use std::sync::*;
 
