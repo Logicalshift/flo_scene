@@ -91,7 +91,13 @@ impl Scene {
     /// identfier, which will connect a stream that produces data of a known type.
     ///
     pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ()> {
-        todo!()
+        let source = source.into();
+        let target = target.into();
+        let stream = stream.into();
+
+        let mut core = self.core.lock().unwrap();
+
+        core.connect_programs(source, target, stream)
     }
 
     ///

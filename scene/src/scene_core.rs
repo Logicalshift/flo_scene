@@ -1,6 +1,7 @@
 use crate::output_sink::*;
 use crate::input_stream::*;
 use crate::stream_id::*;
+use crate::stream_source::*;
 use crate::stream_target::*;
 use crate::subprogram_id::*;
 
@@ -64,6 +65,9 @@ pub (crate) struct SceneCore {
 
     /// Wakers for the futures that are being used to run the scene (can be multiple if the scene is scheduled across a thread pool)
     thread_wakers: Vec<Option<Waker>>,
+
+    /// The connections to assign between programs. More specific sources override less specific sources.
+    connections: HashMap<(StreamSource, StreamId), StreamTarget>,
 }
 
 impl SceneCore {
@@ -77,6 +81,7 @@ impl SceneCore {
             next_subprogram:    0,
             program_indexes:    HashMap::new(),
             awake_programs:     VecDeque::new(),
+            connections:        HashMap::new(),
             thread_wakers:      vec![],
         }
     }
@@ -130,6 +135,18 @@ impl SceneCore {
         }
 
         (subprogram, waker)
+    }
+
+    ///
+    /// Adds or updates a program connection in this core
+    ///
+    pub (crate) fn connect_programs(&mut self, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ()> {
+        // Store the connection
+        self.connections.insert((source, stream_id), target);
+
+        // TODO: update the existing connections
+
+        Ok(())
     }
 
     ///
