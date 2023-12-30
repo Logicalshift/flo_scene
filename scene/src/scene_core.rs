@@ -142,14 +142,15 @@ impl SceneCore {
     ///
     /// Retrieves the input stream for a particular stream target (an error if the target either doesn't exist or does not accept this input stream type)
     ///
-    pub (crate) fn get_target_input(&mut self, target: &StreamTarget, expected_message_type: TypeId) -> Result<Arc<dyn Send + Sync + Any>, ()> {
+    pub (crate) fn get_target_input(&mut self, target: &StreamTarget, stream_id: &StreamId) -> Result<Arc<dyn Send + Sync + Any>, ()> {
         match target {
             StreamTarget::None  => todo!(), // Create a discard stream of the specified type
             StreamTarget::Any   => todo!(), // Create a disconnected stream of the specified type
 
             StreamTarget::Program(sub_program_id) => {
                 // Fetch the sub-program handle (or return an error if it doesn't exist)
-                let handle = *self.program_indexes.get(sub_program_id).ok_or(())?;
+                let expected_message_type   = stream_id.message_type();
+                let handle                  = *self.program_indexes.get(sub_program_id).ok_or(())?;
 
                 // The message type must match the expected type
                 let target_input = self.sub_program_inputs[handle].as_ref().ok_or(())?;
@@ -168,7 +169,7 @@ impl SceneCore {
     ///
     pub (crate) fn connect_programs(&mut self, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ()> {
         // Fetch the target stream (returning an error if it can't be found)
-        let target_input = self.get_target_input(&target, stream_id.message_type())?;
+        let target_input = self.get_target_input(&target, &stream_id)?;
 
         // TODO: pause the inputs of all the sub-programs matching the source, so the update is atomic?
 
