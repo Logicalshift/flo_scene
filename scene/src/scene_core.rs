@@ -14,7 +14,9 @@ use std::collections::*;
 use std::sync::*;
 
 ///
-/// Data that's stored for an individual program
+/// Data that's stored for an individual program.
+///
+/// Note that the scene core must be locked before the subprogram core, if the scene core needs to be locked.
 ///
 pub (crate) struct SubProgramCore {
     /// The handle of this program within the core (index into the sub_programs list)
@@ -141,10 +143,22 @@ impl SceneCore {
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(&mut self, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ()> {
-        // Store the connection
-        self.connections.insert((source, stream_id), target);
+        // TODO: pause the inputs of all the sub-programs matching the source, so the update is atomic?
 
-        // TODO: update the existing connections
+        // Store the connection
+        self.connections.insert((source.clone(), stream_id.clone()), target.clone());
+
+        // Update the existing connections
+        for maybe_sub_program in self.sub_programs.iter() {
+            if let Some(sub_program) = maybe_sub_program {
+                // Update the streams of the subprogram
+                let mut sub_program = sub_program.lock().unwrap();
+
+                if source.matches_subprogram(&sub_program.id) {
+                    sub_program.reconnect_output_sinks(&target, &stream_id);
+                }
+            }
+        }
 
         Ok(())
     }
@@ -259,6 +273,13 @@ impl SubProgramCore {
             // Use the new target for the output stream
             Ok(new_output_target)
         }
+    }
+
+    ///
+    /// Connects all of the streams that matches a particular stream ID to a new target
+    ///
+    pub (crate) fn reconnect_output_sinks(&mut self, target: &StreamTarget, stream_id: &StreamId) {
+        // TODO: need a way to retrieve/set the sink dynamically
     }
 }
 
