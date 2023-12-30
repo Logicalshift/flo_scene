@@ -10,8 +10,6 @@ use std::sync::*;
 
 static STREAM_TYPE_FUNCTIONS: Lazy<RwLock<HashMap<TypeId, StreamTypeFunctions>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
-// TODO: hide the StreamId enum so you can't create invalid streams
-
 ///
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
 ///
@@ -30,12 +28,22 @@ struct StreamTypeFunctions {
 /// Identifies a stream produced by a subprogram 
 ///
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub enum StreamId {
+enum StreamIdType {
     /// A stream identified by its message type
-    MessageType(TypeId),
+    MessageType,
 
     /// A stream sending data to a specific target
-    Target(TypeId, StreamTarget),
+    Target(StreamTarget),
+}
+
+///
+/// Identifies a stream produced by a subprogram 
+///
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct StreamId {
+    stream_id_type:         StreamIdType,
+    message_type:           TypeId,
+    input_stream_core_type: TypeId,
 }
 
 impl StreamTypeFunctions {
@@ -125,7 +133,12 @@ impl StreamId {
         TMessageType: 'static + Send + Sync,
     {
         StreamTypeFunctions::add::<TMessageType>();
-        StreamId::MessageType(TypeId::of::<TMessageType>())
+
+        StreamId {
+            stream_id_type:         StreamIdType::MessageType,
+            message_type:           TypeId::of::<TMessageType>(),
+            input_stream_core_type: TypeId::of::<Mutex<InputStreamCore<TMessageType>>>(),
+        }
     }
 
     ///
@@ -136,17 +149,26 @@ impl StreamId {
         TMessageType: 'static + Send + Sync,
     {
         StreamTypeFunctions::add::<TMessageType>();
-        StreamId::Target(TypeId::of::<TMessageType>(), target.into())
+
+        StreamId {
+            stream_id_type:         StreamIdType::Target(target.into()),
+            message_type:           TypeId::of::<TMessageType>(),
+            input_stream_core_type: TypeId::of::<Mutex<InputStreamCore<TMessageType>>>(),
+        }
     }
 
     ///
     /// The type of message that can be sent to this stream
     ///
     pub fn message_type(&self) -> TypeId {
-        match self {
-            StreamId::MessageType(message_type) => *message_type,
-            StreamId::Target(message_type, _)   => *message_type,
-        }
+        self.message_type
+    }
+
+    ///
+    /// The type of the `Mutex<InputStreamCore<...>>` that will be used for the stream id
+    ///
+    pub (crate) fn input_stream_core_type(&self) -> TypeId {
+        self.input_stream_core_type
     }
 
     ///
@@ -199,12 +221,5 @@ impl StreamId {
             // Shouldn't happen: the stream type was not registered correctly
             Err(())
         }
-    }
-}
-
-impl From<TypeId> for StreamId {
-    #[inline]
-    fn from(type_id: TypeId) -> StreamId {
-        StreamId::MessageType(type_id)
     }
 }
