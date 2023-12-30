@@ -32,6 +32,9 @@ pub (crate) struct SubProgramCore {
     /// The output sink targets for this sub-program
     outputs: HashMap<StreamId, Arc<dyn Send + Sync + Any>>,
 
+    /// The name of the expected input type of this program
+    expected_input_type_name: &'static str,
+
     /// Set to true if this subprogram has been awakened since it was last polled
     awake: bool,
 }
@@ -101,11 +104,12 @@ impl SceneCore {
 
         // Create the sub-program
         let subprogram  = SubProgramCore {
-            handle:     handle,
-            id:         program_id.clone(),
-            run:        program.boxed(),
-            outputs:    HashMap::new(),
-            awake:      true,
+            handle:                     handle,
+            id:                         program_id.clone(),
+            run:                        program.boxed(),
+            outputs:                    HashMap::new(),
+            expected_input_type_name:   type_name::<TMessage>(),
+            awake:                      true,
         };
 
         // Allocate space for the program
