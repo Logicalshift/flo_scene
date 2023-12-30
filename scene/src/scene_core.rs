@@ -145,7 +145,7 @@ impl SceneCore {
     ///
     pub (crate) fn get_target_input(&mut self, target: &SubProgramId, stream_id: &StreamId) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
         // Fetch the sub-program handle (or return an error if it doesn't exist)
-        let expected_message_type   = stream_id.message_type();
+        let expected_message_type   = stream_id.input_stream_core_type();
         let handle                  = *self.program_indexes.get(target).ok_or(ConnectionError::TargetNotInScene)?;
 
         // The message type must match the expected type
