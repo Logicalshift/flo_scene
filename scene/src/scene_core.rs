@@ -306,7 +306,10 @@ impl SubProgramCore {
     /// Connects all of the streams that matches a particular stream ID to a new target
     ///
     pub (crate) fn reconnect_output_sinks(&mut self, target_input: &Arc<dyn Send + Sync + Any>, stream_id: &StreamId) {
-        // TODO: need a way to retrieve/set the sink dynamically
+        if let Some(output_sink) = self.outputs.get_mut(stream_id) {
+            // This stream has an output matching the input (the stream types should always match)
+            stream_id.connect_input_to_output(target_input, output_sink).expect("Input and output types do not match");
+        }
     }
 }
 
