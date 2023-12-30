@@ -5,6 +5,7 @@ use crate::stream_id::*;
 use crate::stream_source::*;
 use crate::stream_target::*;
 use crate::subprogram_id::*;
+use crate::error::*;
 
 use futures::prelude::*;
 use futures::channel::oneshot;
@@ -114,7 +115,7 @@ impl Scene {
     /// scene.connect_programs(&source_program, &other_program, StreamId::for_target::<ExampleMessage>(&subprogram));
     /// ```
     ///
-    pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ()> {
+    pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ConnectionError> {
         // Convert the source & target, then pass the request on to the core
         let source = source.into();
         let target = target.into();

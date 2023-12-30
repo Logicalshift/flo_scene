@@ -1,3 +1,4 @@
+use crate::error::*;
 use crate::output_sink::*;
 use crate::input_stream::*;
 use crate::stream_id::*;
@@ -142,16 +143,16 @@ impl SceneCore {
     ///
     /// Retrieves the InputStreamCore for a particular stream target (an error if the target either doesn't exist or does not accept this input stream type)
     ///
-    pub (crate) fn get_target_input(&mut self, target: &SubProgramId, stream_id: &StreamId) -> Result<Arc<dyn Send + Sync + Any>, ()> {
+    pub (crate) fn get_target_input(&mut self, target: &SubProgramId, stream_id: &StreamId) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
         // Fetch the sub-program handle (or return an error if it doesn't exist)
         let expected_message_type   = stream_id.message_type();
-        let handle                  = *self.program_indexes.get(target).ok_or(())?;
+        let handle                  = *self.program_indexes.get(target).ok_or(ConnectionError::TargetNotInScene)?;
 
         // The message type must match the expected type
-        let target_input = self.sub_program_inputs[handle].as_ref().ok_or(())?;
+        let target_input = self.sub_program_inputs[handle].as_ref().ok_or(ConnectionError::TargetNotAvailable)?;
 
         if target_input.type_id() != expected_message_type {
-            Err(())
+            Err(ConnectionError::WrongInputType)
         } else {
             Ok(Arc::clone(target_input))
         }
@@ -160,7 +161,7 @@ impl SceneCore {
     ///
     /// Adds or updates a program connection in this core
     ///
-    pub (crate) fn connect_programs(&mut self, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ()> {
+    pub (crate) fn connect_programs(&mut self, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
         // Create a function to reconnect a subprogram
         let reconnect_subprogram: Box<dyn Fn(&mut SubProgramCore) -> ()> = match &target {
             StreamTarget::None                  => Box::new(|sub_program| sub_program.discard_output_from(&stream_id)),
