@@ -142,25 +142,18 @@ impl SceneCore {
     ///
     /// Retrieves the InputStreamCore for a particular stream target (an error if the target either doesn't exist or does not accept this input stream type)
     ///
-    pub (crate) fn get_target_input(&mut self, target: &StreamTarget, stream_id: &StreamId) -> Result<Arc<dyn Send + Sync + Any>, ()> {
-        match target {
-            StreamTarget::None  => todo!(), // Create a discard stream of the specified type
-            StreamTarget::Any   => todo!(), // Create a disconnected stream of the specified type
+    pub (crate) fn get_target_input(&mut self, target: &SubProgramId, stream_id: &StreamId) -> Result<Arc<dyn Send + Sync + Any>, ()> {
+        // Fetch the sub-program handle (or return an error if it doesn't exist)
+        let expected_message_type   = stream_id.message_type();
+        let handle                  = *self.program_indexes.get(target).ok_or(())?;
 
-            StreamTarget::Program(sub_program_id) => {
-                // Fetch the sub-program handle (or return an error if it doesn't exist)
-                let expected_message_type   = stream_id.message_type();
-                let handle                  = *self.program_indexes.get(sub_program_id).ok_or(())?;
+        // The message type must match the expected type
+        let target_input = self.sub_program_inputs[handle].as_ref().ok_or(())?;
 
-                // The message type must match the expected type
-                let target_input = self.sub_program_inputs[handle].as_ref().ok_or(())?;
-
-                if target_input.type_id() != expected_message_type {
-                    Err(())
-                } else {
-                    Ok(Arc::clone(target_input))
-                }
-            }
+        if target_input.type_id() != expected_message_type {
+            Err(())
+        } else {
+            Ok(Arc::clone(target_input))
         }
     }
 
@@ -168,8 +161,17 @@ impl SceneCore {
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(&mut self, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ()> {
-        // Fetch the target stream (returning an error if it can't be found)
-        let target_input = self.get_target_input(&target, &stream_id)?;
+        // Create a function to reconnect a subprogram
+        let reconnect_subprogram: Box<dyn Fn(&mut SubProgramCore) -> ()> = match &target {
+            StreamTarget::None                  => Box::new(|sub_program| sub_program.discard_output_from(&stream_id)),
+            StreamTarget::Any                   => Box::new(|sub_program| sub_program.disconnect_output_sink(&stream_id)),
+            StreamTarget::Program(subprogid)    => {
+                let stream_id       = &stream_id;
+                let target_input    = self.get_target_input(subprogid, stream_id)?;
+
+                Box::new(move |sub_program| sub_program.reconnect_output_sinks(&target_input, stream_id))
+            }
+        };
 
         // TODO: pause the inputs of all the sub-programs matching the source, so the update is atomic?
 
@@ -183,7 +185,7 @@ impl SceneCore {
                 let mut sub_program = sub_program.lock().unwrap();
 
                 if source.matches_subprogram(&sub_program.id) {
-                    sub_program.reconnect_output_sinks(&target_input, &stream_id);
+                    reconnect_subprogram(&mut *sub_program);
                 }
             }
         }
@@ -310,6 +312,26 @@ impl SubProgramCore {
         if let Some(output_sink) = self.outputs.get_mut(stream_id) {
             // This stream has an output matching the input (the stream types should always match)
             stream_id.connect_output_to_input(output_sink, target_input).expect("Input and output types do not match");
+        }
+    }
+
+    ///
+    /// Disconnects an output sink for a particular stream
+    ///
+    pub (crate) fn disconnect_output_sink(&mut self, stream_id: &StreamId) {
+        if let Some(output_sink) = self.outputs.get_mut(stream_id) {
+            // This stream has an output matching the stream
+            stream_id.disconnect_output(output_sink).expect("Stream type does not match");
+        }
+    }
+
+    ///
+    /// Discards any output sent to an output stream
+    ///
+    pub (crate) fn discard_output_from(&mut self, stream_id: &StreamId) {
+        if let Some(output_sink) = self.outputs.get_mut(stream_id) {
+            // This stream has an output matching the stream
+            stream_id.connect_output_to_discard(output_sink).expect("Stream type does not match");
         }
     }
 }
