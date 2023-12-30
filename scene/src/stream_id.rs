@@ -42,6 +42,7 @@ enum StreamIdType {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct StreamId {
     stream_id_type:         StreamIdType,
+    message_type_name:      &'static str,
     message_type:           TypeId,
     input_stream_core_type: TypeId,
 }
@@ -136,6 +137,7 @@ impl StreamId {
 
         StreamId {
             stream_id_type:         StreamIdType::MessageType,
+            message_type_name:      type_name::<TMessageType>(),
             message_type:           TypeId::of::<TMessageType>(),
             input_stream_core_type: TypeId::of::<Mutex<InputStreamCore<TMessageType>>>(),
         }
@@ -152,6 +154,7 @@ impl StreamId {
 
         StreamId {
             stream_id_type:         StreamIdType::Target(target.into()),
+            message_type_name:      type_name::<TMessageType>(),
             message_type:           TypeId::of::<TMessageType>(),
             input_stream_core_type: TypeId::of::<Mutex<InputStreamCore<TMessageType>>>(),
         }
@@ -162,6 +165,13 @@ impl StreamId {
     ///
     pub fn message_type(&self) -> TypeId {
         self.message_type
+    }
+
+    ///
+    /// The name of the Rust type that is the expected type name for this stream
+    ///
+    pub fn message_type_name(&self) -> String {
+        self.message_type_name.into()
     }
 
     ///
