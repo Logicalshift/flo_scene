@@ -126,7 +126,7 @@ impl SceneCore {
         self.program_indexes.insert(program_id.clone(), handle);
 
         debug_assert!(self.sub_program_inputs[handle].clone().unwrap().downcast::<Mutex<InputStreamCore<TMessage>>>().is_ok());
-        debug_assert!(self.sub_program_inputs[handle].as_ref().unwrap().type_id() == TypeId::of::<Mutex<InputStreamCore<TMessage>>>());
+        debug_assert!((**self.sub_program_inputs[handle].as_ref().unwrap()).type_id() == TypeId::of::<Mutex<InputStreamCore<TMessage>>>());
 
         self.awake_programs.push_back(handle);
 
@@ -158,7 +158,7 @@ impl SceneCore {
         // The message type must match the expected type
         let target_input = self.sub_program_inputs[handle].as_ref().ok_or(ConnectionError::TargetNotAvailable)?;
 
-        if target_input.type_id() != expected_message_type {
+        if (**target_input).type_id() != expected_message_type {
             let stream_type     = stream_id.message_type_name();
             let program_type    = self.sub_programs[handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
 
