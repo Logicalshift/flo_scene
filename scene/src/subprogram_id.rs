@@ -1,5 +1,7 @@
 use uuid::*;
 
+// TODO: store the internal ID referenced via a handle (so SubProgramId can implement Copy + be small/fast to reference)
+
 ///
 /// A unique identifier for a subprogram in a scene
 ///

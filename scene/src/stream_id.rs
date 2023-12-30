@@ -10,6 +10,8 @@ use std::sync::*;
 
 static STREAM_TYPE_FUNCTIONS: Lazy<RwLock<HashMap<TypeId, StreamTypeFunctions>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
+// TODO: hide the StreamId enum so you can't create invalid streams
+
 ///
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
 ///
