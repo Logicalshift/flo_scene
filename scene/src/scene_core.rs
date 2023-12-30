@@ -140,7 +140,7 @@ impl SceneCore {
     }
 
     ///
-    /// Retrieves the input stream for a particular stream target (an error if the target either doesn't exist or does not accept this input stream type)
+    /// Retrieves the InputStreamCore for a particular stream target (an error if the target either doesn't exist or does not accept this input stream type)
     ///
     pub (crate) fn get_target_input(&mut self, target: &StreamTarget, stream_id: &StreamId) -> Result<Arc<dyn Send + Sync + Any>, ()> {
         match target {
