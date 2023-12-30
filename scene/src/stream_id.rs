@@ -14,6 +14,7 @@ static STREAM_TYPE_FUNCTIONS: Lazy<RwLock<HashMap<TypeId, StreamTypeFunctions>>>
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
 ///
 struct StreamTypeFunctions {
+    /// Connects an InputStreamCore to an OutputSinkTarget
     connect_input_to_output: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>) -> Result<(), ()>>,
 }
 
@@ -40,8 +41,8 @@ impl StreamTypeFunctions {
         StreamTypeFunctions {
             connect_input_to_output: Arc::new(|input_stream_any, output_sink_any| {
                 // Cast the 'any' stream and sink to the appropriate types
-                let input_stream    = input_stream_any.downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ())?;
-                let output_sink     = output_sink_any.downcast::<Mutex<OutputSinkTarget<TMessageType>>>().map_err(|_| ())?;
+                let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ())?;
+                let output_sink     = output_sink_any.clone().downcast::<Mutex<OutputSinkTarget<TMessageType>>>().map_err(|_| ())?;
 
                 // Connect the input stream core to the output target
                 *output_sink.lock().unwrap() = OutputSinkTarget::Input(Arc::downgrade(&input_stream));
