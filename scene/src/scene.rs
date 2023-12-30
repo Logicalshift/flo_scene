@@ -115,12 +115,12 @@ impl Scene {
     /// ```
     ///
     pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ()> {
+        // Convert the source & target, then pass the request on to the core
         let source = source.into();
         let target = target.into();
         let stream = stream.into();
 
         let mut core = self.core.lock().unwrap();
-
         core.connect_programs(source, target, stream)
     }
 
