@@ -140,9 +140,36 @@ impl SceneCore {
     }
 
     ///
+    /// Retrieves the input stream for a particular stream target (an error if the target either doesn't exist or does not accept this input stream type)
+    ///
+    pub (crate) fn get_target_input(&mut self, target: &StreamTarget, expected_message_type: TypeId) -> Result<Arc<dyn Send + Sync + Any>, ()> {
+        match target {
+            StreamTarget::None  => todo!(), // Create a discard stream of the specified type
+            StreamTarget::Any   => todo!(), // Create a disconnected stream of the specified type
+
+            StreamTarget::Program(sub_program_id) => {
+                // Fetch the sub-program handle (or return an error if it doesn't exist)
+                let handle = *self.program_indexes.get(sub_program_id).ok_or(())?;
+
+                // The message type must match the expected type
+                let target_input = self.sub_program_inputs[handle].as_ref().ok_or(())?;
+
+                if target_input.type_id() != expected_message_type {
+                    Err(())
+                } else {
+                    Ok(Arc::clone(target_input))
+                }
+            }
+        }
+    }
+
+    ///
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(&mut self, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ()> {
+        // Fetch the target stream (returning an error if it can't be found)
+        let target_input = self.get_target_input(&target, stream_id.message_type())?;
+
         // TODO: pause the inputs of all the sub-programs matching the source, so the update is atomic?
 
         // Store the connection
@@ -155,7 +182,7 @@ impl SceneCore {
                 let mut sub_program = sub_program.lock().unwrap();
 
                 if source.matches_subprogram(&sub_program.id) {
-                    sub_program.reconnect_output_sinks(&target, &stream_id);
+                    sub_program.reconnect_output_sinks(&target_input, &stream_id);
                 }
             }
         }
@@ -278,7 +305,7 @@ impl SubProgramCore {
     ///
     /// Connects all of the streams that matches a particular stream ID to a new target
     ///
-    pub (crate) fn reconnect_output_sinks(&mut self, target: &StreamTarget, stream_id: &StreamId) {
+    pub (crate) fn reconnect_output_sinks(&mut self, target_input: &Arc<dyn Send + Sync + Any>, stream_id: &StreamId) {
         // TODO: need a way to retrieve/set the sink dynamically
     }
 }
