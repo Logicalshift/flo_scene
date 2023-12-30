@@ -125,6 +125,9 @@ impl SceneCore {
         self.sub_program_inputs[handle] = Some(input_core);
         self.program_indexes.insert(program_id.clone(), handle);
 
+        debug_assert!(self.sub_program_inputs[handle].clone().unwrap().downcast::<Mutex<InputStreamCore<TMessage>>>().is_ok());
+        debug_assert!(self.sub_program_inputs[handle].as_ref().unwrap().type_id() == TypeId::of::<Mutex<InputStreamCore<TMessage>>>());
+
         self.awake_programs.push_back(handle);
 
         // Update the 'next_subprogram' value to an empty slot
