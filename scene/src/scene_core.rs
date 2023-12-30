@@ -156,7 +156,10 @@ impl SceneCore {
         let target_input = self.sub_program_inputs[handle].as_ref().ok_or(ConnectionError::TargetNotAvailable)?;
 
         if target_input.type_id() != expected_message_type {
-            Err(ConnectionError::WrongInputType)
+            let stream_type     = stream_id.message_type_name();
+            let program_type    = self.sub_programs[handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
+
+            Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream_type), TargetInputMessageType(program_type)))
         } else {
             Ok(Arc::clone(target_input))
         }
