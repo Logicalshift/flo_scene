@@ -12,6 +12,18 @@ pub enum StreamSource {
     Program(SubProgramId),
 }
 
+impl StreamSource {
+    ///
+    /// Returns true if this stream source matches a particular subprogram
+    ///
+    pub fn matches_subprogram(&self, id: &SubProgramId) -> bool {
+        match self {
+            StreamSource::All                   => true,
+            StreamSource::Program(source_id)    => source_id.eq(id),
+        }
+    }
+}
+
 impl From<SubProgramId> for StreamSource {
     #[inline]
     fn from(program: SubProgramId) -> StreamSource {
