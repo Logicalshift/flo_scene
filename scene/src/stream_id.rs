@@ -16,6 +16,12 @@ static STREAM_TYPE_FUNCTIONS: Lazy<RwLock<HashMap<TypeId, StreamTypeFunctions>>>
 struct StreamTypeFunctions {
     /// Connects an OutputSinkTarget to a InputStreamCore
     connect_output_to_input: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>) -> Result<(), ()>>,
+
+    /// Connects an OutputSinkTarget to a stream that discards everything
+    connect_output_to_discard: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ()>>,
+
+    /// Disconnects an OutputSinkTarget, causing it to wait for a new connection to be made
+    disconnect_output: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ()>>,
 }
 
 ///
@@ -48,7 +54,23 @@ impl StreamTypeFunctions {
                 *output_sink.lock().unwrap() = OutputSinkTarget::Input(Arc::downgrade(&input_stream));
 
                 Ok(())
-            })
+            }),
+
+            connect_output_to_discard: Arc::new(|output_sink_any| {
+                // Cast the output sink to the appropriate type and set it as discarding any input
+                let output_sink     = output_sink_any.clone().downcast::<Mutex<OutputSinkTarget<TMessageType>>>().map_err(|_| ())?;
+                *output_sink.lock().unwrap() = OutputSinkTarget::Discard;
+
+                Ok(())
+            }),
+
+            disconnect_output: Arc::new(|output_sink_any| {
+                // Cast the output sink to the appropriate type and set it as disconnected
+                let output_sink     = output_sink_any.clone().downcast::<Mutex<OutputSinkTarget<TMessageType>>>().map_err(|_| ())?;
+                *output_sink.lock().unwrap() = OutputSinkTarget::Disconnected;
+
+                Ok(())
+            }),
         }
     }
 
@@ -74,6 +96,21 @@ impl StreamTypeFunctions {
 
         stream_type_functions.get(&type_id)
             .map(|all_functions| Arc::clone(&all_functions.connect_output_to_input))
+    }
+
+
+    pub fn connect_output_to_discard(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ()>>> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(&type_id)
+            .map(|all_functions| Arc::clone(&all_functions.connect_output_to_discard))
+    }
+
+    pub fn disconnect_output(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ()>>> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(&type_id)
+            .map(|all_functions| Arc::clone(&all_functions.disconnect_output))
     }
 }
 
@@ -114,12 +151,48 @@ impl StreamId {
     /// Given an output sink (an 'Any' that maps to an OutputSinkTarget) and an input stream (an 'Any' that maps to an InputStreamCore) that match
     /// the type of this stream ID, sends the data from the output sink to the input stream.
     ///
+    /// Note that this locks the output target.
+    ///
     pub (crate) fn connect_output_to_input(&self, output_sink: &Arc<dyn Send + Sync + Any>, input_stream: &Arc<dyn Send + Sync + Any>) -> Result<(), ()> {
         let message_type = self.message_type();
 
         if let Some(connect_input) = StreamTypeFunctions::connect_output_to_input(&message_type) {
             // Connect the input to the output
             (connect_input)(output_sink, input_stream)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(())
+        }
+    }
+
+    ///
+    /// Given an output sink (an 'Any' that maps to an OutputSinkTarget), connects it to a stream that just throws any messages it receives away
+    ///
+    /// Note that this locks the output target.
+    ///
+    pub (crate) fn connect_output_to_discard(&self, output_sink: &Arc<dyn Send + Sync + Any>) -> Result<(), ()> {
+        let message_type = self.message_type();
+
+        if let Some(connect_input) = StreamTypeFunctions::connect_output_to_discard(&message_type) {
+            // Connect the input to the output
+            (connect_input)(output_sink)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(())
+        }
+    }
+
+    ///
+    /// Given an output sink (an 'Any' that maps to an OutputSinkTarget), disconnects it so it waits for a new connection
+    ///
+    /// Note that this locks the output target.
+    ///
+    pub (crate) fn disconnect_output(&self, output_sink: &Arc<dyn Send + Sync + Any>) -> Result<(), ()> {
+        let message_type = self.message_type();
+
+        if let Some(connect_input) = StreamTypeFunctions::disconnect_output(&message_type) {
+            // Connect the input to the output
+            (connect_input)(output_sink)
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(())
