@@ -14,7 +14,7 @@ static STREAM_TYPE_FUNCTIONS: Lazy<RwLock<HashMap<TypeId, StreamTypeFunctions>>>
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
 ///
 struct StreamTypeFunctions {
-    connect_input_to_output: Arc<dyn Send + Sync + Fn(Arc<dyn Send + Sync + Any>, Arc<dyn Send + Sync + Any>) -> Result<(), ()>>,
+    connect_input_to_output: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>) -> Result<(), ()>>,
 }
 
 ///
@@ -68,7 +68,7 @@ impl StreamTypeFunctions {
     ///
     /// Retrieves the 'connect input to output' function for a particular type ID, if it exists
     ///
-    pub fn connect_input_to_output(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(Arc<dyn Send + Sync + Any>, Arc<dyn Send + Sync + Any>) -> Result<(), ()>>> {
+    pub fn connect_input_to_output(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>) -> Result<(), ()>>> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
         stream_type_functions.get(&type_id)
@@ -113,7 +113,7 @@ impl StreamId {
     /// Given an input stream (an 'Any' that maps to an InputStreamCore) and an output sink (an 'Any' that maps to an OutputSinkTarget) that match
     /// the type of this stream ID, assigns the input stream to receive output from the output stream.
     ///
-    pub (crate) fn connect_input_to_output(&self, input_stream: Arc<dyn Send + Sync + Any>, output_sink: Arc<dyn Send + Sync + Any>) -> Result<(), ()> {
+    pub (crate) fn connect_input_to_output(&self, input_stream: &Arc<dyn Send + Sync + Any>, output_sink: &Arc<dyn Send + Sync + Any>) -> Result<(), ()> {
         let message_type = self.message_type();
 
         if let Some(connect_input) = StreamTypeFunctions::connect_input_to_output(&message_type) {
