@@ -34,6 +34,16 @@ impl StreamId {
     {
         StreamId::Target(TypeId::of::<TMessageType>(), target.into())
     }
+
+    ///
+    /// The type of message that can be sent to this stream
+    ///
+    pub fn message_type(&self) -> TypeId {
+        match self {
+            StreamId::MessageType(message_type) => *message_type,
+            StreamId::Target(message_type, _)   => *message_type,
+        }
+    }
 }
 
 impl From<TypeId> for StreamId {
