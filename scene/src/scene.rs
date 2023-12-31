@@ -52,7 +52,7 @@ impl Scene {
         TProgramFn:     'static + Send + Sync + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
         // Create the context and input stream for the program
-        let input_stream    = InputStream::new(program_id.clone(), max_input_waiting);
+        let input_stream    = InputStream::new(max_input_waiting);
         let input_core      = input_stream.core();
 
         // Create the future that will be used to run the future

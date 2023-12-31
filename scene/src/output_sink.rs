@@ -256,8 +256,8 @@ mod test {
     fn send_message_to_input_stream() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
-        let mut input_stream    = InputStream::<u32>::new(program_id.clone(), 1000);
-        let mut output_sink     = OutputSink::new(program_id.clone());
+        let mut input_stream    = InputStream::<u32>::new(1000);
+        let mut output_sink     = OutputSink::new(program_id);
 
         // Attach the output sink to the input stream
         output_sink.attach_to(&input_stream);
@@ -277,9 +277,9 @@ mod test {
     fn send_message_to_input_stream_from_multiple_sinks() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
-        let mut input_stream    = InputStream::<u32>::new(program_id.clone(), 1000);
-        let mut output_sink_1   = OutputSink::new(program_id.clone());
-        let mut output_sink_2   = OutputSink::new(program_id.clone());
+        let mut input_stream    = InputStream::<u32>::new(1000);
+        let mut output_sink_1   = OutputSink::new(program_id);
+        let mut output_sink_2   = OutputSink::new(program_id);
 
         // Attach the output sink to the input stream
         output_sink_1.attach_to(&input_stream);
@@ -300,8 +300,8 @@ mod test {
     fn send_message_to_full_input_stream() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
-        let mut input_stream    = InputStream::<u32>::new(program_id.clone(), 0);
-        let mut output_sink     = OutputSink::new(program_id.clone());
+        let mut input_stream    = InputStream::<u32>::new(0);
+        let mut output_sink     = OutputSink::new(program_id);
 
         // Attach the output sink to the input stream
         output_sink.attach_to(&input_stream);
@@ -328,8 +328,8 @@ mod test {
     fn send_message_to_disconnected_input_stream() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
-        let mut input_stream    = InputStream::<u32>::new(program_id.clone(), 0);
-        let mut output_sink     = OutputSink::new(program_id.clone());
+        let mut input_stream    = InputStream::<u32>::new(0);
+        let mut output_sink     = OutputSink::new(program_id);
 
         executor::block_on(async move {
             // Sending a message will block while the output sink is disconnected

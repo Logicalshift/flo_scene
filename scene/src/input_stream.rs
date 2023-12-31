@@ -12,9 +12,6 @@ use std::sync::*;
 /// The input stream core is a shareable part of an input stream for a program
 ///
 pub (crate) struct InputStreamCore<TMessage> {
-    /// The subprogram that this stream belongs to
-    program_id: SubProgramId,
-
     /// The maximum number of waiting messages for this input stream
     max_waiting: usize,
 
@@ -49,9 +46,8 @@ impl<TMessage> InputStream<TMessage> {
     ///
     /// Creates a new input stream
     ///
-    pub (crate) fn new(program_id: SubProgramId, max_waiting: usize) -> Self {
+    pub (crate) fn new(max_waiting: usize) -> Self {
         let core = InputStreamCore {
-            program_id:             program_id,
             max_waiting:            max_waiting,
             waiting_messages:       VecDeque::new(),
             when_message_sent:      None,
