@@ -423,7 +423,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
 
         loop {
             // Fetch a program to poll from the core: if all the programs are complete, then stop
-            let next_program = {
+            let (next_program, next_program_idx) = {
                 // Acquire the core
                 let mut core = core.lock().unwrap();
 
@@ -445,7 +445,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                     return Poll::Pending;
                 };
 
-                core.sub_programs.get(next_program_idx).cloned()
+                (core.sub_programs.get(next_program_idx).cloned(), next_program_idx)
             };
 
             if let Some(Some(next_program_mutex)) = next_program {
@@ -470,9 +470,13 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                         let mut run_next        = run_next;
                         let poll_result         = run_next.poll_unpin(&mut program_context);
 
-                        // Return the future to the program
-                        // TODO: if the program is awake, re-add to the pending list if it's not there
-                        next_program_mutex.lock().unwrap().run = Some(run_next);
+                        // Return the future to the program, and figure out if it's awake
+                        let has_reawoken = {
+                            let mut next_program = next_program_mutex.lock().unwrap();
+                            next_program.run = Some(run_next);
+
+                            next_program.awake
+                        };
 
                         if let Poll::Ready(_) = poll_result {
                             // Remove the program from the core when it's finished
@@ -484,6 +488,13 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
 
                             // Re-use this handle if a new program is started
                             core.next_subprogram = core.next_subprogram.min(program_handle);
+                        } else if has_reawoken {
+                            // If the program reawoke while we were polling it, make sure it's in the 'waiting' list (as another thread may have taken it out)
+                            let mut core = core.lock().unwrap();
+
+                            if !core.awake_programs.contains(&next_program_idx) {
+                                core.awake_programs.push_back(next_program_idx);
+                            }
                         }
                     } else {
                         // The program is already running on a different thread, but is also awakened
