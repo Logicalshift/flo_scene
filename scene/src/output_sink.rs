@@ -5,9 +5,6 @@ use futures::task::{Poll, Waker};
 
 use std::pin::*;
 use std::sync::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-static NEXT_IDENTIFIER: AtomicUsize = AtomicUsize::new(0);
 
 // TODO: close the sink when the target program finishes
 
@@ -30,9 +27,6 @@ pub (crate) enum OutputSinkTarget<TMessage> {
 /// An output sink is a way for a subprogram to send messages to the input of another subprogram
 ///
 pub struct OutputSink<TMessage> {
-    /// A unique identifier for this output sink
-    identifier: usize,
-
     /// The ID of the program that owns this output
     program_id: SubProgramId,
 
@@ -55,7 +49,6 @@ impl<TMessage> OutputSink<TMessage> {
     ///
     pub (crate) fn new(program_id: SubProgramId) -> OutputSink<TMessage> {
         OutputSink {
-            identifier:             NEXT_IDENTIFIER.fetch_add(1, Ordering::Relaxed),
             program_id:             program_id,
             target:                 Arc::new(Mutex::new(OutputSinkTarget::Disconnected)),
             waiting_message:        None,
@@ -69,7 +62,6 @@ impl<TMessage> OutputSink<TMessage> {
     ///
     pub (crate) fn attach(program_id: SubProgramId, target: Arc<Mutex<OutputSinkTarget<TMessage>>>) -> OutputSink<TMessage> {
         OutputSink {
-            identifier:             NEXT_IDENTIFIER.fetch_add(1, Ordering::Relaxed),
             program_id:             program_id,
             target:                 target,
             waiting_message:        None,
