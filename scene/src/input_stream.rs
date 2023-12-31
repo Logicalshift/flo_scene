@@ -38,6 +38,13 @@ pub struct InputStream<TMessage> {
     pub (crate) core: Arc<Mutex<InputStreamCore<TMessage>>>,
 }
 
+///
+/// An input stream for a subprogram, which returns the source of each message
+///
+struct InputStreamWithSources<TMessage> {
+    pub (crate) core: Arc<Mutex<InputStreamCore<TMessage>>>,
+}
+
 impl<TMessage> InputStream<TMessage> {
     ///
     /// Creates a new input stream
@@ -62,6 +69,15 @@ impl<TMessage> InputStream<TMessage> {
     ///
     pub (crate) fn core(&self) -> Arc<Mutex<InputStreamCore<TMessage>>> {
         Arc::clone(&self.core)
+    }
+
+    ///
+    /// Upgrades this stream to return the messages with the source subprogram IDs
+    ///
+    pub fn messages_with_sources(self) -> impl Stream<Item=(SubProgramId, TMessage)> {
+        InputStreamWithSources {
+            core: self.core
+        }
     }
 }
 
@@ -105,6 +121,46 @@ impl<TMessage> Stream for InputStream<TMessage> {
 
             // Return the message
             Poll::Ready(Some(message))
+        } else if core.closed {
+            // Once all the messages are delivered and the core is closed, close the stream
+            Poll::Ready(None)
+        } else {
+            // Wait for the next message to be delivered
+            core.when_message_sent = Some(cx.waker().clone());
+
+            // Don't go to sleep until everything that's waiting for a slot has been woken up
+            let next_available = core.when_slots_available.drain(..).collect::<Vec<_>>();
+
+            // Release the core lock before waking anything
+            mem::drop(core);
+
+            next_available.into_iter().for_each(|waker| waker.wake());
+
+            Poll::Pending
+        }
+    }
+}
+
+impl<TMessage> Stream for InputStreamWithSources<TMessage> {
+    type Item=(SubProgramId, TMessage);
+
+    fn poll_next(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
+        use std::mem;
+
+        let mut core = self.core.lock().unwrap();
+
+        if let Some(message) = core.waiting_messages.pop_front() {
+            // If any of the output sinks are waiting to write a value, wake them up as the queue has reduced
+            let next_available = core.when_slots_available.pop_front();
+
+            // Release the core lock before waking anything
+            mem::drop(core);
+
+            next_available.into_iter().for_each(|waker| waker.wake());
+
+            // Return the message
+            todo!()
+            //Poll::Ready(Some(message))
         } else if core.closed {
             // Once all the messages are delivered and the core is closed, close the stream
             Poll::Ready(None)
