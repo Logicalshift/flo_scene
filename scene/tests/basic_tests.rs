@@ -155,3 +155,57 @@ fn send_output_to_subprogram_via_specific_connection() {
     // Should have set the flag and then finished
     assert!(*sent_message.lock().unwrap() == Some(42), "Message was not sent");
 }
+
+#[test]
+fn retrieve_subprogram_id() {
+    // Flag to say if the subprogram has run
+    let received_messages = Arc::new(Mutex::new(vec![]));
+
+    // Create a scene with three subprograms. Program 1 will receive messages from 2 and 3
+    let scene       = Scene::empty();
+    let program_1   = SubProgramId::new();
+    let program_2   = SubProgramId::new();
+    let program_3   = SubProgramId::new();
+
+    // program 1 reads messages and checks their origin. It expects 4 messages
+    let stored_messages = received_messages.clone();
+    scene.add_subprogram(program_1,
+        move |input: InputStream<String>, _context| async move {
+            let mut input = input.messages_with_sources();
+
+            for _ in 0..4 {
+                let next = input.next().await.unwrap();
+                stored_messages.lock().unwrap().push(next);
+            }
+        }, 0);
+
+    // program 2 and 3 both send two messages to program 1
+    scene.add_subprogram(program_2,
+        move |_: InputStream<()>, context| async move {
+            let mut target = context.send::<String>(program_1).unwrap();
+
+            target.send("Program 2 message 1".into()).await.ok();
+            target.send("Program 2 message 2".into()).await.ok();
+        }, 0);
+
+    scene.add_subprogram(program_3,
+        move |_: InputStream<()>, context| async move {
+            let mut target = context.send::<String>(program_1).unwrap();
+
+            target.send("Program 3 message 1".into()).await.ok();
+            target.send("Program 3 message 2".into()).await.ok();
+        }, 0);
+
+    // Run this scene
+    executor::block_on(select(async {
+        scene.run_scene().await;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Check the receieved messages
+    let received_messages = received_messages.lock().unwrap();
+    assert!(received_messages.len() == 4, "Expected 4 messages to be sent, {:?}", received_messages);
+    assert!(received_messages.contains(&(program_2, "Program 2 message 1".into())), "Expected program 2 message 1, {:?}", received_messages);
+    assert!(received_messages.contains(&(program_2, "Program 2 message 2".into())), "Expected program 2 message 2, {:?}", received_messages);
+    assert!(received_messages.contains(&(program_3, "Program 3 message 1".into())), "Expected program 3 message 1, {:?}", received_messages);
+    assert!(received_messages.contains(&(program_3, "Program 3 message 2".into())), "Expected program 3 message 2, {:?}", received_messages);
+}
