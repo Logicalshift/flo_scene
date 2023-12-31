@@ -19,7 +19,7 @@ pub (crate) struct InputStreamCore<TMessage> {
     max_waiting: usize,
 
     /// Messages waiting to be delivered
-    waiting_messages: VecDeque<TMessage>,
+    waiting_messages: VecDeque<(SubProgramId, TMessage)>,
 
     /// A waker for the future that is waiting for the next message in this stream
     when_message_sent: Option<Waker>,
@@ -85,9 +85,9 @@ impl<TMessage> InputStreamCore<TMessage> {
     ///
     /// Adds a message to this core if there's space for it, returning the waker to be called if successful (the waker must be called with the core unlocked)
     ///
-    pub (crate) fn send(&mut self, message: TMessage) -> Result<Option<Waker>, TMessage> {
+    pub (crate) fn send(&mut self, source: SubProgramId, message: TMessage) -> Result<Option<Waker>, TMessage> {
         if self.waiting_messages.len() <= self.max_waiting {
-            self.waiting_messages.push_back(message);
+            self.waiting_messages.push_back((source, message));
             Ok(self.when_message_sent.take())
         } else {
             Err(message)
@@ -110,7 +110,7 @@ impl<TMessage> Stream for InputStream<TMessage> {
 
         let mut core = self.core.lock().unwrap();
 
-        if let Some(message) = core.waiting_messages.pop_front() {
+        if let Some((_source, message)) = core.waiting_messages.pop_front() {
             // If any of the output sinks are waiting to write a value, wake them up as the queue has reduced
             let next_available = core.when_slots_available.pop_front();
 
@@ -149,7 +149,7 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
 
         let mut core = self.core.lock().unwrap();
 
-        if let Some(message) = core.waiting_messages.pop_front() {
+        if let Some(message_and_source) = core.waiting_messages.pop_front() {
             // If any of the output sinks are waiting to write a value, wake them up as the queue has reduced
             let next_available = core.when_slots_available.pop_front();
 
@@ -159,8 +159,7 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
             next_available.into_iter().for_each(|waker| waker.wake());
 
             // Return the message
-            todo!()
-            //Poll::Ready(Some(message))
+            Poll::Ready(Some(message_and_source))
         } else if core.closed {
             // Once all the messages are delivered and the core is closed, close the stream
             Poll::Ready(None)

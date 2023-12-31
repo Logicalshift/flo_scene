@@ -148,7 +148,7 @@ where
                     mem::drop(target);
                     let mut core = core.lock().unwrap();
 
-                    match core.send(item) {
+                    match core.send(self.program_id, item) {
                         Ok(waker) => {
                             // Sent the message: wake up anything waiting for the input stream
                             self.waiting_message = None;
@@ -205,7 +205,7 @@ where
                         // Try sending the waiting message
                         let mut core = core.lock().unwrap();
 
-                        match core.send(message) {
+                        match core.send(self.program_id, message) {
                             Ok(waker) => {
                                 // Sent the message: wake up anything waiting for the input stream
                                 self.waiting_message = None;
