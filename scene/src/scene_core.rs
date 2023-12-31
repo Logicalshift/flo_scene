@@ -23,6 +23,9 @@ pub (crate) struct SubProgramCore {
     /// The handle of this program within the core (index into the sub_programs list)
     handle: usize,
 
+    /// The ID of the process in the core that is running this subprogram
+    process_id: usize,
+
     /// The ID of this program
     id: SubProgramId,
 
@@ -68,7 +71,13 @@ pub (crate) struct SceneCore {
     /// Maps subprogram IDs to indexes in the subprogram list
     program_indexes: HashMap<SubProgramId, usize>,
 
-    /// The programs that have been woken up since the core was last polled
+    /// The futures that are running in this core
+    processes: Vec<Option<BoxFuture<'static, ()>>>,
+
+    /// The next free process in this core
+    next_process: usize,
+
+    /// The processes that have been woken up since the core was last polled
     awake_programs: VecDeque<usize>,
 
     /// Wakers for the futures that are being used to run the scene (can be multiple if the scene is scheduled across a thread pool)
@@ -87,6 +96,8 @@ impl SceneCore {
             sub_programs:       vec![],
             sub_program_inputs: vec![],
             next_subprogram:    0,
+            processes:          vec![],
+            next_process:       0,
             program_indexes:    HashMap::new(),
             awake_programs:     VecDeque::new(),
             connections:        HashMap::new(),
@@ -112,6 +123,7 @@ impl SceneCore {
             outputs:                    HashMap::new(),
             expected_input_type_name:   type_name::<TMessage>(),
             awake:                      true,
+            process_id:                 0,          // TODO!!
         };
 
         // Allocate space for the program
