@@ -64,19 +64,11 @@ impl Scene {
         };
 
         // Start the program running
-        let (subprogram, waker) = {
-            let mut core = self.core.lock().unwrap();
-            core.start_subprogram(program_id, run_program, input_core)
-        };
+        let subprogram = SceneCore::start_subprogram(&self.core, program_id, run_program, input_core);
 
         // Create the scene context, and send it to the subprogram
         let context = SceneContext::new(&self.core, &subprogram);
         send_context.send(context).ok();
-
-        // Wake the scene up
-        if let Some(waker) = waker {
-            waker.wake()
-        }
     }
 
     ///
