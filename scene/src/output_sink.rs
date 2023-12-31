@@ -45,19 +45,6 @@ pub struct OutputSink<TMessage> {
 
 impl<TMessage> OutputSink<TMessage> {
     ///
-    /// Creates a new output sink that belongs to the specified sub-program
-    ///
-    pub (crate) fn new(program_id: SubProgramId) -> OutputSink<TMessage> {
-        OutputSink {
-            program_id:             program_id,
-            target:                 Arc::new(Mutex::new(OutputSinkTarget::Disconnected)),
-            waiting_message:        None,
-            when_target_changed:    None,
-            when_message_sent:      None,
-        }
-    }
-
-    ///
     /// Creates a new output sink that is attached to a known target
     ///
     pub (crate) fn attach(program_id: SubProgramId, target: Arc<Mutex<OutputSinkTarget<TMessage>>>) -> OutputSink<TMessage> {
@@ -67,26 +54,6 @@ impl<TMessage> OutputSink<TMessage> {
             waiting_message:        None,
             when_target_changed:    None,
             when_message_sent:      None,
-        }
-    }
-
-    ///
-    /// Sends the messages from this sink to a particular input stream
-    ///
-    pub (crate) fn attach_to(&mut self, input_stream: &InputStream<TMessage>) {
-        self.attach_to_core(&input_stream.core);
-    }
-
-    ///
-    /// Sends the messages from this sink to an input stream core
-    ///
-    pub (crate) fn attach_to_core(&mut self, input_stream_core: &Arc<Mutex<InputStreamCore<TMessage>>>) {
-        // Connect to the target
-        *self.target.lock().unwrap() = OutputSinkTarget::Input(Arc::downgrade(input_stream_core));
-
-        // Wake anything waiting for the stream to become ready or to send a message
-        if let Some(waker) = self.when_target_changed.take() {
-            waker.wake();
         }
     }
 }
@@ -243,6 +210,41 @@ mod test {
     use futures::future::{poll_fn};
     use futures::executor;
     use futures::pin_mut;
+
+    impl<TMessage> OutputSink<TMessage> {
+        ///
+        /// Creates a new output sink that belongs to the specified sub-program
+        ///
+        pub (crate) fn new(program_id: SubProgramId) -> OutputSink<TMessage> {
+            OutputSink {
+                program_id:             program_id,
+                target:                 Arc::new(Mutex::new(OutputSinkTarget::Disconnected)),
+                waiting_message:        None,
+                when_target_changed:    None,
+                when_message_sent:      None,
+            }
+        }
+
+        ///
+        /// Sends the messages from this sink to a particular input stream
+        ///
+        pub (crate) fn attach_to(&mut self, input_stream: &InputStream<TMessage>) {
+            self.attach_to_core(&input_stream.core);
+        }
+
+        ///
+        /// Sends the messages from this sink to an input stream core
+        ///
+        pub (crate) fn attach_to_core(&mut self, input_stream_core: &Arc<Mutex<InputStreamCore<TMessage>>>) {
+            // Connect to the target
+            *self.target.lock().unwrap() = OutputSinkTarget::Input(Arc::downgrade(input_stream_core));
+
+            // Wake anything waiting for the stream to become ready or to send a message
+            if let Some(waker) = self.when_target_changed.take() {
+                waker.wake();
+            }
+        }
+    }
 
     #[test]
     fn send_message_to_input_stream() {
