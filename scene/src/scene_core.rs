@@ -27,7 +27,9 @@ pub (crate) struct SubProgramCore {
     id: SubProgramId,
 
     /// The pending future that represents this running subprogram
-    run: BoxFuture<'static, ()>,
+    /// This is borrowed when the program is running in a future,
+    /// by replacing this value with `None`
+    run: Option<BoxFuture<'static, ()>>,
 
     /// The output sink targets for this sub-program
     outputs: HashMap<StreamId, Arc<dyn Send + Sync + Any>>,
@@ -106,7 +108,7 @@ impl SceneCore {
         let subprogram  = SubProgramCore {
             handle:                     handle,
             id:                         program_id.clone(),
-            run:                        program.boxed(),
+            run:                        Some(program.boxed()),
             outputs:                    HashMap::new(),
             expected_input_type_name:   type_name::<TMessage>(),
             awake:                      true,
@@ -446,36 +448,46 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                 core.sub_programs.get(next_program_idx).cloned()
             };
 
-            if let Some(Some(next_program)) = next_program {
-                let mut next_program = next_program.lock().unwrap();
+            if let Some(Some(next_program_mutex)) = next_program {
+                let mut next_program = next_program_mutex.lock().unwrap();
 
                 // Only poll the program if it's still awake
                 if next_program.awake {
-                    // Mark as asleep
-                    next_program.awake = false;
+                    if let Some(run_next) = next_program.run.take() {
+                        // Mark as asleep
+                        next_program.awake = false;
 
-                    // Poll the program in our own context (will wake anything that's running this core)
-                    let program_waker       = waker(Arc::new(SceneCoreWaker::with_core(Arc::clone(&core), next_program.handle)));
-                    let mut program_context = Context::from_waker(&program_waker);
+                        // Poll the program in our own context (will wake anything that's running this core)
+                        let program_waker       = waker(Arc::new(SceneCoreWaker::with_core(Arc::clone(&core), next_program.handle)));
+                        let mut program_context = Context::from_waker(&program_waker);
 
-                    // Poll the program
-                    let poll_result         = next_program.run.poll_unpin(&mut program_context);
+                        // Release the lock (so that it's safe to acquire the core lock if the program has finished)
+                        let program_handle  = next_program.handle;
+                        let program_id      = next_program.id.clone();
+                        mem::drop(next_program);
 
-                    // Release the lock (so that it's safe to acquire the core lock if the program has finished)
-                    let program_handle  = next_program.handle;
-                    let program_id      = next_program.id.clone();
-                    mem::drop(next_program);
+                        // Poll the program
+                        let mut run_next        = run_next;
+                        let poll_result         = run_next.poll_unpin(&mut program_context);
 
-                    if let Poll::Ready(_) = poll_result {
-                        // Remove the program from the core when it's finished
-                        let mut core = core.lock().unwrap();
+                        // Return the future to the program
+                        // TODO: if the program is awake, re-add to the pending list if it's not there
+                        next_program_mutex.lock().unwrap().run = Some(run_next);
 
-                        core.sub_programs[program_handle]       = None;
-                        core.sub_program_inputs[program_handle] = None;
-                        core.program_indexes.remove(&program_id);
+                        if let Poll::Ready(_) = poll_result {
+                            // Remove the program from the core when it's finished
+                            let mut core = core.lock().unwrap();
 
-                        // Re-use this handle if a new program is started
-                        core.next_subprogram = core.next_subprogram.min(program_handle);
+                            core.sub_programs[program_handle]       = None;
+                            core.sub_program_inputs[program_handle] = None;
+                            core.program_indexes.remove(&program_id);
+
+                            // Re-use this handle if a new program is started
+                            core.next_subprogram = core.next_subprogram.min(program_handle);
+                        }
+                    } else {
+                        // The program is already running on a different thread, but is also awakened
+                        // Note, we might need to re-add the program to the pending list if it's awake after polling
                     }
                 }
             }
