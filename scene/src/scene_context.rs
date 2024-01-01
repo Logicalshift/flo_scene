@@ -67,8 +67,7 @@ impl SceneContext {
                 Ok(sink)
             } else {
                 // Create a new target
-                let mut scene_core  = scene_core.lock().unwrap();
-                let new_target  = scene_core.sink_for_target(&program_id, target);
+                let new_target  = SceneCore::sink_for_target(&scene_core, &program_id, target);
 
                 if let Some(new_target) = new_target {
                     // The scene core could provide a sink target for this stream, which we'll set in the program core
