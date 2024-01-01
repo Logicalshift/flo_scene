@@ -96,6 +96,13 @@ impl<TMessage> InputStreamCore<TMessage> {
     pub (crate) fn wake_when_slots_available(&mut self, context: &mut Context) {
         self.when_slots_available.push_back(context.waker().clone());
     }
+
+    ///
+    /// Returns the size of the buffer that this stream allows
+    ///
+    pub (crate) fn num_slots(&self) -> usize {
+        self.max_waiting
+    }
 }
 
 impl<TMessage> Stream for InputStream<TMessage> {
