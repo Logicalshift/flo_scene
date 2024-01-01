@@ -582,7 +582,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                 // Acquire the core
                 let mut core = core.lock().unwrap();
 
-                if core.next_subprogram == 0 && core.sub_programs.iter().all(|program| program.is_none()) {
+                if core.next_subprogram == 0 && core.sub_programs.iter().all(|program| program.is_none()) && core.awake_processes.is_empty() {
                     // The scene is finished when there are no running programs left in it
                     return Poll::Ready(());
                 }
