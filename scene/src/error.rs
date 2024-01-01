@@ -25,4 +25,10 @@ pub enum ConnectionError {
 
     /// The target input stream is not available
     TargetNotAvailable,
+
+    /// The input to a filter does not match what was expected
+    FilterInputDoesNotMatch,
+
+    /// The output to a filter does not match what was expected
+    FilterOutputDoesNotMatch,
 }
