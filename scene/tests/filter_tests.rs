@@ -42,7 +42,7 @@ fn write_to_filter_target() {
     scene.add_subprogram(
         number_program, 
         move |_: InputStream<()>, context| async move {
-            let mut filtered_output = context.send(StreamTarget::Filtered(usize_to_string, string_program)).unwrap();
+            let mut filtered_output = context.send::<usize>(StreamTarget::Filtered(usize_to_string, string_program)).unwrap();
 
             filtered_output.send(1).await;
             filtered_output.send(2).await;
