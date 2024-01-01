@@ -207,24 +207,37 @@ impl SceneCore {
     ///
     pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
         // Create a function to reconnect a subprogram
-        let reconnect_subprogram: Box<dyn Fn(&mut SubProgramCore) -> ()> = match &target {
-            StreamTarget::None                  => Box::new(|sub_program| sub_program.discard_output_from(&stream_id)),
-            StreamTarget::Any                   => Box::new(|sub_program| sub_program.disconnect_output_sink(&stream_id)),
+        let reconnect_subprogram: Box<dyn Fn(&Arc<Mutex<SubProgramCore>>) -> ()> = match &target {
+            StreamTarget::None                  => Box::new(|sub_program| sub_program.lock().unwrap().discard_output_from(&stream_id)),
+            StreamTarget::Any                   => Box::new(|sub_program| sub_program.lock().unwrap().disconnect_output_sink(&stream_id)),
 
             StreamTarget::Program(subprogid)    => {
                 let mut core        = core.lock().unwrap();
                 let stream_id       = &stream_id;
                 let target_input    = core.get_target_input(subprogid, stream_id)?;
 
-                Box::new(move |sub_program| sub_program.reconnect_output_sinks(&target_input, stream_id))
+                Box::new(move |sub_program| sub_program.lock().unwrap().reconnect_output_sinks(&target_input, stream_id))
             },
 
             StreamTarget::Filtered(filter_handle, subprogid) => {
-                todo!()
+                let core            = core.clone();
+                let input_stream_id = filter_handle.target_stream_id(*subprogid)?;
+                let target_input    = core.lock().unwrap().get_target_input(subprogid, &input_stream_id)?;
+                let stream_id       = &stream_id;
+
+                Box::new(move |sub_program| {
+                    let sub_program_id  = sub_program.lock().unwrap().id;
+                    let input           = filter_handle.create_input_stream_core(&core, sub_program_id, Arc::clone(&target_input));
+
+                    if let Ok(input) = input {
+                        sub_program.lock().unwrap().reconnect_output_sinks(&input, stream_id);
+                    }
+                })
             },
         };
 
         // TODO: pause the inputs of all the sub-programs matching the source, so the update is atomic?
+        // TODO: if there's a filtered connection we really should wait for the filter program to stop before starting new input to avoid situations where some values can arrive out-of-order
 
         let sub_programs = {
             let mut core = core.lock().unwrap();
@@ -240,10 +253,10 @@ impl SceneCore {
         for maybe_sub_program in sub_programs.iter() {
             if let Some(sub_program) = maybe_sub_program {
                 // Update the streams of the subprogram
-                let mut sub_program = sub_program.lock().unwrap();
+                let sub_program_id = sub_program.lock().unwrap().id;
 
-                if source.matches_subprogram(&sub_program.id) {
-                    reconnect_subprogram(&mut *sub_program);
+                if source.matches_subprogram(&sub_program_id) {
+                    reconnect_subprogram(&sub_program);
                 }
             }
         }
