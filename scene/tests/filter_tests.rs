@@ -7,6 +7,7 @@ use futures_timer::*;
 
 use std::time::{Duration};
 use std::sync::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[test]
 fn write_to_filter_target() {
@@ -69,12 +70,37 @@ fn disconnect_filter_target() {
     // List of messages that were received by the subprogram
     let recv_messages = Arc::new(Mutex::new(vec![]));
 
+    // CountDisconnects is a struct that gets dropped when the filter stream is closed: it should get called twice here (once when we reconnect, once when the programs end)
+    static NUM_DISCONNECTS: AtomicUsize = AtomicUsize::new(0);
+
+    struct CountDisconnents {
+
+    }
+
+    impl CountDisconnents {
+        fn convert_to_string(&self, num: usize) -> String {
+            num.to_string()
+        }
+    }
+
+    impl Drop for CountDisconnents {
+        fn drop(&mut self) {
+            NUM_DISCONNECTS.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    NUM_DISCONNECTS.store(0, Ordering::Relaxed);
+
     // Create a scene with just this subprogram in it
     let scene           = Arc::new(Scene::empty());
     let sent_messages   = recv_messages.clone();
 
     // Create a filter that converts numbers to strings
-    let usize_to_string = FilterHandle::for_filter(|number_stream: InputStream<usize>| number_stream.map(|num| num.to_string()));
+    let usize_to_string = FilterHandle::for_filter(|number_stream: InputStream<usize>| {
+        let count_disconnects = CountDisconnents {};
+
+        number_stream.map(move |num| count_disconnects.convert_to_string(num))
+    });
 
     // Add a program that receives some strings and writes them to recv_messages
     let string_program = SubProgramId::new();
@@ -132,7 +158,10 @@ fn disconnect_filter_target() {
     }.boxed(), Delay::new(Duration::from_millis(5000))));
 
     // Received output should match the numbers
-    let recv_messages = (*recv_messages.lock().unwrap()).clone();
+    let recv_messages   = (*recv_messages.lock().unwrap()).clone();
+    let num_disconnects = NUM_DISCONNECTS.load(Ordering::Relaxed);
+
     assert!(recv_messages == vec![1.to_string(), 2.to_string(), 5.to_string(), 6.to_string()], "Test program did not send correct numbers (sent {:?})", recv_messages);
+    assert!(num_disconnects == 2, "Filtered stream was not dropped the expected number of times ({} != 2)", num_disconnects);
     assert!(has_finished, "Scene did not finish when the programs terminated");
 }
