@@ -154,7 +154,9 @@ fn disconnect_filter_target() {
             filtered_output.send(6).await;
 
             // Disconnect them again
+            println!("Disconnecting again...");
             scene2.connect_programs(number_program, StreamTarget::None, StreamId::with_message_type::<usize>()).unwrap();
+            println!("   ... disconnected");
         }, 
         0);
 
