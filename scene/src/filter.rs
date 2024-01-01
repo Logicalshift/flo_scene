@@ -52,6 +52,7 @@ impl FilterHandle {
             // Downcast the source and target to the expected types
             let source_input_stream = source_input_stream.downcast::<InputStream<TSourceMessage>>().or(Err(ConnectionError::FilterInputDoesNotMatch))?;
             let target_input_core   = target_input_core.downcast::<Mutex<InputStreamCore<TTargetStream::Item>>>().or(Err(ConnectionError::FilterOutputDoesNotMatch))?;
+            let target_input_core   = Arc::downgrade(&target_input_core);
 
             // Extract the input stream from its box
             let source_input_stream = *source_input_stream;
@@ -69,19 +70,24 @@ impl FilterHandle {
                     poll_fn(|context| {
                         // Send the item to the core
                         let (pending_item, waker) = {
-                            let mut input_core = target_input_core.lock().unwrap();
+                            if let Some(target_input_core) = target_input_core.upgrade() {
+                                let mut input_core = target_input_core.lock().unwrap();
 
-                            if let Some(item_to_send) = item.take() {
-                                match input_core.send(sending_program, item_to_send) {
-                                    Ok(waker)   => (None, waker),
-                                    Err(item)   => {
-                                        // Core has no slots, so wait until it does
-                                        input_core.wake_when_slots_available(context);
-                                        (Some(item), None)
-                                    },
+                                if let Some(item_to_send) = item.take() {
+                                    match input_core.send(sending_program, item_to_send) {
+                                        Ok(waker)   => (None, waker),
+                                        Err(item)   => {
+                                            // Core has no slots, so wait until it does
+                                            input_core.wake_when_slots_available(context);
+                                            (Some(item), None)
+                                        },
+                                    }
+                                } else {
+                                    // Somehow the item has already been sent
+                                    (None, None)
                                 }
                             } else {
-                                // Somehow the item has already been sent
+                                // Target core has been released, so we can no longer send any messages
                                 (None, None)
                             }
                         };
