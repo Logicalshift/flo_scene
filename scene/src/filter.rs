@@ -16,7 +16,7 @@ use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static NEXT_FILTER_HANDLE: AtomicUsize = AtomicUsize::new(0);
-static CONNECT_INPUTS: Lazy<RwLock<HashMap<FilterHandle, Box<dyn Send + Sync + Fn(SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+static CREATE_INPUT_STREAM: Lazy<RwLock<HashMap<FilterHandle, Box<dyn Send + Sync + Fn(SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 static STREAM_ID_FOR_TARGET: Lazy<RwLock<HashMap<FilterHandle, Box<dyn Send + Sync + Fn(Option<SubProgramId>) -> StreamId>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 ///
@@ -49,8 +49,8 @@ impl FilterHandle {
         let filter = Arc::new(filter);
 
         // Generate the filter functions for this filter
-        let mut connect_inputs = CONNECT_INPUTS.write().unwrap();
-        connect_inputs.insert(handle, Box::new(move |sending_program, target_input_core| {
+        let mut create_input_stream = CREATE_INPUT_STREAM.write().unwrap();
+        create_input_stream.insert(handle, Box::new(move |sending_program, target_input_core| {
             // Downcast the source and target to the expected types
             let target_input_core   = target_input_core.downcast::<Mutex<InputStreamCore<TTargetStream::Item>>>().or(Err(ConnectionError::FilterOutputDoesNotMatch))?;
             let buffer_size         = target_input_core.lock().unwrap().num_slots();
@@ -117,7 +117,7 @@ impl FilterHandle {
             Ok((run_filter.boxed(), source_core))
         }));
 
-        mem::drop(connect_inputs);
+        mem::drop(create_input_stream);
 
         let mut stream_id_for_target = STREAM_ID_FOR_TARGET.write().unwrap();
         stream_id_for_target.insert(handle, Box::new(|maybe_target_program| {
@@ -143,8 +143,8 @@ impl FilterHandle {
     pub (crate) fn create_input_stream_core(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
         // Create a future that will run the filter
         let (send_future, filtering_input_core) = {
-            let connect_inputs  = CONNECT_INPUTS.read().unwrap();
-            let create_future   = connect_inputs.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
+            let create_input_stream  = CREATE_INPUT_STREAM.read().unwrap();
+            let create_future   = create_input_stream.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
 
             create_future(sending_program, target_input_core)
         }?;
