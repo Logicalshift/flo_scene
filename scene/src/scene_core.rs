@@ -319,7 +319,6 @@ impl SceneCore {
 
             StreamTarget::Program(target_program_id) => {
                 // The connections can define a redirect stream by using a StreamId target
-                // TODO: or a filtered target
                 let core                = scene_core.lock().unwrap();
                 let target_program_id   = core.connections.get(&(source.into(), StreamId::for_target::<TMessageType>(&target_program_id)))
                     .or_else(|| core.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
@@ -345,7 +344,6 @@ impl SceneCore {
 
             StreamTarget::Filtered(filter_handle, target_program_id) => {
                 // The connections can define a redirect stream by using a StreamId target
-                // TODO: or another filtered target
                 let core                = scene_core.lock().unwrap();
                 let target_program_id   = core.connections.get(&(source.into(), StreamId::for_target::<TMessageType>(&target_program_id)))
                     .or_else(|| core.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
