@@ -205,14 +205,16 @@ impl SceneCore {
     ///
     /// Adds or updates a program connection in this core
     ///
-    pub (crate) fn connect_programs(&mut self, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
+    pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
+        let mut core = core.lock().unwrap();
+
         // Create a function to reconnect a subprogram
         let reconnect_subprogram: Box<dyn Fn(&mut SubProgramCore) -> ()> = match &target {
             StreamTarget::None                  => Box::new(|sub_program| sub_program.discard_output_from(&stream_id)),
             StreamTarget::Any                   => Box::new(|sub_program| sub_program.disconnect_output_sink(&stream_id)),
             StreamTarget::Program(subprogid)    => {
                 let stream_id       = &stream_id;
-                let target_input    = self.get_target_input(subprogid, stream_id)?;
+                let target_input    = core.get_target_input(subprogid, stream_id)?;
 
                 Box::new(move |sub_program| sub_program.reconnect_output_sinks(&target_input, stream_id))
             },
@@ -224,10 +226,10 @@ impl SceneCore {
         // TODO: pause the inputs of all the sub-programs matching the source, so the update is atomic?
 
         // Store the connection
-        self.connections.insert((source.clone(), stream_id.clone()), target.clone());
+        core.connections.insert((source.clone(), stream_id.clone()), target.clone());
 
         // Update the existing connections
-        for maybe_sub_program in self.sub_programs.iter() {
+        for maybe_sub_program in core.sub_programs.iter() {
             if let Some(sub_program) = maybe_sub_program {
                 // Update the streams of the subprogram
                 let mut sub_program = sub_program.lock().unwrap();

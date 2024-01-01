@@ -113,8 +113,7 @@ impl Scene {
         let target = target.into();
         let stream = stream.into();
 
-        let mut core = self.core.lock().unwrap();
-        core.connect_programs(source, target, stream)
+        SceneCore::connect_programs(&self.core, source, target, stream)
     }
 
     ///
