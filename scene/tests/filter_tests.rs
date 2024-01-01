@@ -59,6 +59,7 @@ fn write_to_filter_target() {
     }.boxed(), Delay::new(Duration::from_millis(5000))));
 
     // Received output should match the numbers
-    assert!(*recv_messages.lock().unwrap() == vec![1.to_string(), 2.to_string(), 3.to_string(), 4.to_string()], "Test program did not send correct numbers");
+    let recv_messages = (*recv_messages.lock().unwrap()).clone();
+    assert!(recv_messages == vec![1.to_string(), 2.to_string(), 3.to_string(), 4.to_string()], "Test program did not send correct numbers (sent {:?})", recv_messages);
     assert!(has_finished, "Scene did not finish when the programs terminated");
 }
