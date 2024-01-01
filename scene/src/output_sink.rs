@@ -45,6 +45,24 @@ pub struct OutputSink<TMessage> {
     when_message_sent: Option<Waker>,
 }
 
+impl<TMessage> Drop for OutputSinkTarget<TMessage> {
+    fn drop(&mut self) {
+        match self {
+            OutputSinkTarget::CloseWhenDropped(core) => {
+                if let Some(core) = core.upgrade() {
+                    let waker = core.lock().unwrap().close();
+
+                    if let Some(waker) = waker {
+                        waker.wake();
+                    }
+                }
+            }
+
+            _ => { }
+        }
+    }
+}
+
 impl<TMessage> OutputSink<TMessage> {
     ///
     /// Creates a new output sink that is attached to a known target
