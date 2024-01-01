@@ -85,6 +85,7 @@ fn disconnect_filter_target() {
 
     impl Drop for CountDisconnents {
         fn drop(&mut self) {
+            println!("Disconnect");
             NUM_DISCONNECTS.fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -97,6 +98,7 @@ fn disconnect_filter_target() {
 
     // Create a filter that converts numbers to strings
     let usize_to_string = FilterHandle::for_filter(|number_stream: InputStream<usize>| {
+        println!("Connecting");
         let count_disconnects = CountDisconnents {};
 
         number_stream.map(move |num| count_disconnects.convert_to_string(num))
@@ -125,25 +127,34 @@ fn disconnect_filter_target() {
     scene.add_subprogram(
         number_program, 
         move |_: InputStream<()>, context| async move {
+            println!("Create initial stream...");
             let mut filtered_output = context.send::<usize>(StreamTarget::Any).unwrap();
+            println!("  ... created");
 
             // Send first two messages
             filtered_output.send(1).await;
             filtered_output.send(2).await;
 
             // Disconnect the stream
+            println!("Disconnecting initial stream...");
             scene2.connect_programs(number_program, StreamTarget::None, StreamId::with_message_type::<usize>()).unwrap();
+            println!("   ... disconnected");
 
             // Send another two messages into oblivion
             filtered_output.send(3).await;
             filtered_output.send(4).await;
 
             // Reconnect the two programs
+            println!("Reconnecting filter stream...");
             scene2.connect_programs(number_program, StreamTarget::Filtered(usize_to_string, string_program), StreamId::with_message_type::<usize>()).unwrap();
+            println!("   ... reconnected");
 
             // Final two messages
             filtered_output.send(5).await;
             filtered_output.send(6).await;
+
+            // Disconnect them again
+            scene2.connect_programs(number_program, StreamTarget::None, StreamId::with_message_type::<usize>()).unwrap();
         }, 
         0);
 
