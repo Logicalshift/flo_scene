@@ -246,8 +246,19 @@ impl SceneCore {
     ///
     /// Creates an InputStreamCore that reads the input type of a filter, and outputs to the input core of a program with the output type of the filter (if the types all match up)
     ///
-    fn filtered_input_for_program(core: &Arc<Mutex<SceneCore>>, filter_handle: FilterHandle, target_program: SubProgramId) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
-        todo!()
+    fn filtered_input_for_program(core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, filter_handle: FilterHandle, target_program: SubProgramId) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
+        // Fetch the input core for the target program
+        let target_input_core = {
+            let core            = core.lock().unwrap();
+
+            let target_index    = core.program_indexes.get(&target_program).ok_or(ConnectionError::TargetNotInScene)?;
+            let target_core     = (&core.sub_program_inputs.get(*target_index)).ok_or(ConnectionError::TargetNotInScene)?.as_ref().ok_or(ConnectionError::TargetNotInScene)?;
+
+            Arc::clone(target_core)
+        };
+
+        // Create an input stream core to use with it
+        filter_handle.create_input_stream_core(core, source_program, target_input_core)
     }
 
     ///
@@ -287,7 +298,7 @@ impl SceneCore {
                             let target_program_id   = *target_program_id;
                             mem::drop(core);
 
-                            let filtered_input_core = Self::filtered_input_for_program(scene_core, filter_handle, target_program_id).ok()?;
+                            let filtered_input_core = Self::filtered_input_for_program(scene_core, *source, filter_handle, target_program_id).ok()?;
                             let filtered_input_core = filtered_input_core.downcast::<Mutex<InputStreamCore<TMessageType>>>().ok()?;
 
                             Some(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&filtered_input_core)))))
@@ -342,7 +353,7 @@ impl SceneCore {
 
                 // Create a stream that is processed through a filter (note that this creates a process that will need to be terminated by closing the input stream)
                 mem::drop(core);
-                let filtered_input_core = Self::filtered_input_for_program(scene_core, filter_handle, target_program_id).ok()?;
+                let filtered_input_core = Self::filtered_input_for_program(scene_core, *source, filter_handle, target_program_id).ok()?;
                 let filtered_input_core = filtered_input_core.downcast::<Mutex<InputStreamCore<TMessageType>>>().ok()?;
 
                 Some(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&filtered_input_core)))))
