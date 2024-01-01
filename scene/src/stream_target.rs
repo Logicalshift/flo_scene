@@ -1,4 +1,5 @@
-use crate::{SubProgramId};
+use crate::filter::*;
+use crate::subprogram_id::*;
 
 ///
 /// A stream target describes where the output of a particular stream should be sent
@@ -13,6 +14,9 @@ pub enum StreamTarget {
 
     /// Send the stream to the input of the specified program
     Program(SubProgramId),
+
+    /// Send the stream to a subprogram after running through a filter
+    Filtered(FilterHandle, SubProgramId),
 }
 
 impl From<SubProgramId> for StreamTarget {
