@@ -304,7 +304,7 @@ impl SceneCore {
                             let filtered_input_core = filtered_input_core.downcast::<Mutex<InputStreamCore<TMessageType>>>()
                                 .or(Err(ConnectionError::FilterInputDoesNotMatch))?;
 
-                            Ok(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&filtered_input_core)))))
+                            Ok(Arc::new(Mutex::new(OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core)))))
                         },
                     }
                 } else {
@@ -362,7 +362,7 @@ impl SceneCore {
                 let filtered_input_core = filtered_input_core.downcast::<Mutex<InputStreamCore<TMessageType>>>()
                     .or(Err(ConnectionError::FilterInputDoesNotMatch))?;
 
-                Ok(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&filtered_input_core)))))
+                Ok(Arc::new(Mutex::new(OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core)))))
             }
         }
     }
