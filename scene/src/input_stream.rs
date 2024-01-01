@@ -103,6 +103,14 @@ impl<TMessage> InputStreamCore<TMessage> {
     pub (crate) fn num_slots(&self) -> usize {
         self.max_waiting
     }
+
+    ///
+    /// Sets this stream as 'closed' (which generally stops the process from running any further)
+    ///
+    pub (crate) fn close(&mut self) -> Option<Waker> {
+        self.closed = true;
+        self.when_message_sent.take()
+    }
 }
 
 impl<TMessage> Stream for InputStream<TMessage> {
