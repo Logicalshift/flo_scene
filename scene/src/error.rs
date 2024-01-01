@@ -31,4 +31,7 @@ pub enum ConnectionError {
 
     /// The output to a filter does not match what was expected
     FilterOutputDoesNotMatch,
+
+    /// The filter handle was not found
+    FilterHandleNotFound,
 }

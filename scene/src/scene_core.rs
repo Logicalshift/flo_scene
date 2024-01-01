@@ -302,7 +302,7 @@ impl SceneCore {
     ///
     /// Starts a new process running in this scene
     ///
-    pub (crate) fn start_process(&mut self, process: impl 'static + Send + Sync + Future<Output=()>) -> (ProcessHandle, Option<Waker>) {
+    pub (crate) fn start_process(&mut self, process: impl 'static + Send + Future<Output=()>) -> (ProcessHandle, Option<Waker>) {
         // Assign a process ID to this process
         let process_id = self.next_process;
         while self.processes.len() <= process_id {

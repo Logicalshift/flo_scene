@@ -118,6 +118,26 @@ impl FilterHandle {
     /// The source is always an InputStream of the soruce type
     ///
     pub (crate) fn connect_inputs(filter_handle: FilterHandle, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, source_input_stream: Box<dyn Send + Sync + Any>, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<(), ConnectionError> {
-        todo!()
+        // Create a future that will run the filter
+        let send_future = {
+            let connect_inputs  = CONNECT_INPUTS.read().unwrap();
+            let create_future   = connect_inputs.get(&filter_handle).ok_or(ConnectionError::FilterHandleNotFound)?;
+
+            create_future(sending_program, source_input_stream, target_input_core)
+        }?;
+
+        // Start it as a process in the core
+        let (_process_handle, waker) = {
+            let mut scene_core = scene_core.lock().unwrap();
+
+            scene_core.start_process(send_future)
+        };
+
+        // Wake up a thread to run the new future if needed
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+
+        Ok(())
     }
 }
