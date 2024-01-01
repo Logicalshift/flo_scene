@@ -11,7 +11,6 @@ use std::sync::*;
 ///
 /// The target of an output sink
 ///
-#[derive(Clone)]
 pub (crate) enum OutputSinkTarget<TMessage> {
     /// Indicates an output that has nowhere to send its data (will just block)
     Disconnected,
