@@ -216,7 +216,7 @@ impl SceneCore {
                 let stream_id       = &stream_id;
                 let target_input    = core.get_target_input(subprogid, stream_id)?;
 
-                Box::new(move |sub_program| sub_program.lock().unwrap().reconnect_output_sinks(&target_input, stream_id))
+                Box::new(move |sub_program| sub_program.lock().unwrap().reconnect_output_sinks(&target_input, stream_id, false))
             },
 
             StreamTarget::Filtered(filter_handle, subprogid) => {
@@ -230,7 +230,7 @@ impl SceneCore {
                     let input           = filter_handle.create_input_stream_core(&core, sub_program_id, Arc::clone(&target_input));
 
                     if let Ok(input) = input {
-                        sub_program.lock().unwrap().reconnect_output_sinks(&input, stream_id);
+                        sub_program.lock().unwrap().reconnect_output_sinks(&input, stream_id, true);
                     }
                 })
             },
@@ -479,10 +479,10 @@ impl SubProgramCore {
     ///
     /// Connects all of the streams that matches a particular stream ID to a new target
     ///
-    pub (crate) fn reconnect_output_sinks(&mut self, target_input: &Arc<dyn Send + Sync + Any>, stream_id: &StreamId) {
+    pub (crate) fn reconnect_output_sinks(&mut self, target_input: &Arc<dyn Send + Sync + Any>, stream_id: &StreamId, close_when_dropped: bool) {
         if let Some(output_sink) = self.outputs.get_mut(stream_id) {
             // This stream has an output matching the input (the stream types should always match)
-            stream_id.connect_output_to_input(output_sink, target_input).expect("Input and output types do not match");
+            stream_id.connect_output_to_input(output_sink, target_input, close_when_dropped).expect("Input and output types do not match");
         }
     }
 
