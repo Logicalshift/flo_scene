@@ -21,7 +21,7 @@ static CONNECT_INPUTS: Lazy<RwLock<HashMap<FilterHandle, Box<dyn Send + Sync + F
 /// A filter is a way to convert from a stream of one message type to another, and a filter
 /// handle references a predefined filter.
 ///
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct FilterHandle(usize);
 
 impl FilterHandle {
