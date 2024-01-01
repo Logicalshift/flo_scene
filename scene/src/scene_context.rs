@@ -1,3 +1,4 @@
+use crate::error::*;
 use crate::output_sink::*;
 use crate::scene_core::*;
 use crate::stream_id::*;
@@ -39,7 +40,7 @@ impl SceneContext {
     /// The `None` target will discard any messages received while the stream is disconnected, but the `Any` target will block until something
     /// connects the stream. Streams with a specified target will connect to that target immediately.
     ///
-    pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<impl Sink<TMessageType>, ()>
+    pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<impl Sink<TMessageType>, ConnectionError>
     where
         TMessageType: 'static + Unpin + Send + Sync,
     {
@@ -47,9 +48,10 @@ impl SceneContext {
             // Convert the target to a stream ID. If we need to create the sink target, we can create it in 'wait' or 'discard' mode
             let target                          = target.into();
             let (stream_id, discard_by_default) = match &target {
-                StreamTarget::None              => (StreamId::with_message_type::<TMessageType>(), true),
-                StreamTarget::Any               => (StreamId::with_message_type::<TMessageType>(), false),
-                StreamTarget::Program(prog_id)  => (StreamId::for_target::<TMessageType>(prog_id.clone()), false),
+                StreamTarget::None                      => (StreamId::with_message_type::<TMessageType>(), true),
+                StreamTarget::Any                       => (StreamId::with_message_type::<TMessageType>(), false),
+                StreamTarget::Program(prog_id)          => (StreamId::for_target::<TMessageType>(prog_id.clone()), false),
+                StreamTarget::Filtered(filter, prog_id) => (filter.target_stream_id(*prog_id)?, false),
             };
 
             // Try to re-use an existing target
