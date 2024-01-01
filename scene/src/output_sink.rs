@@ -20,6 +20,9 @@ pub (crate) enum OutputSinkTarget<TMessage> {
 
     /// Indicates an output that sends its data to another subprogram's input
     Input(Weak<Mutex<InputStreamCore<TMessage>>>),
+
+    /// Same as 'Input', except the stream is closed when this output sink target is dropped
+    CloseWhenDropped(Weak<Mutex<InputStreamCore<TMessage>>>),
 }
 
 ///
@@ -81,8 +84,9 @@ where
                     self.when_target_changed = Some(context.waker().clone());
                     Poll::Pending
                 },
-                OutputSinkTarget::Discard       => Poll::Ready(Ok(())),
-                OutputSinkTarget::Input(_)      => Poll::Ready(Ok(())),
+                OutputSinkTarget::Discard               => Poll::Ready(Ok(())),
+                OutputSinkTarget::Input(_)              => Poll::Ready(Ok(())),
+                OutputSinkTarget::CloseWhenDropped(_)   => Poll::Ready(Ok(())),
             }
         }
     }
@@ -92,15 +96,16 @@ where
 
         let target = self.target.lock().unwrap();
         match &*target {
-            OutputSinkTarget::Disconnected  => {
+            OutputSinkTarget::Disconnected              => {
                 mem::drop(target);
                 self.waiting_message = Some(item);
                 Ok(())
             },
 
-            OutputSinkTarget::Discard       => Ok(()),
+            OutputSinkTarget::Discard                   => Ok(()),
 
-            OutputSinkTarget::Input(core)   => {
+            OutputSinkTarget::Input(core)               |
+            OutputSinkTarget::CloseWhenDropped(core)    => {
                 if let Some(core) = core.upgrade() {
                     // Either directly send the item or add to the callback list for when there's enough space in the input
                     mem::drop(target);
@@ -154,7 +159,8 @@ where
                 Poll::Ready(Ok(()))
             },
 
-            OutputSinkTarget::Input(core)   => {
+            OutputSinkTarget::Input(core)               |
+            OutputSinkTarget::CloseWhenDropped(core)    => {
                 // Try to send to the attached core
                 if let Some(core) = core.upgrade() {
                     mem::drop(target);
