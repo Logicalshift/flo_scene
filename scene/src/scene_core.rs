@@ -322,8 +322,9 @@ impl SceneCore {
                     .or_else(|| core.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
                     .and_then(|target| {
                         match target {
-                            StreamTarget::Program(program_id)   => Some(program_id.clone()),
-                            _                                   => None,
+                            StreamTarget::Program(program_id)       => Some(*program_id),
+                            StreamTarget::Filtered(_, program_id)   => Some(*program_id),
+                            _                                       => None,
                         }
                     })
                     .unwrap_or(target_program_id);
@@ -345,8 +346,9 @@ impl SceneCore {
                     .or_else(|| core.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
                     .and_then(|target| {
                         match target {
-                            StreamTarget::Program(program_id)   => Some(program_id.clone()),
-                            _                                   => None,
+                            StreamTarget::Program(program_id)       => Some(program_id.clone()),
+                            StreamTarget::Filtered(_, program_id)   => Some(*program_id),
+                            _                                       => None,
                         }
                     })
                     .unwrap_or(target_program_id);
