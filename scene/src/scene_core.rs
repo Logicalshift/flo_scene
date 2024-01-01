@@ -214,7 +214,10 @@ impl SceneCore {
                 let target_input    = self.get_target_input(subprogid, stream_id)?;
 
                 Box::new(move |sub_program| sub_program.reconnect_output_sinks(&target_input, stream_id))
-            }
+            },
+            StreamTarget::Filtered(filter_handle, subprogid) => {
+                todo!()
+            },
         };
 
         // TODO: pause the inputs of all the sub-programs matching the source, so the update is atomic?
@@ -264,7 +267,10 @@ impl SceneCore {
                             let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>().ok()?;
 
                             Some(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))))
-                        }
+                        },
+                        StreamTarget::Filtered(filter_handle, target_program_id) => {
+                            todo!()
+                        },
                     }
                 } else {
                     // Stream is not connected, either use a discard or a disconnected stream
@@ -274,10 +280,11 @@ impl SceneCore {
                         _                   => None
                     }
                 }
-            }
+            },
 
             StreamTarget::Program(target_program_id) => {
                 // The connections can define a redirect stream by using a StreamId target
+                // TODO: or a filtered target
                 let target_program_id = self.connections.get(&(source.into(), StreamId::for_target::<TMessageType>(&target_program_id)))
                     .or_else(|| self.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
                     .and_then(|target| {
@@ -295,6 +302,21 @@ impl SceneCore {
                 let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>().ok()?;
 
                 Some(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))))
+            },
+
+            StreamTarget::Filtered(filter_handle, target_program_id) => {
+                // The connections can define a redirect stream by using a StreamId target
+                // TODO: or another filtered target
+                let target_program_id = self.connections.get(&(source.into(), StreamId::for_target::<TMessageType>(&target_program_id)))
+                    .or_else(|| self.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
+                    .and_then(|target| {
+                        match target {
+                            StreamTarget::Program(program_id)   => Some(program_id.clone()),
+                            _                                   => None,
+                        }
+                    })
+                    .unwrap_or(target_program_id);
+                todo!()
             }
         }
     }
