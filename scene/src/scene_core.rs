@@ -246,22 +246,24 @@ impl SceneCore {
     ///
     /// Creates an InputStreamCore that reads the input type of a filter, and outputs to the input core of a program with the output type of the filter (if the types all match up)
     ///
-    fn filtered_input_for_program(&mut self, filter_handle: FilterHandle, target_program: SubProgramId) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
+    fn filtered_input_for_program(core: &Arc<Mutex<SceneCore>>, filter_handle: FilterHandle, target_program: SubProgramId) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
         todo!()
     }
 
     ///
     /// Returns the output sink target configured for a particular stream
     ///
-    pub (crate) fn sink_for_target<TMessageType>(core: &Arc<Mutex<SceneCore>>, source: &SubProgramId, target: StreamTarget) -> Option<Arc<Mutex<OutputSinkTarget<TMessageType>>>>
+    pub (crate) fn sink_for_target<TMessageType>(scene_core: &Arc<Mutex<SceneCore>>, source: &SubProgramId, target: StreamTarget) -> Option<Arc<Mutex<OutputSinkTarget<TMessageType>>>>
     where
         TMessageType: 'static + Send + Sync,
     {
+        use std::mem;
+
         match target {
             StreamTarget::None  |
             StreamTarget::Any   => {
                 // Return the general stream for the message type, if there is one
-                let mut core            = core.lock().unwrap();
+                let core                = scene_core.lock().unwrap();
                 let maybe_connection    = core.connections
                     .get(&(source.into(), StreamId::with_message_type::<TMessageType>()))
                     .or_else(|| core.connections.get(&(StreamSource::All, StreamId::with_message_type::<TMessageType>())));
@@ -283,7 +285,9 @@ impl SceneCore {
                             // Create a stream that is processed through a filter (note that this creates a process that will need to be terminated by closing the input stream)
                             let filter_handle       = *filter_handle;
                             let target_program_id   = *target_program_id;
-                            let filtered_input_core = core.filtered_input_for_program(filter_handle, target_program_id).ok()?;
+                            mem::drop(core);
+
+                            let filtered_input_core = Self::filtered_input_for_program(scene_core, filter_handle, target_program_id).ok()?;
                             let filtered_input_core = filtered_input_core.downcast::<Mutex<InputStreamCore<TMessageType>>>().ok()?;
 
                             Some(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&filtered_input_core)))))
@@ -302,7 +306,7 @@ impl SceneCore {
             StreamTarget::Program(target_program_id) => {
                 // The connections can define a redirect stream by using a StreamId target
                 // TODO: or a filtered target
-                let core                = core.lock().unwrap();
+                let core                = scene_core.lock().unwrap();
                 let target_program_id   = core.connections.get(&(source.into(), StreamId::for_target::<TMessageType>(&target_program_id)))
                     .or_else(|| core.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
                     .and_then(|target| {
@@ -325,7 +329,7 @@ impl SceneCore {
             StreamTarget::Filtered(filter_handle, target_program_id) => {
                 // The connections can define a redirect stream by using a StreamId target
                 // TODO: or another filtered target
-                let mut core            = core.lock().unwrap();
+                let core                = scene_core.lock().unwrap();
                 let target_program_id   = core.connections.get(&(source.into(), StreamId::for_target::<TMessageType>(&target_program_id)))
                     .or_else(|| core.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
                     .and_then(|target| {
@@ -337,7 +341,8 @@ impl SceneCore {
                     .unwrap_or(target_program_id);
 
                 // Create a stream that is processed through a filter (note that this creates a process that will need to be terminated by closing the input stream)
-                let filtered_input_core = core.filtered_input_for_program(filter_handle, target_program_id).ok()?;
+                mem::drop(core);
+                let filtered_input_core = Self::filtered_input_for_program(scene_core, filter_handle, target_program_id).ok()?;
                 let filtered_input_core = filtered_input_core.downcast::<Mutex<InputStreamCore<TMessageType>>>().ok()?;
 
                 Some(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&filtered_input_core)))))
