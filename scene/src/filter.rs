@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::input_stream::*;
 use crate::scene_core::*;
+use crate::stream_id::*;
 use crate::subprogram_id::*;
 
 use futures::prelude::*;
@@ -16,6 +17,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 static NEXT_FILTER_HANDLE: AtomicUsize = AtomicUsize::new(0);
 static CONNECT_INPUTS: Lazy<RwLock<HashMap<FilterHandle, Box<dyn Send + Sync + Fn(SubProgramId, Box<dyn Send + Sync + Any>, Arc<dyn Send + Sync + Any>) -> Result<BoxFuture<'static, ()>, ConnectionError>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+static STREAM_ID_FOR_TARGET: Lazy<RwLock<HashMap<FilterHandle, Box<dyn Send + Sync + Fn(Option<SubProgramId>) -> StreamId>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 ///
 /// A filter is a way to convert from a stream of one message type to another, and a filter
@@ -115,6 +117,17 @@ impl FilterHandle {
 
         mem::drop(connect_inputs);
 
+        let mut stream_id_for_target = STREAM_ID_FOR_TARGET.write().unwrap();
+        stream_id_for_target.insert(handle, Box::new(|maybe_target_program| {
+            if let Some(target_program) = maybe_target_program {
+                StreamId::for_target::<TTargetStream::Item>(target_program)
+            } else {
+                StreamId::with_message_type::<TTargetStream::Item>()
+            }
+        }));
+
+        mem::drop(stream_id_for_target);
+
         handle
     }
 
@@ -123,11 +136,11 @@ impl FilterHandle {
     ///
     /// The source is always an InputStream of the soruce type
     ///
-    pub (crate) fn connect_inputs(filter_handle: FilterHandle, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, source_input_stream: Box<dyn Send + Sync + Any>, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<(), ConnectionError> {
+    pub (crate) fn connect_inputs(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, source_input_stream: Box<dyn Send + Sync + Any>, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<(), ConnectionError> {
         // Create a future that will run the filter
         let send_future = {
             let connect_inputs  = CONNECT_INPUTS.read().unwrap();
-            let create_future   = connect_inputs.get(&filter_handle).ok_or(ConnectionError::FilterHandleNotFound)?;
+            let create_future   = connect_inputs.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
 
             create_future(sending_program, source_input_stream, target_input_core)
         }?;
@@ -145,5 +158,15 @@ impl FilterHandle {
         }
 
         Ok(())
+    }
+
+    ///
+    /// Creates a stream ID for the output of a filter and a target program
+    ///
+    pub (crate) fn target_stream_id(&self, target_program: SubProgramId) -> Result<StreamId, ConnectionError> {
+        let stream_id_for_target    = STREAM_ID_FOR_TARGET.read().unwrap();
+        let create_stream_id        = stream_id_for_target.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
+
+        Ok(create_stream_id(Some(target_program)))
     }
 }
