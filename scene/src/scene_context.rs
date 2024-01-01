@@ -46,12 +46,12 @@ impl SceneContext {
     {
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
             // Convert the target to a stream ID. If we need to create the sink target, we can create it in 'wait' or 'discard' mode
-            let target                          = target.into();
-            let (stream_id, discard_by_default) = match &target {
-                StreamTarget::None                      => (StreamId::with_message_type::<TMessageType>(), true),
-                StreamTarget::Any                       => (StreamId::with_message_type::<TMessageType>(), false),
-                StreamTarget::Program(prog_id)          => (StreamId::for_target::<TMessageType>(prog_id.clone()), false),
-                StreamTarget::Filtered(filter, prog_id) => (filter.target_stream_id(*prog_id)?, false),
+            let target      = target.into();
+            let stream_id   = match &target {
+                StreamTarget::None                      => StreamId::with_message_type::<TMessageType>(),
+                StreamTarget::Any                       => StreamId::with_message_type::<TMessageType>(),
+                StreamTarget::Program(prog_id)          => StreamId::for_target::<TMessageType>(prog_id.clone()),
+                StreamTarget::Filtered(filter, prog_id) => filter.target_stream_id(*prog_id)?,
             };
 
             // Try to re-use an existing target
@@ -66,28 +66,16 @@ impl SceneContext {
 
                 Ok(sink)
             } else {
-                // Create a new target
-                let new_target  = SceneCore::sink_for_target(&scene_core, &program_id, target);
+                // Fetch the target from the core (possibly creating a new one)
+                let new_target  = SceneCore::sink_for_target(&scene_core, &program_id, target)?;
 
-                if let Some(new_target) = new_target {
-                    // The scene core could provide a sink target for this stream, which we'll set in the program core
-                    // Locking both so the scene's target can't change before we're done
-                    let mut program_core = program_core.lock().unwrap();
-                    Ok(match program_core.try_create_output_target(&stream_id, new_target) {
-                        Ok(new_target)  => OutputSink::attach(program_id, new_target),
-                        Err(old_target) => OutputSink::attach(program_id, old_target),
-                    })
-                } else {
-                    // The scene core has no sink target, so we'll create a generic one that can be updated later
-                    let new_target = if discard_by_default { OutputSinkTarget::Discard } else { OutputSinkTarget::Disconnected };
-                    let new_target = Arc::new(Mutex::new(new_target));
-
-                    let mut program_core = program_core.lock().unwrap();
-                    Ok(match program_core.try_create_output_target(&stream_id, new_target) {
-                        Ok(new_target)  => OutputSink::attach(program_id, new_target),
-                        Err(old_target) => OutputSink::attach(program_id, old_target),
-                    })
-                }
+                // The scene core could provide a sink target for this stream, which we'll set in the program core
+                // Locking both so the scene's target can't change before we're done
+                let mut program_core = program_core.lock().unwrap();
+                Ok(match program_core.try_create_output_target(&stream_id, new_target) {
+                    Ok(new_target)  => OutputSink::attach(program_id, new_target),
+                    Err(old_target) => OutputSink::attach(program_id, old_target),
+                })
             }
         } else {
             // TODO: Return an error (scene or program has finished)

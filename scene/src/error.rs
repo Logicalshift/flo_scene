@@ -34,4 +34,7 @@ pub enum ConnectionError {
 
     /// The filter handle was not found
     FilterHandleNotFound,
+
+    /// A stream target had an unexpected value
+    UnexpectedConnectionType,
 }
