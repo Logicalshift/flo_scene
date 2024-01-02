@@ -9,6 +9,8 @@ use crate::error::*;
 
 use futures::prelude::*;
 use futures::channel::oneshot;
+use futures::future::{poll_fn};
+use futures::{pin_mut};
 
 use std::sync::*;
 
@@ -56,10 +58,19 @@ impl Scene {
         let input_core      = input_stream.core();
 
         // Create the future that will be used to run the future
-        let (send_context, recv_context) = oneshot::channel();
+        let (send_context, recv_context) = oneshot::channel::<SceneContext>();
         let run_program = async move {
-            if let Ok(context) = recv_context.await {
-                program(input_stream, context).await;
+            if let Ok(scene_context) = recv_context.await {
+                // Start the program running
+                let program = with_scene_context(&scene_context, || program(input_stream, scene_context.clone()));
+                pin_mut!(program);
+
+                // Poll the program with the scene context set
+                poll_fn(|mut context| {
+                    with_scene_context(&scene_context, || {
+                        program.as_mut().poll(&mut context)
+                    })
+                }).await;
             }
         };
 
