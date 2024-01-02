@@ -6,6 +6,7 @@ use crate::stream_target::*;
 
 use futures::prelude::*;
 
+use std::cell::*;
 use std::sync::*;
 
 ///
@@ -82,4 +83,49 @@ impl SceneContext {
             todo!()
         }
     }
+}
+
+thread_local! {
+    static ACTIVE_CONTEXT: RefCell<Option<SceneContext>> = RefCell::new(None);
+}
+
+struct OldContext(Option<SceneContext>);
+
+impl Drop for OldContext {
+    fn drop(&mut self) {
+        ACTIVE_CONTEXT.with(|active_context| *active_context.borrow_mut() = self.0.take());
+    }
+}
+
+///
+/// Performs an action with the specified context set as the thread context
+///
+pub fn with_scene_context<TReturnType>(context: &SceneContext, action: impl FnOnce() -> TReturnType) -> TReturnType {
+    use std::mem;
+
+    // Update the active context and create an old context
+    let old_context = ACTIVE_CONTEXT.with(|active_context| {
+        let old_context                 = OldContext(active_context.take());
+        *active_context.borrow_mut()    = Some(context.clone());
+
+        old_context
+    });
+
+    // Peform the action with the context set
+    let result = action();
+
+    // Finished with the old context now
+    mem::drop(old_context);
+
+    result
+}
+
+///
+/// Returns the scene context set for the current thread
+///
+/// The scene context is automatically set while subprograms are being polled, and can also be manually set for
+/// the duration of a function using `with_scene_context()`
+///
+pub fn scene_context() -> Option<SceneContext> {
+    ACTIVE_CONTEXT.with(|active_context| active_context.borrow().clone())
 }
