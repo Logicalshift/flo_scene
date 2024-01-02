@@ -140,14 +140,10 @@ fn connect_all_both_filtered_and_unfiltered() {
     scene.add_subprogram(
         string_program,
         move |mut strings: InputStream<String>, _| async move {
-            let next_string = strings.next().await.unwrap();
-            sent_messages.lock().unwrap().push(next_string);
-            let next_string = strings.next().await.unwrap();
-            sent_messages.lock().unwrap().push(next_string);
-            let next_string = strings.next().await.unwrap();
-            sent_messages.lock().unwrap().push(next_string);
-            let next_string = strings.next().await.unwrap();
-            sent_messages.lock().unwrap().push(next_string);
+            for _ in 0..8 {
+                let next_string = strings.next().await.unwrap();
+                sent_messages.lock().unwrap().push(next_string);
+            }
         },
         0,
     );
