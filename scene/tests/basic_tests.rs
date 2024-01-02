@@ -265,3 +265,43 @@ fn connect_multiple_prorgams_via_any_connection() {
     assert!(received_messages.contains(&(program_3, "Program 3 message 1".into())), "Expected program 3 message 1, {:?}", received_messages);
     assert!(received_messages.contains(&(program_3, "Program 3 message 2".into())), "Expected program 3 message 2, {:?}", received_messages);
 }
+
+#[test]
+fn send_output_via_thread_context() {
+    // Flag to say if the subprogram has run
+    let sent_message    = Arc::new(Mutex::new(None));
+
+    // Create a scene with two subprograms. Program_1 will send to Program_2
+    let scene       = Scene::empty();
+    let program_1   = SubProgramId::new();
+    let program_2   = SubProgramId::new();
+
+    // program_1 reads from its input and sets it in sent_message
+    let recv_message = sent_message.clone();
+    scene.add_subprogram(program_1.clone(),
+        move |mut input: InputStream<usize>, _| async move {
+            // Read a single message and write it to the 'sent_message' structure
+            let message = input.next().await.unwrap();
+            *recv_message.lock().unwrap() = Some(message);
+        },
+        0);
+
+    // program_2 sends a message to program_1 directly (by requesting a stream for program_1)
+    scene.add_subprogram(program_2,
+        move |_: InputStream<()>, _| async move {
+            // The 'scene_context()' value should be set while the program is running
+            let context         = scene_context().unwrap();
+            let mut send_usize  = context.send::<usize>(program_1).unwrap();
+            send_usize.send(42).await.ok().unwrap();
+        },
+        0);
+
+    // Run this scene
+    executor::block_on(select(async {
+        scene.run_scene().await;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Should have set the flag and then finished
+    assert!(*sent_message.lock().unwrap() == Some(42), "Message was not sent");
+    assert!(scene_context().is_none(), "Scene context should be none outside of the scene");
+}
