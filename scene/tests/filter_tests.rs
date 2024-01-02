@@ -67,6 +67,8 @@ fn write_to_filter_target() {
 
 #[test]
 fn disconnect_filter_target() {
+    // TODO: although this test passes, the message indicate an extra filter stream is created and dropped when the scene is finally disposed, need to figure out why and possibly remove it
+
     // List of messages that were received by the subprogram
     let recv_messages = Arc::new(Mutex::new(vec![]));
 
@@ -97,6 +99,7 @@ fn disconnect_filter_target() {
     let sent_messages   = recv_messages.clone();
 
     // Create a filter that converts numbers to strings
+    println!("Register filter");
     let usize_to_string = FilterHandle::for_filter(|number_stream: InputStream<usize>| {
         println!("Connecting");
         let count_disconnects = CountDisconnents {};
@@ -105,6 +108,7 @@ fn disconnect_filter_target() {
     });
 
     // Add a program that receives some strings and writes them to recv_messages
+    println!("Create string program");
     let string_program = SubProgramId::new();
     scene.add_subprogram(
         string_program,
@@ -122,6 +126,7 @@ fn disconnect_filter_target() {
     );
 
     // Add another program that outputs some numbers to the first program
+    println!("Create number program");
     let number_program  = SubProgramId::new();
     let scene2          = scene.clone();
     scene.add_subprogram(
@@ -161,14 +166,18 @@ fn disconnect_filter_target() {
         0);
 
     // Start the programs connected
+    println!("Connect programs");
     scene.connect_programs(number_program, StreamTarget::Filtered(usize_to_string, string_program), StreamId::with_message_type::<usize>()).unwrap();
 
     // Run the scene
+    println!("Start scene");
     let mut has_finished = false;
     executor::block_on(select(async {
         scene.run_scene().await;
         has_finished = true;
     }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    println!("Scene finished");
 
     // Received output should match the numbers
     let recv_messages   = (*recv_messages.lock().unwrap()).clone();
