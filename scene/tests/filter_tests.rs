@@ -125,8 +125,6 @@ fn connect_all_to_filter_target() {
 
 #[test]
 fn disconnect_filter_target() {
-    // TODO: although this test passes, the message indicate an extra filter stream is created and dropped when the scene is finally disposed, need to figure out why and possibly remove it
-
     // List of messages that were received by the subprogram
     let recv_messages = Arc::new(Mutex::new(vec![]));
 

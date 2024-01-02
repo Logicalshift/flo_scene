@@ -226,11 +226,13 @@ impl SceneCore {
                 let stream_id       = &stream_id;
 
                 Box::new(move |sub_program| {
-                    let sub_program_id  = sub_program.lock().unwrap().id;
-                    let input           = filter_handle.create_input_stream_core(&core, sub_program_id, Arc::clone(&target_input));
+                    if sub_program.lock().unwrap().has_output_sink(stream_id) {
+                        let sub_program_id  = sub_program.lock().unwrap().id;
+                        let input           = filter_handle.create_input_stream_core(&core, sub_program_id, Arc::clone(&target_input));
 
-                    if let Ok(input) = input {
-                        sub_program.lock().unwrap().reconnect_output_sinks(&input, stream_id, true);
+                        if let Ok(input) = input {
+                            sub_program.lock().unwrap().reconnect_output_sinks(&input, stream_id, true);
+                        }
                     }
                 })
             },
@@ -474,6 +476,13 @@ impl SubProgramCore {
             // Use the new target for the output stream
             Ok(new_output_target)
         }
+    }
+
+    ///
+    /// Returns true if this program has an output for a particular stream
+    ///
+    pub (crate) fn has_output_sink(&mut self, stream_id: &StreamId) -> bool {
+        self.outputs.contains_key(stream_id)
     }
 
     ///
