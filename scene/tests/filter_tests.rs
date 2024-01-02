@@ -145,7 +145,7 @@ fn connect_all_both_filtered_and_unfiltered() {
                 sent_messages.lock().unwrap().push(next_string);
             }
         },
-        0,
+        3,
     );
 
     // Add another program that outputs some numbers to the first program
@@ -188,7 +188,13 @@ fn connect_all_both_filtered_and_unfiltered() {
     // Received output should match the numbers
     // TODO: while 1,2,3,4,5,6,7,8 will be in order, 1,2,3,4 and 5,6,7,8 may be mixed together
     let recv_messages = (*recv_messages.lock().unwrap()).clone();
-    assert!(recv_messages == vec![1.to_string(), 2.to_string(), 3.to_string(), 4.to_string(), 5.to_string(), 6.to_string(), 7.to_string(), 8.to_string()], "Test program did not send correct numbers (sent {:?})", recv_messages);
+    let one_to_four     = recv_messages.iter().filter(|msg| *msg == "1" || *msg == "2" || *msg == "3" || *msg == "4").cloned().collect::<Vec<_>>();
+    let five_to_eight   = recv_messages.iter().filter(|msg| *msg == "5" || *msg == "6" || *msg == "7" || *msg == "8").cloned().collect::<Vec<_>>();
+
+    // The messages can appear interleaved from the two programs but should otherwise be in order
+    assert!(recv_messages.len() == 8, "Wrong number of messages received: {:?}", recv_messages);
+    assert!(one_to_four == vec![1.to_string(), 2.to_string(), 3.to_string(), 4.to_string()], "Test program did not send correct numbers (sent {:?})", recv_messages);
+    assert!(five_to_eight == vec![5.to_string(), 6.to_string(), 7.to_string(), 8.to_string()], "Test program did not send correct numbers (sent {:?})", recv_messages);
     assert!(has_finished, "Scene did not finish when the programs terminated");
 }
 
