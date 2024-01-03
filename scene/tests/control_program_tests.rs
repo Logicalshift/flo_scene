@@ -127,7 +127,7 @@ fn ask_control_to_connect_and_close_programs() {
             string_output.send("4".to_string()).await;
 
             println!("Close stream");
-            context.send_message(SceneControl::Close(receiver_program));
+            context.send_message(SceneControl::Close(receiver_program)).await;
         }, 
         0);
 
