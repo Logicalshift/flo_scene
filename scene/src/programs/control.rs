@@ -132,6 +132,13 @@ impl SceneControl {
     }
 
     ///
+    /// Creates a 'connect' message
+    ///
+    pub fn connect(source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream_id: impl Into<StreamId>) -> Self {
+        SceneControl::Connect(source.into(), target.into(), stream_id.into())
+    }
+
+    ///
     /// Runs the scene control program
     ///
     pub (crate) async fn scene_control_program(input: InputStream<Self>, context: SceneContext) {
