@@ -183,16 +183,19 @@ impl SceneControl {
                     // Try to close the input stream for a subprogram
                     if let Some(scene_core) = scene_core.upgrade() {
                         let waker = {
-                            let program = scene_core.lock().unwrap().get_sub_program(sub_program_id);
+                            let program     = scene_core.lock().unwrap().get_sub_program(sub_program_id);
+                            let input_core  = scene_core.lock().unwrap().get_input_stream_core(sub_program_id);
 
-                            if let Some(program) = program {
-                                program.lock().unwrap().close()
+                            if let (Some(program), Some(input_core)) = (program, input_core) {
+                                let input_stream_id = program.lock().unwrap().input_stream_id();
+
+                                input_stream_id.close_input(&input_core)
                             } else {
-                                None
+                                Ok(None)
                             }
                         };
 
-                        if let Some(waker) = waker {
+                        if let Ok(Some(waker)) = waker {
                             waker.wake()
                         }
                     }

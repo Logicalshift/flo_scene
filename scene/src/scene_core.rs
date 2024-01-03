@@ -32,14 +32,14 @@ pub (crate) struct SubProgramCore {
     /// The ID of the process in the core that is running this subprogram
     process_id: ProcessHandle,
 
+    /// The stream ID of the input stream to this subprogram
+    input_stream_id: StreamId,
+
     /// The ID of this program
     id: SubProgramId,
 
     /// The output sink targets for this sub-program
     outputs: HashMap<StreamId, Arc<dyn Send + Sync + Any>>,
-
-    /// Callback that closes the stream for this subprogram
-    close: Box<dyn Send + Sync + Fn() -> Option<Waker>>,
 
     /// The name of the expected input type of this program
     expected_input_type_name: &'static str,
@@ -150,21 +150,11 @@ impl SceneCore {
                 }
             });
 
-            // We need a callback for closing the input stream
-            let close_stream    = Arc::downgrade(&input_core);
-            let close_callback  = move || {
-                if let Some(close_stream) = close_stream.upgrade() {
-                    close_stream.lock().unwrap().close()
-                } else {
-                    None
-                }
-            };
-
             // Create the sub-program data
             let subprogram = SubProgramCore {
                 id:                         program_id.clone(),
+                input_stream_id:            StreamId::with_message_type::<TMessage>(),
                 outputs:                    HashMap::new(),
-                close:                      Box::new(close_callback),
                 expected_input_type_name:   type_name::<TMessage>(),
                 process_id:                 process_handle,
             };
@@ -276,12 +266,30 @@ impl SceneCore {
                 let sub_program_id = sub_program.lock().unwrap().id;
 
                 if source.matches_subprogram(&sub_program_id) {
+                    // Reconnect the program
                     reconnect_subprogram(&sub_program);
+
+                    // Wake the input stream
+                    let waker = core.lock().unwrap().wake_subprogram_input_stream(sub_program_id);
+                    if let Some(waker) = waker {
+                        waker.wake();
+                    }
                 }
             }
         }
 
         Ok(())
+    }
+
+    ///
+    /// Returns the waker for a subprogram's input stream
+    ///
+    fn wake_subprogram_input_stream(&self, program_id: SubProgramId) -> Option<Waker> {
+        let handle      = self.program_indexes.get(&program_id)?;
+        let input_core  = self.sub_program_inputs.get(*handle)?.as_ref()?;
+
+        // ... TODO
+        None
     }
 
     ///
@@ -460,6 +468,19 @@ impl SceneCore {
     }
 
     ///
+    /// Retrieves the input stream core for a subprogram, if it exists
+    ///
+    pub (crate) fn get_input_stream_core(&self, sub_program_id: SubProgramId) -> Option<Arc<dyn Send + Sync + Any>> {
+        let handle = self.program_indexes.get(&sub_program_id)?;
+
+        if let Some(input_stream_core) = self.sub_program_inputs.get(*handle) {
+            input_stream_core.clone()
+        } else {
+            None
+        }
+    }
+
+    ///
     /// Stops this scene, returning the wakers that need to be invoked to finish stopping it
     ///
     pub (crate) fn stop(&mut self) -> Vec<Waker> {
@@ -478,6 +499,13 @@ impl SubProgramCore {
     ///
     pub (crate) fn program_id(&self) -> &SubProgramId {
         &self.id
+    }
+
+    ///
+    /// Retrieves the ID of the input stream for this subprogram
+    ///
+    pub (crate) fn input_stream_id(&self) -> StreamId {
+        self.input_stream_id.clone()
     }
 
     ///
@@ -556,13 +584,6 @@ impl SubProgramCore {
             // This stream has an output matching the stream
             stream_id.connect_output_to_discard(output_sink).expect("Stream type does not match");
         }
-    }
-
-    ///
-    /// Closes the stream associated with this subprogram, returning the waker if there is one
-    ///
-    pub (crate) fn close(&mut self) -> Option<Waker> {
-        (self.close)()
     }
 }
 
