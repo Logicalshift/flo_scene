@@ -2,6 +2,7 @@ use crate::input_stream::*;
 use crate::output_sink::*;
 use crate::stream_target::*;
 
+use futures::task::{Waker};
 use once_cell::sync::{Lazy};
 
 use std::any::*;
@@ -22,6 +23,9 @@ struct StreamTypeFunctions {
 
     /// Disconnects an OutputSinkTarget, causing it to wait for a new connection to be made
     disconnect_output: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ()>>,
+
+    /// Closes the input to a stream
+    close_input: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ()>>,
 }
 
 ///
@@ -86,6 +90,13 @@ impl StreamTypeFunctions {
 
                 Ok(())
             }),
+
+            close_input: Arc::new(|input_stream_any| {
+                let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ())?;
+                let waker           = input_stream.lock().unwrap().close();
+
+                Ok(waker)
+            })
         }
     }
 
@@ -126,6 +137,13 @@ impl StreamTypeFunctions {
 
         stream_type_functions.get(&type_id)
             .map(|all_functions| Arc::clone(&all_functions.disconnect_output))
+    }
+
+    pub fn close_input(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ()>>> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(&type_id)
+            .map(|all_functions| Arc::clone(&all_functions.close_input))
     }
 }
 
@@ -231,6 +249,18 @@ impl StreamId {
         if let Some(connect_input) = StreamTypeFunctions::disconnect_output(&message_type) {
             // Connect the input to the output
             (connect_input)(output_sink)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(())
+        }
+    }
+
+    pub (crate) fn close_input(&self, input_stream: &Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ()> {
+        let message_type = self.message_type();
+
+        if let Some(close_input) = StreamTypeFunctions::close_input(&message_type) {
+            // Connect the input to the output
+            (close_input)(input_stream)
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(())
