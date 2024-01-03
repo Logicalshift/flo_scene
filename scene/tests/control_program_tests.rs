@@ -101,10 +101,12 @@ fn ask_control_to_connect_and_close_programs() {
         move |mut input: InputStream<String>, _| async move {
             // Read input for as long as the stream is open
             while let Some(input) = input.next().await {
+                println!("Received");
                 sent_messages.lock().unwrap().push(input);
             }
 
             // Stop the scene once the input is stopped
+            println!("Closed, stopping");
             scene_context().unwrap().send_message(SceneControl::StopScene).await.unwrap(); 
         }, 
         0);
@@ -115,11 +117,16 @@ fn ask_control_to_connect_and_close_programs() {
         move |_: InputStream<()>, context| async move {
             let mut string_output = context.send::<String>(()).unwrap();
 
+            println!("Send 1...");
             string_output.send("1".to_string()).await;
+            println!("Send 2...");
             string_output.send("2".to_string()).await;
+            println!("Send 3...");
             string_output.send("3".to_string()).await;
+            println!("Send 4...");
             string_output.send("4".to_string()).await;
 
+            println!("Close stream");
             context.send_message(SceneControl::Close(receiver_program));
         }, 
         0);
@@ -128,7 +135,9 @@ fn ask_control_to_connect_and_close_programs() {
     scene.add_subprogram(
         connection_program, 
         move |_: InputStream<()>, context| async move {
+            println!("Requesting connect...");
             context.send_message(SceneControl::connect(sender_program, receiver_program, StreamId::with_message_type::<String>())).await.unwrap();
+            println!("Requested");
         },
         0);
 
