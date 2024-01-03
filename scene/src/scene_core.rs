@@ -511,7 +511,7 @@ impl SubProgramCore {
     ///
     /// Returns the existing output core for a stream ID, if it exists in this subprogram
     ///
-    pub (crate) fn output_target<TMessageType>(&self, id: &StreamId) -> Option<Arc<Mutex<OutputSinkCore<TMessageType>>>> 
+    pub (crate) fn output_core<TMessageType>(&self, id: &StreamId) -> Option<Arc<Mutex<OutputSinkCore<TMessageType>>>> 
     where
         TMessageType: 'static + Send + Sync,
     {

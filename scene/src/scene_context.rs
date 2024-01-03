@@ -56,14 +56,14 @@ impl SceneContext {
             };
 
             // Try to re-use an existing target
-            let (existing_target, program_id) = {
+            let (existing_core, program_id) = {
                 let program_core = program_core.lock().unwrap();
-                (program_core.output_target(&stream_id), program_core.program_id().clone())
+                (program_core.output_core(&stream_id), program_core.program_id().clone())
             };
 
-            if let Some(existing_target) = existing_target {
+            if let Some(existing_core) = existing_core {
                 // This program has previously created a stream for this target (or had a stream connected by the scene)
-                let sink = OutputSink::attach(program_id, existing_target);
+                let sink = OutputSink::attach(program_id, existing_core);
 
                 Ok(sink)
             } else {
