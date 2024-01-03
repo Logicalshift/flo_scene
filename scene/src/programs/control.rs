@@ -1,17 +1,41 @@
+use crate::input_stream::*;
+use crate::scene_context::*;
+use crate::scene_core::*;
 use crate::stream_id::*;
 use crate::stream_source::*;
 use crate::stream_target::*;
 use crate::subprogram_id::*;
 
+use futures::prelude::*;
+use futures::future::{poll_fn};
+use futures::channel::oneshot;
+use futures::{pin_mut};
 use once_cell::sync::{Lazy};
 
+use std::any::*;
+use std::fmt;
+use std::fmt::{Debug, Formatter};
+use std::sync::*;
+
+/// The identifier for the standard scene control program
 pub static SCENE_CONTROL_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("SCENE_CONTROL_PROGRAM"));
+
+///
+/// Represents a program start function
+///
+#[derive(Clone)]
+pub struct SceneProgramFn(Arc<dyn Send + Any>);
 
 ///
 /// Messages that can be sent to the main scene control program
 ///
 #[derive(Clone, Debug)]
 pub enum SceneControl {
+    ///
+    /// Starts a new sub-program in this scene
+    ///
+    Start(SubProgramId, SceneProgramFn),
+
     ///
     /// Sets up a connection between the output of a source to a target. The StreamId identifies which output in the
     /// source is being connected.
@@ -36,9 +60,70 @@ pub enum SceneControl {
 ///
 #[derive(Clone, Debug)]
 pub enum SceneUpdate {
+    /// A subprogram has started
+    Started(SubProgramId),
+
     /// The output specified by the stream ID for the first subprogram has been connected to the input for the second
     Connected(SubProgramId, SubProgramId, StreamId),
 
     /// A subprogram has finished running
     Stopped(SubProgramId),
+}
+
+impl Debug for SceneProgramFn {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "SceneProgramFn(...)")
+    }
+}
+
+impl SceneControl {
+    ///
+    /// Creates a start program message for the scene control subprogram
+    ///
+    pub fn start_program<TProgramFn, TInputMessage, TFuture>(&self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
+    where
+        TFuture:        Send + Sync + Future<Output=()>,
+        TInputMessage:  'static + Unpin + Send + Sync,
+        TProgramFn:     'static + Send + Sync + Fn(InputStream<TInputMessage>, SceneContext) -> TFuture,
+    {
+        // TODO: this is the same 'start' procedure as appears in the main 'Scene' type
+        let program     = Arc::new(program);
+        let start_fn    = move |scene_core: Arc<Mutex<SceneCore>>| {
+            // Create the context and input stream for the program
+            let input_stream    = InputStream::new(max_input_waiting);
+            let input_core      = input_stream.core();
+
+            // Create the future that will be used to run the future
+            let (send_context, recv_context)    = oneshot::channel::<SceneContext>();
+            let program                         = Arc::clone(&program);
+            let run_program = async move {
+                if let Ok(scene_context) = recv_context.await {
+                    // Start the program running
+                    let program = with_scene_context(&scene_context, || program(input_stream, scene_context.clone()));
+                    pin_mut!(program);
+
+                    // Poll the program with the scene context set
+                    poll_fn(|mut context| {
+                        with_scene_context(&scene_context, || {
+                            program.as_mut().poll(&mut context)
+                        })
+                    }).await;
+                }
+            };
+
+            // Start the program running
+            let subprogram = SceneCore::start_subprogram(&scene_core, program_id, run_program, input_core);
+
+            // Create the scene context, and send it to the subprogram
+            let context = SceneContext::new(&scene_core, &subprogram);
+            send_context.send(context).ok();
+        };
+
+        // Turn the function into a SceneProgramFn
+        let start_fn: Box<dyn Send + Fn(Arc<Mutex<SceneCore>>) -> ()> = Box::new(start_fn);
+        let start_fn = SceneProgramFn(Arc::new(start_fn));
+
+        // Wrap this in a message
+        SceneControl::Start(program_id, start_fn)
+    }
 }
