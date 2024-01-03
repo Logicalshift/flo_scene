@@ -1,3 +1,4 @@
+use crate::error::*;
 use crate::input_stream::*;
 use crate::scene_context::*;
 use crate::scene_core::*;
@@ -24,7 +25,7 @@ pub static SCENE_CONTROL_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId
 /// Represents a program start function
 ///
 #[derive(Clone)]
-pub struct SceneProgramFn(Arc<dyn Send + Any>);
+pub struct SceneProgramFn(Arc<dyn Send + Sync + Any>);
 
 ///
 /// Messages that can be sent to the main scene control program
@@ -66,6 +67,9 @@ pub enum SceneUpdate {
     /// The output specified by the stream ID for the first subprogram has been connected to the input for the second
     Connected(SubProgramId, SubProgramId, StreamId),
 
+    /// A requested connection failed to be made for some reason
+    FailedConnection(ConnectionError, StreamSource, StreamTarget, StreamId),
+
     /// A subprogram has finished running
     Stopped(SubProgramId),
 }
@@ -86,7 +90,7 @@ impl SceneControl {
         TInputMessage:  'static + Unpin + Send + Sync,
         TProgramFn:     'static + Send + Sync + Fn(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
-        // TODO: this is the same 'start' procedure as appears in the main 'Scene' type
+        // TODO: this is almost the same 'start' procedure as appears in the main 'Scene' type (modified because control requests are cloneable so the start function has to be 'Sync')
         let program     = Arc::new(program);
         let start_fn    = move |scene_core: Arc<Mutex<SceneCore>>| {
             // Create the context and input stream for the program
@@ -120,10 +124,78 @@ impl SceneControl {
         };
 
         // Turn the function into a SceneProgramFn
-        let start_fn: Box<dyn Send + Fn(Arc<Mutex<SceneCore>>) -> ()> = Box::new(start_fn);
+        let start_fn: Box<dyn Send + Sync + Fn(Arc<Mutex<SceneCore>>) -> ()> = Box::new(start_fn);
         let start_fn = SceneProgramFn(Arc::new(start_fn));
 
         // Wrap this in a message
         SceneControl::Start(program_id, start_fn)
+    }
+
+    ///
+    /// Runs the scene control program
+    ///
+    pub (crate) async fn scene_control_program(input: InputStream<Self>, context: SceneContext) {
+        // Most of the scene control program's functionality is performed by manipulating the scene core directly
+        let scene_core  = context.scene_core();
+        let mut updates = context.send::<SceneUpdate>(StreamTarget::None).unwrap();
+
+        // The program runs until the input is exhausted
+        let mut input = input;
+        while let Some(request) = input.next().await {
+            use SceneControl::*;
+
+            match request {
+                Start(_program_id, start_fn) => {
+                    // Downcast the start function and call it
+                    if let Some(scene_core) = scene_core.upgrade() {
+                        let start_fn = start_fn.0.downcast::<Box<dyn Send + Sync + Fn(Arc<Mutex<SceneCore>>) -> ()>>();
+
+                        if let Ok(start_fn) = start_fn {
+                            (*start_fn)(scene_core);
+                        }
+                    } else {
+                        break;
+                    }
+                },
+
+                Connect(source, target, stream) => {
+                    if let Some(scene_core) = scene_core.upgrade() {
+                        // Try to connect the program and send an update if the sending failed
+                        match SceneCore::connect_programs(&scene_core, source.clone(), target.clone(), stream.clone()) {
+                            Ok(())      => { }
+                            Err(error)  => {
+                                updates.send(SceneUpdate::FailedConnection(error, source, target, stream)).await.ok();
+                            }
+                        }
+                    } else {
+                        break;
+                    }
+                },
+
+                Close(sub_program_id) => {
+                    // Try to close the input stream for a subprogram
+                    if let Some(scene_core) = scene_core.upgrade() {
+                        let waker = {
+                            let program = scene_core.lock().unwrap().get_sub_program(sub_program_id);
+
+                            if let Some(program) = program {
+                                program.lock().unwrap().close()
+                            } else {
+                                None
+                            }
+                        };
+
+                        if let Some(waker) = waker {
+                            waker.wake()
+                        }
+                    }
+                },
+
+                StopScene => {
+                    // TODO: Need a flag to mark the scene as stopped + wake up all the threads to say so
+                    todo!()
+                },
+            }
+        }
     }
 }
