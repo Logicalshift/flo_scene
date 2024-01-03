@@ -186,7 +186,6 @@ fn connect_all_both_filtered_and_unfiltered() {
     }.boxed(), Delay::new(Duration::from_millis(5000))));
 
     // Received output should match the numbers
-    // TODO: while 1,2,3,4,5,6,7,8 will be in order, 1,2,3,4 and 5,6,7,8 may be mixed together
     let recv_messages = (*recv_messages.lock().unwrap()).clone();
     let one_to_four     = recv_messages.iter().filter(|msg| *msg == "1" || *msg == "2" || *msg == "3" || *msg == "4").cloned().collect::<Vec<_>>();
     let five_to_eight   = recv_messages.iter().filter(|msg| *msg == "5" || *msg == "6" || *msg == "7" || *msg == "8").cloned().collect::<Vec<_>>();
