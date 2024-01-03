@@ -38,6 +38,9 @@ pub (crate) struct SubProgramCore {
     /// The output sink targets for this sub-program
     outputs: HashMap<StreamId, Arc<dyn Send + Sync + Any>>,
 
+    /// Callback that closes the stream for this subprogram
+    close: Box<dyn Send + Sync + Fn() -> Option<Waker>>,
+
     /// The name of the expected input type of this program
     expected_input_type_name: &'static str,
 }
@@ -143,10 +146,21 @@ impl SceneCore {
                 }
             });
 
+            // We need a callback for closing the input stream
+            let close_stream    = Arc::downgrade(&input_core);
+            let close_callback  = move || {
+                if let Some(close_stream) = close_stream.upgrade() {
+                    close_stream.lock().unwrap().close()
+                } else {
+                    None
+                }
+            };
+
             // Create the sub-program data
             let subprogram = SubProgramCore {
                 id:                         program_id.clone(),
                 outputs:                    HashMap::new(),
+                close:                      Box::new(close_callback),
                 expected_input_type_name:   type_name::<TMessage>(),
                 process_id:                 process_handle,
             };
@@ -532,8 +546,7 @@ impl SubProgramCore {
     /// Closes the stream associated with this subprogram, returning the waker if there is one
     ///
     pub (crate) fn close(&mut self) -> Option<Waker> {
-        // TODO!
-        None
+        (self.close)()
     }
 }
 
