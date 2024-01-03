@@ -127,9 +127,12 @@ where
                 },
                 OutputSinkTarget::Discard => Poll::Ready(Ok(())),
 
-                OutputSinkTarget::Input(core)               |
-                OutputSinkTarget::CloseWhenDropped(core)    => {
-                    if core.upgrade().is_none() {
+                OutputSinkTarget::Input(input_core)               |
+                OutputSinkTarget::CloseWhenDropped(input_core)    => {
+                    if input_core.upgrade().is_none() {
+                        // Downgrade to a disconnected core so the sending can be retried
+                        core.target = OutputSinkTarget::Disconnected;
+
                         // Error if the target program is not running any more
                         Poll::Ready(Err(SceneSendError::TargetProgramEnded))
                     } else {
@@ -146,7 +149,7 @@ where
 
         self.yield_after_sending = false;
 
-        let core = self.core.lock().unwrap();
+        let mut core = self.core.lock().unwrap();
         match &core.target {
             OutputSinkTarget::Disconnected                  => {
                 mem::drop(core);
@@ -188,6 +191,9 @@ where
                         }
                     }
                 } else {
+                    // Downgrade to a disconnected core so the sending can be retried
+                    core.target = OutputSinkTarget::Disconnected;
+
                     // Target program is not available
                     Err(SceneSendError::TargetProgramEnded)
                 }
@@ -273,6 +279,9 @@ where
                         Poll::Ready(Ok(()))
                     }
                 } else {
+                    // Downgrade to a disconnected core so the sending can be retried
+                    core.target = OutputSinkTarget::Disconnected;
+
                     // When the core is released during a send, the target program has terminated, so we generate an error
                     core.when_target_changed    = Some(context.waker().clone());
                     Poll::Ready(Err(SceneSendError::TargetProgramEnded))
