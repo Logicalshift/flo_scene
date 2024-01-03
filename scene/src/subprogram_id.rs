@@ -8,7 +8,9 @@ static IDS_FOR_NAMES: Lazy<RwLock<HashMap<String, usize>>> = Lazy::new(|| RwLock
 static NAMES_FOR_IDS: Lazy<RwLock<Vec<String>>>            = Lazy::new(|| RwLock::new(vec![]));
 
 fn id_for_name(name: &str) -> usize {
-    if let Some(id) = IDS_FOR_NAMES.read().unwrap().get(name).copied() {
+    let id = { IDS_FOR_NAMES.read().unwrap().get(name).copied() };
+
+    if let Some(id) = id {
         // ID already exists
         id
     } else {
