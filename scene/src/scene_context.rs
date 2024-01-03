@@ -83,6 +83,13 @@ impl SceneContext {
             todo!()
         }
     }
+
+    ///
+    /// Retrieves the scene core for this context
+    ///
+    pub (crate) fn scene_core(&self) -> Weak<Mutex<SceneCore>> {
+        self.scene_core.clone()
+    }
 }
 
 thread_local! {
