@@ -145,7 +145,12 @@ where
                 Ok(())
             },
 
-            OutputSinkTarget::Discard                       => Ok(()),
+            OutputSinkTarget::Discard                       => {
+                mem::drop(core);
+                if let Some(when_message_sent) = self.when_message_sent.take() { when_message_sent.wake(); }
+                self.waiting_message = None;
+                Ok(())
+            },
 
             OutputSinkTarget::Input(input_core)             |
             OutputSinkTarget::CloseWhenDropped(input_core)  => {
@@ -194,6 +199,11 @@ where
 
             // Indicate that we're pending
             return Poll::Pending;
+        }
+
+        // If there's no waiting message, then it has been sent and there's no work to do
+        if self.waiting_message.is_none() {
+            return Poll::Ready(Ok(()));
         }
 
         // Disable any existing waker for this future
