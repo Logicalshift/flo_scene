@@ -192,8 +192,13 @@ impl SceneControl {
                 },
 
                 StopScene => {
-                    // TODO: Need a flag to mark the scene as stopped + wake up all the threads to say so
-                    todo!()
+                    if let Some(scene_core) = scene_core.upgrade() {
+                        // Tell the core to stop (note: awaits won't return at this point!)
+                        let wakers = scene_core.lock().unwrap().stop();
+
+                        // Wake all the threads so they stop the core
+                        wakers.into_iter().for_each(|waker| waker.wake());
+                    }
                 },
             }
         }
