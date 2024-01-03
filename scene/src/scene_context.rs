@@ -85,6 +85,20 @@ impl SceneContext {
     }
 
     ///
+    /// Sends a single message to the default output of that type
+    ///
+    pub async fn send_message<TMessageType>(&self, message: TMessageType) -> Result<(), ConnectionError> 
+    where
+        TMessageType: 'static + Unpin + Send + Sync,
+    {
+        let mut stream = self.send::<TMessageType>(())?;
+
+        stream.send(message).await;
+
+        Ok(())
+    }
+
+    ///
     /// Retrieves the scene core for this context
     ///
     pub (crate) fn scene_core(&self) -> Weak<Mutex<SceneCore>> {
