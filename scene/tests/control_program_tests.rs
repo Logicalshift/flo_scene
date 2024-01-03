@@ -77,7 +77,71 @@ fn ask_control_to_start_program() {
         has_stopped = true;
     }.boxed(), Delay::new(Duration::from_millis(5000))));
 
-    // Should have stopped the scene and not just timed out
+    // Should have started the subprogram, then stopped the scene
     assert!(*has_started.lock().unwrap() == true, "Subprogram did not start");
+    assert!(has_stopped, "Scene did not stop");
+}
+
+#[test]
+fn ask_control_to_connect_and_close_programs() {
+    // The default scene has the 'control' program in it
+    let scene           = Scene::default();
+
+    // We have three programs: one that receives messages, one that sends messages and one that connects them together
+    let recv_messages = Arc::new(Mutex::new(vec![]));
+
+    let sender_program      = SubProgramId::new();
+    let receiver_program    = SubProgramId::new();
+    let connection_program  = SubProgramId::new();
+
+    // The receiver program adds its input to the recv_messages list
+    let sent_messages       = recv_messages.clone();
+    scene.add_subprogram(
+        receiver_program, 
+        move |mut input: InputStream<String>, _| async move {
+            // Read input for as long as the stream is open
+            while let Some(input) = input.next().await {
+                sent_messages.lock().unwrap().push(input);
+            }
+
+            // Stop the scene once the input is stopped
+            scene_context().unwrap().send_message(SceneControl::StopScene).await.unwrap(); 
+        }, 
+        0);
+
+    // The sender program sends some strings, then closes the output stream of the receiver program
+    scene.add_subprogram(
+        sender_program, 
+        move |_: InputStream<()>, context| async move {
+            let mut string_output = context.send::<String>(()).unwrap();
+
+            string_output.send("1".to_string()).await;
+            string_output.send("2".to_string()).await;
+            string_output.send("3".to_string()).await;
+            string_output.send("4".to_string()).await;
+
+            context.send_message(SceneControl::Close(receiver_program));
+        }, 
+        0);
+
+    // The connection prorgam creates a new connection from the sender to the receiver
+    scene.add_subprogram(
+        connection_program, 
+        move |_: InputStream<()>, context| async move {
+            context.send_message(SceneControl::connect(sender_program, receiver_program, StreamId::with_message_type::<String>())).await.unwrap();
+        },
+        0);
+
+    let mut has_stopped = false;
+    executor::block_on(select(async {
+        scene.run_scene().await;
+
+        has_stopped = true;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Should have sent the messages, closed down the receiver, and then stopped the scene
+    let recv_messages = (*recv_messages.lock().unwrap()).clone();
+
+    assert!(recv_messages == vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()], "Did not send the correct messages to the receiver (receiver got {:?})", recv_messages);
     assert!(has_stopped, "Scene did not stop");
 }
