@@ -52,6 +52,9 @@ pub struct OutputSink<TMessage> {
     /// The message that is being sent
     waiting_message: Option<TMessage>,
 
+    /// True if the message was sent by waking the target (we'll return Poll::Pending to yield to the target)
+    yield_after_sending: bool,
+
     /// Waker that is notified when a pending message is sent
     when_message_sent: Option<Waker>,
 }
@@ -95,6 +98,7 @@ impl<TMessage> OutputSink<TMessage> {
             program_id:             program_id,
             core:                   core,
             waiting_message:        None,
+            yield_after_sending:    false,
             when_message_sent:      None,
         }
     }
@@ -131,6 +135,8 @@ where
     fn start_send(mut self: Pin<&mut Self>, item: TMessage) -> Result<(), Self::Error> {
         use std::mem;
 
+        self.yield_after_sending = false;
+
         let core = self.core.lock().unwrap();
         match &core.target {
             OutputSinkTarget::Disconnected                  => {
@@ -154,7 +160,10 @@ where
                             self.waiting_message = None;
                             mem::drop(input_core);
 
-                            if let Some(waker) = waker { waker.wake() };
+                            if let Some(waker) = waker {
+                                self.yield_after_sending = true;
+                                waker.wake()
+                            };
                             Ok(())
                         }
 
@@ -174,6 +183,18 @@ where
 
     fn poll_flush(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         use std::mem;
+
+        // If 'yield after sending' is set, we return Poll::Pending and immediately wake ourselves up (which will give the target program a chance to run and clear the message)
+        if self.yield_after_sending {
+            // Unset the 'yield after sending' flag
+            self.yield_after_sending = false;
+
+            // Reawaken the future immediately
+            context.waker().clone().wake();
+
+            // Indicate that we're pending
+            return Poll::Pending;
+        }
 
         // Disable any existing waker for this future
         self.core.lock().unwrap().when_target_changed = None;
@@ -212,7 +233,9 @@ where
                                 mem::drop(input_core);
 
                                 if let Some(waker) = waker { waker.wake() };
-                                if let Some(when_message_sent) = self.when_message_sent.take() { when_message_sent.wake(); }
+                                if let Some(when_message_sent) = self.when_message_sent.take() { 
+                                    when_message_sent.wake();
+                                }
                                 Poll::Ready(Ok(()))
                             }
 
@@ -267,6 +290,7 @@ mod test {
                 program_id:             program_id,
                 core:                   Arc::new(Mutex::new(core)),
                 waiting_message:        None,
+                yield_after_sending:    false,
                 when_message_sent:      None,
             }
         }
