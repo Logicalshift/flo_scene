@@ -427,6 +427,19 @@ impl SceneCore {
 
         (ProcessHandle(process_id), waker)
     }
+
+    ///
+    /// Retrieves the subprogram core for an ID if it exists
+    ///
+    pub (crate) fn get_sub_program(&self, sub_program_id: SubProgramId) -> Option<Arc<Mutex<SubProgramCore>>> {
+        let handle = self.program_indexes.get(&sub_program_id)?;
+
+        if let Some(subprogram) = self.sub_programs.get(*handle) {
+            subprogram.clone()
+        } else {
+            None
+        }
+    }
 }
 
 impl SubProgramCore {
@@ -513,6 +526,14 @@ impl SubProgramCore {
             // This stream has an output matching the stream
             stream_id.connect_output_to_discard(output_sink).expect("Stream type does not match");
         }
+    }
+
+    ///
+    /// Closes the stream associated with this subprogram, returning the waker if there is one
+    ///
+    pub (crate) fn close(&mut self) -> Option<Waker> {
+        // TODO!
+        None
     }
 }
 
