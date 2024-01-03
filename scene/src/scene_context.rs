@@ -79,8 +79,8 @@ impl SceneContext {
                 })
             }
         } else {
-            // TODO: Return an error (scene or program has finished)
-            todo!()
+            // Scene or program has been stopped
+            Err(ConnectionError::TargetNotAvailable)
         }
     }
 
