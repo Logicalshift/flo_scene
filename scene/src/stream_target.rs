@@ -32,3 +32,11 @@ impl<'a> From<&'a SubProgramId> for StreamTarget {
         StreamTarget::Program(program.clone())
     }
 }
+
+/// '()' can be used in place of StreamTarget::Any
+impl From<()> for StreamTarget {
+    #[inline]
+    fn from(_: ()) -> StreamTarget {
+        StreamTarget::Any
+    }
+}
