@@ -101,7 +101,7 @@ impl Scene {
     /// ```
     /// #   use flo_scene::*;
     /// #   enum ExampleMessage { Test };
-    /// #   let scene           = Scene::default();
+    /// #   let scene           = Scene::empty();
     /// #   let subprogram      = SubProgramId::new();
     /// #   let source_program  = SubProgramId::new();
     /// #   let other_program   = SubProgramId::new();
