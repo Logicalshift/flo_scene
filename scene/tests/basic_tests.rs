@@ -63,7 +63,7 @@ fn send_output_to_subprogram_directly() {
     scene.add_subprogram(program_2,
         move |_: InputStream<()>, context| async move {
             let mut send_usize = context.send::<usize>(program_1).unwrap();
-            send_usize.send(42).await.ok().unwrap();
+            send_usize.send(42).await.unwrap();
         },
         0);
 
@@ -100,7 +100,7 @@ fn send_output_to_subprogram_via_all_connection() {
     scene.add_subprogram(program_2.clone(),
         move |_: InputStream<()>, context| async move {
             let mut send_usize = context.send::<usize>(StreamTarget::Any).unwrap();
-            send_usize.send(42).await.ok().unwrap();
+            send_usize.send(42).await.unwrap();
         },
         0);
 
@@ -140,7 +140,7 @@ fn send_output_to_subprogram_via_specific_connection() {
     scene.add_subprogram(program_2.clone(),
         move |_: InputStream<()>, context| async move {
             let mut send_usize = context.send::<usize>(StreamTarget::Any).unwrap();
-            send_usize.send(42).await.ok().unwrap();
+            send_usize.send(42).await.unwrap();
         },
         0);
 
@@ -292,7 +292,7 @@ fn send_output_via_thread_context() {
             // The 'scene_context()' value should be set while the program is running
             let context         = scene_context().unwrap();
             let mut send_usize  = context.send::<usize>(program_1).unwrap();
-            send_usize.send(42).await.ok().unwrap();
+            send_usize.send(42).await.unwrap();
         },
         0);
 
