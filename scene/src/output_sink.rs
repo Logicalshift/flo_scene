@@ -121,13 +121,22 @@ where
             let mut core = self.core.lock().unwrap();
 
             match &core.target {
-                OutputSinkTarget::Disconnected  => {
+                OutputSinkTarget::Disconnected => {
                     core.when_target_changed = Some(context.waker().clone());
                     Poll::Pending
                 },
-                OutputSinkTarget::Discard               => Poll::Ready(Ok(())),
-                OutputSinkTarget::Input(_)              => Poll::Ready(Ok(())),
-                OutputSinkTarget::CloseWhenDropped(_)   => Poll::Ready(Ok(())),
+                OutputSinkTarget::Discard => Poll::Ready(Ok(())),
+
+                OutputSinkTarget::Input(core)               |
+                OutputSinkTarget::CloseWhenDropped(core)    => {
+                    if core.upgrade().is_none() {
+                        // Error if the target program is not running any more
+                        Poll::Ready(Err(SceneSendError::TargetProgramEnded))
+                    } else {
+                        // Can send the message
+                        Poll::Ready(Ok(()))
+                    }
+                }
             }
         }
     }
@@ -179,8 +188,8 @@ where
                         }
                     }
                 } else {
-                    // We'll sleep until a new core is connected
-                    Ok(())
+                    // Target program is not available
+                    Err(SceneSendError::TargetProgramEnded)
                 }
             }
         }
