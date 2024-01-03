@@ -215,7 +215,7 @@ impl SceneCore {
     ///
     pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
         // Create a function to reconnect a subprogram
-        let reconnect_subprogram: Box<dyn Fn(&Arc<Mutex<SubProgramCore>>) -> ()> = match &target {
+        let reconnect_subprogram: Box<dyn Fn(&Arc<Mutex<SubProgramCore>>) -> Option<Waker>> = match &target {
             StreamTarget::None                  => Box::new(|sub_program| sub_program.lock().unwrap().discard_output_from(&stream_id)),
             StreamTarget::Any                   => Box::new(|sub_program| sub_program.lock().unwrap().disconnect_output_sink(&stream_id)),
 
@@ -239,8 +239,12 @@ impl SceneCore {
                         let input           = filter_handle.create_input_stream_core(&core, sub_program_id, Arc::clone(&target_input));
 
                         if let Ok(input) = input {
-                            sub_program.lock().unwrap().reconnect_output_sinks(&input, stream_id, true);
+                            sub_program.lock().unwrap().reconnect_output_sinks(&input, stream_id, true)
+                        } else {
+                            None
                         }
+                    } else {
+                        None
                     }
                 })
             },
@@ -267,10 +271,9 @@ impl SceneCore {
 
                 if source.matches_subprogram(&sub_program_id) {
                     // Reconnect the program
-                    reconnect_subprogram(&sub_program);
+                    let waker = reconnect_subprogram(&sub_program);
 
                     // Wake the input stream
-                    let waker = core.lock().unwrap().wake_subprogram_input_stream(sub_program_id);
                     if let Some(waker) = waker {
                         waker.wake();
                     }
@@ -279,17 +282,6 @@ impl SceneCore {
         }
 
         Ok(())
-    }
-
-    ///
-    /// Returns the waker for a subprogram's input stream
-    ///
-    fn wake_subprogram_input_stream(&self, program_id: SubProgramId) -> Option<Waker> {
-        let handle      = self.program_indexes.get(&program_id)?;
-        let input_core  = self.sub_program_inputs.get(*handle)?.as_ref()?;
-
-        // ... TODO
-        None
     }
 
     ///
@@ -561,30 +553,36 @@ impl SubProgramCore {
     ///
     /// Connects all of the streams that matches a particular stream ID to a new target
     ///
-    pub (crate) fn reconnect_output_sinks(&mut self, target_input: &Arc<dyn Send + Sync + Any>, stream_id: &StreamId, close_when_dropped: bool) {
+    pub (crate) fn reconnect_output_sinks(&mut self, target_input: &Arc<dyn Send + Sync + Any>, stream_id: &StreamId, close_when_dropped: bool) -> Option<Waker> {
         if let Some(output_sink) = self.outputs.get_mut(stream_id) {
             // This stream has an output matching the input (the stream types should always match)
-            stream_id.connect_output_to_input(output_sink, target_input, close_when_dropped).expect("Input and output types do not match");
+            stream_id.connect_output_to_input(output_sink, target_input, close_when_dropped).expect("Input and output types do not match")
+        } else {
+            None
         }
     }
 
     ///
     /// Disconnects an output sink for a particular stream
     ///
-    pub (crate) fn disconnect_output_sink(&mut self, stream_id: &StreamId) {
+    pub (crate) fn disconnect_output_sink(&mut self, stream_id: &StreamId) -> Option<Waker> {
         if let Some(output_sink) = self.outputs.get_mut(stream_id) {
             // This stream has an output matching the stream
-            stream_id.disconnect_output(output_sink).expect("Stream type does not match");
+            stream_id.disconnect_output(output_sink).expect("Stream type does not match")
+        } else {
+            None
         }
     }
 
     ///
     /// Discards any output sent to an output stream
     ///
-    pub (crate) fn discard_output_from(&mut self, stream_id: &StreamId) {
+    pub (crate) fn discard_output_from(&mut self, stream_id: &StreamId) -> Option<Waker> {
         if let Some(output_sink) = self.outputs.get_mut(stream_id) {
             // This stream has an output matching the stream
-            stream_id.connect_output_to_discard(output_sink).expect("Stream type does not match");
+            stream_id.connect_output_to_discard(output_sink).expect("Stream type does not match")
+        } else {
+            None
         }
     }
 }

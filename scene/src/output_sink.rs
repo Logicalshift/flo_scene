@@ -34,7 +34,7 @@ pub (crate) struct OutputSinkCore<TMessage> {
     pub (crate) target: OutputSinkTarget<TMessage>,
 
     /// Waker that is notified when the target is changed
-    when_target_changed: Option<Waker>,
+    pub (crate) when_target_changed: Option<Waker>,
 }
 
 ///

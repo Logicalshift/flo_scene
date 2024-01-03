@@ -16,13 +16,13 @@ static STREAM_TYPE_FUNCTIONS: Lazy<RwLock<HashMap<TypeId, StreamTypeFunctions>>>
 ///
 struct StreamTypeFunctions {
     /// Connects an OutputSinkCore to a InputStreamCore
-    connect_output_to_input: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>, bool) -> Result<(), ()>>,
+    connect_output_to_input: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>, bool) -> Result<Option<Waker>, ()>>,
 
     /// Connects an OutputSinkCore to a stream that discards everything
-    connect_output_to_discard: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ()>>,
+    connect_output_to_discard: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ()>>,
 
     /// Disconnects an OutputSinkCore, causing it to wait for a new connection to be made
-    disconnect_output: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ()>>,
+    disconnect_output: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ()>>,
 
     /// Closes the input to a stream
     close_input: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ()>>,
@@ -66,29 +66,47 @@ impl StreamTypeFunctions {
                 let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ())?;
 
                 // Connect the input stream core to the output target
-                output_sink.lock().unwrap().target = if !close_when_dropped {
-                    OutputSinkTarget::Input(Arc::downgrade(&input_stream))
-                } else {
-                    OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&input_stream))
+                let waker = {
+                    let mut output_sink = output_sink.lock().unwrap();
+
+                    output_sink.target  = if !close_when_dropped {
+                        OutputSinkTarget::Input(Arc::downgrade(&input_stream))
+                    } else {
+                        OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&input_stream))
+                    };
+
+                    output_sink.when_target_changed.take()
                 };
 
-                Ok(())
+                Ok(waker)
             }),
 
             connect_output_to_discard: Arc::new(|output_sink_any| {
                 // Cast the output sink to the appropriate type and set it as discarding any input
-                let output_sink     = output_sink_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ())?;
-                output_sink.lock().unwrap().target = OutputSinkTarget::Discard;
+                let output_sink = output_sink_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ())?;
 
-                Ok(())
+                let waker = {
+                    let mut output_sink = output_sink.lock().unwrap();
+
+                    output_sink.target = OutputSinkTarget::Discard;
+                    output_sink.when_target_changed.take()
+                };
+
+                Ok(waker)
             }),
 
             disconnect_output: Arc::new(|output_sink_any| {
                 // Cast the output sink to the appropriate type and set it as disconnected
-                let output_sink     = output_sink_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ())?;
-                output_sink.lock().unwrap().target = OutputSinkTarget::Disconnected;
+                let output_sink = output_sink_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ())?;
 
-                Ok(())
+                let waker = {
+                    let mut output_sink = output_sink.lock().unwrap();
+
+                    output_sink.target = OutputSinkTarget::Disconnected;
+                    output_sink.when_target_changed.take()
+                };
+
+                Ok(waker)
             }),
 
             close_input: Arc::new(|input_stream_any| {
@@ -117,7 +135,7 @@ impl StreamTypeFunctions {
     ///
     /// Retrieves the 'connect input to output' function for a particular type ID, if it exists
     ///
-    pub fn connect_output_to_input(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>, bool) -> Result<(), ()>>> {
+    pub fn connect_output_to_input(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>, bool) -> Result<Option<Waker>, ()>>> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
         stream_type_functions.get(&type_id)
@@ -125,14 +143,14 @@ impl StreamTypeFunctions {
     }
 
 
-    pub fn connect_output_to_discard(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ()>>> {
+    pub fn connect_output_to_discard(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ()>>> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
         stream_type_functions.get(&type_id)
             .map(|all_functions| Arc::clone(&all_functions.connect_output_to_discard))
     }
 
-    pub fn disconnect_output(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ()>>> {
+    pub fn disconnect_output(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ()>>> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
         stream_type_functions.get(&type_id)
@@ -209,7 +227,7 @@ impl StreamId {
     ///
     /// Note that this locks the output target.
     ///
-    pub (crate) fn connect_output_to_input(&self, output_sink: &Arc<dyn Send + Sync + Any>, input_stream: &Arc<dyn Send + Sync + Any>, close_when_dropped: bool) -> Result<(), ()> {
+    pub (crate) fn connect_output_to_input(&self, output_sink: &Arc<dyn Send + Sync + Any>, input_stream: &Arc<dyn Send + Sync + Any>, close_when_dropped: bool) -> Result<Option<Waker>, ()> {
         let message_type = self.message_type();
 
         if let Some(connect_input) = StreamTypeFunctions::connect_output_to_input(&message_type) {
@@ -226,7 +244,7 @@ impl StreamId {
     ///
     /// Note that this locks the output target.
     ///
-    pub (crate) fn connect_output_to_discard(&self, output_sink: &Arc<dyn Send + Sync + Any>) -> Result<(), ()> {
+    pub (crate) fn connect_output_to_discard(&self, output_sink: &Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ()> {
         let message_type = self.message_type();
 
         if let Some(connect_input) = StreamTypeFunctions::connect_output_to_discard(&message_type) {
@@ -243,7 +261,7 @@ impl StreamId {
     ///
     /// Note that this locks the output target.
     ///
-    pub (crate) fn disconnect_output(&self, output_sink: &Arc<dyn Send + Sync + Any>) -> Result<(), ()> {
+    pub (crate) fn disconnect_output(&self, output_sink: &Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ()> {
         let message_type = self.message_type();
 
         if let Some(connect_input) = StreamTypeFunctions::disconnect_output(&message_type) {
