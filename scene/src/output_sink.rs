@@ -1,4 +1,6 @@
-use crate::{input_stream::*, SubProgramId};
+use crate::error::*;
+use crate::input_stream::*;
+use crate::subprogram_id::*;
 
 use futures::prelude::*;
 use futures::task::{Poll, Waker};
@@ -102,7 +104,7 @@ impl<TMessage> Sink<TMessage> for OutputSink<TMessage>
 where
     TMessage: Unpin,
 {
-    type Error = ();
+    type Error = SceneSendError;
 
     fn poll_ready(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         // Say we're waiting if there's an input value waiting

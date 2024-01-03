@@ -118,16 +118,16 @@ fn ask_control_to_connect_and_close_programs() {
             let mut string_output = context.send::<String>(()).unwrap();
 
             println!("Send 1...");
-            string_output.send("1".to_string()).await;
+            string_output.send("1".to_string()).await.unwrap();
             println!("Send 2...");
-            string_output.send("2".to_string()).await;
+            string_output.send("2".to_string()).await.unwrap();
             println!("Send 3...");
-            string_output.send("3".to_string()).await;
+            string_output.send("3".to_string()).await.unwrap();
             println!("Send 4...");
-            string_output.send("4".to_string()).await;
+            string_output.send("4".to_string()).await.unwrap();
 
             println!("Close stream");
-            context.send_message(SceneControl::Close(receiver_program)).await;
+            context.send_message(SceneControl::Close(receiver_program)).await.unwrap();
         }, 
         0);
 

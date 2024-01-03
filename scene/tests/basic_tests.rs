@@ -184,16 +184,16 @@ fn retrieve_subprogram_id() {
         move |_: InputStream<()>, context| async move {
             let mut target = context.send::<String>(program_1).unwrap();
 
-            target.send("Program 2 message 1".into()).await.ok();
-            target.send("Program 2 message 2".into()).await.ok();
+            target.send("Program 2 message 1".into()).await.unwrap();
+            target.send("Program 2 message 2".into()).await.unwrap();
         }, 0);
 
     scene.add_subprogram(program_3,
         move |_: InputStream<()>, context| async move {
             let mut target = context.send::<String>(program_1).unwrap();
 
-            target.send("Program 3 message 1".into()).await.ok();
-            target.send("Program 3 message 2".into()).await.ok();
+            target.send("Program 3 message 1".into()).await.unwrap();
+            target.send("Program 3 message 2".into()).await.unwrap();
         }, 0);
 
     // Run this scene
@@ -238,16 +238,16 @@ fn connect_multiple_prorgams_via_any_connection() {
         move |_: InputStream<()>, context| async move {
             let mut target = context.send::<String>(StreamTarget::Any).unwrap();
 
-            target.send("Program 2 message 1".into()).await.ok();
-            target.send("Program 2 message 2".into()).await.ok();
+            target.send("Program 2 message 1".into()).await.unwrap();
+            target.send("Program 2 message 2".into()).await.unwrap();
         }, 0);
 
     scene.add_subprogram(program_3,
         move |_: InputStream<()>, context| async move {
             let mut target = context.send::<String>(StreamTarget::Any).unwrap();
 
-            target.send("Program 3 message 1".into()).await.ok();
-            target.send("Program 3 message 2".into()).await.ok();
+            target.send("Program 3 message 1".into()).await.unwrap();
+            target.send("Program 3 message 2".into()).await.unwrap();
         }, 0);
 
     scene.connect_programs(StreamSource::All, program_1, StreamId::with_message_type::<String>()).unwrap();

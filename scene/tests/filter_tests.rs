@@ -45,10 +45,10 @@ fn write_to_filter_target() {
         move |_: InputStream<()>, context| async move {
             let mut filtered_output = context.send::<usize>(StreamTarget::Filtered(usize_to_string, string_program)).unwrap();
 
-            filtered_output.send(1).await;
-            filtered_output.send(2).await;
-            filtered_output.send(3).await;
-            filtered_output.send(4).await;
+            filtered_output.send(1).await.unwrap();
+            filtered_output.send(2).await.unwrap();
+            filtered_output.send(3).await.unwrap();
+            filtered_output.send(4).await.unwrap();
         }, 
         0);
 
@@ -101,10 +101,10 @@ fn connect_all_to_filter_target() {
         move |_: InputStream<()>, context| async move {
             let mut filtered_output = context.send::<usize>(StreamTarget::Any).unwrap();
 
-            filtered_output.send(1).await;
-            filtered_output.send(2).await;
-            filtered_output.send(3).await;
-            filtered_output.send(4).await;
+            filtered_output.send(1).await.unwrap();
+            filtered_output.send(2).await.unwrap();
+            filtered_output.send(3).await.unwrap();
+            filtered_output.send(4).await.unwrap();
         }, 
         0);
 
@@ -155,10 +155,10 @@ fn connect_all_both_filtered_and_unfiltered() {
         move |_: InputStream<()>, context| async move {
             let mut filtered_output = context.send::<String>(StreamTarget::Any).unwrap();
 
-            filtered_output.send(5.to_string()).await;
-            filtered_output.send(6.to_string()).await;
-            filtered_output.send(7.to_string()).await;
-            filtered_output.send(8.to_string()).await;
+            filtered_output.send(5.to_string()).await.unwrap();
+            filtered_output.send(6.to_string()).await.unwrap();
+            filtered_output.send(7.to_string()).await.unwrap();
+            filtered_output.send(8.to_string()).await.unwrap();
         }, 
         0);
 
@@ -168,10 +168,10 @@ fn connect_all_both_filtered_and_unfiltered() {
         move |_: InputStream<()>, context| async move {
             let mut filtered_output = context.send::<usize>(StreamTarget::Any).unwrap();
 
-            filtered_output.send(1).await;
-            filtered_output.send(2).await;
-            filtered_output.send(3).await;
-            filtered_output.send(4).await;
+            filtered_output.send(1).await.unwrap();
+            filtered_output.send(2).await.unwrap();
+            filtered_output.send(3).await.unwrap();
+            filtered_output.send(4).await.unwrap();
         }, 
         0);
 
@@ -268,8 +268,8 @@ fn disconnect_filter_target() {
             println!("  ... created");
 
             // Send first two messages
-            filtered_output.send(1).await;
-            filtered_output.send(2).await;
+            filtered_output.send(1).await.unwrap();
+            filtered_output.send(2).await.unwrap();
 
             // Disconnect the stream
             println!("Disconnecting initial stream...");
@@ -277,8 +277,8 @@ fn disconnect_filter_target() {
             println!("   ... disconnected");
 
             // Send another two messages into oblivion
-            filtered_output.send(3).await;
-            filtered_output.send(4).await;
+            filtered_output.send(3).await.unwrap();
+            filtered_output.send(4).await.unwrap();
 
             // Reconnect the two programs
             println!("Reconnecting filter stream...");
@@ -286,8 +286,8 @@ fn disconnect_filter_target() {
             println!("   ... reconnected");
 
             // Final two messages
-            filtered_output.send(5).await;
-            filtered_output.send(6).await;
+            filtered_output.send(5).await.unwrap();
+            filtered_output.send(6).await.unwrap();
 
             // Disconnect them again
             println!("Disconnecting again...");

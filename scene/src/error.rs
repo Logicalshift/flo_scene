@@ -38,3 +38,20 @@ pub enum ConnectionError {
     /// A stream target had an unexpected value
     UnexpectedConnectionType,
 }
+
+///
+/// Error that occurs while sending to a stream
+///
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum SceneSendError {
+    /// The target for the stream stopped before the message could be sent
+    TargetProgramEnded
+}
+
+impl From<SceneSendError> for ConnectionError {
+    fn from(err: SceneSendError) -> ConnectionError {
+        match err {
+            SceneSendError::TargetProgramEnded => ConnectionError::TargetNotInScene,
+        }
+    }
+}
