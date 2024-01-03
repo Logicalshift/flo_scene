@@ -97,6 +97,9 @@ pub (crate) struct SceneCore {
 
     /// The connections to assign between programs. More specific sources override less specific sources.
     connections: HashMap<(StreamSource, StreamId), StreamTarget>,
+
+    /// True if this scene is stopped and shouldn't be run any more
+    stopped: bool,
 }
 
 impl SceneCore {
@@ -114,6 +117,7 @@ impl SceneCore {
             awake_processes:    VecDeque::new(),
             connections:        HashMap::new(),
             thread_wakers:      vec![],
+            stopped:            false,
         }
     }
 
@@ -454,6 +458,18 @@ impl SceneCore {
             None
         }
     }
+
+    ///
+    /// Stops this scene, returning the wakers that need to be invoked to finish stopping it
+    ///
+    pub (crate) fn stop(&mut self) -> Vec<Waker> {
+        self.stopped = true;
+
+        self.thread_wakers
+            .iter_mut()
+            .filter_map(|waker| waker.take())
+            .collect()
+    }
 }
 
 impl SubProgramCore {
@@ -624,6 +640,11 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
             let (next_process, next_process_idx) = {
                 // Acquire the core
                 let mut core = core.lock().unwrap();
+
+                if core.stopped {
+                    // The scene always stops running immediately when 'stopped' is true
+                    return Poll::Ready(());
+                }
 
                 if core.next_subprogram == 0 && core.sub_programs.iter().all(|program| program.is_none()) && core.awake_processes.is_empty() {
                     // The scene is finished when there are no running programs left in it
