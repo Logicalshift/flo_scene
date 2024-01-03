@@ -51,7 +51,7 @@ impl Scene {
     where
         TFuture:        Send + Sync + Future<Output=()>,
         TInputMessage:  'static + Unpin + Send + Sync,
-        TProgramFn:     'static + Send + Sync + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
+        TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
         // Create the context and input stream for the program
         let input_stream    = InputStream::new(max_input_waiting);

@@ -117,7 +117,7 @@ impl SceneCore {
     ///
     /// Adds a program to the list being run by this scene
     ///
-    pub fn start_subprogram<TMessage>(core: &Arc<Mutex<SceneCore>>, program_id: SubProgramId, program: impl 'static + Send + Sync + Future<Output=()>, input_core: Arc<Mutex<InputStreamCore<TMessage>>>) -> Arc<Mutex<SubProgramCore>>
+    pub fn start_subprogram<TMessage>(core: &Arc<Mutex<SceneCore>>, program_id: SubProgramId, program: impl 'static + Send + Future<Output=()>, input_core: Arc<Mutex<InputStreamCore<TMessage>>>) -> Arc<Mutex<SubProgramCore>>
     where
         TMessage: 'static + Unpin + Send + Sync,
     {
