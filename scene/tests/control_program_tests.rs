@@ -16,11 +16,8 @@ fn ask_control_to_stop_scene() {
     scene.add_subprogram(
         SubProgramId::new(),
         move |input: InputStream<()>, context| async move {
-            // Send to the control program
-            let mut control_program = context.send::<SceneControl>(StreamTarget::Any).unwrap();
-
             // Tell it to stop the stream
-            control_program.send(SceneControl::StopScene).await;
+            context.send_message(SceneControl::StopScene).await.unwrap();
 
             // Read from our input forever
             let mut input = input;
@@ -52,20 +49,17 @@ fn ask_control_to_start_program() {
     scene.add_subprogram(
         SubProgramId::new(),
         move |input: InputStream<()>, context| async move {
-            // Send to the control program
-            let mut control_program = context.send::<SceneControl>(StreamTarget::Any).unwrap();
-
             // Tell it to start a new program
-            control_program.send(SceneControl::start_program(SubProgramId::new(), move |_: InputStream<()>, context| {
+            context.send_message(SceneControl::start_program(SubProgramId::new(), move |_: InputStream<()>, context| {
                 let notify_started = notify_started.clone();
                 async move {
                     // Set the flag to indicate the new program started
                     *notify_started.lock().unwrap() = true;
 
                     // Stop the scene as the test is done
-                    context.send::<SceneControl>(StreamTarget::Any).unwrap().send(SceneControl::StopScene).await;
+                    context.send_message(SceneControl::StopScene).await.unwrap();
                 }
-            }, 0)).await;
+            }, 0)).await.unwrap();
 
             // Read from our input forever
             let mut input = input;
