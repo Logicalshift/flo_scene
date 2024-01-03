@@ -9,6 +9,7 @@ mod input_stream;
 mod output_sink;
 mod filter;
 pub mod error;
+pub mod programs;
 
 pub use scene::*;
 pub use scene_context::*;
