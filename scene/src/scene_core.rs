@@ -313,7 +313,7 @@ impl SceneCore {
     ///
     /// Returns the output sink target configured for a particular stream
     ///
-    pub (crate) fn sink_for_target<TMessageType>(scene_core: &Arc<Mutex<SceneCore>>, source: &SubProgramId, target: StreamTarget) -> Result<Arc<Mutex<OutputSinkTarget<TMessageType>>>, ConnectionError>
+    pub (crate) fn sink_for_target<TMessageType>(scene_core: &Arc<Mutex<SceneCore>>, source: &SubProgramId, target: StreamTarget) -> Result<OutputSinkTarget<TMessageType>, ConnectionError>
     where
         TMessageType: 'static + Send + Sync,
     {
@@ -331,8 +331,8 @@ impl SceneCore {
                 if let Some(connection) = maybe_connection {
                     // Stream is connected to a specific program (or is configured to discard its input)
                     match connection {
-                        StreamTarget::None                          => Ok(Arc::new(Mutex::new(OutputSinkTarget::Discard))),
-                        StreamTarget::Any                           => Ok(Arc::new(Mutex::new(OutputSinkTarget::Disconnected))),
+                        StreamTarget::None                          => Ok(OutputSinkTarget::Discard),
+                        StreamTarget::Any                           => Ok(OutputSinkTarget::Disconnected),
                         StreamTarget::Program(target_program_id)    => {
                             // Connect the stream to the input of a specific program
                             let target_program_handle   = core.program_indexes.get(&target_program_id).ok_or(ConnectionError::TargetNotInScene)?;
@@ -341,7 +341,7 @@ impl SceneCore {
                             let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>()
                                 .or_else(move |_| Err(ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type))))?;
 
-                            Ok(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))))
+                            Ok(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))
                         },
                         StreamTarget::Filtered(filter_handle, target_program_id) => {
                             // Create a stream that is processed through a filter (note that this creates a process that will need to be terminated by closing the input stream)
@@ -353,14 +353,14 @@ impl SceneCore {
                             let filtered_input_core = filtered_input_core.downcast::<Mutex<InputStreamCore<TMessageType>>>()
                                 .or(Err(ConnectionError::FilterInputDoesNotMatch))?;
 
-                            Ok(Arc::new(Mutex::new(OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core)))))
+                            Ok(OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core)))
                         },
                     }
                 } else {
                     // Stream is not connected, either use a discard or a disconnected stream
                     match target {
-                        StreamTarget::None  => Ok(Arc::new(Mutex::new(OutputSinkTarget::Discard))),
-                        StreamTarget::Any   => Ok(Arc::new(Mutex::new(OutputSinkTarget::Disconnected))),
+                        StreamTarget::None  => Ok(OutputSinkTarget::Discard),
+                        StreamTarget::Any   => Ok(OutputSinkTarget::Disconnected),
                         _                   => Err(ConnectionError::UnexpectedConnectionType)
                     }
                 }
@@ -388,7 +388,7 @@ impl SceneCore {
                 let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>()
                     .or_else(move |_| Err(ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type))))?;
 
-                Ok(Arc::new(Mutex::new(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))))
+                Ok(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))
             },
 
             StreamTarget::Filtered(filter_handle, target_program_id) => {
@@ -411,7 +411,7 @@ impl SceneCore {
                 let filtered_input_core = filtered_input_core.downcast::<Mutex<InputStreamCore<TMessageType>>>()
                     .or(Err(ConnectionError::FilterInputDoesNotMatch))?;
 
-                Ok(Arc::new(Mutex::new(OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core)))))
+                Ok(OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core)))
             }
         }
     }
@@ -509,9 +509,9 @@ impl SubProgramCore {
     }
 
     ///
-    /// Returns the existing output target for a stream ID, if it exists in this subprogram
+    /// Returns the existing output core for a stream ID, if it exists in this subprogram
     ///
-    pub (crate) fn output_target<TMessageType>(&self, id: &StreamId) -> Option<Arc<Mutex<OutputSinkTarget<TMessageType>>>> 
+    pub (crate) fn output_target<TMessageType>(&self, id: &StreamId) -> Option<Arc<Mutex<OutputSinkCore<TMessageType>>>> 
     where
         TMessageType: 'static + Send + Sync,
     {
@@ -520,7 +520,7 @@ impl SubProgramCore {
         let existing_target = Arc::clone(existing_target);
 
         // Convert to the appropriate output type
-        existing_target.downcast::<Mutex<OutputSinkTarget<TMessageType>>>().ok()
+        existing_target.downcast::<Mutex<OutputSinkCore<TMessageType>>>().ok()
     }
 
     ///
@@ -528,7 +528,7 @@ impl SubProgramCore {
     ///
     /// Panics if the stream ID doesn't match the message type and the stream already exists.
     ///
-    pub (crate) fn try_create_output_target<TMessageType>(&mut self, id: &StreamId, new_output_target: Arc<Mutex<OutputSinkTarget<TMessageType>>>) -> Result<Arc<Mutex<OutputSinkTarget<TMessageType>>>, Arc<Mutex<OutputSinkTarget<TMessageType>>>>
+    pub (crate) fn try_create_output_target<TMessageType>(&mut self, id: &StreamId, new_output_target: OutputSinkTarget<TMessageType>) -> Result<Arc<Mutex<OutputSinkCore<TMessageType>>>, Arc<Mutex<OutputSinkCore<TMessageType>>>>
     where
         TMessageType: 'static + Send + Sync,
     {
@@ -536,16 +536,18 @@ impl SubProgramCore {
         if let Some(existing_target) = existing_target {
             // Return the already existing target
             let existing_target = Arc::clone(existing_target);
-            let existing_target = existing_target.downcast::<Mutex<OutputSinkTarget<TMessageType>>>().unwrap();
+            let existing_target = existing_target.downcast::<Mutex<OutputSinkCore<TMessageType>>>().unwrap();
 
             Err(existing_target)
         } else {
             // Store a new target in the outputs
-            let cloned_target = Arc::clone(&new_output_target);
-            self.outputs.insert(id.clone(), cloned_target);
+            let new_core    = OutputSinkCore::new(new_output_target);
+            let new_core    = Arc::new(Mutex::new(new_core));
+            let cloned_core = Arc::clone(&new_core);
+            self.outputs.insert(id.clone(), cloned_core);
 
             // Use the new target for the output stream
-            Ok(new_output_target)
+            Ok(new_core)
         }
     }
 

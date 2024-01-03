@@ -15,13 +15,13 @@ static STREAM_TYPE_FUNCTIONS: Lazy<RwLock<HashMap<TypeId, StreamTypeFunctions>>>
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
 ///
 struct StreamTypeFunctions {
-    /// Connects an OutputSinkTarget to a InputStreamCore
+    /// Connects an OutputSinkCore to a InputStreamCore
     connect_output_to_input: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>, bool) -> Result<(), ()>>,
 
-    /// Connects an OutputSinkTarget to a stream that discards everything
+    /// Connects an OutputSinkCore to a stream that discards everything
     connect_output_to_discard: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ()>>,
 
-    /// Disconnects an OutputSinkTarget, causing it to wait for a new connection to be made
+    /// Disconnects an OutputSinkCore, causing it to wait for a new connection to be made
     disconnect_output: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ()>>,
 
     /// Closes the input to a stream
@@ -62,11 +62,11 @@ impl StreamTypeFunctions {
         StreamTypeFunctions {
             connect_output_to_input: Arc::new(|output_sink_any, input_stream_any, close_when_dropped| {
                 // Cast the 'any' stream and sink to the appropriate types
-                let output_sink     = output_sink_any.clone().downcast::<Mutex<OutputSinkTarget<TMessageType>>>().map_err(|_| ())?;
+                let output_sink     = output_sink_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ())?;
                 let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ())?;
 
                 // Connect the input stream core to the output target
-                *output_sink.lock().unwrap() = if !close_when_dropped {
+                output_sink.lock().unwrap().target = if !close_when_dropped {
                     OutputSinkTarget::Input(Arc::downgrade(&input_stream))
                 } else {
                     OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&input_stream))
@@ -77,16 +77,16 @@ impl StreamTypeFunctions {
 
             connect_output_to_discard: Arc::new(|output_sink_any| {
                 // Cast the output sink to the appropriate type and set it as discarding any input
-                let output_sink     = output_sink_any.clone().downcast::<Mutex<OutputSinkTarget<TMessageType>>>().map_err(|_| ())?;
-                *output_sink.lock().unwrap() = OutputSinkTarget::Discard;
+                let output_sink     = output_sink_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ())?;
+                output_sink.lock().unwrap().target = OutputSinkTarget::Discard;
 
                 Ok(())
             }),
 
             disconnect_output: Arc::new(|output_sink_any| {
                 // Cast the output sink to the appropriate type and set it as disconnected
-                let output_sink     = output_sink_any.clone().downcast::<Mutex<OutputSinkTarget<TMessageType>>>().map_err(|_| ())?;
-                *output_sink.lock().unwrap() = OutputSinkTarget::Disconnected;
+                let output_sink     = output_sink_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ())?;
+                output_sink.lock().unwrap().target = OutputSinkTarget::Disconnected;
 
                 Ok(())
             }),
@@ -204,7 +204,7 @@ impl StreamId {
     }
 
     ///
-    /// Given an output sink (an 'Any' that maps to an OutputSinkTarget) and an input stream (an 'Any' that maps to an InputStreamCore) that match
+    /// Given an output sink (an 'Any' that maps to an OutputSinkCore) and an input stream (an 'Any' that maps to an InputStreamCore) that match
     /// the type of this stream ID, sends the data from the output sink to the input stream.
     ///
     /// Note that this locks the output target.
@@ -222,7 +222,7 @@ impl StreamId {
     }
 
     ///
-    /// Given an output sink (an 'Any' that maps to an OutputSinkTarget), connects it to a stream that just throws any messages it receives away
+    /// Given an output sink (an 'Any' that maps to an OutputSinkCore), connects it to a stream that just throws any messages it receives away
     ///
     /// Note that this locks the output target.
     ///
@@ -239,7 +239,7 @@ impl StreamId {
     }
 
     ///
-    /// Given an output sink (an 'Any' that maps to an OutputSinkTarget), disconnects it so it waits for a new connection
+    /// Given an output sink (an 'Any' that maps to an OutputSinkCore), disconnects it so it waits for a new connection
     ///
     /// Note that this locks the output target.
     ///

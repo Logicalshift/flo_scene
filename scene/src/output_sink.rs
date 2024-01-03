@@ -11,6 +11,7 @@ use std::sync::*;
 ///
 /// The target of an output sink
 ///
+#[derive(Clone)]
 pub (crate) enum OutputSinkTarget<TMessage> {
     /// Indicates an output that has nowhere to send its data (will just block)
     Disconnected,
@@ -26,6 +27,17 @@ pub (crate) enum OutputSinkTarget<TMessage> {
 }
 
 ///
+/// The shared core of an output sink
+///
+pub (crate) struct OutputSinkCore<TMessage> {
+    /// The target for the sink
+    pub (crate) target: OutputSinkTarget<TMessage>,
+
+    /// Waker that is notified when the target is changed
+    when_target_changed: Option<Waker>,
+}
+
+///
 /// An output sink is a way for a subprogram to send messages to the input of another subprogram
 ///
 pub struct OutputSink<TMessage> {
@@ -33,13 +45,10 @@ pub struct OutputSink<TMessage> {
     program_id: SubProgramId,
 
     /// Where the data for this sink should be sent
-    target: Arc<Mutex<OutputSinkTarget<TMessage>>>,
+    core: Arc<Mutex<OutputSinkCore<TMessage>>>,
 
     /// The message that is being sent
     waiting_message: Option<TMessage>,
-
-    /// Waker that is notified when the target is changed
-    when_target_changed: Option<Waker>,
 
     /// Waker that is notified when a pending message is sent
     when_message_sent: Option<Waker>,
@@ -63,16 +72,27 @@ impl<TMessage> Drop for OutputSinkTarget<TMessage> {
     }
 }
 
+impl<TMessage> OutputSinkCore<TMessage> {
+    ///
+    /// Creates a new output sink core
+    ///
+    pub (crate) fn new(target: OutputSinkTarget<TMessage>) -> Self {
+        OutputSinkCore {
+            target:                 target,
+            when_target_changed:    None,
+        }
+    }
+}
+
 impl<TMessage> OutputSink<TMessage> {
     ///
     /// Creates a new output sink that is attached to a known target
     ///
-    pub (crate) fn attach(program_id: SubProgramId, target: Arc<Mutex<OutputSinkTarget<TMessage>>>) -> OutputSink<TMessage> {
+    pub (crate) fn attach(program_id: SubProgramId, core: Arc<Mutex<OutputSinkCore<TMessage>>>) -> OutputSink<TMessage> {
         OutputSink {
             program_id:             program_id,
-            target:                 target,
+            core:                   core,
             waiting_message:        None,
-            when_target_changed:    None,
             when_message_sent:      None,
         }
     }
@@ -85,8 +105,6 @@ where
     type Error = ();
 
     fn poll_ready(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        use std::mem;
-
         // Say we're waiting if there's an input value waiting
         if self.waiting_message.is_some() {
             // Wait for the message to finish sending
@@ -94,12 +112,11 @@ where
             Poll::Pending
         } else {
             // Always say that we're ready (we store the message in the sink while we're flushing instead)
-            let target = self.target.lock().unwrap();
+            let mut core = self.core.lock().unwrap();
 
-            match &*target {
+            match &core.target {
                 OutputSinkTarget::Disconnected  => {
-                    mem::drop(target);
-                    self.when_target_changed = Some(context.waker().clone());
+                    core.when_target_changed = Some(context.waker().clone());
                     Poll::Pending
                 },
                 OutputSinkTarget::Discard               => Poll::Ready(Ok(())),
@@ -112,28 +129,28 @@ where
     fn start_send(mut self: Pin<&mut Self>, item: TMessage) -> Result<(), Self::Error> {
         use std::mem;
 
-        let target = self.target.lock().unwrap();
-        match &*target {
-            OutputSinkTarget::Disconnected              => {
-                mem::drop(target);
+        let core = self.core.lock().unwrap();
+        match &core.target {
+            OutputSinkTarget::Disconnected                  => {
+                mem::drop(core);
                 self.waiting_message = Some(item);
                 Ok(())
             },
 
-            OutputSinkTarget::Discard                   => Ok(()),
+            OutputSinkTarget::Discard                       => Ok(()),
 
-            OutputSinkTarget::Input(core)               |
-            OutputSinkTarget::CloseWhenDropped(core)    => {
-                if let Some(core) = core.upgrade() {
+            OutputSinkTarget::Input(input_core)             |
+            OutputSinkTarget::CloseWhenDropped(input_core)  => {
+                if let Some(input_core) = input_core.upgrade() {
                     // Either directly send the item or add to the callback list for when there's enough space in the input
-                    mem::drop(target);
-                    let mut core = core.lock().unwrap();
+                    mem::drop(core);
+                    let mut input_core = input_core.lock().unwrap();
 
-                    match core.send(self.program_id, item) {
+                    match input_core.send(self.program_id, item) {
                         Ok(waker) => {
                             // Sent the message: wake up anything waiting for the input stream
                             self.waiting_message = None;
-                            mem::drop(core);
+                            mem::drop(input_core);
 
                             if let Some(waker) = waker { waker.wake() };
                             Ok(())
@@ -157,41 +174,40 @@ where
         use std::mem;
 
         // Disable any existing waker for this future
-        self.when_target_changed = None;
+        self.core.lock().unwrap().when_target_changed = None;
 
         // Action depends on the state of the target
-        let target = self.target.lock().unwrap();
-        match &*target {
-            OutputSinkTarget::Disconnected  => {
+        let mut core = self.core.lock().unwrap();
+        match &core.target {
+            OutputSinkTarget::Disconnected => {
                 // Wait for the target to change
-                mem::drop(target);
-                self.when_target_changed = Some(context.waker().clone());
+                core.when_target_changed = Some(context.waker().clone());
                 Poll::Pending
             },
 
-            OutputSinkTarget::Discard       => {
+            OutputSinkTarget::Discard => {
                 // Throw away any waiting message and say we're done
-                mem::drop(target);
+                mem::drop(core);
                 if let Some(when_message_sent) = self.when_message_sent.take() { when_message_sent.wake(); }
                 self.waiting_message = None;
                 Poll::Ready(Ok(()))
             },
 
-            OutputSinkTarget::Input(core)               |
-            OutputSinkTarget::CloseWhenDropped(core)    => {
+            OutputSinkTarget::Input(input_core)             |
+            OutputSinkTarget::CloseWhenDropped(input_core)  => {
                 // Try to send to the attached core
-                if let Some(core) = core.upgrade() {
-                    mem::drop(target);
+                if let Some(input_core) = input_core.upgrade() {
+                    mem::drop(core);
 
                     if let Some(message) = self.waiting_message.take() {
                         // Try sending the waiting message
-                        let mut core = core.lock().unwrap();
+                        let mut input_core = input_core.lock().unwrap();
 
-                        match core.send(self.program_id, message) {
+                        match input_core.send(self.program_id, message) {
                             Ok(waker) => {
                                 // Sent the message: wake up anything waiting for the input stream
                                 self.waiting_message = None;
-                                mem::drop(core);
+                                mem::drop(input_core);
 
                                 if let Some(waker) = waker { waker.wake() };
                                 if let Some(when_message_sent) = self.when_message_sent.take() { when_message_sent.wake(); }
@@ -201,8 +217,10 @@ where
                             Err(message) => {
                                 // Need to wait for a slot in the stream
                                 self.waiting_message        = Some(message);
-                                self.when_target_changed    = Some(context.waker().clone());
-                                core.wake_when_slots_available(context);
+                                input_core.wake_when_slots_available(context);
+
+                                mem::drop(input_core);
+                                self.core.lock().unwrap().when_target_changed = Some(context.waker().clone());
                                 Poll::Pending
                             }
                         }
@@ -212,8 +230,7 @@ where
                     }
                 } else {
                     // Core has been released, so we wait as if disconnected
-                    mem::drop(target);
-                    self.when_target_changed = Some(context.waker().clone());
+                    core.when_target_changed = Some(context.waker().clone());
                     Poll::Pending
                 }
             }
@@ -239,11 +256,15 @@ mod test {
         /// Creates a new output sink that belongs to the specified sub-program
         ///
         pub (crate) fn new(program_id: SubProgramId) -> OutputSink<TMessage> {
+            let core = OutputSinkCore {
+                target:                 OutputSinkTarget::Disconnected,
+                when_target_changed:    None,
+            };
+
             OutputSink {
                 program_id:             program_id,
-                target:                 Arc::new(Mutex::new(OutputSinkTarget::Disconnected)),
+                core:                   Arc::new(Mutex::new(core)),
                 waiting_message:        None,
-                when_target_changed:    None,
                 when_message_sent:      None,
             }
         }
@@ -260,10 +281,11 @@ mod test {
         ///
         pub (crate) fn attach_to_core(&mut self, input_stream_core: &Arc<Mutex<InputStreamCore<TMessage>>>) {
             // Connect to the target
-            *self.target.lock().unwrap() = OutputSinkTarget::Input(Arc::downgrade(input_stream_core));
+            self.core.lock().unwrap().target = OutputSinkTarget::Input(Arc::downgrade(input_stream_core));
 
             // Wake anything waiting for the stream to become ready or to send a message
-            if let Some(waker) = self.when_target_changed.take() {
+            let waker = self.core.lock().unwrap().when_target_changed.take();
+            if let Some(waker) = waker {
                 waker.wake();
             }
         }
