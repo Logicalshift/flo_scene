@@ -254,9 +254,9 @@ where
                         Poll::Ready(Ok(()))
                     }
                 } else {
-                    // Core has been released, so we wait as if disconnected
-                    core.when_target_changed = Some(context.waker().clone());
-                    Poll::Pending
+                    // When the core is released during a send, the target program has terminated, so we generate an error
+                    core.when_target_changed    = Some(context.waker().clone());
+                    Poll::Ready(Err(SceneSendError::TargetProgramEnded))
                 }
             }
         }
