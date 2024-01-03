@@ -6,6 +6,7 @@ use crate::stream_source::*;
 use crate::stream_target::*;
 use crate::subprogram_id::*;
 use crate::error::*;
+use crate::programs::*;
 
 use futures::prelude::*;
 use futures::channel::oneshot;
@@ -28,7 +29,7 @@ impl Default for Scene {
         let scene = Scene::empty();
 
         // Populate with the default programs
-        // TODO: 'main' program for starting/stopping other programs and wiring streams
+        scene.add_subprogram(*SCENE_CONTROL_PROGRAM, SceneControl::scene_control_program, 0);
 
         scene
     }
