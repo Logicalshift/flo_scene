@@ -84,7 +84,7 @@ impl SceneControl {
     ///
     /// Creates a start program message for the scene control subprogram
     ///
-    pub fn start_program<TProgramFn, TInputMessage, TFuture>(&self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
+    pub fn start_program<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
     where
         TFuture:        Send + Sync + Future<Output=()>,
         TInputMessage:  'static + Unpin + Send + Sync,
