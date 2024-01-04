@@ -154,3 +154,52 @@ fn ask_control_to_connect_and_close_programs() {
     assert!(recv_messages == vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()], "Did not send the correct messages to the receiver (receiver got {:?})", recv_messages);
     assert!(has_stopped, "Scene did not stop");
 }
+
+#[test]
+fn scene_update_messages() {
+    // Create a scene with two subprograms. Program_1 will send to Program_2
+    let scene       = Scene::default();
+    let program_1   = SubProgramId::new();
+    let program_2   = SubProgramId::new();
+
+    // Create a program to monitor the updates for the scene
+    let update_monitor  = SubProgramId::new();
+    let recv_updates    = Arc::new(Mutex::new(vec![]));
+    let send_updates    = recv_updates.clone();
+    scene.add_subprogram(update_monitor,
+        move |mut input: InputStream<SceneUpdate>, _| async move {
+            while let Some(input) = input.next().await {
+                send_updates.lock().unwrap().push(input);
+            }
+        },
+        0);
+    scene.connect_programs((), update_monitor, StreamId::with_message_type::<SceneUpdate>());
+
+    // program_1 reads from its input and sets it in sent_message
+    scene.add_subprogram(program_1.clone(),
+        move |mut input: InputStream<usize>, _| async move {
+            // Read a single message and write it to the 'sent_message' structure
+            input.next().await.unwrap();
+
+            // Stop the scene when the message is sent
+            scene_context().unwrap().send_message(SceneControl::StopScene).await.unwrap();
+        },
+        0);
+
+    // program_2 sends a message to program_1 directly (by requesting a stream for program_1)
+    scene.add_subprogram(program_2,
+        move |_: InputStream<()>, context| async move {
+            let mut send_usize = context.send::<usize>(program_1).unwrap();
+            send_usize.send(42).await.unwrap();
+        },
+        0);
+
+    // Run this scene
+    executor::block_on(select(async {
+        scene.run_scene().await;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Check that the updates we expected are generated for this program
+    let recv_updates = recv_updates.lock().unwrap().drain(..).collect::<Vec<_>>();
+    assert!(false, "{:?}", recv_updates);
+}
