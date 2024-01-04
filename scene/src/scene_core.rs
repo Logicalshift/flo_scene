@@ -232,6 +232,10 @@ impl SceneCore {
     /// Sends a set of updates to the update stream (if there is one set for this core)
     ///
     pub (crate) fn send_scene_updates(&mut self, updates: Vec<SceneUpdate>) {
+        if updates.len() == 0 {
+            return;
+        }
+
         if let Some((pid, update_core)) = self.updates.as_ref() {
             let mut update_sink = OutputSink::attach(*pid, Arc::clone(update_core));
 
@@ -315,6 +319,9 @@ impl SceneCore {
         };
 
         // Update the existing connections
+        let mut scene_updates = vec![];
+        let target_program_id = target.target_sub_program();
+
         for maybe_sub_program in sub_programs.iter() {
             if let Some(sub_program) = maybe_sub_program {
                 // Update the streams of the subprogram
@@ -324,6 +331,12 @@ impl SceneCore {
                     // Reconnect the program
                     let waker = reconnect_subprogram(&sub_program);
 
+                    if let Some(target_program_id) = target_program_id {
+                        scene_updates.push(SceneUpdate::Connected(sub_program_id, target_program_id, stream_id.clone()));
+                    } else {
+                        scene_updates.push(SceneUpdate::Disconnected(sub_program_id, stream_id.clone()));
+                    }
+
                     // Wake the input stream
                     if let Some(waker) = waker {
                         waker.wake();
@@ -331,6 +344,9 @@ impl SceneCore {
                 }
             }
         }
+
+        // Send the updates on how the connections have changed
+        core.lock().unwrap().send_scene_updates(scene_updates);
 
         Ok(())
     }
