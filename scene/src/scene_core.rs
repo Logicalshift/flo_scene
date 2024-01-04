@@ -140,10 +140,23 @@ impl SceneCore {
             // next_subprogram should always indicate the handle we'll use for the new program (it should be either a None entry in the list or sub_programs.len())
             let handle = core.next_subprogram;
 
+            // Create a place to send updates on the program's progress
+            let mut update_sink = core.updates.as_ref().map(|(pid, sink_core)| OutputSink::attach(*pid, Arc::clone(sink_core)));
+
             // Start a process to run this subprogram
             let (process_handle, waker) = core.start_process(async move {
+                // Notify that the program is starting
+                if let Some(update_sink) = update_sink.as_mut() {
+                    update_sink.send(SceneUpdate::Started(program_id)).await.ok();
+                }
+
                 // Wait for the program to run
                 program.await;
+
+                // Notify that the program has finished
+                if let Some(mut update_sink) = update_sink {
+                    update_sink.send(SceneUpdate::Stopped(program_id)).await.ok();
+                }
 
                 // Close down the subprogram before finishing
                 if let Some(core) = process_core.upgrade() {
