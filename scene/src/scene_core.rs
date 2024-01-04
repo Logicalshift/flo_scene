@@ -30,9 +30,6 @@ pub (crate) struct ProcessHandle(usize);
 /// Note that the scene core must be locked before the subprogram core, if the scene core needs to be locked.
 ///
 pub (crate) struct SubProgramCore {
-    /// The ID of the process in the core that is running this subprogram
-    process_id: ProcessHandle,
-
     /// The stream ID of the input stream to this subprogram
     input_stream_id: StreamId,
 
@@ -144,7 +141,7 @@ impl SceneCore {
             let mut update_sink = core.updates.as_ref().map(|(pid, sink_core)| OutputSink::attach(*pid, Arc::clone(sink_core)));
 
             // Start a process to run this subprogram
-            let (process_handle, waker) = core.start_process(async move {
+            let (_process_handle, waker) = core.start_process(async move {
                 // Notify that the program is starting
                 if let Some(update_sink) = update_sink.as_mut() {
                     update_sink.send(SceneUpdate::Started(program_id)).await.ok();
@@ -174,7 +171,6 @@ impl SceneCore {
                 input_stream_id:            StreamId::with_message_type::<TMessage>(),
                 outputs:                    HashMap::new(),
                 expected_input_type_name:   type_name::<TMessage>(),
-                process_id:                 process_handle,
             };
 
             // Allocate space for the program
