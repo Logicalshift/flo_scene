@@ -4,6 +4,7 @@ use crate::output_sink::*;
 use crate::input_stream::*;
 use crate::programs::*;
 use crate::scene_context::*;
+use crate::scene_message::*;
 use crate::stream_id::*;
 use crate::stream_source::*;
 use crate::stream_target::*;
@@ -405,18 +406,25 @@ impl SceneCore {
     ///
     pub (crate) fn sink_for_target<TMessageType>(scene_core: &Arc<Mutex<SceneCore>>, source: &SubProgramId, target: StreamTarget) -> Result<OutputSinkTarget<TMessageType>, ConnectionError>
     where
-        TMessageType: 'static + Send + Sync,
+        TMessageType: 'static + SceneMessage,
     {
         use std::mem;
 
         match target {
             StreamTarget::None  |
             StreamTarget::Any   => {
-                // Return the general stream for the message type, if there is one
+                // Return the general stream for the message type, if there is one. 'None' connections will default to 'None', but 'Any' connections will use the default connection for the message type.
                 let core                = scene_core.lock().unwrap();
-                let maybe_connection    = core.connections
-                    .get(&(source.into(), StreamId::with_message_type::<TMessageType>()))
-                    .or_else(|| core.connections.get(&(StreamSource::All, StreamId::with_message_type::<TMessageType>())));
+                let maybe_connection    = match target {
+                    StreamTarget::None  => core.connections
+                        .get(&(source.into(), StreamId::with_message_type::<TMessageType>())).cloned()
+                        .or_else(|| core.connections.get(&(StreamSource::All, StreamId::with_message_type::<TMessageType>())).cloned()),
+
+                    _                   => core.connections
+                        .get(&(source.into(), StreamId::with_message_type::<TMessageType>())).cloned()
+                        .or_else(|| core.connections.get(&(StreamSource::All, StreamId::with_message_type::<TMessageType>())).cloned())
+                        .or_else(|| Some(TMessageType::default_target()))
+                };
 
                 if let Some(connection) = maybe_connection {
                     // Stream is connected to a specific program (or is configured to discard its input)
@@ -435,8 +443,8 @@ impl SceneCore {
                         },
                         StreamTarget::Filtered(filter_handle, target_program_id) => {
                             // Create a stream that is processed through a filter (note that this creates a process that will need to be terminated by closing the input stream)
-                            let filter_handle       = *filter_handle;
-                            let target_program_id   = *target_program_id;
+                            let filter_handle       = filter_handle;
+                            let target_program_id   = target_program_id;
                             mem::drop(core);
 
                             let filtered_input_core = Self::filtered_input_for_program(scene_core, *source, filter_handle, target_program_id)?;
@@ -610,7 +618,7 @@ impl SubProgramCore {
     ///
     pub (crate) fn output_core<TMessageType>(&self, id: &StreamId) -> Option<Arc<Mutex<OutputSinkCore<TMessageType>>>> 
     where
-        TMessageType: 'static + Send + Sync,
+        TMessageType: 'static + SceneMessage,
     {
         // Fetch the existing target and clone it
         let existing_target = self.outputs.get(id)?;
