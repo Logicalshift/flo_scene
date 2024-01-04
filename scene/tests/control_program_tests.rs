@@ -168,9 +168,30 @@ fn scene_update_messages() {
     let send_updates    = recv_updates.clone();
     scene.add_subprogram(update_monitor,
         move |mut input: InputStream<SceneUpdate>, _| async move {
+            let mut program_1_finished = false;
+            let mut program_2_finished = false;
+
             while let Some(input) = input.next().await {
+                println!("--> {:?}", input);
+
+                match &input {
+                    SceneUpdate::Stopped(stopped_program) => {
+                        if *stopped_program == program_1 { program_1_finished = true; }
+                        if *stopped_program == program_2 { program_2_finished = true; }
+                    }
+
+                    _ => {}
+                }
+
                 send_updates.lock().unwrap().push(input);
+
+                if program_1_finished && program_2_finished {
+                    break;
+                }
             }
+
+            // Stop the scene once the two test programs are finished
+            scene_context().unwrap().send_message(SceneControl::StopScene).await.unwrap();
         },
         0);
     scene.connect_programs((), update_monitor, StreamId::with_message_type::<SceneUpdate>()).unwrap();
@@ -180,9 +201,6 @@ fn scene_update_messages() {
         move |mut input: InputStream<usize>, _| async move {
             // Read a single message and write it to the 'sent_message' structure
             input.next().await.unwrap();
-
-            // Stop the scene when the message is sent
-            scene_context().unwrap().send_message(SceneControl::StopScene).await.unwrap();
         },
         0);
 
@@ -195,11 +213,14 @@ fn scene_update_messages() {
         0);
 
     // Run this scene
+    let mut has_finished = false;
     executor::block_on(select(async {
         scene.run_scene().await;
+        has_finished = true;
     }.boxed(), Delay::new(Duration::from_millis(5000))));
 
     // Check that the updates we expected are generated for this program
     let recv_updates = recv_updates.lock().unwrap().drain(..).collect::<Vec<_>>();
+    assert!(has_finished, "Scene did not terminate properly");
     assert!(false, "{:?}", recv_updates);
 }
