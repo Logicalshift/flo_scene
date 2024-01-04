@@ -67,6 +67,9 @@ pub enum SceneUpdate {
     /// The output specified by the stream ID for the first subprogram has been connected to the input for the second
     Connected(SubProgramId, SubProgramId, StreamId),
 
+    /// The output specified by the stream ID has been disconnected
+    Disconnected(SubProgramId, StreamId),
+
     /// A requested connection failed to be made for some reason
     FailedConnection(ConnectionError, StreamSource, StreamTarget, StreamId),
 
