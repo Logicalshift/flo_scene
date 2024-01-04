@@ -19,6 +19,18 @@ pub enum StreamTarget {
     Filtered(FilterHandle, SubProgramId),
 }
 
+impl StreamTarget {
+    ///
+    /// The program ID that this target will connect to
+    ///
+    pub fn target_program(&self) -> Option<SubProgramId> {
+        match self {
+            StreamTarget::None | StreamTarget::Any                              => None,
+            StreamTarget::Program(prog_id) | StreamTarget::Filtered(_, prog_id) => Some(*prog_id),
+        }
+    }
+}
+
 impl From<SubProgramId> for StreamTarget {
     #[inline]
     fn from(program: SubProgramId) -> StreamTarget {
