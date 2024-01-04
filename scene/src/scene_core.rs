@@ -2,6 +2,7 @@ use crate::error::*;
 use crate::filter::*;
 use crate::output_sink::*;
 use crate::input_stream::*;
+use crate::programs::*;
 use crate::stream_id::*;
 use crate::stream_source::*;
 use crate::stream_target::*;
@@ -100,6 +101,9 @@ pub (crate) struct SceneCore {
 
     /// True if this scene is stopped and shouldn't be run any more
     stopped: bool,
+
+    /// An output core where status updates are sent
+    updates: Option<(SubProgramId, Arc<Mutex<OutputSinkCore<SceneUpdate>>>)>,
 }
 
 impl SceneCore {
@@ -118,6 +122,7 @@ impl SceneCore {
             connections:        HashMap::new(),
             thread_wakers:      vec![],
             stopped:            false,
+            updates:            None,
         }
     }
 
@@ -482,6 +487,13 @@ impl SceneCore {
             .iter_mut()
             .filter_map(|waker| waker.take())
             .collect()
+    }
+
+    ///
+    /// Sets the output sink core to use with the updates stream
+    ///
+    pub (crate) fn set_update_core(&mut self, program_id: SubProgramId, core: Arc<Mutex<OutputSinkCore<SceneUpdate>>>) {
+        self.updates = Some((program_id, core));
     }
 }
 
