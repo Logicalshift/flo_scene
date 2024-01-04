@@ -2,6 +2,7 @@ use crate::error::*;
 use crate::input_stream::*;
 use crate::scene_context::*;
 use crate::scene_core::*;
+use crate::scene_message::*;
 use crate::stream_id::*;
 use crate::stream_source::*;
 use crate::stream_target::*;
@@ -82,6 +83,9 @@ impl Debug for SceneProgramFn {
         write!(f, "SceneProgramFn(...)")
     }
 }
+
+impl SceneMessage for SceneControl { }
+impl SceneMessage for SceneUpdate { }
 
 impl SceneControl {
     ///

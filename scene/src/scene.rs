@@ -1,6 +1,7 @@
 use crate::input_stream::*;
 use crate::scene_context::*;
 use crate::scene_core::*;
+use crate::scene_message::*;
 use crate::stream_id::*;
 use crate::stream_source::*;
 use crate::stream_target::*;
@@ -58,7 +59,7 @@ impl Scene {
     pub fn add_subprogram<TProgramFn, TInputMessage, TFuture>(&self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)
     where
         TFuture:        Send + Sync + Future<Output=()>,
-        TInputMessage:  'static + Unpin + Send + Sync,
+        TInputMessage:  'static + SceneMessage,
         TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
         // Create the context and input stream for the program

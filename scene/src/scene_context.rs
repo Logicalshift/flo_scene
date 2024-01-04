@@ -2,6 +2,7 @@ use crate::error::*;
 use crate::output_sink::*;
 use crate::programs::*;
 use crate::scene_core::*;
+use crate::scene_message::*;
 use crate::stream_id::*;
 use crate::stream_target::*;
 
@@ -44,7 +45,7 @@ impl SceneContext {
     ///
     pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<OutputSink<TMessageType>, ConnectionError>
     where
-        TMessageType: 'static + Unpin + Send + Sync,
+        TMessageType: 'static + SceneMessage,
     {
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
             // Convert the target to a stream ID. If we need to create the sink target, we can create it in 'wait' or 'discard' mode
@@ -108,7 +109,7 @@ impl SceneContext {
     ///
     pub async fn send_message<TMessageType>(&self, message: TMessageType) -> Result<(), ConnectionError> 
     where
-        TMessageType: 'static + Unpin + Send + Sync,
+        TMessageType: 'static + SceneMessage,
     {
         let mut stream = self.send::<TMessageType>(())?;
 

@@ -8,6 +8,7 @@ mod stream_target;
 mod input_stream;
 mod output_sink;
 mod filter;
+mod scene_message;
 pub mod error;
 pub mod programs;
 
@@ -20,4 +21,5 @@ pub use stream_target::*;
 pub use input_stream::*;
 pub use output_sink::*;
 pub use filter::*;
-pub use error::{ConnectionError};
+pub use scene_message::*;
+pub use error::{ConnectionError, SceneSendError};
