@@ -229,6 +229,21 @@ impl SceneCore {
     }
 
     ///
+    /// Sends a set of updates to the update stream (if there is one set for this core)
+    ///
+    pub (crate) fn send_scene_updates(&mut self, updates: Vec<SceneUpdate>) {
+        if let Some((pid, update_core)) = self.updates.as_ref() {
+            let mut update_sink = OutputSink::attach(*pid, Arc::clone(update_core));
+
+            self.start_process(async move {
+                for update in updates {
+                    update_sink.send(update).await.ok();
+                }
+            });
+        }
+    }
+
+    ///
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
@@ -237,16 +252,10 @@ impl SceneCore {
 
         // Send an update if there's an error
         if let Err(err) = &result {
-            let mut core = core.lock().unwrap();
+            let update      = SceneUpdate::FailedConnection(err.clone(), source, target, stream_id);
+            let mut core    = core.lock().unwrap();
 
-            if let Some((pid, update_core)) = core.updates.as_ref() {
-                let update          = SceneUpdate::FailedConnection(err.clone(), source, target, stream_id);
-                let mut update_sink = OutputSink::attach(*pid, Arc::clone(update_core));
-
-                core.start_process(async move {
-                    update_sink.send(update).await.ok();
-                });
-            }
+            core.send_scene_updates(vec![update]);
         }
 
         result
