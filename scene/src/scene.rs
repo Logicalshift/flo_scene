@@ -34,6 +34,9 @@ impl Default for Scene {
         // Scene control messages are sent to the scene control program by default
         scene.connect_programs((), *SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<SceneControl>()).unwrap();
 
+        // Update messages are discarded by default
+        scene.connect_programs(*SCENE_CONTROL_PROGRAM, StreamTarget::None, StreamId::with_message_type::<SceneUpdate>()).unwrap();
+
         scene
     }
 }
