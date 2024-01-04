@@ -84,8 +84,19 @@ impl Debug for SceneProgramFn {
     }
 }
 
-impl SceneMessage for SceneControl { }
-impl SceneMessage for SceneUpdate { }
+impl SceneMessage for SceneControl { 
+    fn default_target() -> StreamTarget {
+        // Send to the main control program by default
+        (*SCENE_CONTROL_PROGRAM).into()
+    }
+}
+
+impl SceneMessage for SceneUpdate { 
+    fn default_target() -> StreamTarget {
+        // Updates are discarded by default
+        StreamTarget::None
+    }
+}
 
 impl SceneControl {
     ///
