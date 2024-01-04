@@ -232,6 +232,30 @@ impl SceneCore {
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
+        // Retrieve the result
+        let result = SceneCore::finish_connecting_programs(core, source.clone(), target.clone(), stream_id.clone());
+
+        // Send an update if there's an error
+        if let Err(err) = &result {
+            let mut core = core.lock().unwrap();
+
+            if let Some((pid, update_core)) = core.updates.as_ref() {
+                let update          = SceneUpdate::FailedConnection(err.clone(), source, target, stream_id);
+                let mut update_sink = OutputSink::attach(*pid, Arc::clone(update_core));
+
+                core.start_process(async move {
+                    update_sink.send(update).await.ok();
+                });
+            }
+        }
+
+        result
+    }
+
+    ///
+    /// Finishes a program connection, sending updates if successful
+    ///
+    fn finish_connecting_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
         // Create a function to reconnect a subprogram
         let reconnect_subprogram: Box<dyn Fn(&Arc<Mutex<SubProgramCore>>) -> Option<Waker>> = match &target {
             StreamTarget::None                  => Box::new(|sub_program| sub_program.lock().unwrap().discard_output_from(&stream_id)),
