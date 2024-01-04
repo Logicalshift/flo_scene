@@ -173,7 +173,7 @@ fn scene_update_messages() {
             }
         },
         0);
-    scene.connect_programs((), update_monitor, StreamId::with_message_type::<SceneUpdate>());
+    scene.connect_programs((), update_monitor, StreamId::with_message_type::<SceneUpdate>()).unwrap();
 
     // program_1 reads from its input and sets it in sent_message
     scene.add_subprogram(program_1.clone(),

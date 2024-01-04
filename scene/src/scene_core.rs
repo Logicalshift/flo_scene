@@ -131,7 +131,10 @@ impl SceneCore {
     where
         TMessage: 'static + Unpin + Send + Sync,
     {
+        use std::mem;
+
         let (subprogram, waker) = {
+            let start_core      = Arc::downgrade(core);
             let process_core    = Arc::downgrade(&core);
             let mut core        = core.lock().unwrap();
 
@@ -139,14 +142,16 @@ impl SceneCore {
             let handle = core.next_subprogram;
 
             // Create a place to send updates on the program's progress
-            let mut update_sink = core.updates.as_ref().map(|(pid, sink_core)| OutputSink::attach(*pid, Arc::clone(sink_core)));
+            let update_sink = core.updates.as_ref().map(|(pid, sink_core)| OutputSink::attach(*pid, Arc::clone(sink_core)));
 
             // Start a process to run this subprogram
             let (_process_handle, waker) = core.start_process(async move {
                 // Notify that the program is starting
-                if let Some(update_sink) = update_sink.as_mut() {
-                    update_sink.send(SceneUpdate::Started(program_id)).await.ok();
+                if let Some(core) = start_core.upgrade() {
+                    // We use a background process to start because we might be blocking the program that reads the updates here
+                    core.lock().unwrap().send_scene_updates(vec![SceneUpdate::Started(program_id)]);
                 }
+                mem::drop(start_core);
 
                 // Wait for the program to run
                 program.await;
