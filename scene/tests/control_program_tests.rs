@@ -197,7 +197,7 @@ fn scene_update_messages() {
     scene.connect_programs((), update_monitor, StreamId::with_message_type::<SceneUpdate>()).unwrap();
 
     // program_1 reads from its input and sets it in sent_message
-    scene.add_subprogram(program_1.clone(),
+    scene.add_subprogram(program_1,
         move |mut input: InputStream<usize>, _| async move {
             // Read a single message and write it to the 'sent_message' structure
             input.next().await.unwrap();
@@ -222,5 +222,15 @@ fn scene_update_messages() {
     // Check that the updates we expected are generated for this program
     let recv_updates = recv_updates.lock().unwrap().drain(..).collect::<Vec<_>>();
     assert!(has_finished, "Scene did not terminate properly");
-    assert!(false, "{:?}", recv_updates);
+
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id) => *prog_id == program_1, _ => false }).count() == 1,
+        "Program 1 started more than once or didn't start");
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id) => *prog_id == program_2, _ => false }).count() == 1,
+        "Program 2 started more than once or didn't start");
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Stopped(prog_id) => *prog_id == program_1, _ => false }).count() == 1,
+        "Program 1 stopped more than once or didn't start");
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Stopped(prog_id) => *prog_id == program_2, _ => false }).count() == 1,
+        "Program 2 stopped more than once or didn't start");
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Connected(src, tgt, _strm) => *src == program_2 && *tgt == program_1, _ => false }).count() == 1,
+        "Program 2 connected the wrong number of times to program 1");
 }
