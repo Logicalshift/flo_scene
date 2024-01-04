@@ -87,6 +87,19 @@ impl<TMessage> OutputSinkCore<TMessage> {
             when_target_changed:    None,
         }
     }
+
+    ///
+    /// Returns the ID of the target of this core
+    ///
+    pub fn target_program_id(core: &Arc<Mutex<Self>>) -> Option<SubProgramId> {
+        let input_core = match &core.lock().unwrap().target {
+            OutputSinkTarget::Disconnected      | OutputSinkTarget::Discard                         => None,
+            OutputSinkTarget::Input(input_core) | OutputSinkTarget::CloseWhenDropped(input_core)    => input_core.upgrade(),
+        }?;
+
+        let program_id = input_core.lock().unwrap().target_program_id();
+        Some(program_id)
+    }
 }
 
 impl<TMessage> OutputSink<TMessage> {
@@ -356,7 +369,7 @@ mod test {
     fn send_message_to_input_stream() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
-        let mut input_stream    = InputStream::<u32>::new(1000);
+        let mut input_stream    = InputStream::<u32>::new(program_id, 1000);
         let mut output_sink     = OutputSink::new(program_id);
 
         // Attach the output sink to the input stream
@@ -377,7 +390,7 @@ mod test {
     fn send_message_to_input_stream_from_multiple_sinks() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
-        let mut input_stream    = InputStream::<u32>::new(1000);
+        let mut input_stream    = InputStream::<u32>::new(program_id, 1000);
         let mut output_sink_1   = OutputSink::new(program_id);
         let mut output_sink_2   = OutputSink::new(program_id);
 
@@ -400,7 +413,7 @@ mod test {
     fn send_message_to_full_input_stream() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
-        let mut input_stream    = InputStream::<u32>::new(0);
+        let mut input_stream    = InputStream::<u32>::new(program_id, 0);
         let mut output_sink     = OutputSink::new(program_id);
 
         // Attach the output sink to the input stream
@@ -428,7 +441,7 @@ mod test {
     fn send_message_to_disconnected_input_stream() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
-        let mut input_stream    = InputStream::<u32>::new(0);
+        let mut input_stream    = InputStream::<u32>::new(program_id, 0);
         let mut output_sink     = OutputSink::new(program_id);
 
         executor::block_on(async move {

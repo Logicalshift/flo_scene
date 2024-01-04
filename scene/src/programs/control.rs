@@ -97,7 +97,7 @@ impl SceneControl {
         let program     = Arc::new(program);
         let start_fn    = move |scene_core: Arc<Mutex<SceneCore>>| {
             // Create the context and input stream for the program
-            let input_stream    = InputStream::new(max_input_waiting);
+            let input_stream    = InputStream::new(program_id, max_input_waiting);
             let input_core      = input_stream.core();
 
             // Create the future that will be used to run the future

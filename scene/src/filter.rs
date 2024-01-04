@@ -55,7 +55,7 @@ impl FilterHandle {
             let target_input_core   = target_input_core.downcast::<Mutex<InputStreamCore<TTargetStream::Item>>>().or(Err(ConnectionError::FilterOutputDoesNotMatch))?;
             let buffer_size         = target_input_core.lock().unwrap().num_slots();
 
-            let source_input_stream = InputStream::<TSourceMessage>::new(buffer_size);
+            let source_input_stream = InputStream::<TSourceMessage>::new(sending_program, buffer_size);
             let target_input_core   = Arc::downgrade(&target_input_core);
 
             // The source core is what should be attached to the output sink here
