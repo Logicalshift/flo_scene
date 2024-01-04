@@ -146,6 +146,10 @@ impl SceneControl {
         let scene_core  = context.scene_core();
         let mut updates = context.send::<SceneUpdate>(StreamTarget::None).unwrap();
 
+        if let Some(scene_core) = scene_core.upgrade() {
+            scene_core.lock().unwrap().set_update_core(*SCENE_CONTROL_PROGRAM, updates.core());
+        }
+
         // The program runs until the input is exhausted
         let mut input = input;
         while let Some(request) = input.next().await {

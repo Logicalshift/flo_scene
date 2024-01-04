@@ -41,7 +41,7 @@ impl SceneContext {
     /// The `None` target will discard any messages received while the stream is disconnected, but the `Any` target will block until something
     /// connects the stream. Streams with a specified target will connect to that target immediately.
     ///
-    pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<impl Sink<TMessageType, Error=SceneSendError>, ConnectionError>
+    pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<OutputSink<TMessageType>, ConnectionError>
     where
         TMessageType: 'static + Unpin + Send + Sync,
     {

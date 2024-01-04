@@ -102,6 +102,13 @@ impl<TMessage> OutputSink<TMessage> {
             when_message_sent:      None,
         }
     }
+
+    ///
+    /// Retrieves the core of this output snk
+    ///
+    pub (crate) fn core(&self) -> Arc<Mutex<OutputSinkCore<TMessage>>> {
+        Arc::clone(&self.core)
+    }
 }
 
 impl<TMessage> Sink<TMessage> for OutputSink<TMessage> 
