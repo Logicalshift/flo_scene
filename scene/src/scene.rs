@@ -30,6 +30,7 @@ impl Default for Scene {
 
         // Populate with the default programs
         scene.add_subprogram(*SCENE_CONTROL_PROGRAM, SceneControl::scene_control_program, 0);
+        SceneCore::set_scene_update_from(&scene.core, *SCENE_CONTROL_PROGRAM);
 
         // Scene control messages are sent to the scene control program by default
         scene.connect_programs((), *SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<SceneControl>()).unwrap();

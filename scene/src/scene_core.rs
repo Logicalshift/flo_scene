@@ -3,6 +3,7 @@ use crate::filter::*;
 use crate::output_sink::*;
 use crate::input_stream::*;
 use crate::programs::*;
+use crate::scene_context::*;
 use crate::stream_id::*;
 use crate::stream_source::*;
 use crate::stream_target::*;
@@ -201,6 +202,35 @@ impl SceneCore {
 
         // Result is the subprogram
         subprogram
+    }
+
+    ///
+    /// Creates the 'scene update' stream for a particular program
+    ///
+    pub (crate) fn set_scene_update_from(core: &Arc<Mutex<SceneCore>>, source: SubProgramId) {
+        // Get the subprogram for the stream
+        let subprogram = {
+            let core                = core.lock().unwrap();
+            let subprogram_handle   = core.program_indexes.get(&source).copied();
+
+            if let Some(subprogram_handle) = subprogram_handle {
+                if let Some(subprogram) = core.sub_programs.get(subprogram_handle) {
+                    subprogram.as_ref().cloned()
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
+        if let Some(subprogram) = subprogram {
+            // Create a context for that subprogram
+            let context     = SceneContext::new(&core, &subprogram);
+            let update_sink = context.send::<SceneUpdate>(StreamTarget::None).unwrap();
+
+            core.lock().unwrap().set_update_core(source, update_sink.core());
+        }
     }
 
     ///
