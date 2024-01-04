@@ -1,5 +1,6 @@
 use crate::error::*;
 use crate::output_sink::*;
+use crate::programs::*;
 use crate::scene_core::*;
 use crate::stream_id::*;
 use crate::stream_target::*;
@@ -72,11 +73,29 @@ impl SceneContext {
 
                 // The scene core could provide a sink target for this stream, which we'll set in the program core
                 // Locking both so the scene's target can't change before we're done
-                let mut program_core = program_core.lock().unwrap();
-                Ok(match program_core.try_create_output_target(&stream_id, new_target) {
-                    Ok(new_target)  => OutputSink::attach(program_id, new_target),
-                    Err(old_target) => OutputSink::attach(program_id, old_target),
-                })
+                let new_or_old_target = program_core.lock().unwrap().try_create_output_target(&stream_id, new_target);
+
+                match new_or_old_target {
+                    Ok(new_target) => {
+                        // Report the new connection
+                        let target_program  = OutputSinkCore::target_program_id(&new_target);
+                        let update          = if let Some(target_program) = target_program {
+                            SceneUpdate::Connected(program_id, target_program, stream_id)
+                        } else {
+                            SceneUpdate::Disconnected(program_id, stream_id)
+                        };
+
+                        scene_core.lock().unwrap().send_scene_updates(vec![update]);
+
+                        // Attach the new target to an output sink
+                        Ok(OutputSink::attach(program_id, new_target))
+                    },
+
+                    Err(old_target) => {
+                        // Just re-use the old target
+                        Ok(OutputSink::attach(program_id, old_target))
+                    }
+                }
             }
         } else {
             // Scene or program has been stopped
