@@ -173,6 +173,8 @@ impl SceneCore {
     {
         use std::mem;
 
+        Self::initialise_message_type::<TMessage>(core);
+
         let (subprogram, waker) = {
             let start_core      = Arc::downgrade(core);
             let process_core    = Arc::downgrade(&core);
@@ -448,6 +450,8 @@ impl SceneCore {
         TMessageType: 'static + SceneMessage,
     {
         use std::mem;
+
+        Self::initialise_message_type::<TMessageType>(scene_core);
 
         match target {
             StreamTarget::None  |
