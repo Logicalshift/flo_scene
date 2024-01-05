@@ -114,7 +114,6 @@ impl SceneMessage for MyMessage {
     fn default_target() -> StreamTarget {
         StreamTarget::Program(SubProgramId::called("MyMessageHandler"))
     }
-
 }
 ```
 
@@ -148,6 +147,8 @@ But it's also possible to redirect these with a connection request:
 // Take care as this can get confusing!
 scene.connect(exception_program, standard_logger_program, StreamId::for_target::<LogMessage>(SubProgramId::called("MoreSpecificLogger")));
 ```
+
+You can create and run more than one `Scene` at once if needed.
 
 ## Philosophy
 
