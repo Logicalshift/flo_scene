@@ -105,7 +105,7 @@ impl SceneControl {
     pub fn start_program<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
     where
         TFuture:        Send + Sync + Future<Output=()>,
-        TInputMessage:  'static + Unpin + Send + Sync,
+        TInputMessage:  'static + SceneMessage,
         TProgramFn:     'static + Send + Sync + Fn(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
         // TODO: this is almost the same 'start' procedure as appears in the main 'Scene' type (modified because control requests are cloneable so the start function has to be 'Sync')
