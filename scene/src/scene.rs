@@ -48,6 +48,15 @@ impl Scene {
     }
 
     ///
+    /// Creates a duplicate scene object
+    ///
+    pub (crate) fn with_core(core: &Arc<Mutex<SceneCore>>) -> Self {
+        Scene {
+            core: core.clone()
+        }
+    }
+
+    ///
     /// Adds a subprogram to run in this scene
     ///
     pub fn add_subprogram<TProgramFn, TInputMessage, TFuture>(&self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)

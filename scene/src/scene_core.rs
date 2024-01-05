@@ -3,6 +3,7 @@ use crate::filter::*;
 use crate::output_sink::*;
 use crate::input_stream::*;
 use crate::programs::*;
+use crate::scene::*;
 use crate::scene_context::*;
 use crate::scene_message::*;
 use crate::stream_id::*;
@@ -74,6 +75,9 @@ pub (crate) struct SceneCore {
     /// The sub-programs that are active in this scene
     sub_programs: Vec<Option<Arc<Mutex<SubProgramCore>>>>,
 
+    /// The message types where the 'initialise' routine has been called
+    initialised_message_types: HashSet<TypeId>,
+
     /// The input stream cores for each sub-program
     sub_program_inputs: Vec<Option<Arc<dyn Send + Sync + Any>>>,
 
@@ -111,17 +115,52 @@ impl SceneCore {
     ///
     pub fn new() -> SceneCore {
         SceneCore {
-            sub_programs:       vec![],
-            sub_program_inputs: vec![],
-            next_subprogram:    0,
-            processes:          vec![],
-            next_process:       0,
-            program_indexes:    HashMap::new(),
-            awake_processes:    VecDeque::new(),
-            connections:        HashMap::new(),
-            thread_wakers:      vec![],
-            stopped:            false,
-            updates:            None,
+            sub_programs:               vec![],
+            sub_program_inputs:         vec![],
+            initialised_message_types:  HashSet::new(),
+            next_subprogram:            0,
+            processes:                  vec![],
+            next_process:               0,
+            program_indexes:            HashMap::new(),
+            awake_processes:            VecDeque::new(),
+            connections:                HashMap::new(),
+            thread_wakers:              vec![],
+            stopped:                    false,
+            updates:                    None,
+        }
+    }
+
+    ///
+    /// If a message type has not been initialised in a core, calls the initialisation function
+    ///
+    #[inline]
+    pub (crate) fn initialise_message_type<TMessageType>(core: &Arc<Mutex<SceneCore>>)
+    where
+        TMessageType: 'static + SceneMessage,
+    {
+        // If the message type is not yet initialised, mark it as such and then call the initialisation function
+        // TODO: if there are multiple threads dealing with the scene, the message type might be used 'uninitialised' for a brief while on other threads
+        let type_id             = TypeId::of::<TMessageType>();
+        let needs_initialising  = {
+            let mut core = core.lock().unwrap();
+
+            if !core.initialised_message_types.contains(&type_id) {
+                // Not initialised
+                core.initialised_message_types.insert(type_id);
+
+                true
+            } else {
+                // Already initialised
+                false
+            }
+        };
+
+        if needs_initialising {
+            // Create a fake scene object for the 'initialise' routine (same core)
+            let fake_scene = Scene::with_core(core);
+
+            // Initialise the message type
+            TMessageType::initialise(&fake_scene);
         }
     }
 
