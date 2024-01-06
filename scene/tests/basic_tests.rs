@@ -1,7 +1,8 @@
 use flo_scene::*;
+use flo_scene::programs::*;
 
 use futures::prelude::*;
-use futures::future::{select};
+use futures::future::{select, join};
 use futures::executor;
 use futures_timer::*;
 
@@ -304,4 +305,49 @@ fn send_output_via_thread_context() {
     // Should have set the flag and then finished
     assert!(*sent_message.lock().unwrap() == Some(42), "Message was not sent");
     assert!(scene_context().is_none(), "Scene context should be none outside of the scene");
+}
+
+#[test]
+fn send_output_from_outside() {
+    // Flag to say if the subprogram has run
+    let received_messages = Arc::new(Mutex::new(vec![]));
+
+    // Create a scene with a subprogram that receives messages
+    let scene       = Scene::default();
+    let program_1   = SubProgramId::new();
+
+    // program 1 reads messages and checks their origin. It expects 4 messages, and stops the scene when it receives them
+    let stored_messages = received_messages.clone();
+    scene.add_subprogram(program_1,
+        move |input: InputStream<String>, _context| async move {
+            let mut input = input.messages_with_sources();
+
+            for _ in 0..4 {
+                let next = input.next().await.unwrap();
+                stored_messages.lock().unwrap().push(next);
+            }
+
+            scene_context().unwrap().send_message(SceneControl::StopScene).await.unwrap();
+        }, 0);
+
+    // Create a sink that will send messages to this program
+    let mut write_messages = scene.send_to_scene::<String>(program_1).unwrap();
+
+    // Run this scene, and send some messages
+    executor::block_on(select(async {
+        join(scene.run_scene(), async {
+            write_messages.send("One".to_string()).await.unwrap();
+            write_messages.send("Two".to_string()).await.unwrap();
+            write_messages.send("Three".to_string()).await.unwrap();
+            write_messages.send("Four".to_string()).await.unwrap();
+        }).await;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Check the receieved messages
+    let received_messages = received_messages.lock().unwrap();
+    assert!(received_messages.len() == 4, "Expected 4 messages to be sent, {:?}", received_messages);
+    assert!(received_messages.contains(&(*OUTSIDE_SCENE_PROGRAM, "One".into())), "Expected one, {:?}", received_messages);
+    assert!(received_messages.contains(&(*OUTSIDE_SCENE_PROGRAM, "Two".into())), "Expected two, {:?}", received_messages);
+    assert!(received_messages.contains(&(*OUTSIDE_SCENE_PROGRAM, "Three".into())), "Expected three, {:?}", received_messages);
+    assert!(received_messages.contains(&(*OUTSIDE_SCENE_PROGRAM, "Four".into())), "Expected four, {:?}", received_messages);
 }
