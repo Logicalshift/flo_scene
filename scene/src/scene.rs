@@ -1,4 +1,5 @@
 use crate::input_stream::*;
+use crate::output_sink::*;
 use crate::scene_context::*;
 use crate::scene_core::*;
 use crate::scene_message::*;
@@ -139,6 +140,54 @@ impl Scene {
         let stream = stream.into();
 
         SceneCore::connect_programs(&self.core, source, target, stream)
+    }
+
+    ///
+    /// Creates a stream that can be used to send messages into this scene from elsewhere
+    ///
+    /// This scene must have a `OUTSIDE_SCENE_PROGRAM` running in order to act as a source for these messages (and this can also be used to
+    /// connect or reconnect the streams returned by this function) .
+    ///
+    pub fn send_to_scene<TMessage>(&self, target: impl Into<StreamTarget>) -> Result<impl Sink<TMessage, Error=SceneSendError>, ConnectionError> 
+    where
+        TMessage: 'static + SceneMessage,
+    {
+        let target = target.into();
+
+        // Fetch the outside scene program, which is the source for messages on this stream
+        let program_id      = *OUTSIDE_SCENE_PROGRAM;
+        let program_core    = self.core.lock().unwrap().get_sub_program(program_id).ok_or(ConnectionError::NoOutsideSceneSubProgram)?;
+        let stream_id       = StreamId::for_target::<TMessage>(target.clone());
+
+        // Try to re-use an existing target
+        let existing_core = program_core.lock().unwrap().output_core(&stream_id);
+
+        if let Some(existing_core) = existing_core {
+            // Reattach to the existing output core
+            let output_sink = OutputSink::attach(program_id, existing_core);
+            Ok(output_sink)
+        } else {
+            // Create a new target for this message
+            let sink_target = SceneCore::sink_for_target::<TMessage>(&self.core, &program_id, target)?;
+
+            // Try to attach it to the program (or just read the old version)
+            let new_or_old_target = program_core.lock().unwrap().try_create_output_target(&stream_id, sink_target);
+            let new_or_old_target = match new_or_old_target { Ok(new) => new, Err(old) => old };
+
+            // Report the new connection
+            let target_program  = OutputSinkCore::target_program_id(&new_or_old_target);
+            let update          = if let Some(target_program) = target_program {
+                SceneUpdate::Connected(program_id, target_program, stream_id)
+            } else {
+                SceneUpdate::Disconnected(program_id, stream_id)
+            };
+
+            self.core.lock().unwrap().send_scene_updates(vec![update]);
+
+            // Create an output sink from the target
+            let output_sink = OutputSink::attach(program_id, new_or_old_target);
+            Ok(output_sink)
+        }
     }
 
     ///

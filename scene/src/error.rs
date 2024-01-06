@@ -37,6 +37,9 @@ pub enum ConnectionError {
 
     /// A stream target had an unexpected value
     UnexpectedConnectionType,
+
+    /// The `OUTSIDE_SCENE_PROGRAM` subprogram is not running and a sink for sending messages into the scene was requested
+    NoOutsideSceneSubProgram,
 }
 
 ///
