@@ -64,7 +64,7 @@ let test_program = SubProgramId::new();
 scene.add_subprogram(test_program,
     |_: InputStream<()>, context| async move {
         // '()' means send to any target
-        let mut logger = context.send::<LogMessage>(());
+        let mut logger = context.send::<LogMessage>(()).unwrap();
 
         // Will send to the logger program
         logger.send(LogMessage::Warning("Hello".to_string())).await.unwrap();

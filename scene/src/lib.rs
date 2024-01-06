@@ -12,7 +12,7 @@
 //! subprograms by default but the default scene contains some default ones, in particular a
 //! control program that can be used to start other programs or define connections between programs.
 //! 
-//! ```Rust
+//! ```
 //! use flo_scene::*;
 //! 
 //! let scene = Scene::default();
@@ -23,7 +23,11 @@
 //! can be specified independently of the programs themselves. Messages need to implement the 
 //! `SceneMessage` trait, and subprograms can be added to a scene using the `add_subprogram()` function.
 //! 
-//! ```Rust
+//! ```
+//! # use flo_scene::*;
+//! # use futures::prelude::*;
+//! # let scene = Scene::default();
+//! #
 //! // Simple logger
 //! pub enum LogMessage {
 //!     Info(String),
@@ -51,7 +55,15 @@
 //! that generates log messages does not need to know their destination and that it's possible to change
 //! how something is logging at run-time if needed.
 //! 
-//! ```Rust
+//! ```
+//! # use flo_scene::*;
+//! # use futures::prelude::*;
+//! # let scene = Scene::default();
+//! # let log_program = SubProgramId::new();
+//! # pub enum LogMessage { Warning(String) };
+//! # impl SceneMessage for LogMessage { }
+//! # scene.add_subprogram(log_program, |_: InputStream<LogMessage>, _| async { }, 0);
+//! #
 //! // Connect any program that writes log messages to our log program
 //! // '()' means 'any source' here, it's possible to define connections on a per-subprogram basis if needed.
 //! scene.connect_programs((), log_program, StreamId::with_message_type::<LogMessage>()).unwrap();
@@ -60,12 +72,18 @@
 //! Subprograms have a context that can be used to retrieve output streams, or send single messages, so
 //! after this connection is set up, anything can send log messages.
 //! 
-//! ```Rust
+//! ```
+//! # use flo_scene::*;
+//! # use futures::prelude::*;
+//! # let scene = Scene::default();
+//! # pub enum LogMessage { Warning(String) };
+//! # impl SceneMessage for LogMessage { }
+//! #
 //! let test_program = SubProgramId::new();
 //! scene.add_subprogram(test_program,
 //!     |_: InputStream<()>, context| async move {
 //!         // '()' means send to any target
-//!         let mut logger = context.send::<LogMessage>(());
+//!         let mut logger = context.send::<LogMessage>(()).unwrap();
 //! 
 //!         // Will send to the logger program
 //!         logger.send(LogMessage::Warning("Hello".to_string())).await.unwrap();
