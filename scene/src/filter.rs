@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::input_stream::*;
 use crate::scene_core::*;
+use crate::scene_message::*;
 use crate::stream_id::*;
 use crate::subprogram_id::*;
 
@@ -35,9 +36,9 @@ impl FilterHandle {
     ///
     pub fn for_filter<TSourceMessage, TTargetStream>(filter: impl 'static + Send + Sync + Fn(InputStream<TSourceMessage>) -> TTargetStream) -> FilterHandle
     where
-        TSourceMessage:         'static + Unpin + Send + Sync,
+        TSourceMessage:         'static + Unpin + SceneMessage,
         TTargetStream:          'static + Send + Stream,
-        TTargetStream::Item:    'static + Unpin + Send + Sync,
+        TTargetStream::Item:    'static + Unpin + SceneMessage,
     {
         use std::mem;
 
