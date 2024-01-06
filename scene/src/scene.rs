@@ -31,6 +31,7 @@ impl Default for Scene {
 
         // Populate with the default programs
         scene.add_subprogram(*SCENE_CONTROL_PROGRAM, SceneControl::scene_control_program, 0);
+        scene.add_subprogram(*OUTSIDE_SCENE_PROGRAM, outside_scene_program, 0);
         SceneCore::set_scene_update_from(&scene.core, *SCENE_CONTROL_PROGRAM);
 
         scene
