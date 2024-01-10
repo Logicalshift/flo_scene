@@ -83,13 +83,13 @@ fn connect_before_starting() {
     let sent_message    = Arc::new(Mutex::new(None));
 
     // Create a scene with two subprograms. Program_1 will send to Program_2
-    let scene       = Arc::new(Scene::empty());
+    let scene       = Scene::empty();
     let program_1   = SubProgramId::new();
     let program_2   = SubProgramId::new();
 
     // program_1 reads from its input and sets it in sent_message
-    let recv_message = sent_message.clone();
-    let scene_ref = Arc::clone(&scene);
+    let recv_message    = sent_message.clone();
+    let scene_ref       = &scene;
     scene.add_subprogram(program_1.clone(),
         move |mut input: InputStream<usize>, _| {
             // Create a connection to this program: this is called very early on so avoids race conditions, and also won't fail if the program ends very early
