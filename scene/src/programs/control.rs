@@ -76,31 +76,11 @@ pub enum SceneUpdate {
     Stopped(SubProgramId),
 }
 
-impl Debug for SceneProgramFn {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "SceneProgramFn(...)")
-    }
-}
-
-impl SceneMessage for SceneControl { 
-    fn default_target() -> StreamTarget {
-        // Send to the main control program by default
-        (*SCENE_CONTROL_PROGRAM).into()
-    }
-}
-
-impl SceneMessage for SceneUpdate { 
-    fn default_target() -> StreamTarget {
-        // Updates are discarded by default
-        StreamTarget::None
-    }
-}
-
-impl SceneControl {
+impl SceneProgramFn {
     ///
-    /// Creates a start program message for the scene control subprogram
+    /// Creates a new SceneProgramFn that will start a subprogram in a scene
     ///
-    pub fn start_program<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
+    pub fn new<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
     where
         TFuture:        'static + Send + Sync + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
@@ -139,9 +119,41 @@ impl SceneControl {
 
         // Turn the function into a SceneProgramFn
         let start_fn: Box<dyn Send + Sync + FnOnce(Arc<Mutex<SceneCore>>) -> ()> = Box::new(start_fn);
-        let start_fn = SceneProgramFn(Box::new(start_fn));
+        SceneProgramFn(Box::new(start_fn))
+    }
+}
 
-        // Wrap this in a message
+impl Debug for SceneProgramFn {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "SceneProgramFn(...)")
+    }
+}
+
+impl SceneMessage for SceneControl { 
+    fn default_target() -> StreamTarget {
+        // Send to the main control program by default
+        (*SCENE_CONTROL_PROGRAM).into()
+    }
+}
+
+impl SceneMessage for SceneUpdate { 
+    fn default_target() -> StreamTarget {
+        // Updates are discarded by default
+        StreamTarget::None
+    }
+}
+
+impl SceneControl {
+    ///
+    /// Creates a start program message for the scene control subprogram
+    ///
+    pub fn start_program<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
+    where
+        TFuture:        'static + Send + Sync + Future<Output=()>,
+        TInputMessage:  'static + SceneMessage,
+        TProgramFn:     'static + Send + Sync + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
+    {
+        let start_fn = SceneProgramFn::new(program_id, program, max_input_waiting);
         SceneControl::Start(program_id, start_fn)
     }
 
