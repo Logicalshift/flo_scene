@@ -61,22 +61,21 @@ impl Scene {
     ///
     /// Adds a subprogram to run in this scene
     ///
-    pub fn add_subprogram<TProgramFn, TInputMessage, TFuture>(&self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)
+    pub fn add_subprogram<'a, TProgramFn, TInputMessage, TFuture>(&'a self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)
     where
-        TFuture:        Send + Sync + Future<Output=()>,
+        TFuture:        'static + Send + Sync + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
-        TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
+        TProgramFn:     'a + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
         // Create the context and input stream for the program
         let input_stream    = InputStream::new(program_id, max_input_waiting);
         let input_core      = input_stream.core();
 
         // Create the future that will be used to run the future
-        let (send_context, recv_context) = oneshot::channel::<SceneContext>();
+        let (send_context, recv_context) = oneshot::channel::<(TFuture, SceneContext)>();
         let run_program = async move {
-            if let Ok(scene_context) = recv_context.await {
+            if let Ok((program, scene_context)) = recv_context.await {
                 // Start the program running
-                let program = with_scene_context(&scene_context, || program(input_stream, scene_context.clone()));
                 pin_mut!(program);
 
                 // Poll the program with the scene context set
@@ -91,9 +90,11 @@ impl Scene {
         // Start the program running
         let subprogram = SceneCore::start_subprogram(&self.core, program_id, run_program, input_core);
 
-        // Create the scene context, and send it to the subprogram
+        // Call the start function to create the future, and pass it into the program that was started
         let context = SceneContext::new(&self.core, &subprogram);
-        send_context.send(context).ok();
+        let program = with_scene_context(&context, || program(input_stream, context.clone()));
+
+        send_context.send((program, context)).ok();
     }
 
     ///
