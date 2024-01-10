@@ -24,8 +24,7 @@ pub static SCENE_CONTROL_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId
 ///
 /// Represents a program start function
 ///
-#[derive(Clone)]
-pub struct SceneProgramFn(Arc<dyn Send + Sync + Fn(Arc<Mutex<SceneCore>>)>);
+pub struct SceneProgramFn(Box<dyn Send + Sync + Fn(Arc<Mutex<SceneCore>>)>);
 
 ///
 /// Messages that can be sent to the main scene control program
@@ -142,7 +141,7 @@ impl SceneControl {
 
         // Turn the function into a SceneProgramFn
         let start_fn: Box<dyn Send + Sync + Fn(Arc<Mutex<SceneCore>>) -> ()> = Box::new(start_fn);
-        let start_fn = SceneProgramFn(Arc::new(start_fn));
+        let start_fn = SceneProgramFn(Box::new(start_fn));
 
         // Wrap this in a message
         SceneControl::Start(program_id, start_fn)
