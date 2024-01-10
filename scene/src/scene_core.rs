@@ -678,7 +678,7 @@ impl SubProgramCore {
     ///
     pub (crate) fn try_create_output_target<TMessageType>(&mut self, id: &StreamId, new_output_target: OutputSinkTarget<TMessageType>) -> Result<Arc<Mutex<OutputSinkCore<TMessageType>>>, Arc<Mutex<OutputSinkCore<TMessageType>>>>
     where
-        TMessageType: 'static + Send + Sync,
+        TMessageType: 'static + SceneMessage,
     {
         let existing_target = self.outputs.get(id);
         if let Some(existing_target) = existing_target {

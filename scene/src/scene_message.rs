@@ -4,7 +4,7 @@ use crate::stream_target::*;
 ///
 /// Trait implemented by messages that can be sent via a scene
 ///
-pub trait SceneMessage : Sized + Send + Sync + Unpin {
+pub trait SceneMessage : Sized + Send + Unpin {
     ///
     /// The default target for this message type
     ///
