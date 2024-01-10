@@ -24,7 +24,7 @@ pub static SCENE_CONTROL_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId
 ///
 /// Represents a program start function
 ///
-pub struct SceneProgramFn(Box<dyn Send + Sync + Fn(Arc<Mutex<SceneCore>>)>);
+pub struct SceneProgramFn(Box<dyn Send + Sync + FnOnce(Arc<Mutex<SceneCore>>)>);
 
 ///
 /// Messages that can be sent to the main scene control program
@@ -102,24 +102,21 @@ impl SceneControl {
     ///
     pub fn start_program<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
     where
-        TFuture:        Send + Sync + Future<Output=()>,
+        TFuture:        'static + Send + Sync + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
-        TProgramFn:     'static + Send + Sync + Fn(InputStream<TInputMessage>, SceneContext) -> TFuture,
+        TProgramFn:     'static + Send + Sync + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
         // TODO: this is almost the same 'start' procedure as appears in the main 'Scene' type (modified because control requests are cloneable so the start function has to be 'Sync')
-        let program     = Arc::new(program);
         let start_fn    = move |scene_core: Arc<Mutex<SceneCore>>| {
             // Create the context and input stream for the program
             let input_stream    = InputStream::new(program_id, max_input_waiting);
             let input_core      = input_stream.core();
 
             // Create the future that will be used to run the future
-            let (send_context, recv_context)    = oneshot::channel::<SceneContext>();
-            let program                         = Arc::clone(&program);
+            let (send_context, recv_context)    = oneshot::channel::<(TFuture, SceneContext)>();
             let run_program = async move {
-                if let Ok(scene_context) = recv_context.await {
+                if let Ok((program, scene_context)) = recv_context.await {
                     // Start the program running
-                    let program = with_scene_context(&scene_context, || program(input_stream, scene_context.clone()));
                     pin_mut!(program);
 
                     // Poll the program with the scene context set
@@ -136,11 +133,12 @@ impl SceneControl {
 
             // Create the scene context, and send it to the subprogram
             let context = SceneContext::new(&scene_core, &subprogram);
-            send_context.send(context).ok();
+            let program = program(input_stream, context.clone());
+            send_context.send((program, context)).ok();
         };
 
         // Turn the function into a SceneProgramFn
-        let start_fn: Box<dyn Send + Sync + Fn(Arc<Mutex<SceneCore>>) -> ()> = Box::new(start_fn);
+        let start_fn: Box<dyn Send + Sync + FnOnce(Arc<Mutex<SceneCore>>) -> ()> = Box::new(start_fn);
         let start_fn = SceneProgramFn(Box::new(start_fn));
 
         // Wrap this in a message
@@ -173,7 +171,7 @@ impl SceneControl {
                     if let Some(scene_core) = scene_core.upgrade() {
                         let start_fn = start_fn.0;
 
-                        (*start_fn)(scene_core);
+                        (start_fn)(scene_core);
                     } else {
                         break;
                     }
