@@ -14,7 +14,6 @@ use futures::channel::oneshot;
 use futures::{pin_mut};
 use once_cell::sync::{Lazy};
 
-use std::any::*;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::sync::*;
@@ -26,12 +25,12 @@ pub static SCENE_CONTROL_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId
 /// Represents a program start function
 ///
 #[derive(Clone)]
-pub struct SceneProgramFn(Arc<dyn Send + Sync + Any>);
+pub struct SceneProgramFn(Arc<dyn Send + Sync + Fn(Arc<Mutex<SceneCore>>)>);
 
 ///
 /// Messages that can be sent to the main scene control program
 ///
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum SceneControl {
     ///
     /// Starts a new sub-program in this scene
@@ -173,11 +172,9 @@ impl SceneControl {
                 Start(_program_id, start_fn) => {
                     // Downcast the start function and call it
                     if let Some(scene_core) = scene_core.upgrade() {
-                        let start_fn = start_fn.0.downcast::<Box<dyn Send + Sync + Fn(Arc<Mutex<SceneCore>>) -> ()>>();
+                        let start_fn = start_fn.0;
 
-                        if let Ok(start_fn) = start_fn {
-                            (*start_fn)(scene_core);
-                        }
+                        (*start_fn)(scene_core);
                     } else {
                         break;
                     }
