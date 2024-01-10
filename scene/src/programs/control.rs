@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::input_stream::*;
 use crate::scene_context::*;
+use crate::scene::*;
 use crate::scene_core::*;
 use crate::scene_message::*;
 use crate::stream_id::*;
@@ -120,6 +121,14 @@ impl SceneProgramFn {
         // Turn the function into a SceneProgramFn
         let start_fn: Box<dyn Send + Sync + FnOnce(Arc<Mutex<SceneCore>>) -> ()> = Box::new(start_fn);
         SceneProgramFn(Box::new(start_fn))
+    }
+
+    ///
+    /// Adds the program that is started by this function to a scene
+    ///
+    #[inline]
+    pub fn add_to_scene(self, scene: &Scene) {
+        (self.0)(Arc::clone(scene.core()))
     }
 }
 

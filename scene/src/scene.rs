@@ -59,6 +59,14 @@ impl Scene {
     }
 
     ///
+    /// Gets a reference to the core of this scene
+    ///
+    #[inline]
+    pub (crate) fn core(&self) -> &Arc<Mutex<SceneCore>> {
+        &self.core
+    }
+
+    ///
     /// Adds a subprogram to run in this scene
     ///
     pub fn add_subprogram<'a, TProgramFn, TInputMessage, TFuture>(&'a self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)
