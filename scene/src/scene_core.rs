@@ -511,6 +511,8 @@ impl SceneCore {
                 // The connections can define a redirect stream by using a StreamId target
                 let core                = scene_core.lock().unwrap();
                 let target_program_id   = core.connections.get(&(source.into(), StreamId::for_target::<TMessageType>(&target_program_id)))
+                    .or_else(|| core.connections.get(&(StreamSource::TargetProgram(target_program_id), StreamId::for_target::<TMessageType>(&target_program_id))))
+                    .or_else(|| core.connections.get(&(StreamSource::TargetProgram(target_program_id), StreamId::with_message_type::<TMessageType>())))
                     .or_else(|| core.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
                     .and_then(|target| {
                         match target {
