@@ -95,7 +95,7 @@ fn apply_filter_to_direct_connection() {
     );
 
     // Create a filter targeting our new program that maps from usize to string
-    scene.connect_programs((), StreamTarget::Filtered(usize_to_string, string_program), StreamId::with_message_type::<usize>()).unwrap();
+    scene.connect_programs(StreamSource::TargetProgram(string_program), StreamTarget::Filtered(usize_to_string, string_program), StreamId::with_message_type::<usize>()).unwrap();
 
     // Add another program that outputs some numbers as usize values to the first program
     // The connection defined above will apply the filter, even though the first program only accepts strings as an input
