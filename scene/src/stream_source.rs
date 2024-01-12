@@ -8,8 +8,11 @@ pub enum StreamSource {
     /// All sources of this type of stream
     All,
 
-    /// Take the stream from a particular program
+    /// A stream of this type originating from a specific program
     Program(SubProgramId),
+
+    /// A stream of this type originating from any program but with a specific program given as the target
+    TargetProgram(SubProgramId),
 }
 
 impl StreamSource {
@@ -18,8 +21,9 @@ impl StreamSource {
     ///
     pub fn matches_subprogram(&self, id: &SubProgramId) -> bool {
         match self {
-            StreamSource::All                   => true,
-            StreamSource::Program(source_id)    => source_id.eq(id),
+            StreamSource::All                       => true,
+            StreamSource::Program(source_id)        => source_id.eq(id),
+            StreamSource::TargetProgram(_target_id) => true,
         }
     }
 }
