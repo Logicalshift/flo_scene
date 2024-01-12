@@ -509,29 +509,40 @@ impl SceneCore {
 
             StreamTarget::Program(target_program_id) => {
                 // The connections can define a redirect stream by using a StreamId target
-                let core                = scene_core.lock().unwrap();
-                let target_program_id   = core.connections.get(&(source.into(), StreamId::for_target::<TMessageType>(&target_program_id)))
+                let core                        = scene_core.lock().unwrap();
+                let (filter, target_program_id) = core.connections.get(&(source.into(), StreamId::for_target::<TMessageType>(&target_program_id)))
                     .or_else(|| core.connections.get(&(StreamSource::TargetProgram(target_program_id), StreamId::for_target::<TMessageType>(&target_program_id))))
                     .or_else(|| core.connections.get(&(StreamSource::TargetProgram(target_program_id), StreamId::with_message_type::<TMessageType>())))
                     .or_else(|| core.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
                     .and_then(|target| {
                         match target {
-                            StreamTarget::Program(program_id)       => Some(*program_id),
-                            StreamTarget::Filtered(_, program_id)   => Some(*program_id),
-                            _                                       => None,
+                            StreamTarget::Program(program_id)           => Some((None, *program_id)),
+                            StreamTarget::Filtered(filter, program_id)  => Some((Some(*filter), *program_id)),
+                            _                                           => None,
                         }
                     })
-                    .unwrap_or(target_program_id);
+                    .unwrap_or((None, target_program_id));
 
-                // Attempt to find the target stream for this specific program
-                // TODO: if the program hasn't started yet, we should create a disconnected stream and connect it later on
-                let target_program_handle   = core.program_indexes.get(&target_program_id).ok_or(ConnectionError::TargetNotInScene)?;
-                let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
-                let target_input_type       = core.sub_programs[*target_program_handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
-                let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>()
-                    .or_else(move |_| Err(ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type))))?;
+                if let Some(filter) = filter {
+                    // Create a filtered connection to this program
+                    mem::drop(core);
 
-                Ok(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))
+                    let filtered_input_core = Self::filtered_input_for_program(scene_core, *source, filter, target_program_id)?;
+                    let filtered_input_core = filtered_input_core.downcast::<Mutex<InputStreamCore<TMessageType>>>()
+                        .or(Err(ConnectionError::FilterInputDoesNotMatch))?;
+
+                    Ok(OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core)))
+                } else {
+                    // Attempt to find the target stream for this specific program to create a direct connection
+                    // TODO: if the program hasn't started yet, we should create a disconnected stream and connect it later on
+                    let target_program_handle   = core.program_indexes.get(&target_program_id).ok_or(ConnectionError::TargetNotInScene)?;
+                    let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
+                    let target_input_type       = core.sub_programs[*target_program_handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
+                    let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>()
+                        .or_else(move |_| Err(ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type))))?;
+
+                    Ok(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))
+                }
             },
 
             StreamTarget::Filtered(filter_handle, target_program_id) => {
