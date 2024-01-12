@@ -83,7 +83,7 @@ impl SceneProgramFn {
     ///
     pub fn new<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
     where
-        TFuture:        'static + Send + Sync + Future<Output=()>,
+        TFuture:        'static + Send + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
         TProgramFn:     'static + Send + Sync + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
@@ -158,7 +158,7 @@ impl SceneControl {
     ///
     pub fn start_program<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
     where
-        TFuture:        'static + Send + Sync + Future<Output=()>,
+        TFuture:        'static + Send + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
         TProgramFn:     'static + Send + Sync + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {

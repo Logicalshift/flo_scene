@@ -71,7 +71,7 @@ impl Scene {
     ///
     pub fn add_subprogram<'a, TProgramFn, TInputMessage, TFuture>(&'a self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)
     where
-        TFuture:        'static + Send + Sync + Future<Output=()>,
+        TFuture:        'static + Send + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
         TProgramFn:     'a + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
