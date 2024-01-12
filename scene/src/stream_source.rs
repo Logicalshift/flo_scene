@@ -10,9 +10,6 @@ pub enum StreamSource {
 
     /// A stream of this type originating from a specific program
     Program(SubProgramId),
-
-    /// A stream of this type originating from any program but with a specific program given as the target
-    TargetProgram(SubProgramId),
 }
 
 impl StreamSource {
@@ -23,7 +20,6 @@ impl StreamSource {
         match self {
             StreamSource::All                       => true,
             StreamSource::Program(source_id)        => source_id.eq(id),
-            StreamSource::TargetProgram(_target_id) => true,
         }
     }
 }
