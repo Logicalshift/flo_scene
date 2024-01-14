@@ -27,9 +27,15 @@ pub (crate) struct InputStreamCore<TMessage> {
     /// Wakers for any output streams waiting for slots to become available
     when_slots_available: VecDeque<Waker>,
 
+    /// If non-zero, this input stream is blocked from receiving any more data (even if slots are waiting in max-waiting), creating back-pressure on anything that's outputting to it 
+    blocked: usize,
+
     /// True if this stream is closed (because the subprogram is ending)
     closed: bool,
 }
+
+/// A struct that unblocks an input stream when dropped
+pub struct BlockedStream<TMessage>(Weak<Mutex<InputStreamCore<TMessage>>>);
 
 ///
 /// An input stream for a subprogram
@@ -45,6 +51,29 @@ struct InputStreamWithSources<TMessage> {
     pub (crate) core: Arc<Mutex<InputStreamCore<TMessage>>>,
 }
 
+impl<TMessage> Drop for BlockedStream<TMessage> {
+    fn drop(&mut self) {
+        use std::mem;
+
+        if let Some(core) = self.0.upgrade() {
+            // Reduce the blocked count
+            let mut core = core.lock().unwrap();
+            core.blocked -= 1;
+
+            // Wake the core if it has become unblocked
+            if core.blocked <= 0 {
+                // Core is unblocked: take anything that's waiting for slots, then unlock the core
+                let when_slots_available = core.when_slots_available.drain(..).collect::<Vec<_>>();
+                mem::drop(core);
+
+                // Wake everything that's waiting for this input stream to unblock
+                when_slots_available.into_iter()
+                    .for_each(|waker| waker.wake());
+            }
+        }
+    }
+}
+
 impl<TMessage> InputStream<TMessage> {
     ///
     /// Creates a new input stream
@@ -56,6 +85,7 @@ impl<TMessage> InputStream<TMessage> {
             waiting_messages:       VecDeque::new(),
             when_message_sent:      None,
             when_slots_available:   VecDeque::new(),
+            blocked:                0,
             closed:                 false,
         };
 
@@ -79,6 +109,16 @@ impl<TMessage> InputStream<TMessage> {
             core: self.core
         }
     }
+
+    ///
+    /// Blocks anything from sending data to this core until the returned value is dropped
+    ///
+    pub fn block(&self) -> BlockedStream<TMessage> {
+        let mut core = self.core.lock().unwrap();
+        core.blocked += 1;
+
+        BlockedStream(Arc::downgrade(&self.core))
+    }
 }
 
 impl<TMessage> InputStreamCore<TMessage> {
@@ -86,10 +126,12 @@ impl<TMessage> InputStreamCore<TMessage> {
     /// Adds a message to this core if there's space for it, returning the waker to be called if successful (the waker must be called with the core unlocked)
     ///
     pub (crate) fn send(&mut self, source: SubProgramId, message: TMessage) -> Result<Option<Waker>, TMessage> {
-        if self.waiting_messages.len() <= self.max_waiting {
+        if self.blocked == 0 && self.waiting_messages.len() <= self.max_waiting {
+            // The input stream is not blocked and has space in the waiting_messages queue for this event: queue it up and return the waker
             self.waiting_messages.push_back((source, message));
             Ok(self.when_message_sent.take())
         } else {
+            // The input stream is blocked or the queue is full: return the message to sender
             Err(message)
         }
     }
