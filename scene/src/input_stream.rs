@@ -1,4 +1,4 @@
-use crate::{SubProgramId};
+use crate::subprogram_id::*;
 
 use futures::prelude::*;
 use futures::task::{Waker, Poll, Context};
@@ -38,6 +38,18 @@ pub (crate) struct InputStreamCore<TMessage> {
 pub struct BlockedStream<TMessage>(Weak<Mutex<InputStreamCore<TMessage>>>);
 
 ///
+/// An input stream blocker is used to disable input to an input stream temporarily
+///
+/// As a separate object, this allows blocking of its source stream even when that stream's object is not directly
+/// available (eg, if you call `input_stream.map(...)`, direct access to the stream is no longer available, but it
+/// can still be blocked if one of these was created)
+///
+/// Blocks are returned as a `BlockedStream` object, which will unblock the stream when it is disposed.
+///
+#[derive(Clone)]
+pub struct InputStreamBlocker<TMessage>(Weak<Mutex<InputStreamCore<TMessage>>>);
+
+///
 /// An input stream for a subprogram
 ///
 pub struct InputStream<TMessage> {
@@ -71,6 +83,22 @@ impl<TMessage> Drop for BlockedStream<TMessage> {
                     .for_each(|waker| waker.wake());
             }
         }
+    }
+}
+
+impl<TMessage> InputStreamBlocker<TMessage> {
+    ///
+    /// Blocks the input stream, preventing any further input
+    ///
+    pub fn block(&self) -> BlockedStream<TMessage> {
+        // Increase the block count in the core (it won't accept future messages)
+        if let Some(core) = self.0.upgrade() {
+            let mut core = core.lock().unwrap();
+            core.blocked += 1;
+        }
+
+        // Return an object that will unblock the stream when it is dropped
+        BlockedStream(self.0.clone())
     }
 }
 
@@ -111,13 +139,11 @@ impl<TMessage> InputStream<TMessage> {
     }
 
     ///
-    /// Blocks anything from sending data to this core until the returned value is dropped
+    /// Returns an object that can be used to block this stream
     ///
-    pub fn block(&self) -> BlockedStream<TMessage> {
-        let mut core = self.core.lock().unwrap();
-        core.blocked += 1;
-
-        BlockedStream(Arc::downgrade(&self.core))
+    #[inline]
+    pub fn blocker(&self) -> InputStreamBlocker<TMessage> {
+        InputStreamBlocker(Arc::downgrade(&self.core))
     }
 }
 
