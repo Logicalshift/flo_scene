@@ -51,6 +51,7 @@ impl SubProgramId {
     /// Creates a new unique subprogram id
     ///
     #[inline]
+    #[allow(clippy::new_without_default)]   // As this isn't a default value, it's a *new* value, there's no default subprogram ID
     pub fn new() -> SubProgramId {
         SubProgramId(SubProgramIdValue::Guid(Uuid::new_v4()))
     }
