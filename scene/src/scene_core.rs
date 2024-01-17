@@ -347,6 +347,7 @@ impl SceneCore {
     ///
     /// Finishes a program connection, sending updates if successful
     ///
+    #[allow(clippy::type_complexity)]   // Creating a type for reconnect_subprogram just looks super goofy and is a lifetime nightmare
     fn finish_connecting_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
         // Create a function to reconnect a subprogram
         let reconnect_subprogram: Box<dyn Fn(&Arc<Mutex<SubProgramCore>>) -> Option<Waker>> = match &target {
@@ -689,7 +690,9 @@ impl SubProgramCore {
     ///
     /// Panics if the stream ID doesn't match the message type and the stream already exists.
     ///
-    pub (crate) fn try_create_output_target<TMessageType>(&mut self, id: &StreamId, new_output_target: OutputSinkTarget<TMessageType>) -> Result<Arc<Mutex<OutputSinkCore<TMessageType>>>, Arc<Mutex<OutputSinkCore<TMessageType>>>>
+    #[allow(clippy::type_complexity)]   // Doesn't really have anything nameable plus really not that bad
+    pub (crate) fn try_create_output_target<TMessageType>(&mut self, id: &StreamId, new_output_target: OutputSinkTarget<TMessageType>) 
+        -> Result<Arc<Mutex<OutputSinkCore<TMessageType>>>, Arc<Mutex<OutputSinkCore<TMessageType>>>>
     where
         TMessageType: 'static + SceneMessage,
     {
