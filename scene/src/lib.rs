@@ -169,6 +169,8 @@
 //! You can create and run more than one `Scene` at once if needed.
 //! 
 
+#![allow(clippy::redundant_field_names)]            // I prefer this to be consistent across the struct when initialising
+
 mod scene;
 mod scene_core;
 mod scene_context;
