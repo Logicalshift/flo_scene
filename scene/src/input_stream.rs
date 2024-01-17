@@ -73,7 +73,7 @@ impl<TMessage> Drop for BlockedStream<TMessage> {
             core.blocked -= 1;
 
             // Wake the core if it has become unblocked
-            if core.blocked <= 0 {
+            if core.blocked == 0 {
                 // Core is unblocked: take anything that's waiting for slots, then unlock the core
                 let when_slots_available = core.when_slots_available.drain(..).collect::<Vec<_>>();
                 mem::drop(core);

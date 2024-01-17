@@ -60,6 +60,7 @@ pub struct OutputSink<TMessage> {
 }
 
 impl<TMessage> Drop for OutputSinkTarget<TMessage> {
+    #[allow(clippy::single_match)]      // May be more cases in the future, current singleton is not inherent
     fn drop(&mut self) {
         match self {
             OutputSinkTarget::CloseWhenDropped(core) => {
@@ -230,7 +231,7 @@ where
             self.yield_after_sending = false;
 
             // Reawaken the future immediately
-            context.waker().clone().wake();
+            context.waker().wake_by_ref();
 
             // Indicate that we're pending
             return Poll::Pending;

@@ -53,14 +53,14 @@ impl SceneContext {
             let stream_id   = match &target {
                 StreamTarget::None                      => StreamId::with_message_type::<TMessageType>(),
                 StreamTarget::Any                       => StreamId::with_message_type::<TMessageType>(),
-                StreamTarget::Program(prog_id)          => StreamId::for_target::<TMessageType>(prog_id.clone()),
+                StreamTarget::Program(prog_id)          => StreamId::for_target::<TMessageType>(*prog_id),
                 StreamTarget::Filtered(filter, prog_id) => filter.target_stream_id(*prog_id)?,
             };
 
             // Try to re-use an existing target
             let (existing_core, program_id) = {
                 let program_core = program_core.lock().unwrap();
-                (program_core.output_core(&stream_id), program_core.program_id().clone())
+                (program_core.output_core(&stream_id), *program_core.program_id())
             };
 
             if let Some(existing_core) = existing_core {

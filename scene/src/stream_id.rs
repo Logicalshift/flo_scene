@@ -140,7 +140,7 @@ impl StreamTypeFunctions {
     pub fn connect_output_to_input(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>, bool) -> Result<Option<Waker>, ConnectionError>>> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
-        stream_type_functions.get(&type_id)
+        stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.connect_output_to_input))
     }
 
@@ -148,21 +148,21 @@ impl StreamTypeFunctions {
     pub fn connect_output_to_discard(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
-        stream_type_functions.get(&type_id)
+        stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.connect_output_to_discard))
     }
 
     pub fn disconnect_output(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
-        stream_type_functions.get(&type_id)
+        stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.disconnect_output))
     }
 
     pub fn close_input(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
-        stream_type_functions.get(&type_id)
+        stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.close_input))
     }
 }

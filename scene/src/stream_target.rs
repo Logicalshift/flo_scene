@@ -41,7 +41,7 @@ impl From<SubProgramId> for StreamTarget {
 impl<'a> From<&'a SubProgramId> for StreamTarget {
     #[inline]
     fn from(program: &'a SubProgramId) -> StreamTarget {
-        StreamTarget::Program(program.clone())
+        StreamTarget::Program(*program)
     }
 }
 
