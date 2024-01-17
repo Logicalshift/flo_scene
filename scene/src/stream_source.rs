@@ -1,4 +1,4 @@
-use crate::{SubProgramId};
+use crate::subprogram_id::*;
 
 ///
 /// Describes the source of a stream
