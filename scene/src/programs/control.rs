@@ -119,7 +119,7 @@ impl SceneProgramFn {
         };
 
         // Turn the function into a SceneProgramFn
-        let start_fn: Box<dyn Send + Sync + FnOnce(Arc<Mutex<SceneCore>>) -> ()> = Box::new(start_fn);
+        let start_fn: Box<dyn Send + Sync + FnOnce(Arc<Mutex<SceneCore>>)> = Box::new(start_fn);
         SceneProgramFn(Box::new(start_fn))
     }
 

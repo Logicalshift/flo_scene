@@ -177,7 +177,7 @@ impl SceneCore {
 
         let (subprogram, waker) = {
             let start_core      = Arc::downgrade(core);
-            let process_core    = Arc::downgrade(&core);
+            let process_core    = Arc::downgrade(core);
             let mut core        = core.lock().unwrap();
 
             // next_subprogram should always indicate the handle we'll use for the new program (it should be either a None entry in the list or sub_programs.len())
@@ -221,7 +221,7 @@ impl SceneCore {
 
             // Create the sub-program data
             let subprogram = SubProgramCore {
-                id:                         program_id.clone(),
+                id:                         program_id,
                 input_stream_id:            StreamId::with_message_type::<TMessage>(),
                 outputs:                    HashMap::new(),
                 expected_input_type_name:   type_name::<TMessage>(),
@@ -238,7 +238,7 @@ impl SceneCore {
             let subprogram                  = Arc::new(Mutex::new(subprogram));
             core.sub_programs[handle]       = Some(Arc::clone(&subprogram));
             core.sub_program_inputs[handle] = Some(input_core);
-            core.program_indexes.insert(program_id.clone(), handle);
+            core.program_indexes.insert(program_id, handle);
 
             // Update the 'next_subprogram' value to an empty slot
             while core.next_subprogram < core.sub_programs.len() && core.sub_programs[core.next_subprogram].is_some() {
@@ -279,7 +279,7 @@ impl SceneCore {
 
         if let Some(subprogram) = subprogram {
             // Create a context for that subprogram
-            let context     = SceneContext::new(&core, &subprogram);
+            let context     = SceneContext::new(core, &subprogram);
             let update_sink = context.send::<SceneUpdate>(StreamTarget::None).unwrap();
 
             core.lock().unwrap().set_update_core(source, update_sink.core());
@@ -311,7 +311,7 @@ impl SceneCore {
     /// Sends a set of updates to the update stream (if there is one set for this core)
     ///
     pub (crate) fn send_scene_updates(&mut self, updates: Vec<SceneUpdate>) {
-        if updates.len() == 0 {
+        if updates.is_empty() {
             return;
         }
 
@@ -401,25 +401,23 @@ impl SceneCore {
         let mut scene_updates = vec![];
         let target_program_id = target.target_sub_program();
 
-        for maybe_sub_program in sub_programs.iter() {
-            if let Some(sub_program) = maybe_sub_program {
-                // Update the streams of the subprogram
-                let sub_program_id = sub_program.lock().unwrap().id;
+        for sub_program in sub_programs.iter().flatten() {
+            // Update the streams of the subprogram
+            let sub_program_id = sub_program.lock().unwrap().id;
 
-                if source.matches_subprogram(&sub_program_id) {
-                    // Reconnect the program
-                    let waker = reconnect_subprogram(&sub_program);
+            if source.matches_subprogram(&sub_program_id) {
+                // Reconnect the program
+                let waker = reconnect_subprogram(sub_program);
 
-                    if let Some(target_program_id) = target_program_id {
-                        scene_updates.push(SceneUpdate::Connected(sub_program_id, target_program_id, stream_id.clone()));
-                    } else {
-                        scene_updates.push(SceneUpdate::Disconnected(sub_program_id, stream_id.clone()));
-                    }
+                if let Some(target_program_id) = target_program_id {
+                    scene_updates.push(SceneUpdate::Connected(sub_program_id, target_program_id, stream_id.clone()));
+                } else {
+                    scene_updates.push(SceneUpdate::Disconnected(sub_program_id, stream_id.clone()));
+                }
 
-                    // Wake the input stream
-                    if let Some(waker) = waker {
-                        waker.wake();
-                    }
+                // Wake the input stream
+                if let Some(waker) = waker {
+                    waker.wake();
                 }
             }
         }
@@ -439,7 +437,7 @@ impl SceneCore {
             let core            = core.lock().unwrap();
 
             let target_index    = core.program_indexes.get(&target_program).ok_or(ConnectionError::TargetNotInScene)?;
-            let target_core     = (&core.sub_program_inputs.get(*target_index)).ok_or(ConnectionError::TargetNotInScene)?.as_ref().ok_or(ConnectionError::TargetNotInScene)?;
+            let target_core     = core.sub_program_inputs.get(*target_index).ok_or(ConnectionError::TargetNotInScene)?.as_ref().ok_or(ConnectionError::TargetNotInScene)?;
 
             Arc::clone(target_core)
         };
@@ -486,14 +484,12 @@ impl SceneCore {
                             let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
                             let target_input_type       = core.sub_programs[*target_program_handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
                             let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>()
-                                .or_else(move |_| Err(ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type))))?;
+                                .map_err(move |_| ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type)))?;
 
                             Ok(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))
                         },
                         StreamTarget::Filtered(filter_handle, target_program_id) => {
                             // Create a stream that is processed through a filter (note that this creates a process that will need to be terminated by closing the input stream)
-                            let filter_handle       = filter_handle;
-                            let target_program_id   = target_program_id;
                             mem::drop(core);
 
                             let filtered_input_core = Self::filtered_input_for_program(scene_core, *source, filter_handle, target_program_id)?;
@@ -543,7 +539,7 @@ impl SceneCore {
                     let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
                     let target_input_type       = core.sub_programs[*target_program_handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
                     let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>()
-                        .or_else(move |_| Err(ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type))))?;
+                        .map_err(move |_| ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type)))?;
 
                     Ok(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))
                 }
@@ -556,7 +552,7 @@ impl SceneCore {
                     .or_else(|| core.connections.get(&(StreamSource::All, StreamId::for_target::<TMessageType>(&target_program_id))))
                     .and_then(|target| {
                         match target {
-                            StreamTarget::Program(program_id)       => Some(program_id.clone()),
+                            StreamTarget::Program(program_id)       => Some(*program_id),
                             StreamTarget::Filtered(_, program_id)   => Some(*program_id),
                             _                                       => None,
                         }
@@ -884,7 +880,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                 let mut next_process    = next_process;
                 let poll_result         = next_process.poll_unpin(&mut process_context);
 
-                if let Poll::Pending = poll_result {
+                if poll_result.is_pending() {
                     // Put the process back into the pending list
                     let mut core        = core.lock().unwrap();
                     let process_data    = core.processes[next_process_idx].as_mut().expect("Process should not go away while we're polling it");

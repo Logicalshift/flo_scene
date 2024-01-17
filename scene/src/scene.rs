@@ -87,9 +87,9 @@ impl Scene {
                 pin_mut!(program);
 
                 // Poll the program with the scene context set
-                poll_fn(|mut context| {
+                poll_fn(|context| {
                     with_scene_context(&scene_context, || {
-                        program.as_mut().poll(&mut context)
+                        program.as_mut().poll(context)
                     })
                 }).await;
             }
