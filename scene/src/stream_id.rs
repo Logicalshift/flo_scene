@@ -13,21 +13,26 @@ use std::sync::*;
 
 static STREAM_TYPE_FUNCTIONS: Lazy<RwLock<HashMap<TypeId, StreamTypeFunctions>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
+type ConnectOutputToInputFn     = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>, bool) -> Result<Option<Waker>, ConnectionError>>;
+type ConnectOutputToDiscardFn   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
+type DisconnectOutputFn         = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
+type CloseInputFn               = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
+
 ///
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
 ///
 struct StreamTypeFunctions {
     /// Connects an OutputSinkCore to a InputStreamCore
-    connect_output_to_input: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>, bool) -> Result<Option<Waker>, ConnectionError>>,
+    connect_output_to_input: ConnectOutputToInputFn,
 
     /// Connects an OutputSinkCore to a stream that discards everything
-    connect_output_to_discard: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>,
+    connect_output_to_discard: ConnectOutputToDiscardFn,
 
     /// Disconnects an OutputSinkCore, causing it to wait for a new connection to be made
-    disconnect_output: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>,
+    disconnect_output: DisconnectOutputFn,
 
     /// Closes the input to a stream
-    close_input: Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>,
+    close_input: CloseInputFn,
 }
 
 ///
@@ -137,7 +142,7 @@ impl StreamTypeFunctions {
     ///
     /// Retrieves the 'connect input to output' function for a particular type ID, if it exists
     ///
-    pub fn connect_output_to_input(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, &Arc<dyn Send + Sync + Any>, bool) -> Result<Option<Waker>, ConnectionError>>> {
+    pub fn connect_output_to_input(type_id: &TypeId) -> Option<ConnectOutputToInputFn> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
         stream_type_functions.get(type_id)
@@ -145,21 +150,21 @@ impl StreamTypeFunctions {
     }
 
 
-    pub fn connect_output_to_discard(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>> {
+    pub fn connect_output_to_discard(type_id: &TypeId) -> Option<ConnectOutputToDiscardFn> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.connect_output_to_discard))
     }
 
-    pub fn disconnect_output(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>> {
+    pub fn disconnect_output(type_id: &TypeId) -> Option<DisconnectOutputFn> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.disconnect_output))
     }
 
-    pub fn close_input(type_id: &TypeId) -> Option<Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>> {
+    pub fn close_input(type_id: &TypeId) -> Option<CloseInputFn> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
         stream_type_functions.get(type_id)

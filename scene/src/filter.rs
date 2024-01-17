@@ -16,9 +16,12 @@ use std::collections::{HashMap};
 use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-static NEXT_FILTER_HANDLE: AtomicUsize = AtomicUsize::new(0);
-static CREATE_INPUT_STREAM: Lazy<RwLock<HashMap<FilterHandle, Box<dyn Send + Sync + Fn(SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
-static STREAM_ID_FOR_TARGET: Lazy<RwLock<HashMap<FilterHandle, Box<dyn Send + Sync + Fn(Option<SubProgramId>) -> StreamId>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+type CreateInputStreamFn = Box<dyn Send + Sync + Fn(SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>;
+type StreamIdForTargetFn = Box<dyn Send + Sync + Fn(Option<SubProgramId>) -> StreamId>;
+
+static NEXT_FILTER_HANDLE:      AtomicUsize                                                 = AtomicUsize::new(0);
+static CREATE_INPUT_STREAM:     Lazy<RwLock<HashMap<FilterHandle, CreateInputStreamFn>>>    = Lazy::new(|| RwLock::new(HashMap::new()));
+static STREAM_ID_FOR_TARGET:    Lazy<RwLock<HashMap<FilterHandle, StreamIdForTargetFn>>>    = Lazy::new(|| RwLock::new(HashMap::new()));
 
 ///
 /// A filter is a way to convert from a stream of one message type to another, and a filter
