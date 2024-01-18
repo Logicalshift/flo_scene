@@ -145,6 +145,24 @@ impl<TMessage> InputStream<TMessage> {
     pub fn blocker(&self) -> InputStreamBlocker<TMessage> {
         InputStreamBlocker(Arc::downgrade(&self.core))
     }
+
+    ///
+    /// Enables thread stealing for subprograms that want to use this input stream for immediate output
+    ///
+    /// If thread stealing is enabled, then if `OutputSink::send_immediate()` is called the future that is waiting
+    /// on the input stream will be polled in immediate mode until the message is processed. This is non-standard
+    /// for Rust futures, but enables things like loggers to produce their output immediately instead of needing
+    /// to wait for the main event loop to trigger. The future will run on whatever context is active on the thread
+    /// that send_immediate is called on, so must not be dependent on the scene's own context to be completely
+    /// safe.
+    ///
+    /// If thread stealing is disabled, then `send_immediate` may overload the input to the stream in order to 
+    /// avoid needing to block the thread (as that might just deadlock).
+    ///
+    #[inline]
+    pub fn allow_thread_stealing(&self, enable: bool) {
+        todo!()
+    }
 }
 
 impl<TMessage> InputStreamCore<TMessage> {

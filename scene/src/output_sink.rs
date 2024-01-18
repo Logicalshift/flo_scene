@@ -123,6 +123,47 @@ impl<TMessage> OutputSink<TMessage> {
     pub (crate) fn core(&self) -> Arc<Mutex<OutputSinkCore<TMessage>>> {
         Arc::clone(&self.core)
     }
+
+    ///
+    /// Sends a message in immediate mode
+    ///
+    /// If the target input stream supports thread stealing, this may dispatch the message by running that program
+    /// immediately. Otherwise, this will queue up the message on the target without blocking regardless of the maximum
+    /// depth of the waiting queue.
+    ///
+    /// This makes it possible to send messages from functions that are not async. In general, this should be done
+    /// sparingly: there's no back-pressure, and this might trigger a future to 'steal' the current thread.
+    ///
+    pub fn send_immediate(&self, message: TMessage) -> Result<(), SceneSendError> {
+        todo!()
+    }
+
+    ///
+    /// A variant of send_immediate that fails if the target stream's input buffer is full
+    ///
+    /// This version of send_immediate does not thread steal, and it also will not over-fill the target buffer.
+    /// The message is returned in the error if it was not possible to send it (some action is needed to run
+    /// the target future)
+    ///
+    /// This can be combined with `try_flush_immediate()` to force the messages to process when enough are
+    /// buffered.
+    ///
+    pub fn try_send_immediate(&self, message: TMessage) -> Result<(), TMessage> {
+        todo!()
+    }
+
+    ///
+    /// If the target stream allows thread stealing, steal the current thread until the input buffer is empty
+    ///
+    /// An error result indicates that the target stream does not support thread stealing, or that the target
+    /// program is already running on the current thread.
+    ///
+    /// If thread stealing is enabled on the input stream, this will run the target subprogram on the current thread.
+    /// If the target program is running on a different thread, this will block the current thread until it is idle.
+    ///
+    pub fn try_flush_immediate(&self) -> Result<(), SceneSendError> {
+        todo!()
+    }
 }
 
 impl<TMessage> Sink<TMessage> for OutputSink<TMessage> 

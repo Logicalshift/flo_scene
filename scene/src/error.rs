@@ -40,6 +40,9 @@ pub enum ConnectionError {
 
     /// The `OUTSIDE_SCENE_PROGRAM` subprogram is not running and a sink for sending messages into the scene was requested
     NoOutsideSceneSubProgram,
+
+    /// An attempt was made to 'steal' the current thread to expedite a message, which could not be completed (for example, because the subprogram was already running on the current thread)
+    CannotStealThread,
 }
 
 ///
@@ -48,13 +51,17 @@ pub enum ConnectionError {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum SceneSendError {
     /// The target for the stream stopped before the message could be sent
-    TargetProgramEnded
+    TargetProgramEnded,
+
+    /// The target program supports thread stealing, but it is already running on the current thread's callstack and can't re-enter
+    CannotReEnterTargetProgram,
 }
 
 impl From<SceneSendError> for ConnectionError {
     fn from(err: SceneSendError) -> ConnectionError {
         match err {
-            SceneSendError::TargetProgramEnded => ConnectionError::TargetNotInScene,
+            SceneSendError::TargetProgramEnded          => ConnectionError::TargetNotInScene,
+            SceneSendError::CannotReEnterTargetProgram  => ConnectionError::CannotStealThread,
         }
     }
 }
