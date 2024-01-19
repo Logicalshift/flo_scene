@@ -184,6 +184,7 @@ mod filter;
 mod scene_message;
 pub mod error;
 pub mod programs;
+mod thread_stealer;
 
 pub use scene::*;
 pub use scene_context::*;
