@@ -53,6 +53,9 @@ pub enum SceneSendError {
     /// The target for the stream stopped before the message could be sent
     TargetProgramEnded,
 
+    /// The stream is disconnected, so messages cannot currently be sent to it
+    StreamDisconnected,
+
     /// The target program supports thread stealing, but it is already running on the current thread's callstack and can't re-enter
     CannotReEnterTargetProgram,
 }
@@ -61,6 +64,7 @@ impl From<SceneSendError> for ConnectionError {
     fn from(err: SceneSendError) -> ConnectionError {
         match err {
             SceneSendError::TargetProgramEnded          => ConnectionError::TargetNotInScene,
+            SceneSendError::StreamDisconnected          => ConnectionError::TargetNotAvailable,
             SceneSendError::CannotReEnterTargetProgram  => ConnectionError::CannotStealThread,
         }
     }
