@@ -773,22 +773,22 @@ impl SubProgramCore {
     where
         TMessageType: 'static + SceneMessage,
     {
-        let existing_target = self.outputs.get(id);
-        if let Some(existing_target) = existing_target {
+        let existing_output_core = self.outputs.get(id);
+        if let Some(existing_output_core) = existing_output_core {
             // Return the already existing target
-            let existing_target = Arc::clone(existing_target);
-            let existing_target = existing_target.downcast::<Mutex<OutputSinkCore<TMessageType>>>().unwrap();
+            let existing_output_core = Arc::clone(existing_output_core);
+            let existing_output_core = existing_output_core.downcast::<Mutex<OutputSinkCore<TMessageType>>>().unwrap();
 
-            Err(existing_target)
+            Err(existing_output_core)
         } else {
             // Store a new target in the outputs
-            let new_core    = OutputSinkCore::new(new_output_target);
-            let new_core    = Arc::new(Mutex::new(new_core));
-            let cloned_core = Arc::clone(&new_core);
-            self.outputs.insert(id.clone(), cloned_core);
+            let new_output_core     = OutputSinkCore::new(new_output_target);
+            let new_output_core     = Arc::new(Mutex::new(new_output_core));
+            let cloned_output_core  = Arc::clone(&new_output_core);
+            self.outputs.insert(id.clone(), cloned_output_core);
 
             // Use the new target for the output stream
-            Ok(new_core)
+            Ok(new_output_core)
         }
     }
 
