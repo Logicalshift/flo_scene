@@ -14,7 +14,7 @@ struct Reawakener(Mutex<Option<Waker>>);
 ///
 pub fn poll_thread_steal<TFuture>(future: Pin<&mut TFuture>, external_waker: Option<Waker>) -> Poll<TFuture::Output>
 where
-    TFuture: Future,
+    TFuture: Future + ?Sized,
 {
     // Create a futures context which will trigger the external awakener
     let waker       = task::waker(Arc::new(Reawakener(Mutex::new(external_waker))));

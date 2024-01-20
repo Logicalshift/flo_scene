@@ -10,6 +10,7 @@ use crate::stream_id::*;
 use crate::stream_source::*;
 use crate::stream_target::*;
 use crate::subprogram_id::*;
+use crate::thread_stealer::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture, poll_fn};
@@ -39,8 +40,8 @@ pub (crate) struct SubProgramCore {
     /// The ID of this program
     id: SubProgramId,
 
-    /// The handle of the process that this subprogram is running on
-    process_id: ProcessHandle,
+    /// The handle of the process that this subprogram is running on (or None if the program has finished)
+    process_id: Option<ProcessHandle>,
 
     /// The output sink targets for this sub-program
     outputs: HashMap<StreamId, Arc<dyn Send + Sync + Any>>,
@@ -217,6 +218,11 @@ impl SceneCore {
 
                     // Drop in order: first release the core lock, then drop the subprograms (which may re-take it)
                     mem::drop(core);
+
+                    if let Some(old_sub_program) = &old_sub_program {
+                        old_sub_program.lock().unwrap().process_id = None;
+                    }
+
                     mem::drop(old_input_core);
                     mem::drop(old_sub_program);
                 }
@@ -225,7 +231,7 @@ impl SceneCore {
             // Create the sub-program data
             let subprogram = SubProgramCore {
                 id:                         program_id,
-                process_id:                 process_handle,
+                process_id:                 Some(process_handle),
                 input_stream_id:            StreamId::with_message_type::<TMessage>(),
                 outputs:                    HashMap::new(),
                 expected_input_type_name:   type_name::<TMessage>(),
@@ -657,6 +663,73 @@ impl SceneCore {
     pub (crate) fn set_update_core(&mut self, program_id: SubProgramId, core: Arc<Mutex<OutputSinkCore<SceneUpdate>>>) {
         self.updates = Some((program_id, core));
     }
+
+    ///
+    /// Polls the process for the specified program on this thread
+    ///
+    pub (crate) fn steal_thread_for_program(core: &Arc<Mutex<SceneCore>>, program_id: SubProgramId) -> Result<(), SceneSendError> {
+        // Fetch the program whose process we're going to run
+        let subprogram = {
+            let core    = core.lock().unwrap();
+
+            core.program_indexes.get(&program_id)
+                .and_then(|idx| core.sub_programs.get(*idx).cloned())
+                .unwrap_or(None)
+        };
+
+        let subprogram = subprogram.ok_or(SceneSendError::TargetProgramEnded)?;
+
+        // Try to fetch the future for the process (back to the scene core again here)
+        let (process_id, mut process_future) = {
+            // We lock both the core and the subprogram here so that the process cannot end before we get the future
+            let mut core    = core.lock().unwrap();
+            let process_id  = subprogram.lock().unwrap().process_id.ok_or(SceneSendError::TargetProgramEnded)?;
+
+            let process     = core.processes.get_mut(process_id.0)
+                .map(|process| process.as_mut())
+                .unwrap_or(None)
+                .ok_or(SceneSendError::TargetProgramEnded)?;
+
+            // Take the future to execute it
+            // TODO: if the future doesn't exist and is running on a different thread, block until it's released (this version will work so long as there's only one thread)
+            (process_id.0, process.future.take().ok_or(SceneSendError::CannotReEnterTargetProgram)?)
+        };
+
+        // Poll the future (reawaken the core later on)
+        let scene_waker = waker(Arc::new(SceneCoreWaker::with_core(core, process_id)));
+        let poll_result = poll_thread_steal(process_future.as_mut(), Some(scene_waker));
+
+        // Return the future to the core/finish it
+        let waker = {
+            let mut scene_core = core.lock().unwrap();
+
+            if poll_result.is_ready() {
+                // Process was finished: free it up for the future 
+                scene_core.processes[process_id]    = None;
+                scene_core.next_process             = process_id.min(scene_core.next_process);
+                scene_core.awake_processes.retain(|pid| pid != &process_id);
+
+                None
+            } else {
+                // Process still running: return the future so that it'll actually run
+                scene_core.processes[process_id].as_mut().unwrap().future = Some(process_future);
+
+                // If the future has woken up since the poll finished, then re-awaken the scene using a scene waker
+                if scene_core.processes[process_id].as_mut().unwrap().is_awake {
+                    Some(waker(Arc::new(SceneCoreWaker::with_core(core, process_id))))
+                } else {
+                    None
+                }
+            }
+        };
+
+        // We need to reawaken the core if the process turns out to be awake again
+        if let Some(waker) = waker {
+            waker.wake()
+        }
+
+        Ok(())
+    }
 }
 
 impl SubProgramCore {
@@ -767,9 +840,9 @@ impl SceneCoreWaker {
     ///
     /// Creates a waker for a scene core
     ///
-    pub fn with_core(core: Arc<Mutex<SceneCore>>, process_id: usize) -> Self {
+    pub fn with_core(core: &Arc<Mutex<SceneCore>>, process_id: usize) -> Self {
         Self {
-            core:       Arc::downgrade(&core),
+            core:       Arc::downgrade(core),
             process_id: process_id,
         }
     }
@@ -880,7 +953,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
 
             if let Some(next_process) = next_process {
                 // The next process is awake and ready to poll: create a waker to reawaken it when we're done
-                let process_waker       = waker(Arc::new(SceneCoreWaker::with_core(Arc::clone(&core), next_process_idx)));
+                let process_waker       = waker(Arc::new(SceneCoreWaker::with_core(&core, next_process_idx)));
                 let mut process_context = Context::from_waker(&process_waker);
 
                 // Poll the process in the new context
