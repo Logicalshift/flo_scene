@@ -13,7 +13,6 @@ use std::sync::*;
 ///
 /// The target of an output sink
 ///
-#[derive(Clone)]
 pub (crate) enum OutputSinkTarget<TMessage> {
     /// Indicates an output that has nowhere to send its data (will just block)
     Disconnected,
@@ -57,6 +56,20 @@ pub struct OutputSink<TMessage> {
 
     /// Waker that is notified when a pending message is sent
     when_message_sent: Option<Waker>,
+}
+
+impl<TMessage> Clone for OutputSinkTarget<TMessage> {
+    #[inline]
+    fn clone(&self) -> Self {
+        use OutputSinkTarget::*;
+
+        match self {
+            Disconnected                => Disconnected,
+            Discard                     => Discard,
+            Input(input)                => Input(Weak::clone(input)),
+            CloseWhenDropped(input)     => Input(Weak::clone(input)),           // Only the original output sink target will close when dropped
+        }
+    }
 }
 
 impl<TMessage> Drop for OutputSinkTarget<TMessage> {
@@ -129,13 +142,50 @@ impl<TMessage> OutputSink<TMessage> {
     ///
     /// If the target input stream supports thread stealing, this may dispatch the message by running that program
     /// immediately. Otherwise, this will queue up the message on the target without blocking regardless of the maximum
-    /// depth of the waiting queue.
+    /// depth of the waiting queue. Use `try_send_immediate()` if you have a way to wait for the queue to become free.
+    ///
+    /// If the stream is disconnected, this will produce the SceneSendError::StreamDisconnected result rather than
+    /// blocking until the stream is connected.
     ///
     /// This makes it possible to send messages from functions that are not async. In general, this should be done
     /// sparingly: there's no back-pressure, and this might trigger a future to 'steal' the current thread.
     ///
     pub fn send_immediate(&self, message: TMessage) -> Result<(), SceneSendError> {
-        todo!()
+        // Try sending the message to the target
+        if let Err(message) = self.try_send_immediate(message) {
+            // If we can't send it immediately, flush and try again
+            self.try_flush_immediate().ok();
+
+            if let Err(message) = self.try_send_immediate(message) {
+                // If we still can't send the message, overfill the target buffer
+                let source = self.program_id;
+                let target = self.core.lock().unwrap().target.clone();
+
+                match &target {
+                    OutputSinkTarget::Discard                   => Ok(()),
+                    OutputSinkTarget::Disconnected              => Err(SceneSendError::StreamDisconnected),
+                    OutputSinkTarget::Input(input)              |
+                    OutputSinkTarget::CloseWhenDropped(input)   => {
+                        if let Some(input) = input.upgrade() {
+                            let waker = input.lock().unwrap().send_with_overfill(source, message)?;
+                            if let Some(waker) = waker {
+                                waker.wake();
+                            }
+
+                            Ok(())
+                        } else {
+                            Err(SceneSendError::StreamDisconnected)
+                        }
+                    }
+                }
+            } else {
+                // Sent on the second attempt
+                Ok(())
+            }
+        } else {
+            // Initial send worked correctly
+            Ok(())
+        }
     }
 
     ///
