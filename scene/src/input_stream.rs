@@ -171,7 +171,7 @@ impl<TMessage> InputStreamCore<TMessage> {
     /// Adds a message to this core if there's space for it, returning the waker to be called if successful (the waker must be called with the core unlocked)
     ///
     pub (crate) fn send(&mut self, source: SubProgramId, message: TMessage) -> Result<Option<Waker>, TMessage> {
-        if self.blocked == 0 && self.waiting_messages.len() <= self.max_waiting {
+        if !self.closed && self.blocked == 0 && self.waiting_messages.len() <= self.max_waiting {
             // The input stream is not blocked and has space in the waiting_messages queue for this event: queue it up and return the waker
             self.waiting_messages.push_back((source, message));
             Ok(self.when_message_sent.take())
