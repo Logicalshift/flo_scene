@@ -39,6 +39,9 @@ pub (crate) struct SubProgramCore {
     /// The ID of this program
     id: SubProgramId,
 
+    /// The handle of the process that this subprogram is running on
+    process_id: ProcessHandle,
+
     /// The output sink targets for this sub-program
     outputs: HashMap<StreamId, Arc<dyn Send + Sync + Any>>,
 
@@ -187,7 +190,7 @@ impl SceneCore {
             let update_sink = core.updates.as_ref().map(|(pid, sink_core)| OutputSink::attach(*pid, Arc::clone(sink_core)));
 
             // Start a process to run this subprogram
-            let (_process_handle, waker) = core.start_process(async move {
+            let (process_handle, waker) = core.start_process(async move {
                 // Notify that the program is starting
                 if let Some(core) = start_core.upgrade() {
                     // We use a background process to start because we might be blocking the program that reads the updates here
@@ -222,6 +225,7 @@ impl SceneCore {
             // Create the sub-program data
             let subprogram = SubProgramCore {
                 id:                         program_id,
+                process_id:                 process_handle,
                 input_stream_id:            StreamId::with_message_type::<TMessage>(),
                 outputs:                    HashMap::new(),
                 expected_input_type_name:   type_name::<TMessage>(),
