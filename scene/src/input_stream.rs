@@ -1,3 +1,4 @@
+use crate::error::*;
 use crate::subprogram_id::*;
 
 use futures::prelude::*;
@@ -177,6 +178,20 @@ impl<TMessage> InputStreamCore<TMessage> {
         } else {
             // The input stream is blocked or the queue is full: return the message to sender
             Err(message)
+        }
+    }
+
+    ///
+    /// Adds a message to the queue for this core even if the max waiting size has been exceeded
+    ///
+    /// This is used for forcibly sending messages in immediate mode to guarantee delivery (and can result in memory leaks)
+    ///
+    pub (crate) fn send_with_overfill(&mut self, source: SubProgramId, message: TMessage) -> Result<Option<Waker>, SceneSendError> {
+        if self.closed {
+            Err(SceneSendError::StreamDisconnected)
+        } else {
+            self.waiting_messages.push_back((source, message));
+            Ok(self.when_message_sent.take())
         }
     }
 
