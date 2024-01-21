@@ -5,6 +5,7 @@ use crate::scene_core::*;
 use crate::scene_message::*;
 use crate::stream_id::*;
 use crate::stream_target::*;
+use crate::subprogram_core::*;
 
 use futures::prelude::*;
 
