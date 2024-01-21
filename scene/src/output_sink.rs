@@ -1,5 +1,7 @@
 use crate::error::*;
 use crate::input_stream::*;
+use crate::scene_context::*;
+use crate::scene_core::*;
 use crate::subprogram_id::*;
 
 use futures::prelude::*;
@@ -230,14 +232,49 @@ impl<TMessage> OutputSink<TMessage> {
     ///
     /// If the target stream allows thread stealing, steal the current thread until the input buffer is empty
     ///
-    /// An error result indicates that the target stream does not support thread stealing, or that the target
-    /// program is already running on the current thread.
+    /// An error result indicates that the target program is already running on the current thread.
     ///
     /// If thread stealing is enabled on the input stream, this will run the target subprogram on the current thread.
     /// If the target program is running on a different thread, this will block the current thread until it is idle.
     ///
     pub fn try_flush_immediate(&self) -> Result<(), SceneSendError> {
-        todo!()
+        // TODO: we'll probably want to be able to do this from non-scene threads, which requires putting a reference to the scene core in the output stream
+        // TODO: an option is to create a separate thread to temporarily run the scene on too, which might work better for processes that can await things 
+
+        // Fetch the scene core to be able to run the process
+        let scene_core = scene_context()
+            .map(|context| context.scene_core())
+            .and_then(|core| core.upgrade())
+            .ok_or(SceneSendError::TargetProgramEnded)?;
+
+        // Fetch the input core that's in use
+        let maybe_input_core = match &self.core.lock().unwrap().target {
+            OutputSinkTarget::Discard                   => None,
+            OutputSinkTarget::Disconnected              => None,
+            OutputSinkTarget::Input(input)              |
+            OutputSinkTarget::CloseWhenDropped(input)   => {
+                input.upgrade()
+            }
+        };
+
+        // Fetch the target program from the input core. This is None if there's no target to flush
+        let maybe_target_program_id = maybe_input_core.and_then(|input_core| {
+            let input_core = input_core.lock().unwrap();
+
+            if input_core.allows_thread_stealing() {
+                Some(input_core.target_program_id())
+            } else {
+                None
+            }
+        });
+
+        if let Some(target_program_id) = maybe_target_program_id {
+            // Manually poll the process
+            // We only poll once, which will empty the queue provided that the target process does not await anything later on
+            SceneCore::steal_thread_for_program(&scene_core, target_program_id)?;
+        }
+
+        Ok(())
     }
 }
 
