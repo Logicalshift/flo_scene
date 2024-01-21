@@ -2,6 +2,7 @@ use crate::error::*;
 use crate::filter::*;
 use crate::output_sink::*;
 use crate::input_stream::*;
+use crate::process_core::*;
 use crate::programs::*;
 use crate::scene::*;
 use crate::scene_context::*;
@@ -14,20 +15,12 @@ use crate::subprogram_id::*;
 use crate::thread_stealer::*;
 
 use futures::prelude::*;
-use futures::future::{BoxFuture, poll_fn};
+use futures::future::{poll_fn};
 use futures::task::{Poll, Waker, Context, waker, ArcWake};
 
 use std::any::*;
 use std::collections::*;
 use std::sync::*;
-
-///
-/// A handle of a process running in a scene
-///
-/// (A process is just a future, a scene is essentially run as a set of concurrent futures that can be modified as needed)
-///
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub (crate) struct ProcessHandle(usize);
 
 ///
 /// Used to wake up anything polling a scene core when a subprogram is ready
@@ -38,17 +31,6 @@ pub (crate) struct SceneCoreWaker {
 
     /// The subprogram that is woken by this waker
     process_id: usize,
-}
-
-///
-/// Data associated with a process in a scene
-///
-struct SceneProcess {
-    /// The future for this process (can be None while it's being polled by another thread)
-    future: Option<BoxFuture<'static, ()>>,
-
-    /// Set to true if this process has been woken up
-    is_awake: bool,
 }
 
 ///

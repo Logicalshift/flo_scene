@@ -174,6 +174,7 @@
 mod scene;
 mod scene_core;
 mod subprogram_core;
+mod process_core;
 mod scene_context;
 mod subprogram_id;
 mod stream_id;
