@@ -1,6 +1,5 @@
 use crate::error::*;
 use crate::input_stream::*;
-use crate::scene_context::*;
 use crate::scene_core::*;
 use crate::subprogram_id::*;
 
@@ -246,13 +245,10 @@ impl<TMessage> OutputSink<TMessage> {
     /// If the target program is running on a different thread, this will block the current thread until it is idle.
     ///
     pub fn try_flush_immediate(&self) -> Result<(), SceneSendError> {
-        // TODO: we'll probably want to be able to do this from non-scene threads, which requires putting a reference to the scene core in the output stream
         // TODO: an option is to create a separate thread to temporarily run the scene on too, which might work better for processes that can await things 
 
         // Fetch the scene core to be able to run the process
-        let scene_core = scene_context()
-            .map(|context| context.scene_core())
-            .and_then(|core| core.upgrade())
+        let scene_core = self.scene_core.upgrade()
             .ok_or(SceneSendError::TargetProgramEnded)?;
 
         // Fetch the input core that's in use
