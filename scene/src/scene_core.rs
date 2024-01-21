@@ -171,31 +171,31 @@ impl SceneCore {
     ///
     /// Adds a program to the list being run by this scene
     ///
-    pub fn start_subprogram<TMessage>(core: &Arc<Mutex<SceneCore>>, program_id: SubProgramId, program: impl 'static + Send + Future<Output=()>, input_core: Arc<Mutex<InputStreamCore<TMessage>>>) -> Arc<Mutex<SubProgramCore>>
+    pub fn start_subprogram<TMessage>(scene_core: &Arc<Mutex<SceneCore>>, program_id: SubProgramId, program: impl 'static + Send + Future<Output=()>, input_core: Arc<Mutex<InputStreamCore<TMessage>>>) -> Arc<Mutex<SubProgramCore>>
     where
         TMessage: 'static + SceneMessage,
     {
         use std::mem;
 
-        Self::initialise_message_type::<TMessage>(core);
+        Self::initialise_message_type::<TMessage>(scene_core);
 
         let (subprogram, waker) = {
-            let start_core      = Arc::downgrade(core);
-            let process_core    = Arc::downgrade(core);
-            let mut core        = core.lock().unwrap();
+            let start_core      = Arc::downgrade(scene_core);
+            let process_core    = Arc::downgrade(scene_core);
+            let mut core        = scene_core.lock().unwrap();
 
             // next_subprogram should always indicate the handle we'll use for the new program (it should be either a None entry in the list or sub_programs.len())
             let handle = core.next_subprogram;
 
             // Create a place to send updates on the program's progress
-            let update_sink = core.updates.as_ref().map(|(pid, sink_core)| OutputSink::attach(*pid, Arc::clone(sink_core)));
+            let update_sink = core.updates.as_ref().map(|(pid, sink_core)| OutputSink::attach(*pid, Arc::clone(sink_core), scene_core));
 
             // Start a process to run this subprogram
             let (process_handle, waker) = core.start_process(async move {
                 // Notify that the program is starting
                 if let Some(core) = start_core.upgrade() {
                     // We use a background process to start because we might be blocking the program that reads the updates here
-                    core.lock().unwrap().send_scene_updates(vec![SceneUpdate::Started(program_id)]);
+                    SceneCore::send_scene_updates(&core, vec![SceneUpdate::Started(program_id)]);
                 }
                 mem::drop(start_core);
 
@@ -320,15 +320,16 @@ impl SceneCore {
     ///
     /// Sends a set of updates to the update stream (if there is one set for this core)
     ///
-    pub (crate) fn send_scene_updates(&mut self, updates: Vec<SceneUpdate>) {
+    pub (crate) fn send_scene_updates(scene_core: &Arc<Mutex<SceneCore>>, updates: Vec<SceneUpdate>) {
         if updates.is_empty() {
             return;
         }
 
-        if let Some((pid, update_core)) = self.updates.as_ref() {
-            let mut update_sink = OutputSink::attach(*pid, Arc::clone(update_core));
+        let mut core = scene_core.lock().unwrap();
+        if let Some((pid, update_core)) = core.updates.as_ref() {
+            let mut update_sink = OutputSink::attach(*pid, Arc::clone(update_core), scene_core);
 
-            self.start_process(async move {
+            core.start_process(async move {
                 for update in updates {
                     update_sink.send(update).await.ok();
                 }
@@ -346,9 +347,7 @@ impl SceneCore {
         // Send an update if there's an error
         if let Err(err) = &result {
             let update      = SceneUpdate::FailedConnection(err.clone(), source, target, stream_id);
-            let mut core    = core.lock().unwrap();
-
-            core.send_scene_updates(vec![update]);
+            SceneCore::send_scene_updates(core, vec![update]);
         }
 
         result
@@ -434,7 +433,7 @@ impl SceneCore {
         }
 
         // Send the updates on how the connections have changed
-        core.lock().unwrap().send_scene_updates(scene_updates);
+        SceneCore::send_scene_updates(core, scene_updates);
 
         Ok(())
     }

@@ -65,7 +65,7 @@ impl SceneContext {
 
             if let Some(existing_core) = existing_core {
                 // This program has previously created a stream for this target (or had a stream connected by the scene)
-                let sink = OutputSink::attach(program_id, existing_core);
+                let sink = OutputSink::attach(program_id, existing_core, &scene_core);
 
                 Ok(sink)
             } else {
@@ -86,15 +86,15 @@ impl SceneContext {
                             SceneUpdate::Disconnected(program_id, stream_id)
                         };
 
-                        scene_core.lock().unwrap().send_scene_updates(vec![update]);
+                        SceneCore::send_scene_updates(&scene_core, vec![update]);
 
                         // Attach the new target to an output sink
-                        Ok(OutputSink::attach(program_id, new_target))
+                        Ok(OutputSink::attach(program_id, new_target, &scene_core))
                     },
 
                     Err(old_target) => {
                         // Just re-use the old target
-                        Ok(OutputSink::attach(program_id, old_target))
+                        Ok(OutputSink::attach(program_id, old_target, &scene_core))
                     }
                 }
             }

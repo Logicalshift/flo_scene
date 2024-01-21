@@ -50,6 +50,9 @@ pub struct OutputSink<TMessage> {
     /// Where the data for this sink should be sent
     core: Arc<Mutex<OutputSinkCore<TMessage>>>,
 
+    /// The scene core, needed when thread-stealing to send immediate messages
+    scene_core: Weak<Mutex<SceneCore>>,
+
     /// The message that is being sent
     waiting_message: Option<TMessage>,
 
@@ -122,10 +125,11 @@ impl<TMessage> OutputSink<TMessage> {
     ///
     /// Creates a new output sink that is attached to a known target
     ///
-    pub (crate) fn attach(program_id: SubProgramId, core: Arc<Mutex<OutputSinkCore<TMessage>>>) -> OutputSink<TMessage> {
+    pub (crate) fn attach(program_id: SubProgramId, core: Arc<Mutex<OutputSinkCore<TMessage>>>, scene_core: &Arc<Mutex<SceneCore>>) -> OutputSink<TMessage> {
         OutputSink {
             program_id:             program_id,
             core:                   core,
+            scene_core:             Arc::downgrade(scene_core),
             waiting_message:        None,
             yield_after_sending:    false,
             when_message_sent:      None,
@@ -486,7 +490,7 @@ mod test {
         ///
         /// Creates a new output sink that belongs to the specified sub-program
         ///
-        pub (crate) fn new(program_id: SubProgramId) -> OutputSink<TMessage> {
+        pub (crate) fn new(program_id: SubProgramId, scene_core: &Arc<Mutex<SceneCore>>) -> OutputSink<TMessage> {
             let core = OutputSinkCore {
                 target:                 OutputSinkTarget::Disconnected,
                 when_target_changed:    None,
@@ -495,6 +499,7 @@ mod test {
             OutputSink {
                 program_id:             program_id,
                 core:                   Arc::new(Mutex::new(core)),
+                scene_core:             Arc::downgrade(scene_core),
                 waiting_message:        None,
                 yield_after_sending:    false,
                 when_message_sent:      None,
@@ -527,8 +532,9 @@ mod test {
     fn send_message_to_input_stream() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
+        let scene_core          = Arc::new(Mutex::new(SceneCore::new()));
         let mut input_stream    = InputStream::<u32>::new(program_id, 1000);
-        let mut output_sink     = OutputSink::new(program_id);
+        let mut output_sink     = OutputSink::new(program_id, &scene_core);
 
         // Attach the output sink to the input stream
         output_sink.attach_to(&input_stream);
@@ -548,9 +554,10 @@ mod test {
     fn send_message_to_input_stream_from_multiple_sinks() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
+        let scene_core          = Arc::new(Mutex::new(SceneCore::new()));
         let mut input_stream    = InputStream::<u32>::new(program_id, 1000);
-        let mut output_sink_1   = OutputSink::new(program_id);
-        let mut output_sink_2   = OutputSink::new(program_id);
+        let mut output_sink_1   = OutputSink::new(program_id, &scene_core);
+        let mut output_sink_2   = OutputSink::new(program_id, &scene_core);
 
         // Attach the output sink to the input stream
         output_sink_1.attach_to(&input_stream);
@@ -571,8 +578,9 @@ mod test {
     fn send_message_to_full_input_stream() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
+        let scene_core          = Arc::new(Mutex::new(SceneCore::new()));
         let mut input_stream    = InputStream::<u32>::new(program_id, 0);
-        let mut output_sink     = OutputSink::new(program_id);
+        let mut output_sink     = OutputSink::new(program_id, &scene_core);
 
         // Attach the output sink to the input stream
         output_sink.attach_to(&input_stream);
@@ -599,8 +607,9 @@ mod test {
     fn send_message_to_disconnected_input_stream() {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
+        let scene_core          = Arc::new(Mutex::new(SceneCore::new()));
         let mut input_stream    = InputStream::<u32>::new(program_id, 0);
-        let mut output_sink     = OutputSink::new(program_id);
+        let mut output_sink     = OutputSink::new(program_id, &scene_core);
 
         executor::block_on(async move {
             // Sending a message will block while the output sink is disconnected

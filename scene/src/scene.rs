@@ -173,7 +173,7 @@ impl Scene {
 
         if let Some(existing_core) = existing_core {
             // Reattach to the existing output core
-            let output_sink = OutputSink::attach(program_id, existing_core);
+            let output_sink = OutputSink::attach(program_id, existing_core, &self.core);
             Ok(output_sink)
         } else {
             // Create a new target for this message
@@ -191,10 +191,10 @@ impl Scene {
                 SceneUpdate::Disconnected(program_id, stream_id)
             };
 
-            self.core.lock().unwrap().send_scene_updates(vec![update]);
+            SceneCore::send_scene_updates(&self.core, vec![update]);
 
             // Create an output sink from the target
-            let output_sink = OutputSink::attach(program_id, new_or_old_target);
+            let output_sink = OutputSink::attach(program_id, new_or_old_target, &self.core);
             Ok(output_sink)
         }
     }
