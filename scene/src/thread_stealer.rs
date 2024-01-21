@@ -1,6 +1,6 @@
 use futures::prelude::*;
 use futures::task;
-use futures::task::{Poll, Waker, Context, ArcWake, waker_ref};
+use futures::task::{Poll, Waker, Context, ArcWake};
 
 use std::pin::*;
 use std::sync::*;
