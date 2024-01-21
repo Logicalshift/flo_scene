@@ -199,7 +199,32 @@ impl<TMessage> OutputSink<TMessage> {
     /// buffered.
     ///
     pub fn try_send_immediate(&self, message: TMessage) -> Result<(), TMessage> {
-        todo!()
+        // Fetch the input core that we'll be sending the message to
+        let program_id       = self.program_id;
+        let maybe_input_core = match &self.core.lock().unwrap().target {
+            OutputSinkTarget::Discard                   => { return Ok(()); },
+            OutputSinkTarget::Disconnected              => None,
+            OutputSinkTarget::Input(input)              |
+            OutputSinkTarget::CloseWhenDropped(input)   => input.upgrade()
+        };
+
+        // We're disconnected if the core is 'None'
+        if let Some(input_core) = maybe_input_core {
+            // Try to enqueue in the input core
+            let waker = {
+                let mut input_core = input_core.lock().unwrap();
+
+                input_core.send(program_id, message)?
+            };
+
+            if let Some(waker) = waker {
+                waker.wake();
+            }
+
+            Ok(())
+        } else {
+            Err(message)
+        }
     }
 
     ///
