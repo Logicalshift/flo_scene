@@ -219,6 +219,10 @@ impl<TMessage> OutputSink<TMessage> {
                 input_core.send(program_id, message)?
             };
 
+            // If we successfully sent the message, try to flush the core so that it gets processed by thread-stealing if possible
+            self.try_flush_immediate().ok();
+
+            // Wake up anything 
             if let Some(waker) = waker {
                 waker.wake();
             }
