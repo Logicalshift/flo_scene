@@ -28,6 +28,9 @@ pub (crate) struct InputStreamCore<TMessage> {
     /// Wakers for any output streams waiting for slots to become available
     when_slots_available: VecDeque<Waker>,
 
+    /// True if immediate-mode requests are allowed to steal the current thread (false if this can only be run from the main scene loop)
+    allow_thread_stealing: bool,
+
     /// If non-zero, this input stream is blocked from receiving any more data (even if slots are waiting in max-waiting), creating back-pressure on anything that's outputting to it 
     blocked: usize,
 
@@ -115,6 +118,7 @@ impl<TMessage> InputStream<TMessage> {
             when_message_sent:      None,
             when_slots_available:   VecDeque::new(),
             blocked:                0,
+            allow_thread_stealing:  false,
             closed:                 false,
         };
 
@@ -162,7 +166,7 @@ impl<TMessage> InputStream<TMessage> {
     ///
     #[inline]
     pub fn allow_thread_stealing(&self, enable: bool) {
-        todo!()
+        self.core.lock().unwrap().allow_thread_stealing = enable;
     }
 }
 
@@ -222,6 +226,13 @@ impl<TMessage> InputStreamCore<TMessage> {
     ///
     pub (crate) fn target_program_id(&self) -> SubProgramId {
         self.program_id
+    }
+
+    ///
+    /// True if this input stream can 'steal' the current thread to send messages immediately
+    ///
+    pub (crate) fn allows_thread_stealing(&self) -> bool {
+        self.allow_thread_stealing
     }
 }
 
