@@ -1,3 +1,10 @@
+//!
+//! flo_scene is based around a basic model of operation that's intended to be fairly simple:
+//! a larger program is built from subprograms, each of which has one input stream and any
+//! number of output streams. Output streams are usually based solely on the type of data that
+//! is being sent, and the connections can be specified outside of the programs themselves.
+//!
+
 use flo_scene::*;
 use flo_scene::programs::*;
 

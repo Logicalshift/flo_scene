@@ -1,3 +1,13 @@
+//!
+//! Sometimes, it's necessary to connect two programs where one produces a different kind
+//! of output to the input. Filters provide a general way to map one stream of messages
+//! to another.
+//!
+//! This isn't needed for the basic scene functionality: the same thing can be done by
+//! creating a subprogram to do the conversion, but having filters built in like this makes
+//! it much easier to create adapters between programs.
+//!
+
 use flo_scene::*;
 
 use futures::prelude::*;

@@ -1,3 +1,10 @@
+//!
+//! The control program can be used to start new programs and stop them from within
+//! a program in a scene. It's started when a scene is created with `Scene::default()`.
+//! It's an optional program, so a scene that does not need to be dynamic or which has
+//! its own method of controlling when it starts and stops can start with `Scene::empty()`
+//!
+
 use flo_scene::*;
 use flo_scene::programs::*;
 
