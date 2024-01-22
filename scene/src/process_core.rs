@@ -45,6 +45,19 @@ impl SceneProcessFuture {
     }
 
     ///
+    /// True if this future is already running on this thread
+    ///
+    #[inline]
+    pub fn is_running_on_this_thread(&self) -> bool {
+        use std::thread;
+
+        match self {
+            SceneProcessFuture::Running(thread_id)  => *thread_id == thread::current().id(),
+            _                                       => false,
+        }
+    }
+
+    ///
     /// If this process is waiting, marks it as running on the current thread and returns the waiting future
     ///
     /// If the process is not waiting, this will return None
