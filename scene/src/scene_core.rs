@@ -629,6 +629,9 @@ impl SceneCore {
     /// Polls the process for the specified program on this thread
     ///
     pub (crate) fn steal_thread_for_program(core: &Arc<Mutex<SceneCore>>, program_id: SubProgramId) -> Result<(), SceneSendError> {
+        use std::mem;
+        use std::thread;
+
         // Fetch the program whose process we're going to run
         let subprogram = {
             let core    = core.lock().unwrap();
@@ -657,8 +660,15 @@ impl SceneCore {
                 match process.future.take() {
                     Some(future)    => { break (process_id.0, future); }
                     None            => {
-                        // Error if we can't steal the thread because the process is already running on this thread
-                        return Err(SceneSendError::TargetProgramEnded);
+                        if process.future.is_running_on_this_thread() {
+                            // Error if we can't steal the thread because the process is already running on this thread
+                            return Err(SceneSendError::TargetProgramEnded);
+                        }
+
+                        // Release the core and park the thread until the process stops running on the target thread
+                        process.unpark_when_waiting.push(thread::current());
+                        mem::drop(core);
+                        thread::park();
                     }
                 }
             }
