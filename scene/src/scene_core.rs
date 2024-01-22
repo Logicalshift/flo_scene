@@ -559,7 +559,7 @@ impl SceneCore {
 
         // Store the new process
         let new_process = SceneProcess {
-            future:     Some(process.boxed()),
+            future:     SceneProcessFuture::Waiting(process.boxed()),
             is_awake:   true,
         };
         self.processes[process_id] = Some(new_process);
@@ -672,7 +672,7 @@ impl SceneCore {
                 None
             } else {
                 // Process still running: return the future so that it'll actually run
-                scene_core.processes[process_id].as_mut().unwrap().future = Some(process_future);
+                scene_core.processes[process_id].as_mut().unwrap().future = SceneProcessFuture::Waiting(process_future);
 
                 // If the future has woken up since the poll finished, then re-awaken the scene using a scene waker
                 if scene_core.processes[process_id].as_mut().unwrap().is_awake {
@@ -791,7 +791,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                 };
 
                 if let Some(Some(next_process)) = core.processes.get_mut(next_process_idx) {
-                    if next_process.is_awake && next_process.future.is_some() {
+                    if next_process.is_awake && next_process.future.is_waiting() {
                         // Process is awake: we say it's asleep again at the start of the polling process
                         next_process.is_awake = false;
 
@@ -821,7 +821,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                     let mut core        = core.lock().unwrap();
                     let process_data    = core.processes[next_process_idx].as_mut().expect("Process should not go away while we're polling it");
 
-                    process_data.future = Some(next_process);
+                    process_data.future = SceneProcessFuture::Waiting(next_process);
 
                     if process_data.is_awake {
                         // Possible re-awoken while polling, so make sure the process is still in the pending list so it gets polled again
