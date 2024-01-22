@@ -642,18 +642,26 @@ impl SceneCore {
 
         // Try to fetch the future for the process (back to the scene core again here)
         let (process_id, mut process_future) = {
-            // We lock both the core and the subprogram here so that the process cannot end before we get the future
-            let mut core    = core.lock().unwrap();
-            let process_id  = subprogram.lock().unwrap().process_id.ok_or(SceneSendError::TargetProgramEnded)?;
+            // Loop until the process future is available on this thread
+            loop {
+                // We lock both the core and the subprogram here so that the process cannot end before we get the future
+                let mut core    = core.lock().unwrap();
+                let process_id  = subprogram.lock().unwrap().process_id.ok_or(SceneSendError::TargetProgramEnded)?;
 
-            let process     = core.processes.get_mut(process_id.0)
-                .map(|process| process.as_mut())
-                .unwrap_or(None)
-                .ok_or(SceneSendError::TargetProgramEnded)?;
+                let process     = core.processes.get_mut(process_id.0)
+                    .map(|process| process.as_mut())
+                    .unwrap_or(None)
+                    .ok_or(SceneSendError::TargetProgramEnded)?;
 
-            // Take the future to execute it
-            // TODO: if the future doesn't exist and is running on a different thread, block until it's released (this version will work so long as there's only one thread)
-            (process_id.0, process.future.take().ok_or(SceneSendError::CannotReEnterTargetProgram)?)
+                // If the process is available, return it to the rest of the thread, in order to run it here
+                match process.future.take() {
+                    Some(future)    => { break (process_id.0, future); }
+                    None            => {
+                        // Error if we can't steal the thread because the process is already running on this thread
+                        return Err(SceneSendError::TargetProgramEnded);
+                    }
+                }
+            }
         };
 
         // Poll the future (reawaken the core later on)
