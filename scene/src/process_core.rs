@@ -41,10 +41,7 @@ impl SceneProcessFuture {
     ///
     #[inline]
     pub fn is_waiting(&self) -> bool {
-        match self {
-            SceneProcessFuture::Waiting(_)  => true,
-            _                               => false,
-        }
+        matches!(self, SceneProcessFuture::Waiting(_))
     }
 
     ///
