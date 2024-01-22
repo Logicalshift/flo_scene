@@ -30,6 +30,9 @@ pub (crate) struct SceneProcess {
 
     /// Set to true if this process has been woken up
     pub (super) is_awake: bool,
+
+    /// The threads that should be unparked when the future in this process becomes idle 
+    pub (super) unpark_when_waiting: Vec<Thread>,
 }
 
 impl SceneProcessFuture {
