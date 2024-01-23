@@ -401,3 +401,71 @@ fn send_output_from_outside() {
     assert!(received_messages.contains(&(*OUTSIDE_SCENE_PROGRAM, "Three".into())), "Expected three, {:?}", received_messages);
     assert!(received_messages.contains(&(*OUTSIDE_SCENE_PROGRAM, "Four".into())), "Expected four, {:?}", received_messages);
 }
+
+#[test]
+fn send_message_with_thread_stealing() {
+    let scene = Scene::default();
+
+    // Create some status variables to store the state of the message
+    let received_message    = Arc::new(Mutex::new(0));
+    let received_immediate  = Arc::new(Mutex::new(0));
+
+    // The receiver program reads messages in immediate mode and sets the 'received_message' flag as soon as the message is received
+    let receiver_program            = SubProgramId::new();
+    let receiver_program_counter    = Arc::clone(&received_message);
+
+    scene.add_subprogram(receiver_program, 
+        move |messages: InputStream<()>, _context| {
+            messages.allow_thread_stealing(true);
+
+            async move {
+                let mut messages = messages;
+
+                // Increase the counter every time we receive a message
+                while let Some(_msg) = messages.next().await {
+                    println!("Recv");
+                    *receiver_program_counter.lock().unwrap() += 1;
+                }
+            }
+        }, 20);
+
+    // The sender program sends messages to the receiver in immediate mode
+    let sender_program = SubProgramId::new();
+
+    let receiver_program_counter    = Arc::clone(&received_message);
+    let output_counter              = Arc::clone(&received_immediate);
+
+    scene.add_subprogram(sender_program, 
+        move |_: InputStream<()>, context| {
+            let mut message_sender = context.send::<()>(receiver_program).unwrap();
+
+            async move {
+                // Send some immediate messages
+                println!("Send");
+                message_sender.send(()).await.unwrap();
+                println!("Send");
+                message_sender.send(()).await.unwrap();
+                println!("Send");
+                message_sender.send(()).await.unwrap();
+
+                // Store how many have been processed in the output counter
+                *output_counter.lock().unwrap() = *receiver_program_counter.lock().unwrap();
+                println!("Send Done");
+
+                // Stop the scene once we're done
+                context.send_message(SceneControl::StopScene).await.unwrap();
+            }
+        }, 0);
+
+    // Run the scene
+    let mut finished = false;
+    executor::block_on(select(async {
+        scene.run_scene().await;
+
+        finished = true;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Check it behaved as intended
+    assert!(*received_immediate.lock().unwrap() == 3, "Expected to have processed 3 messages immediated (processed: {:?})", *received_immediate.lock().unwrap());
+    assert!(finished, "Scene did not finish");
+}

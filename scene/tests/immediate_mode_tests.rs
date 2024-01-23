@@ -215,5 +215,3 @@ fn park_while_thread_runs() {
     assert!(*received_immediate.lock().unwrap() == 4, "Expected to have processed 4 messages immediated (processed: {:?})", *received_immediate.lock().unwrap());
     assert!(finished, "Scene did not finish");
 }
-
-// TODO: thread stealing with normal 'send.await' message sending should likely also work
