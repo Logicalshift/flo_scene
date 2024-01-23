@@ -351,12 +351,35 @@ where
 
                     match input_core.send(self.program_id, item) {
                         Ok(waker) => {
-                            // Sent the message: wake up anything waiting for the input stream
+                            // Sent the message: wake up anything waiting for the input stream, or steal this thread if allowed
+                            let target_program_id       = input_core.target_program_id();
+                            let allow_thread_stealing   = input_core.allows_thread_stealing();
+
                             self.waiting_message = None;
                             mem::drop(input_core);
 
+                            // Steal the current thread if the input stream supports it
+                            let thread_stolen = if allow_thread_stealing {
+                                let maybe_scene_core = self.scene_core.upgrade();
+
+                                if let Some(scene_core) = maybe_scene_core {
+                                    // Manually poll the process
+                                    let success = SceneCore::steal_thread_for_program(&scene_core, target_program_id);
+
+                                    success.is_ok()
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            };
+
+                            // Wake up the target on the main thread
                             if let Some(waker) = waker {
-                                self.yield_after_sending = true;
+                                // Yield if the thread was not stolen before
+                                self.yield_after_sending = !thread_stolen;
+
+                                // TODO: consider not waking if the thread was stolen OK
                                 waker.wake()
                             };
                             Ok(())
