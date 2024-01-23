@@ -662,7 +662,7 @@ impl SceneCore {
                     None            => {
                         if process.future.is_running_on_this_thread() {
                             // Error if we can't steal the thread because the process is already running on this thread
-                            return Err(SceneSendError::TargetProgramEnded);
+                            return Err(SceneSendError::CannotReEnterTargetProgram);
                         }
 
                         // Release the core and park the thread until the process stops running on the target thread
