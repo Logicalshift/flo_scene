@@ -11,6 +11,11 @@ pub trait SceneMessage : Sized + Send + Unpin {
     /// This is `StreamTarget::Any` by default, so streams will wait to be connected. This can be set to `StreamTarget::None`
     /// to throw away messages, or even to a program ID if messages should be sent to a particular program by default.
     ///
+    /// Setting a default message target makes it much easier to start programs that use this message type as there's no
+    /// need to specifically set up the connections separately. Ideally aim for every message type to have a default target
+    /// and only use the `connect_programs()` function to specify exceptions, avoiding the 'wall o'configuration' problem
+    /// commonly encountered when using dependency injection to link together a large program.
+    ///
     fn default_target() -> StreamTarget { StreamTarget::Any }
 
     ///
