@@ -79,3 +79,49 @@ fn send_message_with_thread_stealing() {
     assert!(*received_immediate.lock().unwrap() == 3, "Expected to have processed 3 messages immediated (processed: {:?})", *received_immediate.lock().unwrap());
     assert!(finished, "Scene did not finish");
 }
+
+#[test]
+fn cannot_reenter_existing_program() {
+    let scene = Scene::default();
+
+    // The easiest way to generate some reentrancy is to make a program that calls itself
+    let reentrant_subprogram = SubProgramId::new();
+
+    scene.add_subprogram(reentrant_subprogram, 
+        move |messages: InputStream<()>, context| {
+            let send_to_self = context.send::<()>(reentrant_subprogram).unwrap();
+            messages.allow_thread_stealing(true);
+
+            async move {
+                // First 'send' will fill the target's output, second won't work because it's full
+                send_to_self.try_send_immediate(()).unwrap();
+                let try_send_error = send_to_self.try_send_immediate(());
+                assert!(try_send_error.is_err(), "Try send: {:?}", try_send_error);
+
+                // Can't flush because the program is full
+                let flush_err = send_to_self.try_flush_immediate();
+                assert!(flush_err == Err(SceneSendError::CannotReEnterTargetProgram), "Try flush: {:?}", flush_err);
+
+                // Can't send immediately either
+                let send_error = send_to_self.send_immediate(());
+                assert!(send_error == Err(SceneSendError::CannotReEnterTargetProgram), "Send immediate: {:?}", send_error);
+
+                context.send_message(SceneControl::StopScene).await.unwrap();
+            }
+        },
+        0);
+
+    // Run the scene
+    let mut finished = false;
+    executor::block_on(select(async {
+        scene.run_scene().await;
+
+        finished = true;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Check it behaved as intended
+    assert!(finished, "Scene did not finish");
+}
+
+// TODO: test out that we can park in immediate mode
+// TODO: thread stealing with normal 'send.await' message sending should likely also work
