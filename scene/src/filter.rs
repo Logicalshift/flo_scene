@@ -60,6 +60,7 @@ impl FilterHandle {
             let buffer_size         = target_input_core.lock().unwrap().num_slots();
 
             let source_input_stream = InputStream::<TSourceMessage>::new(sending_program, buffer_size);
+            source_input_stream.allow_thread_stealing(true);
             let target_input_core   = Arc::downgrade(&target_input_core);
 
             // The source core is what should be attached to the output sink here
