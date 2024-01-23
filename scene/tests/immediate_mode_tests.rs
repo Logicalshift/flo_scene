@@ -199,7 +199,7 @@ fn park_while_thread_runs() {
     let mut finished = false;
 
     let thread_scene = Arc::clone(&scene);
-    thread::spawn(move || {
+    let other_thread = thread::spawn(move || {
         executor::block_on(async {
             thread_scene.run_scene().await;
         });
@@ -210,6 +210,8 @@ fn park_while_thread_runs() {
 
         finished = true;
     }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    other_thread.join().unwrap();
 
     // Check it behaved as intended
     assert!(*received_immediate.lock().unwrap() == 4, "Expected to have processed 4 messages immediated (processed: {:?})", *received_immediate.lock().unwrap());
