@@ -153,8 +153,12 @@ fn park_while_thread_runs() {
                 wait_for_start.recv().unwrap();
                 println!("Receiver running");
 
+                // Delay to allow the other thread to start sending messages before we call messages.next() (if we await there, it'll just steal the main thread)
+                thread::sleep(Duration::from_millis(50));
+
                 // Increase the counter every time we receive a message
                 while let Some(_msg) = messages.next().await {
+                    println!("Received message");
                     *receiver_program_counter.lock().unwrap() += 1;
                 }
             }
@@ -176,9 +180,6 @@ fn park_while_thread_runs() {
                 wait_for_run.recv().unwrap();
                 println!("Sender running");
 
-                // Send a message the normal way to 'prime' the target thread (it can buffer a single message so this is OK even when it's blocked)
-                message_sender.send(()).await.unwrap();
-
                 // Wake it up so it starts processing our messages
                 start_receiving.send(()).unwrap();
 
@@ -187,10 +188,13 @@ fn park_while_thread_runs() {
                 message_sender.send_immediate(()).unwrap();
                 message_sender.send_immediate(()).unwrap();
 
+                println!("Sent all messages");
+
                 // Store how many have been processed in the output counter
                 *output_counter.lock().unwrap() = *receiver_program_counter.lock().unwrap();
 
                 // Stop the scene once we're done
+                println!("Stopping");
                 context.send_message(SceneControl::StopScene).await.unwrap();
             }
         }, 0);
@@ -202,11 +206,13 @@ fn park_while_thread_runs() {
     let other_thread = thread::spawn(move || {
         executor::block_on(async {
             thread_scene.run_scene().await;
+            println!("Thread 2 finished");
         });
     });
 
     executor::block_on(select(async {
         scene.run_scene().await;
+        println!("Thread 1 finished");
 
         finished = true;
     }.boxed(), Delay::new(Duration::from_millis(5000))));
@@ -214,6 +220,6 @@ fn park_while_thread_runs() {
     other_thread.join().unwrap();
 
     // Check it behaved as intended
-    assert!(*received_immediate.lock().unwrap() == 4, "Expected to have processed 4 messages immediated (processed: {:?})", *received_immediate.lock().unwrap());
+    assert!(*received_immediate.lock().unwrap() == 3, "Expected to have processed 4 messages immediated (processed: {:?})", *received_immediate.lock().unwrap());
     assert!(finished, "Scene did not finish");
 }
