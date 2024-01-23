@@ -217,6 +217,7 @@ fn park_while_thread_runs() {
         finished = true;
     }.boxed(), Delay::new(Duration::from_millis(5000))));
 
+    // TODO: the 'stop' doesn't always wake up both threads (so the select doesn't stop until the Delay wakes up)
     other_thread.join().unwrap();
 
     // Check it behaved as intended
