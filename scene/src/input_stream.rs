@@ -1,4 +1,5 @@
 use crate::error::*;
+use crate::scene_message::*;
 use crate::subprogram_id::*;
 
 use futures::prelude::*;
@@ -106,7 +107,10 @@ impl<TMessage> InputStreamBlocker<TMessage> {
     }
 }
 
-impl<TMessage> InputStream<TMessage> {
+impl<TMessage> InputStream<TMessage> 
+where
+    TMessage: SceneMessage,
+{
     ///
     /// Creates a new input stream
     ///
@@ -118,7 +122,7 @@ impl<TMessage> InputStream<TMessage> {
             when_message_sent:      None,
             when_slots_available:   VecDeque::new(),
             blocked:                0,
-            allow_thread_stealing:  false,
+            allow_thread_stealing:  TMessage::allow_thread_stealing_by_default(),
             closed:                 false,
         };
 

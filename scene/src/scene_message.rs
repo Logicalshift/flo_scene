@@ -18,6 +18,14 @@ pub trait SceneMessage : Sized + Send + Unpin {
     /// particular message type. This is called the first time that a message is referenced in a scene.
     ///
     fn initialise(scene: &Scene) { let _ = scene; }
+
+    ///
+    /// True if input streams for this message type should allow thread stealing by default
+    ///
+    /// Thread stealing will immediately run a future when a message is queued instead of waiting for the future to be
+    /// polled in the main loop.
+    ///
+    fn allow_thread_stealing_by_default() -> bool { false }
 }
 
 impl SceneMessage for () { }
