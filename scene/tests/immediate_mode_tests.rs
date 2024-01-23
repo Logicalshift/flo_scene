@@ -102,9 +102,9 @@ fn cannot_reenter_existing_program() {
                 let flush_err = send_to_self.try_flush_immediate();
                 assert!(flush_err == Err(SceneSendError::CannotReEnterTargetProgram), "Try flush: {:?}", flush_err);
 
-                // Can't send immediately either
+                // Can use send_immediate though, as that will just overfill the input queue
                 let send_error = send_to_self.send_immediate(());
-                assert!(send_error == Err(SceneSendError::CannotReEnterTargetProgram), "Send immediate: {:?}", send_error);
+                assert!(send_error == Ok(()), "Send immediate: {:?}", send_error);
 
                 context.send_message(SceneControl::StopScene).await.unwrap();
             }
