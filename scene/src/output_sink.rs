@@ -354,6 +354,7 @@ where
                             // Sent the message: wake up anything waiting for the input stream, or steal this thread if allowed
                             let target_program_id       = input_core.target_program_id();
                             let allow_thread_stealing   = input_core.allows_thread_stealing();
+                            let queue_full              = input_core.is_queue_full();
 
                             self.waiting_message = None;
                             mem::drop(input_core);
@@ -376,8 +377,8 @@ where
 
                             // Wake up the target on the main thread
                             if let Some(waker) = waker {
-                                // Yield if the thread was not stolen before
-                                self.yield_after_sending = !thread_stolen;
+                                // Yield if the thread was not stolen before, and its input buffer is full
+                                self.yield_after_sending = !thread_stolen && queue_full;
 
                                 // TODO: consider not waking if the thread was stolen OK
                                 waker.wake()

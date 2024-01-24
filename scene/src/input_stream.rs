@@ -213,6 +213,9 @@ impl<TMessage> InputStreamCore<TMessage> {
     ///
     /// Returns the size of the buffer that this stream allows
     ///
+    /// The stream can queue up one more message than this number: this is the number of messages this input stream
+    /// can buffer before the sender needs to yield.
+    ///
     pub (crate) fn num_slots(&self) -> usize {
         self.max_waiting
     }
@@ -237,6 +240,13 @@ impl<TMessage> InputStreamCore<TMessage> {
     ///
     pub (crate) fn allows_thread_stealing(&self) -> bool {
         self.allow_thread_stealing
+    }
+
+    ///
+    /// True if the queue for this input stream is full (the next `send()` call will fail)
+    ///
+    pub (crate) fn is_queue_full(&self) -> bool {
+        (self.max_waiting + 1) <= self.waiting_messages.len()
     }
 }
 
