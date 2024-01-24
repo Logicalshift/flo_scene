@@ -155,7 +155,7 @@ impl<TMessage> OutputSink<TMessage> {
     /// This makes it possible to send messages from functions that are not async. In general, this should be done
     /// sparingly: there's no back-pressure, and this might trigger a future to 'steal' the current thread.
     ///
-    pub fn send_immediate(&self, message: TMessage) -> Result<(), SceneSendError> {
+    pub fn send_immediate(&mut self, message: TMessage) -> Result<(), SceneSendError> {
         // Try sending the message to the target
         if let Err(message) = self.try_send_immediate(message) {
             // If we can't send it immediately, flush and try again
@@ -203,7 +203,7 @@ impl<TMessage> OutputSink<TMessage> {
     /// This can be combined with `try_flush_immediate()` to force the messages to process when enough are
     /// buffered.
     ///
-    pub fn try_send_immediate(&self, message: TMessage) -> Result<(), TMessage> {
+    pub fn try_send_immediate(&mut self, message: TMessage) -> Result<(), TMessage> {
         // Fetch the input core that we'll be sending the message to
         let program_id       = self.program_id;
         let maybe_input_core = match &self.core.lock().unwrap().target {
@@ -244,7 +244,7 @@ impl<TMessage> OutputSink<TMessage> {
     /// If thread stealing is enabled on the input stream, this will run the target subprogram on the current thread.
     /// If the target program is running on a different thread, this will block the current thread until it is idle.
     ///
-    pub fn try_flush_immediate(&self) -> Result<(), SceneSendError> {
+    pub fn try_flush_immediate(&mut self) -> Result<(), SceneSendError> {
         // TODO: an option is to create a separate thread to temporarily run the scene on too, which might work better for processes that can await things 
 
         // Fetch the scene core to be able to run the process

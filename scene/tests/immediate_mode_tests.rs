@@ -51,7 +51,7 @@ fn send_message_with_thread_stealing() {
 
     scene.add_subprogram(sender_program, 
         move |_: InputStream<()>, context| {
-            let message_sender = context.send::<()>(receiver_program).unwrap();
+            let mut message_sender = context.send::<()>(receiver_program).unwrap();
 
             async move {
                 // Send some immediate messages
@@ -89,7 +89,7 @@ fn cannot_reenter_existing_program() {
 
     scene.add_subprogram(reentrant_subprogram, 
         move |messages: InputStream<()>, context| {
-            let send_to_self = context.send::<()>(reentrant_subprogram).unwrap();
+            let mut send_to_self = context.send::<()>(reentrant_subprogram).unwrap();
             messages.allow_thread_stealing(true);
 
             async move {
