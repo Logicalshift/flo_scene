@@ -17,7 +17,7 @@ pub fn main() {
 
     scene.add_subprogram(SubProgramId::new(), |_input: InputStream<()>, context| {
         async move {
-            context.send_message(TextOutput::Line("Hello, world!".into())).await.unwrap();
+            context.send_message(TextOutput::Line("Hello, world!\n".into())).await.unwrap();
             context.send_message(SceneControl::StopScene).await.unwrap();
         }
     }, 0);

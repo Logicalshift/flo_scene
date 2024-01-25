@@ -20,7 +20,7 @@ pub enum TextOutput {
     /// Writes a string to the output
     Text(String),
 
-    /// Writes a string on its own line
+    /// Writes some text at the start of a new line
     Line(String),
 }
 
@@ -47,12 +47,12 @@ pub async fn text_io_subprogram(target: impl Send + Write, messages: impl Stream
             Text(text)      => { write!(target, "{}", text).ok(); at_start_of_line = text.chars().last() == Some('\n'); },
             Line(text)      => {
                 if at_start_of_line {
-                    write!(target, "{}\n", text).ok();
+                    write!(target, "{}", text).ok();
                 } else {
-                    write!(target, "\n{}\n", text).ok();
+                    write!(target, "\n{}", text).ok();
                 }
 
-                at_start_of_line = true;
+                at_start_of_line = text.chars().last() == Some('\n');
             },
         }
     }
