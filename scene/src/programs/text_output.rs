@@ -51,6 +51,8 @@ pub async fn text_io_subprogram(target: impl Send + Write, messages: impl Stream
                 } else {
                     write!(target, "\n{}\n", text).ok();
                 }
+
+                at_start_of_line = true;
             },
         }
     }
