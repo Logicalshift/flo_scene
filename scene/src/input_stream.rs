@@ -156,17 +156,27 @@ where
     }
 
     ///
-    /// Enables thread stealing for subprograms that want to use this input stream for immediate output
+    /// Sets whether or not thread stealing is enabled for subprograms that want to use this input stream for immediate output
     ///
-    /// If thread stealing is enabled, then if `OutputSink::send_immediate()` is called the future that is waiting
-    /// on the input stream will be polled in immediate mode until the message is processed. This is non-standard
-    /// for Rust futures, but enables things like loggers to produce their output immediately instead of needing
-    /// to wait for the main event loop to trigger. The future will run on whatever context is active on the thread
-    /// that send_immediate is called on, so must not be dependent on the scene's own context to be completely
-    /// safe.
+    /// Thread stealing is turned off by default. Turning it on can result in sent messages being processed immediately
+    /// rather than waiting for the future to yield by immediately running the target program when a message is sent.
+    /// This is also useful for handling messages sent with `send_immediate`. 
     ///
-    /// If thread stealing is disabled, then `send_immediate` may overload the input to the stream in order to 
-    /// avoid needing to block the thread (as that might just deadlock).
+    /// Deciding whether to use this requires some knowledge of how futures work. You will get the best effect if the 
+    /// subprogram does not await anything between processing messages, or at least does not await anything in the usual 
+    /// case. In general, leave this disabled if there's no specific need for it.
+    ///
+    /// Normally, when a future awaits the effect is to return the thread to the main loop, which in the case of flo_scene
+    /// switches to the oldest waiting future. Sending a message will await once the input queue is full (once there are
+    /// `max_waiting` messages waiting). This works fine most of the time, but for some message types - like for example
+    /// logging - the delay in processing the message can be undesirable, and this can also result in a backlog when
+    /// sending messages in immediate mode.
+    ///
+    /// With thread stealing enabled, sending a message will immediately poll the target program. Provided that the program
+    /// only awaits new messages, this means that the message will be processed right away with no other futures running.
+    /// This is quite useful for certain tasks like logging where having the message process at the exact time it is sent
+    /// is a needed feature. However, if the target is awaiting some other future at the time the message is sent, this can
+    /// just result in no effect.
     ///
     #[inline]
     pub fn allow_thread_stealing(&self, enable: bool) {
