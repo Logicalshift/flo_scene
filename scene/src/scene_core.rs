@@ -282,19 +282,29 @@ impl SceneCore {
     /// Sends a set of updates to the update stream (if there is one set for this core)
     ///
     pub (crate) fn send_scene_updates(scene_core: &Arc<Mutex<SceneCore>>, updates: Vec<SceneUpdate>) {
+        use std::mem;
+
         if updates.is_empty() {
             return;
         }
 
-        let mut core = scene_core.lock().unwrap();
+        let mut core    = scene_core.lock().unwrap();
+        let mut waker   = None;
         if let Some((pid, update_core)) = core.updates.as_ref() {
             let mut update_sink = OutputSink::attach(*pid, Arc::clone(update_core), scene_core);
 
-            core.start_process(async move {
+            let (_, process_waker) = core.start_process(async move {
                 for update in updates {
                     update_sink.send(update).await.ok();
                 }
             });
+
+            waker = process_waker;
+        }
+
+        mem::drop(core);
+        if let Some(waker) = waker {
+            waker.wake()
         }
     }
 
