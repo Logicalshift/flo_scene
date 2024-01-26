@@ -16,7 +16,7 @@ use futures::future::{poll_fn};
 use futures::{pin_mut};
 
 use std::sync::*;
-use std::io::{stdout, stderr};
+use std::io::{stdin, stdout, stderr, BufReader};
 
 ///
 /// A scene represents a set of running co-programs, creating a larger self-contained piece of
@@ -36,6 +36,7 @@ impl Default for Scene {
         scene.add_subprogram(*OUTSIDE_SCENE_PROGRAM, outside_scene_program, 0);
         SceneCore::set_scene_update_from(&scene.core, *SCENE_CONTROL_PROGRAM);
 
+        scene.add_subprogram(*STDIN_PROGRAM, |input, context| text_input_subprogram(BufReader::new(stdin()), input, context), 0);
         scene.add_subprogram(*STDOUT_PROGRAM, |input, context| text_io_subprogram(stdout(), input, context), 0);
         scene.add_subprogram(*STDERR_PROGRAM, |input, context| text_io_subprogram(stderr(), input, context), 0);
 
