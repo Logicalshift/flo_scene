@@ -55,5 +55,7 @@ pub async fn text_io_subprogram(target: impl Send + Write, messages: impl Stream
                 at_start_of_line = text.chars().last() == Some('\n');
             },
         }
+
+        target.flush().ok();
     }
 }
