@@ -6,6 +6,7 @@ use futures::executor;
 use futures::{pin_mut};
 use once_cell::sync::{Lazy};
 
+use std::str;
 use std::thread;
 use std::io::{BufRead};
 
@@ -49,6 +50,8 @@ impl SceneMessage for TextInput {
 /// as the number of streams increases)
 ///
 pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messages: impl Stream<Item=TextInput>, context: SceneContext) {
+    use std::mem;
+
     // Create some mpsc streams to communicate with the I/O thread
     let (send_request, recv_request)    = mpsc::channel::<TextInput>(0);
     let (send_result, recv_result)      = mpsc::channel::<(SubProgramId, TextInputResult)>(0);
@@ -65,7 +68,46 @@ pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messag
         while let Some(input_request) = recv_request.next().await {
             match input_request {
                 RequestCharacter(target) => {
-                    todo!()
+                    let mut bytes       = vec![];
+
+                    // Read a single character from the input
+                    let result = loop {
+                        // Read the next byte from the stream
+                        let pos = bytes.len();
+                        bytes.push(0);
+                        let read_err = source.read(&mut bytes[pos..pos+1]);
+
+                        // Stop if there's an error
+                        match read_err {
+                            Err(err)    => { break Err(err); },
+                            Ok(0)       => { bytes.pop(); continue; }
+                            Ok(_)       => { }
+                        }
+
+                        // Try to decode what we've read so far as a string
+                        let utf8_error = str::from_utf8(&bytes);
+
+                        match utf8_error {
+                            Ok(chr)     => { break Ok(chr.to_string()); }
+                            Err(err)    => {
+                                if err.error_len().is_some() {
+                                    // Encountered an unexpected byte
+                                    break Ok("\u{fffd}".to_string());
+                                }
+                            }
+                        }
+                    };
+
+                    // Relay the string that was read
+                    let result_is_err = result.is_err();
+                    let send_err = match result {
+                        Ok(chr) => send_result.send((target, TextInputResult::Characters(chr))).await,
+                        Err(_)  => send_result.send((target, TextInputResult::Eof)).await,
+                    };
+
+                    if result_is_err || send_err.is_err() {
+                        break;
+                    }
                 }
 
                 RequestLine(target) => {
@@ -76,7 +118,7 @@ pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messag
                     // Relay the string that was read
                     let send_err = match read_err {
                         Ok(_)   => send_result.send((target, TextInputResult::Characters(line))).await,
-                        Err(_)  => send_result.send((target, TextInputResult::Eof)).await
+                        Err(_)  => send_result.send((target, TextInputResult::Eof)).await,
                     };
 
                     // Stop receiving requests if there's an error reading from the source
@@ -129,4 +171,13 @@ pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messag
             }
         }
     }
+
+    // Close the channel
+    send_request.close_channel();
+    recv_result.close();
+    mem::drop(send_request);
+    mem::drop(recv_result);
+
+    // Monitor thread should shut down once the channel closes
+    monitor_thread.join().ok();
 }
