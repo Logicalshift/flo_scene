@@ -121,6 +121,15 @@ pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messag
                     let mut line = String::new();
                     let read_err = source.read_line(&mut line);
 
+                    // Trim the newline at the end
+                    if line.ends_with('\n') {
+                        line.remove(line.len()-1);
+
+                        if line.ends_with('\r') {
+                            line.remove(line.len()-1);
+                        }
+                    }
+
                     // Relay the string that was read (EOF if 0 characters were read)
                     let send_err = match read_err {
                         Ok(0)   => { send_result.send((target, TextInputResult::Eof)).await.ok(); Err(()) },
