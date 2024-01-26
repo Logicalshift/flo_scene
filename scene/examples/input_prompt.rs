@@ -1,6 +1,17 @@
 //!
 //! Reads lines of text and counts the number of characters
 //!
+//! This demonstrates the usual way that feedback works in a flo_scene system. It's not possible to directly receive
+//! a response to a message: all programs can do is generate an output stream. So with the input subprogram, the
+//! requests specify which subprogram to send the response to. In this case the same program is receiving the responses
+//! as is making the requests so it reads from its input stream immediately after every request.
+//!
+//! (This is analagous to how shell scripts are written and is also similar to how requests made over TCP/IP work)
+//!
+//! Note that it's possible to connect the stream coming from the input program using a filter if a subprogram needs
+//! to be able to deal with different kinds of message, or messages from multiple sources with different output
+//! types.
+//!
 
 use flo_scene::*;
 use flo_scene::programs::*;
