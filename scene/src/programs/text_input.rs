@@ -1,4 +1,5 @@
 use crate::*;
+use super::text_output::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
@@ -15,13 +16,16 @@ pub static STDIN_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called
 ///
 /// Text input programs read from an input stream and sends `TextInputResult` messages to a target program
 ///
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TextInput {
     /// Reads a single character from an input stream and sends it as a TextInputResult to a target program
     RequestCharacter(SubProgramId),
 
     /// Reads a line of text from an input stream and sends it to a subprogram
     RequestLine(SubProgramId),
+
+    /// Sends some data to the TextOutput program before requesting a line of text (the output will be deferred until the input is being read)
+    PromptRequestLine(Vec<TextOutput>, SubProgramId),
 }
 
 ///
@@ -51,6 +55,8 @@ impl SceneMessage for TextInput {
 ///
 pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messages: impl Stream<Item=TextInput>, context: SceneContext) {
     use std::mem;
+
+    let mut text_output = context.send(()).unwrap();
 
     // Create some mpsc streams to communicate with the I/O thread
     let (send_request, recv_request)    = mpsc::channel::<TextInput>(0);
@@ -110,7 +116,7 @@ pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messag
                     }
                 }
 
-                RequestLine(target) => {
+                RequestLine(target) | PromptRequestLine(_, target) => {
                     // Read a line from the input
                     let mut line = String::new();
                     let read_err = source.read_line(&mut line);
@@ -136,6 +142,28 @@ pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messag
     let mut recv_result     = recv_result;
 
     while let Some(request) = messages.next().await {
+        use TextInput::*;
+
+        let target = match &request {
+            RequestCharacter(target) | RequestLine(target) | PromptRequestLine(_, target) => *target
+        };
+
+        // Send the prompt, if there is one
+        let request = match request {
+            PromptRequestLine(prompt, target) => {
+                // Send the prompt to the output
+                for prompt_output in prompt {
+                    text_output.send(prompt_output).await.ok();
+                }
+
+                // Request a line of data
+                RequestLine(target)
+            }
+
+            other => other,
+        };
+
+        // Use the thread to read the request from the stream
         let result = {
             // Send the requesut
             if send_request.send(request).await.is_ok() {
@@ -159,13 +187,7 @@ pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messag
         };
 
         if result.is_err() {
-            use TextInput::*;
-
             // Errors result in an EOF being sent to the target
-            let target = match request {
-                RequestCharacter(target) | RequestLine(target) => target
-            };
-
             if let Ok(mut target) = context.send(target) {
                 target.send(TextInputResult::Eof).await.ok();
             }
