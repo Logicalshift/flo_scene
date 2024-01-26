@@ -121,10 +121,11 @@ pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messag
                     let mut line = String::new();
                     let read_err = source.read_line(&mut line);
 
-                    // Relay the string that was read
+                    // Relay the string that was read (EOF if 0 characters were read)
                     let send_err = match read_err {
-                        Ok(_)   => send_result.send((target, TextInputResult::Characters(line))).await,
-                        Err(_)  => send_result.send((target, TextInputResult::Eof)).await,
+                        Ok(0)   => { send_result.send((target, TextInputResult::Eof)).await.ok(); Err(()) },
+                        Ok(_)   => send_result.send((target, TextInputResult::Characters(line))).await.map_err(|_| ()),
+                        Err(_)  => send_result.send((target, TextInputResult::Eof)).await.map_err(|_| ()),
                     };
 
                     // Stop receiving requests if there's an error reading from the source
