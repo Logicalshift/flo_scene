@@ -44,7 +44,7 @@ pub async fn text_io_subprogram(target: impl Send + Write, messages: impl Stream
 
         match output {
             Character(chr)  => { write!(target, "{}", chr).ok(); at_start_of_line = chr == '\n'; },
-            Text(text)      => { write!(target, "{}", text).ok(); at_start_of_line = text.chars().last() == Some('\n'); },
+            Text(text)      => { write!(target, "{}", text).ok(); at_start_of_line = text.ends_with('\n'); },
             Line(text)      => {
                 if at_start_of_line {
                     write!(target, "{}", text).ok();
@@ -52,7 +52,7 @@ pub async fn text_io_subprogram(target: impl Send + Write, messages: impl Stream
                     write!(target, "\n{}", text).ok();
                 }
 
-                at_start_of_line = text.chars().last() == Some('\n');
+                at_start_of_line = text.ends_with('\n');
             },
         }
 
