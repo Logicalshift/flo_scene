@@ -159,7 +159,8 @@ fn park_while_thread_runs() {
                 // Increase the counter every time we receive a message
                 while let Some(_msg) = messages.next().await {
                     println!("Received message");
-                    assert!(context.current_program_id() == Some(receiver_program), "Program is {:?}, should be {:?}", context.current_program_id(), receiver_program);
+                    assert!(context.current_program_id() == Some(receiver_program), "Context program is {:?}, should be {:?}", context.current_program_id(), receiver_program);
+                    assert!(scene_context().unwrap().current_program_id() == Some(receiver_program), "Thread program is {:?}, should be {:?}", scene_context().unwrap().current_program_id(), receiver_program);
                     *receiver_program_counter.lock().unwrap() += 1;
                 }
             }
