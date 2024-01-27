@@ -415,7 +415,7 @@ fn send_message_with_thread_stealing() {
     let receiver_program_counter    = Arc::clone(&received_message);
 
     scene.add_subprogram(receiver_program, 
-        move |messages: InputStream<()>, _context| {
+        move |messages: InputStream<()>, context| {
             messages.allow_thread_stealing(true);
 
             async move {
@@ -424,6 +424,7 @@ fn send_message_with_thread_stealing() {
                 // Increase the counter every time we receive a message
                 while let Some(_msg) = messages.next().await {
                     println!("Recv");
+                    assert!(context.current_program_id() == Some(receiver_program), "Program is {:?}, should be {:?}", context.current_program_id(), receiver_program);
                     *receiver_program_counter.lock().unwrap() += 1;
                 }
             }

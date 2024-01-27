@@ -141,7 +141,7 @@ fn park_while_thread_runs() {
     let (start_running, wait_for_run)       = mpsc::channel::<()>();
 
     scene.add_subprogram(receiver_program, 
-        move |messages: InputStream<()>, _context| {
+        move |messages: InputStream<()>, context| {
             messages.allow_thread_stealing(true);
 
             async move {
@@ -159,6 +159,7 @@ fn park_while_thread_runs() {
                 // Increase the counter every time we receive a message
                 while let Some(_msg) = messages.next().await {
                     println!("Received message");
+                    assert!(context.current_program_id() == Some(receiver_program), "Program is {:?}, should be {:?}", context.current_program_id(), receiver_program);
                     *receiver_program_counter.lock().unwrap() += 1;
                 }
             }
