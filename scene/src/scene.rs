@@ -15,8 +15,9 @@ use futures::channel::oneshot;
 use futures::future::{poll_fn};
 use futures::{pin_mut};
 
-use std::sync::*;
 use std::io::{stdin, stdout, stderr, BufReader};
+use std::sync::*;
+use std::collections::{HashSet};
 
 ///
 /// A scene represents a set of running co-programs, creating a larger self-contained piece of
@@ -28,19 +29,13 @@ pub struct Scene {
 
 impl Default for Scene {
     fn default() -> Self {
-        // Create an empty scene
-        let scene = Scene::empty();
-
-        // Populate with the default programs
-        scene.add_subprogram(*SCENE_CONTROL_PROGRAM, SceneControl::scene_control_program, 0);
-        scene.add_subprogram(*OUTSIDE_SCENE_PROGRAM, outside_scene_program, 0);
-        SceneCore::set_scene_update_from(&scene.core, *SCENE_CONTROL_PROGRAM);
-
-        scene.add_subprogram(*STDIN_PROGRAM, |input, context| text_input_subprogram(BufReader::new(stdin()), input, context), 0);
-        scene.add_subprogram(*STDOUT_PROGRAM, |input, context| text_io_subprogram(stdout(), input, context), 0);
-        scene.add_subprogram(*STDERR_PROGRAM, |input, context| text_io_subprogram(stderr(), input, context), 0);
-
-        scene
+        Scene::with_standard_programs([
+            *SCENE_CONTROL_PROGRAM,
+            *OUTSIDE_SCENE_PROGRAM,
+            *STDIN_PROGRAM,
+            *STDOUT_PROGRAM,
+            *STDERR_PROGRAM,
+        ])
     }
 }
 
@@ -52,6 +47,29 @@ impl Scene {
         Scene {
             core: Arc::new(Mutex::new(SceneCore::new()))
         }
+    }
+
+    ///
+    /// Creates a new scene with a set of programs from the default set started
+    ///
+    /// For example, calling this as `Scene::with_standard_programs([*SCENE_CONTROL_PROGRAM])` will create a scene with only
+    /// the standard scene control program running.
+    ///
+    pub fn with_standard_programs(programs: impl IntoIterator<Item=SubProgramId>) -> Self {
+        let scene       = Self::empty();
+        let programs    = programs.into_iter().collect::<HashSet<_>>();
+
+        if programs.contains(&*SCENE_CONTROL_PROGRAM) {
+            scene.add_subprogram(*SCENE_CONTROL_PROGRAM, SceneControl::scene_control_program, 0);
+            SceneCore::set_scene_update_from(&scene.core, *SCENE_CONTROL_PROGRAM);
+        }
+        if programs.contains(&*OUTSIDE_SCENE_PROGRAM) { scene.add_subprogram(*OUTSIDE_SCENE_PROGRAM, outside_scene_program, 0); }
+
+        if programs.contains(&*STDIN_PROGRAM)   { scene.add_subprogram(*STDIN_PROGRAM, |input, context| text_input_subprogram(BufReader::new(stdin()), input, context), 0); }
+        if programs.contains(&*STDOUT_PROGRAM)  { scene.add_subprogram(*STDOUT_PROGRAM, |input, context| text_io_subprogram(stdout(), input, context), 0); }
+        if programs.contains(&*STDERR_PROGRAM)  { scene.add_subprogram(*STDERR_PROGRAM, |input, context| text_io_subprogram(stderr(), input, context), 0); }
+
+        scene
     }
 
     ///
