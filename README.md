@@ -7,6 +7,11 @@ are also benefits in terms of testing, code re-use and configurability.
 
 ## Basic usage
 
+A scene contains sub-programs. Each sub-program receives a single input stream of a single type
+of message, and can generate any number of output streams. Typically an output stream specifies
+a message type only, with the target being determined by an external connection definition, but
+it is also possible for a sub-program to request a direct connection to another program.
+
 Scenes are created using `Scene::default()` or `Scene::empty()`. The empty scene contains no
 subprograms by default but the default scene contains some default ones, in particular a
 control program that can be used to start other programs or define connections between programs.
