@@ -134,4 +134,25 @@ impl SubProgramCore {
             None
         }
     }
+
+    ///
+    /// Finds the output sinks in this core which are not being used by anything and returns them
+    ///
+    /// (The reason for returning them here is so they can be dropped outside of the subprogram lock)
+    ///
+    pub (crate) fn release_unused_sinks(&mut self) -> Vec<Arc<dyn Send + Sync + Any>> {
+        let mut unused_output_sinks = vec![];
+
+        // Iterate through all of the outputs stored in this core
+        for stream_id in self.outputs.keys().cloned().collect::<Vec<_>>() {
+            if let Some(output) = self.outputs.get(&stream_id) {
+                // Remove outputs with a strong_count of 1 (ie, which are only referenced internally)
+                if Arc::strong_count(output) == 1 {
+                    unused_output_sinks.push(self.outputs.remove(&stream_id).unwrap());
+                }
+            }
+        }
+
+        unused_output_sinks
+    }
 }
