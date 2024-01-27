@@ -48,6 +48,8 @@ impl SceneContext {
     where
         TMessageType: 'static + SceneMessage,
     {
+        use std::mem;
+
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
             // Convert the target to a stream ID. If we need to create the sink target, we can create it in 'wait' or 'discard' mode
             let target      = target.into();
@@ -79,6 +81,10 @@ impl SceneContext {
 
                 match new_or_old_target {
                     Ok(new_target) => {
+                        // Clean out any stale connections
+                        let stale_sinks = program_core.lock().unwrap().release_stale_output_sinks();
+                        mem::drop(stale_sinks);
+
                         // Report the new connection
                         let target_program  = OutputSinkCore::target_program_id(&new_target);
                         let update          = if let Some(target_program) = target_program {

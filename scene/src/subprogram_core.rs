@@ -143,11 +143,11 @@ impl SubProgramCore {
     ///
     /// (The reason for returning them here is so they can be dropped outside of the subprogram lock)
     ///
-    pub (crate) fn release_unused_output_sinks_if_needed(&mut self) -> Vec<Arc<dyn Send + Sync + Any>> {
+    pub (crate) fn release_stale_output_sinks(&mut self) -> Vec<Arc<dyn Send + Sync + Any>> {
         const num_new_sinks_before_release: usize = 0;
 
         if self.outputs.len() > self.output_high_water + num_new_sinks_before_release {
-            self.release_unused_output_sinks()
+            self.release_all_unused_output_sinks()
         } else {
             vec![]
         }
@@ -158,7 +158,7 @@ impl SubProgramCore {
     ///
     /// (The reason for returning them here is so they can be dropped outside of the subprogram lock)
     ///
-    pub (crate) fn release_unused_output_sinks(&mut self) -> Vec<Arc<dyn Send + Sync + Any>> {
+    pub (crate) fn release_all_unused_output_sinks(&mut self) -> Vec<Arc<dyn Send + Sync + Any>> {
         let mut unused_output_sinks = vec![];
 
         // Iterate through all of the outputs stored in this core
