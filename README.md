@@ -85,6 +85,24 @@ asynchronously as they communicate with messages rather than by direct data acce
 
 ## A few more advanced things
 
+### The message trait
+
+The `SceneMessage` trait can be used to specify the default initialisation for a program: in particular,
+a default target can be provided for the message type, along with an initialisation routine that can
+be used to set up the message in a scene the first time it is seen. This becomes increasingly useful as
+the number of subprograms increase, as it provides a way to combine the setup of a message type with
+the implementation rather than having to have something that sets up a huge number of connections.
+
+```Rust
+impl SceneMessage for MyMessage {
+    fn default_target() -> StreamTarget {
+        StreamTarget::Program(SubProgramId::called("MyMessageHandler"))
+    }
+}
+```
+
+### Default programs
+
 When the scene is created with `Scene::default()`, a control program is present that allows
 subprograms to start other subprograms or create connections:
 
@@ -94,7 +112,12 @@ subprograms to start other subprograms or create connections:
     context.send_message(SceneControl::connect(some_program, some_other_program, StreamId::for_message_type::<MyMessage>())).await.unwrap();
 ```
 
-The empty scene does not get this control program (it's possible to use the `Scene` struct directly though).
+There are also programs to send to stdout or stderr as well as receive from stdin.
+
+The empty scene does not get any of the default programs, so it can be configured however is necessary, and 
+it's also possible to create a scene with a particular set of default programs set up.
+
+### Filtering messages
 
 Filters make it possible to connect two subprograms that take different message types by transforming
 them. They need to be registered, then they can be used as a stream target:
@@ -105,16 +128,7 @@ let mine_to_yours_filter = FilterHandle::for_filter(|my_messages: InputStream<My
 scene.connect(my_program, StreamTarget::Filtered(mine_to_yours_filter, your_program), StreamId::with_message_type::<MyMessage>()).unwrap();
 ```
 
-The message type has some functions that can be overridden to provide some default behaviour which
-can remove the need to manually configure connections whenever a scene is created:
-
-```Rust
-impl SceneMessage for MyMessage {
-    fn default_target() -> StreamTarget {
-        StreamTarget::Program(SubProgramId::called("MyMessageHandler"))
-    }
-}
-```
+### Associating source information with messages
 
 A program can 'upgrade' its input stream to annotate the messages with their source if it needs this information:
 
@@ -133,6 +147,8 @@ scene.add_subprogram(log_program,
     10)
 ```
 
+### Specifying connections
+
 It is possible to request a stream directly to a particular program:
 
 ```Rust
@@ -147,7 +163,43 @@ But it's also possible to redirect these with a connection request:
 scene.connect(exception_program, standard_logger_program, StreamId::for_target::<LogMessage>(SubProgramId::called("MoreSpecificLogger")));
 ```
 
-You can create and run more than one `Scene` at once if needed.
+A very useful thing that can be done with the `connect()` call is to specify a default filter for an 
+incoming connection. This allows a program that supports a richer version of an existing protocol to
+also support the original one, or to specify how it receives events of different types. It's similar
+to inheritance in object-oriented languages but considerably more flexible (filters can perform
+any action that's possible to perform to a stream of data, there's no rigid hierarchy)
+
+```Rust
+// '()' is shorthand for StreamSource::Any
+// Any incoming connections of type `OldMessage` gets filtered to `NewMessage` for `new_message_program`
+scene.connect_programs((), StreamTarget::Filtered(old_to_new_message_filter, new_message_program), StreamId::with_message_type::<OldMessage>()).unwrap();
+```
+
+### Multiple scenes
+
+You can create and run more than one `Scene` at once if needed, and run scenes underneath each
+other. This provides a further way to structure a program, for example by providing scenes for
+individual documents or users.
+
+### Thread stealing
+
+'Thread stealing' is an option that can be turned on for an input stream. With this option on,
+the target program will immediately be polled when a message is sent rather than waiting for 
+the current subprogram to yield. This is useful for actions like logging where information
+could be lost if the messages were buffered, or where a message is intended to be used in
+immediate mode.
+
+### Immediate mode
+
+It's possible to use the `send_immediate()` request with an output sink to send a message without
+needing to use an `await`. This combines well with thread stealing if the target program can 
+process the message without awaiting. A downside of `send_immediate` is that it can override
+the backpressure that subprograms normally generate when they have too many messages waiting,
+so it needs to be used with some caution.
+
+This is a fairly specialist use-case, but this could be used with a logging framework to enable
+logging to a subprogram. `scene_context()` can be used to acquire the context of the subprogram
+running on the current thread, which can be very useful when combined with immediate messages.
 
 ## Philosophy
 
