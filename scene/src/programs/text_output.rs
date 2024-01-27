@@ -36,7 +36,6 @@ pub async fn text_io_subprogram(target: impl Send + Write, messages: impl Stream
     pin_mut!(messages);
 
     let mut target              = target;
-    let mut messages            = messages;
     let mut at_start_of_line    = false;
 
     while let Some(output) = messages.next().await {
