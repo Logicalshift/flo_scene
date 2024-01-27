@@ -144,9 +144,9 @@ impl SubProgramCore {
     /// (The reason for returning them here is so they can be dropped outside of the subprogram lock)
     ///
     pub (crate) fn release_stale_output_sinks(&mut self) -> Vec<Arc<dyn Send + Sync + Any>> {
-        const num_new_sinks_before_release: usize = 0;
+        const NUM_NEW_SINKS_BEFORE_RELEASE: usize = 10;
 
-        if self.outputs.len() > self.output_high_water + num_new_sinks_before_release {
+        if self.outputs.len() > self.output_high_water + NUM_NEW_SINKS_BEFORE_RELEASE {
             self.release_all_unused_output_sinks()
         } else {
             vec![]
