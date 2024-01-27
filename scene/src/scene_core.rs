@@ -195,6 +195,7 @@ impl SceneCore {
                 process_id:                 Some(process_handle),
                 input_stream_id:            StreamId::with_message_type::<TMessage>(),
                 outputs:                    HashMap::new(),
+                output_high_water:          0,
                 expected_input_type_name:   type_name::<TMessage>(),
             };
 

@@ -28,6 +28,9 @@ pub (crate) struct SubProgramCore {
     /// The output sink targets for this sub-program
     pub (super) outputs: HashMap<StreamId, Arc<dyn Send + Sync + Any>>,
 
+    /// The number of outputs left after the last time that the list was purged
+    pub (super) output_high_water: usize,
+
     /// The name of the expected input type of this program
     pub (super) expected_input_type_name: &'static str,
 }
@@ -136,11 +139,26 @@ impl SubProgramCore {
     }
 
     ///
+    /// Releases the unused output sinks if many have been allocated since this was last done
+    ///
+    /// (The reason for returning them here is so they can be dropped outside of the subprogram lock)
+    ///
+    pub (crate) fn release_unused_output_sinks_if_needed(&mut self) -> Vec<Arc<dyn Send + Sync + Any>> {
+        const num_new_sinks_before_release: usize = 0;
+
+        if self.outputs.len() > self.output_high_water + num_new_sinks_before_release {
+            self.release_unused_output_sinks()
+        } else {
+            vec![]
+        }
+    }
+
+    ///
     /// Finds the output sinks in this core which are not being used by anything and returns them
     ///
     /// (The reason for returning them here is so they can be dropped outside of the subprogram lock)
     ///
-    pub (crate) fn release_unused_sinks(&mut self) -> Vec<Arc<dyn Send + Sync + Any>> {
+    pub (crate) fn release_unused_output_sinks(&mut self) -> Vec<Arc<dyn Send + Sync + Any>> {
         let mut unused_output_sinks = vec![];
 
         // Iterate through all of the outputs stored in this core
@@ -152,6 +170,9 @@ impl SubProgramCore {
                 }
             }
         }
+
+        // Update the 'high water' mark for the output sinks for this subprogram
+        self.output_high_water = self.outputs.len();
 
         unused_output_sinks
     }
