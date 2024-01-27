@@ -6,6 +6,7 @@ use crate::scene_message::*;
 use crate::stream_id::*;
 use crate::stream_target::*;
 use crate::subprogram_core::*;
+use crate::subprogram_id::*;
 
 use futures::prelude::*;
 
@@ -32,6 +33,19 @@ impl SceneContext {
             scene_core:     Arc::downgrade(scene_core),
             program_core:   Arc::downgrade(program_core),
         }
+    }
+
+    ///
+    /// Returns the currently active subprogram, if there is one
+    ///
+    /// This will return 'None' if the scene that the program was running in is terminated but the
+    /// task is still running, so this is a very rare occurrence. 
+    ///
+    pub fn current_program_id(&self) -> Option<SubProgramId> {
+        let program_core    = self.program_core.upgrade()?;
+        let program_id      = *program_core.lock().unwrap().program_id();
+
+        Some(program_id)
     }
 
     ///
