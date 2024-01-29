@@ -37,6 +37,9 @@ pub (crate) struct InputStreamCore<TMessage> {
 
     /// True if this stream is closed (because the subprogram is ending)
     closed: bool,
+
+    /// True if this stream has been polled while empty, false if this stream has recently returned a value
+    idle: bool,
 }
 
 /// A struct that unblocks an input stream when dropped
@@ -124,6 +127,7 @@ where
             blocked:                0,
             allow_thread_stealing:  TMessage::allow_thread_stealing_by_default(),
             closed:                 false,
+            idle:                   false,
         };
 
         InputStream {
@@ -197,6 +201,7 @@ impl<TMessage> InputStreamCore<TMessage> {
         if !self.closed && self.blocked == 0 && self.waiting_messages.len() <= self.max_waiting {
             // The input stream is not blocked and has space in the waiting_messages queue for this event: queue it up and return the waker
             self.waiting_messages.push_back((source, message));
+            self.idle = false;
             Ok(self.when_message_sent.take())
         } else {
             // The input stream is blocked or the queue is full: return the message to sender
@@ -214,6 +219,7 @@ impl<TMessage> InputStreamCore<TMessage> {
             Err(SceneSendError::StreamDisconnected)
         } else {
             self.waiting_messages.push_back((source, message));
+            self.idle = false;
             Ok(self.when_message_sent.take())
         }
     }
@@ -284,6 +290,9 @@ impl<TMessage> Stream for InputStream<TMessage> {
             // If any of the output sinks are waiting to write a value, wake them up as the queue has reduced
             let next_available = core.when_slots_available.pop_front();
 
+            // The core is no longer idle
+            core.idle = false;
+
             // Release the core lock before waking anything
             mem::drop(core);
 
@@ -297,6 +306,9 @@ impl<TMessage> Stream for InputStream<TMessage> {
         } else {
             // Wait for the next message to be delivered
             core.when_message_sent = Some(cx.waker().clone());
+
+            // The core has become idle
+            core.idle = true;
 
             // Don't go to sleep until everything that's waiting for a slot has been woken up
             let next_available = core.when_slots_available.drain(..).collect::<Vec<_>>();
@@ -323,6 +335,9 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
             // If any of the output sinks are waiting to write a value, wake them up as the queue has reduced
             let next_available = core.when_slots_available.pop_front();
 
+            // The core has become idle
+            core.idle = false;
+
             // Release the core lock before waking anything
             mem::drop(core);
 
@@ -336,6 +351,9 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
         } else {
             // Wait for the next message to be delivered
             core.when_message_sent = Some(cx.waker().clone());
+
+            // The core has become idle
+            core.idle = true;
 
             // Don't go to sleep until everything that's waiting for a slot has been woken up
             let next_available = core.when_slots_available.drain(..).collect::<Vec<_>>();
