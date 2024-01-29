@@ -35,6 +35,7 @@ impl Default for Scene {
             *STDIN_PROGRAM,
             *STDOUT_PROGRAM,
             *STDERR_PROGRAM,
+            *IDLE_NOTIFICATION_PROGRAM,
         ])
     }
 }
@@ -63,11 +64,12 @@ impl Scene {
             scene.add_subprogram(*SCENE_CONTROL_PROGRAM, SceneControl::scene_control_program, 0);
             SceneCore::set_scene_update_from(&scene.core, *SCENE_CONTROL_PROGRAM);
         }
-        if programs.contains(&*OUTSIDE_SCENE_PROGRAM) { scene.add_subprogram(*OUTSIDE_SCENE_PROGRAM, outside_scene_program, 0); }
+        if programs.contains(&*OUTSIDE_SCENE_PROGRAM)       { scene.add_subprogram(*OUTSIDE_SCENE_PROGRAM, outside_scene_program, 0); }
 
-        if programs.contains(&*STDIN_PROGRAM)   { scene.add_subprogram(*STDIN_PROGRAM, |input, context| text_input_subprogram(BufReader::new(stdin()), input, context), 0); }
-        if programs.contains(&*STDOUT_PROGRAM)  { scene.add_subprogram(*STDOUT_PROGRAM, |input, context| text_io_subprogram(stdout(), input, context), 0); }
-        if programs.contains(&*STDERR_PROGRAM)  { scene.add_subprogram(*STDERR_PROGRAM, |input, context| text_io_subprogram(stderr(), input, context), 0); }
+        if programs.contains(&*STDIN_PROGRAM)               { scene.add_subprogram(*STDIN_PROGRAM, |input, context| text_input_subprogram(BufReader::new(stdin()), input, context), 0); }
+        if programs.contains(&*STDOUT_PROGRAM)              { scene.add_subprogram(*STDOUT_PROGRAM, |input, context| text_io_subprogram(stdout(), input, context), 0); }
+        if programs.contains(&*STDERR_PROGRAM)              { scene.add_subprogram(*STDERR_PROGRAM, |input, context| text_io_subprogram(stderr(), input, context), 0); }
+        if programs.contains(&*IDLE_NOTIFICATION_PROGRAM)   { scene.add_subprogram(*IDLE_NOTIFICATION_PROGRAM, idle_program, 20); }
 
         scene
     }
