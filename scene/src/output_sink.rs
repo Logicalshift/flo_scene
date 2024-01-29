@@ -355,12 +355,13 @@ where
                             let target_program_id       = input_core.target_program_id();
                             let allow_thread_stealing   = input_core.allows_thread_stealing();
                             let queue_full              = input_core.is_queue_full();
+                            let is_blocked              = input_core.is_blocked();
 
                             self.waiting_message = None;
                             mem::drop(input_core);
 
                             // Steal the current thread if the input stream supports it
-                            let thread_stolen = if allow_thread_stealing {
+                            let thread_stolen = if allow_thread_stealing && !is_blocked {
                                 let maybe_scene_core = self.scene_core.upgrade();
 
                                 if let Some(scene_core) = maybe_scene_core {
@@ -378,7 +379,7 @@ where
                             // Wake up the target on the main thread
                             if let Some(waker) = waker {
                                 // Yield if the thread was not stolen before, and its input buffer is full
-                                self.yield_after_sending = !thread_stolen && queue_full;
+                                self.yield_after_sending = !thread_stolen && (queue_full || is_blocked);
 
                                 // TODO: consider not waking if the thread was stolen OK
                                 waker.wake()

@@ -263,6 +263,13 @@ impl<TMessage> InputStreamCore<TMessage> {
     pub (crate) fn is_queue_full(&self) -> bool {
         (self.max_waiting + 1) <= self.waiting_messages.len()
     }
+
+    ///
+    /// True if this input stream is blocked and shouldn't accept any more messages
+    ///
+    pub (crate) fn is_blocked(&self) -> bool {
+        self.blocked > 0
+    }
 }
 
 impl<TMessage> Stream for InputStream<TMessage> {
