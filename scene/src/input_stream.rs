@@ -150,6 +150,11 @@ where
     ///
     /// Returns an object that can be used to block this stream
     ///
+    /// Calling `block()` on the struct that this returns will prevent any messages from being queued on this
+    /// stream until it has been unblocked. This can be used to generate back-pressure to anything that is
+    /// trying to send messages to this stream. The messages will be blocked even if there's space in the input
+    /// queue for this stream.
+    ///
     #[inline]
     pub fn blocker(&self) -> InputStreamBlocker<TMessage> {
         InputStreamBlocker(Arc::downgrade(&self.core))
