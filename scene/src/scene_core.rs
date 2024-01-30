@@ -70,6 +70,12 @@ pub (crate) struct SceneCore {
     /// True if this scene is stopped and shouldn't be run any more
     stopped: bool,
 
+    /// True if the next time the scene becomes entirely idle, we should notify one of the waiting streams
+    notify_when_idle: bool,
+
+    /// Streams to send on when the input streams and core all become idle
+    when_idle: Vec<mpsc::Sender<()>>,
+
     /// An output core where status updates are sent
     updates: Option<(SubProgramId, Arc<Mutex<OutputSinkCore<SceneUpdate>>>)>,
 }
@@ -91,6 +97,8 @@ impl SceneCore {
             connections:                HashMap::new(),
             thread_wakers:              vec![],
             stopped:                    false,
+            notify_when_idle:           false,
+            when_idle:                  vec![],
             updates:                    None,
         }
     }
