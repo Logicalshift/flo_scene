@@ -43,8 +43,8 @@ pub (crate) struct SceneCore {
     /// The message types where the 'initialise' routine has been called
     initialised_message_types: HashSet<TypeId>,
 
-    /// The input stream cores for each sub-program
-    sub_program_inputs: Vec<Option<Arc<dyn Send + Sync + Any>>>,
+    /// The input stream cores for each sub-program, along with their stream type
+    sub_program_inputs: Vec<Option<(StreamId, Arc<dyn Send + Sync + Any>)>>,
 
     /// The next free sub-program
     next_subprogram: usize,
@@ -217,7 +217,7 @@ impl SceneCore {
             // Store the program details
             let subprogram                  = Arc::new(Mutex::new(subprogram));
             core.sub_programs[handle]       = Some(Arc::clone(&subprogram));
-            core.sub_program_inputs[handle] = Some(input_core);
+            core.sub_program_inputs[handle] = Some((StreamId::with_message_type::<TMessage>(), input_core));
             core.program_indexes.insert(program_id, handle);
 
             // Update the 'next_subprogram' value to an empty slot
@@ -277,13 +277,13 @@ impl SceneCore {
         // The message type must match the expected type
         let target_input = self.sub_program_inputs[handle].as_ref().ok_or(ConnectionError::TargetNotAvailable)?;
 
-        if (**target_input).type_id() != expected_message_type {
+        if (*(*target_input).1).type_id() != expected_message_type {
             let stream_type     = stream_id.message_type_name();
             let program_type    = self.sub_programs[handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
 
             Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream_type), TargetInputMessageType(program_type)))
         } else {
-            Ok(Arc::clone(target_input))
+            Ok(Arc::clone(&target_input.1))
         }
     }
 
@@ -429,7 +429,7 @@ impl SceneCore {
             let target_index    = core.program_indexes.get(&target_program).ok_or(ConnectionError::TargetNotInScene)?;
             let target_core     = core.sub_program_inputs.get(*target_index).ok_or(ConnectionError::TargetNotInScene)?.as_ref().ok_or(ConnectionError::TargetNotInScene)?;
 
-            Arc::clone(target_core)
+            Arc::clone(&target_core.1)
         };
 
         // Create an input stream core to use with it
@@ -473,7 +473,7 @@ impl SceneCore {
                             let target_program_handle   = core.program_indexes.get(&target_program_id).ok_or(ConnectionError::TargetNotInScene)?;
                             let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
                             let target_input_type       = core.sub_programs[*target_program_handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
-                            let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>()
+                            let target_program_input    = target_program_input.1.downcast::<Mutex<InputStreamCore<TMessageType>>>()
                                 .map_err(move |_| ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type)))?;
 
                             Ok(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))
@@ -528,7 +528,7 @@ impl SceneCore {
                     let target_program_handle   = core.program_indexes.get(&target_program_id).ok_or(ConnectionError::TargetNotInScene)?;
                     let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
                     let target_input_type       = core.sub_programs[*target_program_handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
-                    let target_program_input    = target_program_input.downcast::<Mutex<InputStreamCore<TMessageType>>>()
+                    let target_program_input    = target_program_input.1.downcast::<Mutex<InputStreamCore<TMessageType>>>()
                         .map_err(move |_| ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type)))?;
 
                     Ok(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))
@@ -619,7 +619,7 @@ impl SceneCore {
         let handle = self.program_indexes.get(&sub_program_id)?;
 
         if let Some(input_stream_core) = self.sub_program_inputs.get(*handle) {
-            input_stream_core.clone()
+            input_stream_core.as_ref().map(|core| &core.1).cloned()
         } else {
             None
         }
