@@ -73,8 +73,8 @@ pub (crate) struct SceneCore {
     /// True if the next time the scene becomes entirely idle, we should notify one of the waiting streams
     notify_when_idle: bool,
 
-    /// Streams to send on when the input streams and core all become idle
-    when_idle: Vec<mpsc::Sender<()>>,
+    /// Streams to send on when the input streams and core all become idle (borrowed when we're waiting for them to send)
+    when_idle: Vec<Option<mpsc::Sender<()>>>,
 
     /// An output core where status updates are sent
     updates: Option<(SubProgramId, Arc<Mutex<OutputSinkCore<SceneUpdate>>>)>,
@@ -732,6 +732,34 @@ impl SceneCore {
 
         Ok(())
     }
+
+    ///
+    /// Checks if the core needs to signal that it's idle, and does so if necessary
+    ///
+    pub (crate) fn check_if_idle(core: &Arc<Mutex<SceneCore>>) -> bool {
+        // Fetch the active subprograms from the core (or stop, if we're not notifying)
+        let sub_programs = {
+            let core = core.lock().unwrap();
+
+            if !core.notify_when_idle {
+                // Give up quickly if the core is not waiting for a notification
+                return false;
+            }
+
+            core.sub_programs
+                .iter()
+                .flatten()
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+
+        // TODO: map the subprograms to their inputs
+        // TODO: check the inputs to see if they are idle
+        // TODO: if all are idle and the core is still waiting for a notification, start sending messages
+
+        // TODO!
+        false
+    }
 }
 
 impl SceneCoreWaker {
@@ -791,12 +819,14 @@ impl ArcWake for SceneCoreWaker {
 /// Runs the programs attached to a scene core
 ///
 pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> {
-    let core = Arc::clone(core);
+    use std::mem;
+
+    let unlocked_core = Arc::clone(core);
 
     // Choose a location to store the waker for this core instance
     let waker_idx;
     {
-        let mut core = core.lock().unwrap();
+        let mut core = unlocked_core.lock().unwrap();
 
         waker_idx = core.thread_wakers.len();
         core.thread_wakers.push(None);
@@ -807,7 +837,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
             // Fetch a program to poll from the core: if all the programs are complete, then stop
             let (next_process, next_process_idx) = {
                 // Acquire the core
-                let mut core = core.lock().unwrap();
+                let mut core = unlocked_core.lock().unwrap();
 
                 if core.stopped {
                     // The scene always stops running immediately when 'stopped' is true
@@ -827,6 +857,14 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                     // Store a waker for this thread
                     let waker = ctxt.waker().clone();
                     core.thread_wakers[waker_idx] = Some(waker);
+
+                    // Get the core to check if the scene has become idle (if requested)
+                    mem::drop(core);
+                    if SceneCore::check_if_idle(&unlocked_core) {
+                        // The core has queued an idle request: continue to evaluate it
+                        // The core is idle if all the input streams are waiting and have no messages in them, plus the idle request flag is set
+                        continue;
+                    }
 
                     // Wait for a subprogram to wake us
                     return Poll::Pending;
@@ -851,7 +889,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
 
             if let Some(next_process) = next_process {
                 // The next process is awake and ready to poll: create a waker to reawaken it when we're done
-                let process_waker       = waker(Arc::new(SceneCoreWaker::with_core(&core, next_process_idx)));
+                let process_waker       = waker(Arc::new(SceneCoreWaker::with_core(&unlocked_core, next_process_idx)));
                 let mut process_context = Context::from_waker(&process_waker);
 
                 // Poll the process in the new context
@@ -860,7 +898,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
 
                 if poll_result.is_pending() {
                     // Put the process back into the pending list
-                    let mut core        = core.lock().unwrap();
+                    let mut core        = unlocked_core.lock().unwrap();
                     let process_data    = core.processes[next_process_idx].as_mut().expect("Process should not go away while we're polling it");
 
                     process_data.future = SceneProcessFuture::Waiting(next_process);
@@ -874,7 +912,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                     }
                 } else {
                     // This process has been terminated: remove it from the list
-                    let mut core = core.lock().unwrap();
+                    let mut core = unlocked_core.lock().unwrap();
 
                     core.processes[next_process_idx] = None;
                     core.next_process = core.next_process.min(next_process_idx);
