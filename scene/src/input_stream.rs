@@ -276,6 +276,14 @@ impl<TMessage> InputStreamCore<TMessage> {
     pub (crate) fn is_blocked(&self) -> bool {
         self.blocked > 0
     }
+
+    ///
+    /// True if this input stream is idle (has no waiting messages and is being waiting upon)
+    ///
+    #[inline]
+    pub (crate) fn is_idle(&self) -> bool {
+        self.idle && self.waiting_messages.len() == 0
+    }
 }
 
 impl<TMessage> Stream for InputStream<TMessage> {

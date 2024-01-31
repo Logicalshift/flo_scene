@@ -17,6 +17,7 @@ type ConnectOutputToInputFn     = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync 
 type ConnectOutputToDiscardFn   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
 type DisconnectOutputFn         = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
 type CloseInputFn               = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
+type IsIdleFn                   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<bool, ConnectionError>>;
 
 ///
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
@@ -33,6 +34,9 @@ struct StreamTypeFunctions {
 
     /// Closes the input to a stream
     close_input: CloseInputFn,
+
+    /// Indicates if an input stream is idle or not (idle = has an empty input queue and is waiting for a new message to arrive)
+    is_idle: IsIdleFn,
 }
 
 ///
@@ -121,6 +125,13 @@ impl StreamTypeFunctions {
                 let waker           = input_stream.lock().unwrap().close();
 
                 Ok(waker)
+            }),
+
+            is_idle: Arc::new(|input_stream_any| {
+                let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let is_idle         = input_stream.lock().unwrap().is_idle();
+
+                Ok(is_idle)
             })
         }
     }
@@ -169,6 +180,13 @@ impl StreamTypeFunctions {
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.close_input))
+    }
+
+    pub fn is_idle(type_id: &TypeId) -> Option<IsIdleFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.is_idle))
     }
 }
 
@@ -264,7 +282,7 @@ impl StreamId {
     }
 
     ///
-    /// Given an output sink (an 'Any' that maps to an OutputSinkCore), disconnects it so it waits for a new connection
+    /// Given an output sink (an 'Any' that maps to an OutputSinkCore of the same type as this stream ID), disconnects it so it waits for a new connection
     ///
     /// Note that this locks the output target.
     ///
@@ -272,7 +290,7 @@ impl StreamId {
         let message_type = self.message_type();
 
         if let Some(connect_input) = StreamTypeFunctions::disconnect_output(&message_type) {
-            // Connect the input to the output
+            // Disconnect the output sink
             (connect_input)(output_sink)
         } else {
             // Shouldn't happen: the stream type was not registered correctly
@@ -280,12 +298,31 @@ impl StreamId {
         }
     }
 
+    ///
+    /// Closes an input stream (an 'Any' that maps to an InputStreamCore of the same type as this stream ID) 
+    ///
     pub (crate) fn close_input(&self, input_stream: &Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError> {
         let message_type = self.message_type();
 
         if let Some(close_input) = StreamTypeFunctions::close_input(&message_type) {
-            // Connect the input to the output
+            // Close the input stream
             (close_input)(input_stream)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Given an input stream (an 'Any' that maps to an InputStreamCore of the same type as this stream ID), returns
+    /// whether or not it is considered to be idle (being waited upon + has an empty queue)
+    ///
+    pub (crate) fn is_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<bool, ConnectionError> {
+        let message_type = self.message_type();
+
+        if let Some(is_idle) = StreamTypeFunctions::is_idle(&message_type) {
+            // Determine if the stream is idle
+            (is_idle)(input_stream)
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)
