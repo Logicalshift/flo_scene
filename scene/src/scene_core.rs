@@ -17,6 +17,7 @@ use crate::thread_stealer::*;
 use futures::prelude::*;
 use futures::future::{poll_fn};
 use futures::task::{Poll, Waker, Context, waker, ArcWake};
+use futures::channel::mpsc;
 
 use std::any::*;
 use std::collections::*;
@@ -737,8 +738,8 @@ impl SceneCore {
     /// Checks if the core needs to signal that it's idle, and does so if necessary
     ///
     pub (crate) fn check_if_idle(core: &Arc<Mutex<SceneCore>>) -> bool {
-        // Fetch the active subprograms from the core (or stop, if we're not notifying)
-        let sub_programs = {
+        // Fetch the active input streams from the core (or stop, if we're not notifying)
+        let sub_program_inputs = {
             let core = core.lock().unwrap();
 
             if !core.notify_when_idle {
@@ -746,19 +747,53 @@ impl SceneCore {
                 return false;
             }
 
-            core.sub_programs
+            core.sub_program_inputs
                 .iter()
                 .flatten()
                 .cloned()
                 .collect::<Vec<_>>()
         };
 
-        // TODO: map the subprograms to their inputs
-        // TODO: check the inputs to see if they are idle
-        // TODO: if all are idle and the core is still waiting for a notification, start sending messages
+        // Check the inputs to see if they are idle
+        let all_inputs_idle = sub_program_inputs.iter()
+            .all(|(stream_id, input_stream)| stream_id.is_idle(input_stream) == Ok(true));
 
-        // TODO!
-        false
+        // If all inputs are idle and the core is still in 'notification' mode, notify the waiting messages
+        if all_inputs_idle {
+            let mut core = core.lock().unwrap();
+
+            if !core.notify_when_idle {
+                // Some other thread has presumably notified
+                return false;
+            }
+
+            // We're going to notify, so prevent other threads from reaching this point
+            core.notify_when_idle = true;
+
+            for notifier in core.when_idle.iter_mut() {
+                let is_sent = if let Some(notifier) = notifier {
+                    // Try to send to this notifier immediately
+                    // TODO: ... need the core unlocked here or the waker might deadlock
+                    notifier.try_send(())
+                } else {
+                    // Notifier is disconnected, or a notification is being sent on another thread
+                    Ok(())
+                };
+
+                if let Err(send_error) = is_sent {
+                    if send_error.is_disconnected() {
+                        // Don't try to send to this stream any more
+                        *notifier = None;
+                    } else if send_error.is_full() {
+                        // TODO: try sending in a process (possibly want to gather all the senders in one place)
+                    }
+                }
+            }
+
+            todo!()
+        } else {
+            false
+        }
     }
 }
 
