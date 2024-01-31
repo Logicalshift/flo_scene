@@ -735,6 +735,24 @@ impl SceneCore {
     }
 
     ///
+    /// Adds a sender to be notified whenever the core is idle
+    ///
+    pub (crate) fn send_idle_notifications_to(core: &Arc<Mutex<SceneCore>>, notifier: mpsc::Sender<()>) {
+        let mut core = core.lock().unwrap();
+
+        core.when_idle.push(Some(notifier));
+    }
+
+    ///
+    /// The core will send a notification next time it's idle
+    ///
+    pub (crate) fn notify_on_next_idle(core: &Arc<Mutex<SceneCore>>) {
+        let mut core = core.lock().unwrap();
+
+        core.notify_when_idle = true;
+    }
+
+    ///
     /// Checks if the core needs to signal that it's idle, and does so if necessary
     ///
     pub (crate) fn check_if_idle(core: &Arc<Mutex<SceneCore>>) -> bool {
