@@ -45,6 +45,7 @@ pub enum IdleRequest {
 ///
 /// Message sent when the scene becomes idle, after a request is sent to IdleRequest
 ///
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct IdleNotification;
 
 impl SceneMessage for IdleRequest {
