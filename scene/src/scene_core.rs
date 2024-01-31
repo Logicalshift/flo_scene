@@ -738,6 +738,8 @@ impl SceneCore {
     /// Checks if the core needs to signal that it's idle, and does so if necessary
     ///
     pub (crate) fn check_if_idle(core: &Arc<Mutex<SceneCore>>) -> bool {
+        use std::mem;
+
         // Fetch the active input streams from the core (or stop, if we're not notifying)
         let sub_program_inputs = {
             let core = core.lock().unwrap();
@@ -760,20 +762,29 @@ impl SceneCore {
 
         // If all inputs are idle and the core is still in 'notification' mode, notify the waiting messages
         if all_inputs_idle {
-            let mut core = core.lock().unwrap();
+            let mut locked_core = core.lock().unwrap();
 
-            if !core.notify_when_idle {
+            if !locked_core.notify_when_idle {
                 // Some other thread has presumably notified
                 return false;
             }
 
             // We're going to notify, so prevent other threads from reaching this point
-            core.notify_when_idle = true;
+            locked_core.notify_when_idle = false;
 
-            for notifier in core.when_idle.iter_mut() {
+            // Get the notifiers from the core
+            let mut notifiers = locked_core.when_idle.iter_mut()
+                .enumerate()
+                .map(|(idx, notifier)| (idx, notifier.take()))
+                .collect::<Vec<_>>();
+
+            // Unlock the core (sending to the notifiers might call a waker, which might in turn re-lock the core)
+            mem::drop(locked_core);
+
+            // Unlock the core (we need to be able to wake it up again without deadlocking)
+            for (_idx, notifier) in notifiers.iter_mut() {
                 let is_sent = if let Some(notifier) = notifier {
                     // Try to send to this notifier immediately
-                    // TODO: ... need the core unlocked here or the waker might deadlock
                     notifier.try_send(())
                 } else {
                     // Notifier is disconnected, or a notification is being sent on another thread
@@ -783,14 +794,27 @@ impl SceneCore {
                 if let Err(send_error) = is_sent {
                     if send_error.is_disconnected() {
                         // Don't try to send to this stream any more
+                        // TODO: if we ever need to create/dispose many of these, it'll make more sense to 
                         *notifier = None;
                     } else if send_error.is_full() {
-                        // TODO: try sending in a process (possibly want to gather all the senders in one place)
+                        // Something is already processing a notification
+                        // Not notifying it again
+                        // TODO: could try sending in a process (possibly want to gather all the senders in one place)
                     }
                 }
             }
 
-            todo!()
+            // Return the notifiers to the core
+            let mut locked_core = core.lock().unwrap();
+
+            for (idx, notifier) in notifiers.drain(..) {
+                if let Some(notifier) = notifier {
+                    locked_core.when_idle[idx] = Some(notifier);
+                }
+            }
+
+            // Indicate to the caller that a notification occurred
+            true
         } else {
             false
         }
