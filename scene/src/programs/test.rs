@@ -139,9 +139,11 @@ impl TestBuilder {
     ///
     /// Runs the tests and the assertions in a scene
     ///
-    pub fn run_in_scene(scene: &Scene, test_subprogram: SubProgramId) {
-        // Set up the filters to read the messages resulting from the test messages
-        todo!();
+    pub fn run_in_scene(mut self, scene: &Scene, test_subprogram: SubProgramId) {
+        // Set up filters for the expected message types
+        for (stream_id, filter_handle) in self.filters.iter() {
+            scene.connect_programs((), StreamTarget::Filtered(*filter_handle, test_subprogram), stream_id.clone()).unwrap();
+        }
 
         // Create the test subprogram
         todo!();
