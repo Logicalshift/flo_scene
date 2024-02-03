@@ -97,10 +97,11 @@ impl TestBuilder {
             });
 
         // Add an action to receive the message from the target
-        self.actions.push(Box::new(move |input_stream, context, failed_assertions| {
+        self.actions.push(Box::new(move |input_stream, _context, failed_assertions| {
             async move {
-                let mut input_stream    = input_stream;
-                let next_message        = input_stream.next().await;
+                let mut input_stream        = input_stream;
+                let mut failed_assertions   = failed_assertions;
+                let next_message            = input_stream.next().await;
 
                 match next_message {
                     Some(TestRequest::AnyMessage(any_message))  => {
@@ -113,18 +114,18 @@ impl TestBuilder {
 
                                 Err(assertion_msg) => {
                                     // Message does not match the assertion
-                                    todo!("add assertion failed")
+                                    failed_assertions.send(assertion_msg).await.ok();
                                 }
                             }
                         } else {
                             // We expect the exact message that was specified
-                            todo!("message was an unexpected type");
+                            failed_assertions.send(format!("Received a message of an unexpected type (was expecting {})", type_name::<TMessage>())).await.ok();
                         }
                     },
 
                     None => {
                         // The input stream was closed while we were waiting for the message
-                        todo!("test finished prematurely");
+                        failed_assertions.send(format!("Test finished prematurely")).await.ok();
                     }
                 }
 
