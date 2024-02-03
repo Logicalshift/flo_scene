@@ -3,12 +3,12 @@ use crate::*;
 use futures::prelude::*;
 use futures::executor;
 use futures::future::{BoxFuture};
+use futures::channel::mpsc;
 
 use std::any::*;
 use std::collections::{HashMap};
-use std::sync::*;
 
-type ActionFn = Box<dyn FnOnce(InputStream<TestRequest>, &SceneContext) -> BoxFuture<'static, InputStream<TestRequest>>>;
+type ActionFn = Box<dyn FnOnce(InputStream<TestRequest>, &SceneContext, mpsc::Sender<String>) -> BoxFuture<'static, (InputStream<TestRequest>, mpsc::Sender<String>)>>;
 
 ///
 /// Request sent to a test subprogram
@@ -33,6 +33,12 @@ pub struct TestBuilder {
 
     /// The filters that need to be applied to the input of the test program
     filters: HashMap<StreamId, FilterHandle>,
+
+    /// Receiver for assertion failures from an action function
+    assertion_failures: mpsc::Receiver<String>,
+
+    /// The assertion failure sender
+    assertion_sender: Option<mpsc::Sender<String>>,
 }
 
 impl TestBuilder {
@@ -40,9 +46,13 @@ impl TestBuilder {
     /// Creates a new test builder
     ///
     pub fn new() -> Self {
+        let (assertion_sender, assertion_recv) = mpsc::channel(100);
+
         TestBuilder {
-            actions: vec![],
-            filters: HashMap::new(),
+            actions:            vec![],
+            filters:            HashMap::new(),
+            assertion_failures: assertion_recv,
+            assertion_sender:   Some(assertion_sender),
         }
     }
 
@@ -60,13 +70,13 @@ impl TestBuilder {
         let target = target.into();
 
         // Add an action that retrieves the target stream and sends the message to it
-        self.actions.push(Box::new(move |input_stream, context| {
+        self.actions.push(Box::new(move |input_stream, context, failed_assertions| {
             let mut target_stream = context.send::<TMessage>(target).unwrap();
 
             async move {
                 target_stream.send(message).await.unwrap();
 
-                input_stream
+                (input_stream, failed_assertions)
             }.boxed()
         }));
 
@@ -87,7 +97,7 @@ impl TestBuilder {
             });
 
         // Add an action to receive the message from the target
-        self.actions.push(Box::new(move |input_stream, context| {
+        self.actions.push(Box::new(move |input_stream, context, failed_assertions| {
             async move {
                 let mut input_stream    = input_stream;
                 let next_message        = input_stream.next().await;
@@ -118,7 +128,7 @@ impl TestBuilder {
                     }
                 }
 
-                input_stream
+                (input_stream, failed_assertions)
             }.boxed()
         }));
 
