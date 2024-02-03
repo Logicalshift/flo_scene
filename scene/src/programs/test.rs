@@ -5,6 +5,7 @@ use futures::executor;
 use futures::future::{BoxFuture};
 
 use std::any::*;
+use std::collections::{HashMap};
 use std::sync::*;
 
 type ActionFn = Box<dyn FnOnce(InputStream<TestRequest>, &SceneContext) -> BoxFuture<'static, InputStream<TestRequest>>>;
@@ -14,7 +15,7 @@ type ActionFn = Box<dyn FnOnce(InputStream<TestRequest>, &SceneContext) -> BoxFu
 ///
 enum TestRequest {
     /// A converted message from another source
-    AnyMessage(Arc<dyn Send + Sync + Any>),
+    AnyMessage(Box<dyn Send + Sync + Any>),
 }
 
 impl SceneMessage for TestRequest {
@@ -29,6 +30,9 @@ impl SceneMessage for TestRequest {
 pub struct TestBuilder {
     /// The actions for the test process to perform
     actions: Vec<ActionFn>,
+
+    /// The filters that need to be applied to the input of the test program
+    filters: HashMap<StreamId, FilterHandle>,
 }
 
 impl TestBuilder {
@@ -38,6 +42,7 @@ impl TestBuilder {
     pub fn new() -> Self {
         TestBuilder {
             actions: vec![],
+            filters: HashMap::new(),
         }
     }
 
@@ -62,8 +67,8 @@ impl TestBuilder {
                 target_stream.send(message).await.unwrap();
 
                 input_stream
-            }
-        }.boxed()));
+            }.boxed()
+        }));
 
         self
     }
@@ -74,8 +79,50 @@ impl TestBuilder {
     /// The test program will configure itself to be able to receive messages of this type
     /// using a filter.
     ///
-    pub fn expect_message<TMessage: SceneMessage>(self, assertion: impl FnOnce(TMessage) -> Result<(), String>) -> Self {
-        todo!()
+    pub fn expect_message<TMessage: 'static + Send + Sync + SceneMessage>(mut self, assertion: impl 'static + Send + FnOnce(TMessage) -> Result<(), String>) -> Self {
+        // Create a filter for the message type
+        self.filters.entry(StreamId::with_message_type::<TMessage>())
+            .or_insert_with(|| {
+                FilterHandle::for_filter(|source_stream: InputStream<TMessage>| source_stream.map(|msg| TestRequest::AnyMessage(Box::new(msg))))
+            });
+
+        // Add an action to receive the message from the target
+        self.actions.push(Box::new(move |input_stream, context| {
+            async move {
+                let mut input_stream    = input_stream;
+                let next_message        = input_stream.next().await;
+
+                match next_message {
+                    Some(TestRequest::AnyMessage(any_message))  => {
+                        // Check that the message matches
+                        if let Ok(message) = any_message.downcast::<TMessage>() {
+                            match assertion(*message) {
+                                Ok(()) => {
+                                    // Assertion OK so we can continue
+                                }
+
+                                Err(assertion_msg) => {
+                                    // Message does not match the assertion
+                                    todo!("add assertion failed")
+                                }
+                            }
+                        } else {
+                            // We expect the exact message that was specified
+                            todo!("message was an unexpected type");
+                        }
+                    },
+
+                    None => {
+                        // The input stream was closed while we were waiting for the message
+                        todo!("test finished prematurely");
+                    }
+                }
+
+                input_stream
+            }.boxed()
+        }));
+
+        self
     }
 
     ///
