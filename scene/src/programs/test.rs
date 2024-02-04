@@ -8,7 +8,7 @@ use futures::channel::mpsc;
 use std::any::*;
 use std::collections::{HashMap};
 
-type ActionFn = Box<dyn FnOnce(InputStream<TestRequest>, &SceneContext, mpsc::Sender<String>) -> BoxFuture<'static, (InputStream<TestRequest>, mpsc::Sender<String>)>>;
+type ActionFn = Box<dyn Send + FnOnce(InputStream<TestRequest>, &SceneContext, mpsc::Sender<String>) -> BoxFuture<'static, (InputStream<TestRequest>, mpsc::Sender<String>)>>;
 
 ///
 /// Request sent to a test subprogram
@@ -140,13 +140,30 @@ impl TestBuilder {
     /// Runs the tests and the assertions in a scene
     ///
     pub fn run_in_scene(mut self, scene: &Scene, test_subprogram: SubProgramId) {
+        use std::mem;
+
         // Set up filters for the expected message types
         for (stream_id, filter_handle) in self.filters.iter() {
             scene.connect_programs((), StreamTarget::Filtered(*filter_handle, test_subprogram), stream_id.clone()).unwrap();
         }
 
         // Create the test subprogram
-        todo!();
+        let mut sender  = self.assertion_sender.take();
+        let mut actions = vec![];
+        mem::swap(&mut self.actions, &mut actions);
+
+        scene.add_subprogram(test_subprogram, |input_stream: InputStream<TestRequest>, context| {
+            async move {
+                let mut input_stream = input_stream;
+
+                for action in actions.into_iter() {
+                    let (recycled_input_stream, recycled_sender) = action(input_stream, &context, sender.take().unwrap()).await;
+
+                    input_stream    = recycled_input_stream;
+                    sender          = Some(recycled_sender);
+                }
+            }
+        }, 100);
 
         // Run the scene on the current thread, until the test actions have been finished
         executor::block_on(async {
