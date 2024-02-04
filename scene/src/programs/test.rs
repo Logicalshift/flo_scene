@@ -5,9 +5,11 @@ use futures::executor;
 use futures::future;
 use futures::future::{BoxFuture};
 use futures::channel::mpsc;
+use futures_timer::{Delay};
 
 use std::any::*;
 use std::collections::{HashMap};
+use std::time::{Duration};
 
 type ActionFn = Box<dyn Send + FnOnce(InputStream<TestRequest>, &SceneContext, mpsc::Sender<String>) -> BoxFuture<'static, (InputStream<TestRequest>, mpsc::Sender<String>)>>;
 
@@ -34,6 +36,9 @@ pub struct TestBuilder {
 
     /// The filters that need to be applied to the input of the test program
     filters: HashMap<StreamId, FilterHandle>,
+
+    /// Timeout before the tests are considered to have failed
+    timeout: Duration,
 }
 
 impl TestBuilder {
@@ -44,7 +49,17 @@ impl TestBuilder {
         TestBuilder {
             actions:            vec![],
             filters:            HashMap::new(),
+            timeout:            Duration::from_millis(5000),
         }
+    }
+
+    ///
+    /// Sets the amount of time the test will wait until failing automatically
+    ///
+    pub fn timeout_after(mut self, timeout: impl Into<Duration>) -> Self {
+        self.timeout = timeout.into();
+
+        self
     }
 
     ///
@@ -163,20 +178,37 @@ impl TestBuilder {
         // Run the scene on the current thread, until the test actions have been finished
         let mut failures    = vec![];
         let future_failures = &mut failures;
+        let timeout         = self.timeout;
+        let mut timed_out   = false;
 
         executor::block_on(future::select(async {
+                // Run the scene
                 scene.run_scene().await;
             }.boxed(),
 
-            async move {
-                let mut receiver = receiver;
+            future::select(
+                async move {
+                    // Wait for assertion failures and add them to the list
+                    // Stop when the assertions stream is closed (which stops the tests overall)
+                    let mut receiver = receiver;
 
-                while let Some(assertion_failure) = receiver.next().await {
-                    println!("{}", assertion_failure);
-                    future_failures.push(assertion_failure);
-                }
-            }.boxed())
-        );
+                    while let Some(assertion_failure) = receiver.next().await {
+                        println!("{}", assertion_failure);
+                        future_failures.push(assertion_failure);
+                    }
+                }.boxed(),
+
+                async {
+                    // Stop when the timeout is reached and set the 'timed_out' flag
+                    Delay::new(timeout).await;
+                    timed_out = true;
+                }.boxed()).boxed(),
+        ));
+
+        // If we timed out, that counts as an assertion failure
+        if timed_out {
+            failures.push(format!("Tests took more than {:?} to complete", timeout));
+        }
 
         // Report any assertion failures
         let succeeded = failures.len() == 0;
