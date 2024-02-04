@@ -127,7 +127,7 @@ impl FilterHandle {
         let mut stream_id_for_target = STREAM_ID_FOR_TARGET.write().unwrap();
         stream_id_for_target.insert(handle, Box::new(|maybe_target_program| {
             if let Some(target_program) = maybe_target_program {
-                StreamId::for_target::<TTargetStream::Item>(target_program)
+                StreamId::with_message_type::<TTargetStream::Item>().for_target(target_program)
             } else {
                 StreamId::with_message_type::<TTargetStream::Item>()
             }

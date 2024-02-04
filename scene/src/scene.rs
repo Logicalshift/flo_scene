@@ -164,7 +164,7 @@ impl Scene {
     /// scene.connect_programs(&other_program, StreamTarget::None, StreamId::with_message_type::<ExampleMessage>());
     ///
     /// // When 'source_program' tries to connect directly to 'subprogram', send its output to 'other_program' instead
-    /// scene.connect_programs(&source_program, &other_program, StreamId::for_target::<ExampleMessage>(&subprogram));
+    /// scene.connect_programs(&source_program, &other_program, StreamId::with_message_type::<ExampleMessage>()::for_target(&subprogram));
     /// ```
     ///
     pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ConnectionError> {
@@ -191,7 +191,7 @@ impl Scene {
         // Fetch the outside scene program, which is the source for messages on this stream
         let program_id      = *OUTSIDE_SCENE_PROGRAM;
         let program_core    = self.core.lock().unwrap().get_sub_program(program_id).ok_or(ConnectionError::NoOutsideSceneSubProgram)?;
-        let stream_id       = StreamId::for_target::<TMessage>(target.clone());
+        let stream_id       = StreamId::with_message_type::<TMessage>().for_target(target.clone());
 
         // Try to re-use an existing target
         let existing_core = program_core.lock().unwrap().output_core(&stream_id);

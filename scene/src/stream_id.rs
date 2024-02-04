@@ -211,17 +211,12 @@ impl StreamId {
     ///
     /// ID of a stream that is assigned to a particular target
     ///
-    pub fn for_target<TMessageType>(target: impl Into<StreamTarget>) -> Self
-    where
-        TMessageType: 'static + SceneMessage,
-    {
-        StreamTypeFunctions::add::<TMessageType>();
-
+    pub fn for_target(&self, target: impl Into<StreamTarget>) -> Self {
         StreamId {
             stream_id_type:         StreamIdType::Target(target.into()),
-            message_type_name:      type_name::<TMessageType>(),
-            message_type:           TypeId::of::<TMessageType>(),
-            input_stream_core_type: TypeId::of::<Mutex<InputStreamCore<TMessageType>>>(),
+            message_type_name:      self.message_type_name,
+            message_type:           self.message_type,
+            input_stream_core_type: self.input_stream_core_type,
         }
     }
 

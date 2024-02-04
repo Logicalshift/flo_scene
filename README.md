@@ -165,7 +165,7 @@ But it's also possible to redirect these with a connection request:
 ```Rust
 // The scene is the ultimate arbiter of who can talk to who, so if we don't want our program talking to the MoreSpecificLogger after all we can change that
 // Take care as this can get confusing!
-scene.connect(exception_program, standard_logger_program, StreamId::for_target::<LogMessage>(SubProgramId::called("MoreSpecificLogger")));
+scene.connect(exception_program, standard_logger_program, StreamId::with_message_type::<LogMessage>().for_target(SubProgramId::called("MoreSpecificLogger")));
 ```
 
 A very useful thing that can be done with the `connect()` call is to specify a default filter for an 
