@@ -6,5 +6,3 @@ resolver    = "2"
 
 [patch.crates-io]
 flo_scene               = { path = "./scene" }
-
-desync                  = { git = "https://github.com/Logicalshift/desync", branch = "v0.9" }
