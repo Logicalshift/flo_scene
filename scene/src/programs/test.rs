@@ -2,6 +2,7 @@ use crate::*;
 
 use futures::prelude::*;
 use futures::executor;
+use futures::future;
 use futures::future::{BoxFuture};
 use futures::channel::mpsc;
 
@@ -33,12 +34,6 @@ pub struct TestBuilder {
 
     /// The filters that need to be applied to the input of the test program
     filters: HashMap<StreamId, FilterHandle>,
-
-    /// Receiver for assertion failures from an action function
-    assertion_failures: mpsc::Receiver<String>,
-
-    /// The assertion failure sender
-    assertion_sender: Option<mpsc::Sender<String>>,
 }
 
 impl TestBuilder {
@@ -46,13 +41,9 @@ impl TestBuilder {
     /// Creates a new test builder
     ///
     pub fn new() -> Self {
-        let (assertion_sender, assertion_recv) = mpsc::channel(100);
-
         TestBuilder {
             actions:            vec![],
             filters:            HashMap::new(),
-            assertion_failures: assertion_recv,
-            assertion_sender:   Some(assertion_sender),
         }
     }
 
@@ -148,29 +139,48 @@ impl TestBuilder {
         }
 
         // Create the test subprogram
-        let mut sender  = self.assertion_sender.take();
-        let mut actions = vec![];
+        let (sender, receiver)  = mpsc::channel(100);
+        let mut actions         = vec![];
         mem::swap(&mut self.actions, &mut actions);
 
         scene.add_subprogram(test_subprogram, |input_stream: InputStream<TestRequest>, context| {
             async move {
-                let mut input_stream = input_stream;
+                let mut input_stream    = input_stream;
+                let mut sender          = sender;
 
                 for action in actions.into_iter() {
-                    let (recycled_input_stream, recycled_sender) = action(input_stream, &context, sender.take().unwrap()).await;
+                    let (recycled_input_stream, recycled_sender) = action(input_stream, &context, sender).await;
 
                     input_stream    = recycled_input_stream;
-                    sender          = Some(recycled_sender);
+                    sender          = recycled_sender;
                 }
+
+                // Close the assertions stream (which will end the test)
+                mem::drop(sender);
             }
         }, 100);
 
         // Run the scene on the current thread, until the test actions have been finished
-        executor::block_on(async {
-            scene.run_scene().await;
-        });
+        let mut failures    = vec![];
+        let future_failures = &mut failures;
+
+        executor::block_on(future::select(async {
+                scene.run_scene().await;
+            }.boxed(),
+
+            async move {
+                let mut receiver = receiver;
+
+                while let Some(assertion_failure) = receiver.next().await {
+                    println!("{}", assertion_failure);
+                    future_failures.push(assertion_failure);
+                }
+            }.boxed())
+        );
 
         // Report any assertion failures
-        todo!();
+        let succeeded = failures.len() != 0;
+        assert!(succeeded, "Scene tests failed\n\n  {}",
+            failures.join("\n  "));
     }
 }
