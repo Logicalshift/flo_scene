@@ -133,11 +133,6 @@ impl TestBuilder {
     pub fn run_in_scene(mut self, scene: &Scene, test_subprogram: SubProgramId) {
         use std::mem;
 
-        // Set up filters for the expected message types
-        for (stream_id, filter_handle) in self.filters.iter() {
-            scene.connect_programs((), StreamTarget::Filtered(*filter_handle, test_subprogram), stream_id.clone()).unwrap();
-        }
-
         // Create the test subprogram
         let (sender, receiver)  = mpsc::channel(100);
         let mut actions         = vec![];
@@ -159,6 +154,11 @@ impl TestBuilder {
                 mem::drop(sender);
             }
         }, 100);
+
+        // Set up filters for the expected message types
+        for (stream_id, filter_handle) in self.filters.iter() {
+            scene.connect_programs((), StreamTarget::Filtered(*filter_handle, test_subprogram), stream_id.clone()).unwrap();
+        }
 
         // Run the scene on the current thread, until the test actions have been finished
         let mut failures    = vec![];
