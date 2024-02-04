@@ -322,8 +322,17 @@ impl SceneCore {
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
-        // Retrieve the result
+        // Call finish_connecting_programs to generate the result
         let result = SceneCore::finish_connecting_programs(core, source.clone(), target.clone(), stream_id.clone());
+
+        // If successful and the target is a filter, connect the specific stream for the target as well as the 'all' stream
+        if result.is_ok() {
+            if let StreamTarget::Filtered(_, target_program_id) = target {
+                if stream_id.target_program().is_none() {
+                    SceneCore::finish_connecting_programs(core, source.clone(), target.clone(), stream_id.for_target(target_program_id)).ok();
+                }
+            }
+        }
 
         // Send an update if there's an error
         if let Err(err) = &result {
