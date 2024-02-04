@@ -4,6 +4,7 @@ use futures::prelude::*;
 use futures::{pin_mut};
 use futures::future::{poll_fn, BoxFuture};
 use futures::task::{Poll};
+use futures_timer::{Delay};
 use once_cell::sync::{Lazy};
 
 use std::sync::*;
@@ -105,6 +106,57 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                 // Every event changes the timers, so we sort them here (there's no race condition because we don't run the futures in parallel)
                 timer_events.lock().unwrap().sort_by(|a, b| a.callback_offset.cmp(&b.callback_offset));
             }
+        };
+
+        // Function that returns a future that waits for a timer to expire
+        let timer_expired = || {
+            let mut next_timeout    = None;
+            let mut next_timer      = None;
+            let timer_events        = &timer_events;
+
+            poll_fn(move |context| {
+                let now = Instant::now().duration_since(start_time);
+
+                {
+                    let timer_events = timer_events.lock().unwrap();
+
+                    // Get the next time from the timers list
+                    if timer_events.is_empty() {
+                        // Clear the timer
+                        next_timeout    = None;
+                        next_timer      = None;
+                    } else {
+                        let next_callback_time = timer_events[0].callback_offset;
+
+                        // Stop immediately if the timeout in the first timer is expired
+                        if now >= next_callback_time {
+                            return Poll::Ready(());
+                        }
+
+                        // Replace the timer if it doesn't match the current time
+                        if next_timeout != Some(next_callback_time) {
+                            next_timeout    = Some(next_callback_time);
+                            next_timer      = Some(Delay::new(next_callback_time));
+                        }
+                    }
+                }
+
+                if let Some(next_timer_future) = next_timer.as_mut() {
+                    // Poll the next timer
+                    if next_timer_future.poll_unpin(context).is_ready() {
+                        // Before we return ready, clear out the variables
+                        next_timeout    = None;
+                        next_timer      = None;
+
+                        Poll::Ready(())
+                    } else {
+                        Poll::Pending
+                    }
+                } else {
+                    // No timer, so we'll sleep forever
+                    Poll::Pending
+                }
+            })
         };
 
         // Poll the various futures we need to track using a manual poll_fn
