@@ -29,7 +29,6 @@ fn multiple_timeouts() {
         .run_in_scene(&scene, test_program);
 }
 
-/*
 #[test]
 fn repeating_timeouts() {
     let scene           = Scene::default();
@@ -42,4 +41,3 @@ fn repeating_timeouts() {
         .expect_message(|_: TimeOut| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
-*/
