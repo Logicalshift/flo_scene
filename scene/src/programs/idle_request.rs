@@ -69,7 +69,7 @@ enum IdleProgramMsg {
 ///
 /// Runs the idle notification program 
 ///
-pub (crate) async fn idle_program(input_stream: InputStream<IdleRequest>, context: SceneContext) {
+pub (crate) async fn idle_subprogram(input_stream: InputStream<IdleRequest>, context: SceneContext) {
     let input_stream                = input_stream.messages_with_sources();
     let mut suppressions            = HashMap::new();
     let mut pending_notifications   = vec![];
