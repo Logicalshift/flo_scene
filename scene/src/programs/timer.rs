@@ -140,7 +140,7 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                         // Replace the timer if it doesn't match the current time
                         if next_timeout != Some(next_callback_time) {
                             next_timeout    = Some(next_callback_time);
-                            next_timer      = Some(Delay::new(next_callback_time));
+                            next_timer      = Some(Delay::new(next_callback_time - now));
                         }
                     }
                 }
@@ -170,13 +170,13 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                 timer_expired().await;
 
                 // Fire every timer that has expired. Repeating timers aren't reset until their messages are sent (so they won't build up forever if the target program isn't listening)
-                let now                 = Instant::now().duration_since(start_time);
-                let mut timer_events    = timer_events.lock().unwrap();
+                let now                     = Instant::now().duration_since(start_time);
+                let mut timer_events_lock   = timer_events.lock().unwrap();
 
-                while let Some(next_event) = timer_events.pop_front() {
+                while let Some(next_event) = timer_events_lock.pop_front() {
                     // Stop once we reach an event that's happening after the current time
                     if next_event.callback_offset > now {
-                        timer_events.push_front(next_event);
+                        timer_events_lock.push_front(next_event);
                         break;
                     }
 
@@ -190,11 +190,28 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                             let mut target_stream   = target_stream;
                             let sent                = target_stream.send(TimeOut(next_event.timer_id, now - next_event.callback_offset)).await.is_ok();
 
-                            // TODO: requeue the timer if it's repeating
+                            // Requeue the timer if it's repeating (must have sent correctly, and be a non-zero repeat time)
                             if sent {
+                                // TODO: also cancel the repeating event if 'Cancel' was called while we were sending the event
                                 if let Some(repeat_duration) = next_event.repeating {
-                                    // requeue event...
-                                    let now = Instant::now().duration_since(start_time);
+                                    if repeat_duration > Duration::ZERO {
+                                        // Decide when the next event should fire
+                                        let now             = Instant::now().duration_since(start_time);
+                                        let mut next_offset = next_event.callback_offset;
+
+                                        while next_offset < now { next_offset += repeat_duration; }
+
+                                        // Queue a new event for when this is repeated
+                                        let mut timer_events_lock = timer_events.lock().unwrap();
+
+                                        timer_events_lock.push_back(Timer {
+                                            target_program:     next_event.target_program,
+                                            timer_id:           next_event.timer_id,
+                                            callback_offset:    next_offset,
+                                            repeating:          next_event.repeating,
+                                        });
+                                        timer_events_lock.make_contiguous().sort_by(|a, b| a.callback_offset.cmp(&b.callback_offset));
+                                    }
                                 }
                             }
                         }.boxed());
@@ -213,7 +230,7 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                 return Poll::Ready(());
             }
 
-            // Poll the next timeout timer, if there is one
+            // Poll for timers timing out
             if fire_timer_events.as_mut().poll(context).is_ready() {
                 return Poll::Ready(());
             }
