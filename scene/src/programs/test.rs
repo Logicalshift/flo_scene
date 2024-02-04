@@ -179,7 +179,7 @@ impl TestBuilder {
         );
 
         // Report any assertion failures
-        let succeeded = failures.len() != 0;
+        let succeeded = failures.len() == 0;
         assert!(succeeded, "Scene tests failed\n\n  {}",
             failures.join("\n  "));
     }
