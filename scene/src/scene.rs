@@ -36,6 +36,7 @@ impl Default for Scene {
             *STDOUT_PROGRAM,
             *STDERR_PROGRAM,
             *IDLE_NOTIFICATION_PROGRAM,
+            *TIMER_PROGRAM,
         ])
     }
 }
@@ -70,6 +71,7 @@ impl Scene {
         if programs.contains(&*STDOUT_PROGRAM)              { scene.add_subprogram(*STDOUT_PROGRAM, |input, context| text_io_subprogram(stdout(), input, context), 0); }
         if programs.contains(&*STDERR_PROGRAM)              { scene.add_subprogram(*STDERR_PROGRAM, |input, context| text_io_subprogram(stderr(), input, context), 0); }
         if programs.contains(&*IDLE_NOTIFICATION_PROGRAM)   { scene.add_subprogram(*IDLE_NOTIFICATION_PROGRAM, idle_program, 20); }
+        if programs.contains(&*TIMER_PROGRAM)               { scene.add_subprogram(*TIMER_PROGRAM, timer_subprogram, 0); }
 
         scene
     }
