@@ -3,6 +3,7 @@ use crate::input_stream::*;
 use crate::output_sink::*;
 use crate::scene_message::*;
 use crate::stream_target::*;
+use crate::subprogram_id::*;
 
 use futures::task::{Waker};
 use once_cell::sync::{Lazy};
@@ -217,6 +218,18 @@ impl StreamId {
             message_type_name:      self.message_type_name,
             message_type:           self.message_type,
             input_stream_core_type: self.input_stream_core_type,
+        }
+    }
+
+    ///
+    /// None if this stream ID is not for a specific target, otherwise the program ID of the target that this stream is for
+    ///
+    pub fn target_program(&self) -> Option<SubProgramId> {
+        match self.stream_id_type {
+            StreamIdType::MessageType                                   => None,
+            StreamIdType::Target(StreamTarget::Program(target_id))      => Some(target_id),
+            StreamIdType::Target(StreamTarget::Filtered(_, target_id))  => Some(target_id),
+            StreamIdType::Target(_)                                     => None,
         }
     }
 
