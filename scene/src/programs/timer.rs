@@ -7,6 +7,7 @@ use futures::task::{Poll};
 use futures_timer::{Delay};
 use once_cell::sync::{Lazy};
 
+use std::collections::{VecDeque};
 use std::sync::*;
 use std::time::{Instant, Duration};
 
@@ -60,7 +61,7 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
         let start_time = Instant::now();
 
         // The timer_events is an ordered list of the 
-        let timer_events                                    = Mutex::new(vec![]);
+        let timer_events                                    = Mutex::new(VecDeque::new());
         let extra_futures: Mutex<Vec<BoxFuture<'_, ()>>>    = Mutex::new(vec![]);
 
         // Create a future that monitors the requests and handles timers
@@ -77,7 +78,7 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                 match next_event {
                     CallAfter(program_id, timer_id, timeout) => {
                         // Add a new timer event
-                        timer_events.lock().unwrap().push(Timer { 
+                        timer_events.lock().unwrap().push_back(Timer { 
                             target_program:     program_id,
                             timer_id:           timer_id,
                             callback_offset:    now + timeout,
@@ -87,7 +88,7 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
 
                     CallEvery(program_id, timer_id, every) => {
                         // Add a new timer event
-                        timer_events.lock().unwrap().push(Timer { 
+                        timer_events.lock().unwrap().push_back(Timer { 
                             target_program:     program_id,
                             timer_id:           timer_id,
                             callback_offset:    now + every,
@@ -96,6 +97,8 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                     },
 
                     Cancel(program_id, timer_id) => {
+                        // TODO: this won't cancel repeating events that are in the process of firing
+
                         // Remove every timer event that matches the program ID/timer ID
                         timer_events.lock().unwrap().retain(|timer| {
                             timer.target_program != program_id || timer.timer_id != timer_id
@@ -104,11 +107,12 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                 }
 
                 // Every event changes the timers, so we sort them here (there's no race condition because we don't run the futures in parallel)
-                timer_events.lock().unwrap().sort_by(|a, b| a.callback_offset.cmp(&b.callback_offset));
+                timer_events.lock().unwrap().make_contiguous().sort_by(|a, b| a.callback_offset.cmp(&b.callback_offset));
             }
         };
 
         // Function that returns a future that waits for a timer to expire
+        // We cheat a bit in that we rely on being polled after the requests to update the timer we're tracking when it changes
         let timer_expired = || {
             let mut next_timeout    = None;
             let mut next_timer      = None;
@@ -159,8 +163,49 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
             })
         };
 
+        // Create a future for firing the timer events when they expire
+        let fire_timer_events = async {
+            loop {
+                // Wait for the next timer to expire
+                timer_expired().await;
+
+                // Fire every timer that has expired. Repeating timers aren't reset until their messages are sent (so they won't build up forever if the target program isn't listening)
+                let now                 = Instant::now().duration_since(start_time);
+                let mut timer_events    = timer_events.lock().unwrap();
+
+                while let Some(next_event) = timer_events.pop_front() {
+                    // Stop once we reach an event that's happening after the current time
+                    if next_event.callback_offset > now {
+                        timer_events.push_front(next_event);
+                        break;
+                    }
+
+                    // Fire this event using a future (if the stream isn't available the timer is just cancelled)
+                    if let Ok(target_stream) = context.send::<TimeOut>(next_event.target_program) {
+                        let timer_events = &timer_events;
+
+                        extra_futures.lock().unwrap().push(async move {
+                            // Send the timeout message
+                            let now                 = Instant::now().duration_since(start_time);
+                            let mut target_stream   = target_stream;
+                            let sent                = target_stream.send(TimeOut(next_event.timer_id, now - next_event.callback_offset)).await.is_ok();
+
+                            // TODO: requeue the timer if it's repeating
+                            if sent {
+                                if let Some(repeat_duration) = next_event.repeating {
+                                    // requeue event...
+                                    let now = Instant::now().duration_since(start_time);
+                                }
+                            }
+                        }.boxed());
+                    }
+                }
+            }
+        };
+
         // Poll the various futures we need to track using a manual poll_fn
         pin_mut!(request_future);
+        pin_mut!(fire_timer_events);
 
         poll_fn(|context| {
             // Poll the future request stream: if it finishes, the whole set of timers is finished
@@ -168,7 +213,10 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                 return Poll::Ready(());
             }
 
-            // TODO: Poll the next timeout timer, if there is one
+            // Poll the next timeout timer, if there is one
+            if fire_timer_events.as_mut().poll(context).is_ready() {
+                return Poll::Ready(());
+            }
 
             // Poll the message senders, if there are any
             extra_futures.lock().unwrap().retain_mut(|future| {
