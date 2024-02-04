@@ -164,7 +164,7 @@ impl Scene {
     /// scene.connect_programs(&other_program, StreamTarget::None, StreamId::with_message_type::<ExampleMessage>());
     ///
     /// // When 'source_program' tries to connect directly to 'subprogram', send its output to 'other_program' instead
-    /// scene.connect_programs(&source_program, &other_program, StreamId::with_message_type::<ExampleMessage>()::for_target(&subprogram));
+    /// scene.connect_programs(&source_program, &other_program, StreamId::with_message_type::<ExampleMessage>().for_target(&subprogram));
     /// ```
     ///
     pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ConnectionError> {
