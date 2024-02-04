@@ -2,7 +2,7 @@ use crate::*;
 
 use futures::prelude::*;
 use futures::{pin_mut};
-use futures::future::{poll_fn};
+use futures::future::{poll_fn, BoxFuture};
 use futures::task::{Poll};
 use once_cell::sync::{Lazy};
 
@@ -47,7 +47,7 @@ struct Timer {
     target_program:     SubProgramId,
     timer_id:           usize,
     callback_offset:    Duration,
-    repeating:          bool,
+    repeating:          Option<Duration>,
 }
 
 pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneContext) -> impl Future<Output=()> {
@@ -59,7 +59,8 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
         let start_time = Instant::now();
 
         // The timer_events is an ordered list of the 
-        //let timer_events = Mutex::new(vec![]);
+        let timer_events                                    = Mutex::new(vec![]);
+        let extra_futures: Mutex<Vec<BoxFuture<'_, ()>>>    = Mutex::new(vec![]);
 
         // Create a future that monitors the requests and handles timers
         let mut input_stream    = input_stream;
@@ -69,19 +70,40 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
             while let Some(next_event) = input_stream.next().await {
                 use TimerRequest::*;
 
+                // Measure the time that this timer is being added/started
+                let now = Instant::now().duration_since(start_time);
+
                 match next_event {
                     CallAfter(program_id, timer_id, timeout) => {
-                        todo!()
+                        // Add a new timer event
+                        timer_events.lock().unwrap().push(Timer { 
+                            target_program:     program_id,
+                            timer_id:           timer_id,
+                            callback_offset:    now + timeout,
+                            repeating:          None,
+                        });
                     },
 
                     CallEvery(program_id, timer_id, every) => {
-                        todo!()
+                        // Add a new timer event
+                        timer_events.lock().unwrap().push(Timer { 
+                            target_program:     program_id,
+                            timer_id:           timer_id,
+                            callback_offset:    now + every,
+                            repeating:          Some(every),
+                        });
                     },
 
                     Cancel(program_id, timer_id) => {
-                        todo!()
+                        // Remove every timer event that matches the program ID/timer ID
+                        timer_events.lock().unwrap().retain(|timer| {
+                            timer.target_program != program_id || timer.timer_id != timer_id
+                        });
                     }
                 }
+
+                // Every event changes the timers, so we sort them here (there's no race condition because we don't run the futures in parallel)
+                timer_events.lock().unwrap().sort_by(|a, b| a.callback_offset.cmp(&b.callback_offset));
             }
         };
 
@@ -96,7 +118,14 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
 
             // TODO: Poll the next timeout timer, if there is one
 
-            // TODO: Poll the message senders, if there are any
+            // Poll the message senders, if there are any
+            extra_futures.lock().unwrap().retain_mut(|future| {
+                if future.poll_unpin(context).is_ready() {
+                    false
+                } else {
+                    true
+                }
+            });
 
             Poll::Pending
         }).await;
