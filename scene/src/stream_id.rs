@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::input_stream::*;
 use crate::output_sink::*;
+use crate::scene::*;
 use crate::scene_message::*;
 use crate::stream_target::*;
 use crate::subprogram_id::*;
@@ -19,6 +20,7 @@ type ConnectOutputToDiscardFn   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync 
 type DisconnectOutputFn         = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
 type CloseInputFn               = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
 type IsIdleFn                   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<bool, ConnectionError>>;
+type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
 
 ///
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
@@ -38,6 +40,9 @@ struct StreamTypeFunctions {
 
     /// Indicates if an input stream is idle or not (idle = has an empty input queue and is waiting for a new message to arrive)
     is_idle: IsIdleFn,
+
+    /// Initialises the message type inside a scene
+    initialise: InitialiseFn,
 }
 
 ///
@@ -133,7 +138,11 @@ impl StreamTypeFunctions {
                 let is_idle         = input_stream.lock().unwrap().is_idle();
 
                 Ok(is_idle)
-            })
+            }),
+
+            initialise: Arc::new(|scene| {
+                TMessageType::initialise(scene)
+            }),
         }
     }
 
@@ -188,6 +197,13 @@ impl StreamTypeFunctions {
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.is_idle))
+    }
+
+    pub fn initialise(type_id: &TypeId) -> Option<InitialiseFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.initialise))
     }
 }
 
@@ -331,6 +347,24 @@ impl StreamId {
         if let Some(is_idle) = StreamTypeFunctions::is_idle(&message_type) {
             // Determine if the stream is idle
             (is_idle)(input_stream)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Calls the 'initialise' function for a message type within a scene
+    ///
+    /// (Each type should only be initialised once per scene)
+    ///
+    pub (crate) fn initialise_in_scene(&self, scene: &Scene) -> Result<(), ConnectionError> {
+        let message_type = self.message_type();
+
+        if let Some(initialise) = StreamTypeFunctions::initialise(&message_type) {
+            // Determine if the stream is idle
+            (initialise)(scene);
+            Ok(())
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)
