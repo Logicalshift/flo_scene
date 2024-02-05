@@ -190,6 +190,8 @@ impl Scene {
     {
         let target = target.into();
 
+        SceneCore::initialise_message_type(&self.core, StreamId::with_message_type::<TMessage>());
+
         // Fetch the outside scene program, which is the source for messages on this stream
         let program_id      = *OUTSIDE_SCENE_PROGRAM;
         let program_core    = self.core.lock().unwrap().get_sub_program(program_id).ok_or(ConnectionError::NoOutsideSceneSubProgram)?;
