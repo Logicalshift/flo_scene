@@ -108,13 +108,10 @@ impl SceneCore {
     /// If a message type has not been initialised in a core, calls the initialisation function
     ///
     #[inline]
-    pub (crate) fn initialise_message_type<TMessageType>(core: &Arc<Mutex<SceneCore>>)
-    where
-        TMessageType: 'static + SceneMessage,
-    {
+    pub (crate) fn initialise_message_type(core: &Arc<Mutex<SceneCore>>, message_type: StreamId) {
         // If the message type is not yet initialised, mark it as such and then call the initialisation function
         // TODO: if there are multiple threads dealing with the scene, the message type might be used 'uninitialised' for a brief while on other threads
-        let type_id             = TypeId::of::<TMessageType>();
+        let type_id             = message_type.message_type();
         let needs_initialising  = {
             let mut core = core.lock().unwrap();
 
@@ -134,7 +131,7 @@ impl SceneCore {
             let fake_scene = Scene::with_core(core);
 
             // Initialise the message type
-            TMessageType::initialise(&fake_scene);
+            message_type.initialise_in_scene(&fake_scene).ok();
         }
     }
 
@@ -147,7 +144,7 @@ impl SceneCore {
     {
         use std::mem;
 
-        Self::initialise_message_type::<TMessage>(scene_core);
+        Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessage>());
 
         let (subprogram, waker) = {
             let start_core      = Arc::downgrade(scene_core);
@@ -455,7 +452,7 @@ impl SceneCore {
     {
         use std::mem;
 
-        Self::initialise_message_type::<TMessageType>(scene_core);
+        Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessageType>());
 
         match target {
             StreamTarget::None  |
