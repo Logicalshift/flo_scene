@@ -3,7 +3,7 @@ use crate::*;
 use futures::prelude::*;
 use futures::{pin_mut};
 use futures::future::{poll_fn, BoxFuture};
-use futures::task::{Poll};
+use futures::task::{Poll, Waker};
 use futures_timer::{Delay};
 use once_cell::sync::{Lazy};
 
@@ -62,6 +62,7 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
 
         // The timer_events is an ordered list of the 
         let timer_events                                    = Mutex::new(VecDeque::new());
+        let waker: Mutex<Option<Waker>>                     = Mutex::new(None);
         let extra_futures: Mutex<Vec<BoxFuture<'_, ()>>>    = Mutex::new(vec![]);
 
         // Create a future that monitors the requests and handles timers
@@ -182,7 +183,8 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
 
                     // Fire this event using a future (if the stream isn't available the timer is just cancelled)
                     if let Ok(target_stream) = context.send::<TimeOut>(next_event.target_program) {
-                        let timer_events = &timer_events;
+                        let timer_events    = &timer_events;
+                        let waker           = &waker;
 
                         extra_futures.lock().unwrap().push(async move {
                             // Send the timeout message
@@ -211,6 +213,10 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                                             repeating:          next_event.repeating,
                                         });
                                         timer_events_lock.make_contiguous().sort_by(|a, b| a.callback_offset.cmp(&b.callback_offset));
+
+                                        // Reawaken the polling loop to reschedule the timer
+                                        let waker = waker.lock().unwrap().take();
+                                        if let Some(waker) = waker { waker.wake(); }
                                     }
                                 }
                             }
@@ -225,6 +231,8 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
         pin_mut!(fire_timer_events);
 
         poll_fn(|context| {
+            *waker.lock().unwrap() = Some(context.waker().clone());
+
             // Poll the future request stream: if it finishes, the whole set of timers is finished
             if request_future.as_mut().poll(context).is_ready() {
                 return Poll::Ready(());
