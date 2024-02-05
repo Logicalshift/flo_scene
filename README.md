@@ -180,31 +180,72 @@ any action that's possible to perform to a stream of data, there's no rigid hier
 scene.connect_programs((), StreamTarget::Filtered(old_to_new_message_filter, new_message_program), StreamId::with_message_type::<OldMessage>()).unwrap();
 ```
 
+### Immediate mode
+
+The `send_immediate()` request can be used on an output sink to send a message without needing 
+to use an `await`. This combines well with thread stealing if the target program can process 
+the message without awaiting. A downside of `send_immediate` is that it can override the 
+backpressure that subprograms normally generate when they have too many messages waiting, so 
+it needs to be used with some caution.
+
+This is a fairly specialist use-case, but this could be used with a logging framework to enable
+logging to a subprogram. `scene_context()` can be used to acquire the context of the subprogram
+running on the current thread, which can be very useful when combined with immediate messages.
+
+### Thread stealing
+
+'Thread stealing' is an option that can be turned on for an input stream by calling 
+`input_stream.allow_thread_stealing(true)`. With this option on, the target program will 
+immediately be polled when a message is sent rather than waiting for the current subprogram 
+to yield. This is useful for actions like logging where information could be lost if the messages 
+were buffered, or where a message is intended to be used in immediate mode.
+
+### Automatic initialisation
+
+The `initialise()` function in the `SceneMessage` trait is called the first time a message type is
+encountered in a scene, and one way this can be used is to ensure that a default handler program is
+running when a message is sent for the first time. For example, this will set up a message handler
+in any scene that users that message type:
+
+```Rust
+impl SceneMessage for AutoStartMessage {
+    fn initialise(scene: &Scene) {
+        // Create a subprogram as the default handler for a message the first time that it's encountered in a scene
+        scene.add_subprogram(SubProgramId::called("AutoStart"), autostart_message_handler, 0);
+
+        scene.connect_programs((), SubProgramId::called("AutoStart"), StreamId::with_message_type::<AutoStartMessage>()).unwrap();
+    }
+}
+```
+
+This is a way to move the burden of setting up subprograms away from the code that creates a scene
+and into the message type itself.
+
+### Testing
+
+The `TestBuilder` type can be used test a scene by sending and receiving messages. This takes advantage
+of the simple program model of a scene to provide a simple 'send this, expect this result' test style.
+
+```Rust
+// Check that the timer calls us back
+let test_program = SubProgramId::new();
+
+TestBuilder::new()
+    .send_message(TimerRequest::CallAfter(test_program, 1, Duration::from_millis(10)))
+    .expect_message(|_: TimeOut| { Ok(()) })
+    .run_in_scene(&scene, test_program);
+```
+
+Scenes are inherently testable: automatic initialisation can save on setup time, there's no need to
+intercept internal method calls as all messages are available and can be redirected with the 
+`connect_programs()` call, and the `StreamTarget::None` target can be used to dump messages that
+are not relevant to the test.
+
 ### Multiple scenes
 
 You can create and run more than one `Scene` at once if needed, and run scenes underneath each
 other. This provides a further way to structure a program, for example by providing scenes for
 individual documents or users.
-
-### Thread stealing
-
-'Thread stealing' is an option that can be turned on for an input stream. With this option on,
-the target program will immediately be polled when a message is sent rather than waiting for 
-the current subprogram to yield. This is useful for actions like logging where information
-could be lost if the messages were buffered, or where a message is intended to be used in
-immediate mode.
-
-### Immediate mode
-
-It's possible to use the `send_immediate()` request with an output sink to send a message without
-needing to use an `await`. This combines well with thread stealing if the target program can 
-process the message without awaiting. A downside of `send_immediate` is that it can override
-the backpressure that subprograms normally generate when they have too many messages waiting,
-so it needs to be used with some caution.
-
-This is a fairly specialist use-case, but this could be used with a logging framework to enable
-logging to a subprogram. `scene_context()` can be used to acquire the context of the subprogram
-running on the current thread, which can be very useful when combined with immediate messages.
 
 ## Philosophy
 
