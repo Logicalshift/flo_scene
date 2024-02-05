@@ -319,6 +319,9 @@ impl SceneCore {
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
+        // Make sure the target stream ID type  is initialised
+        Self::initialise_message_type(core, stream_id.clone());
+
         // Call finish_connecting_programs to generate the result
         let result = SceneCore::finish_connecting_programs(core, source.clone(), target.clone(), stream_id.clone());
 
