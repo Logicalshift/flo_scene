@@ -1,4 +1,5 @@
 use crate::*;
+use super::control::*;
 
 use futures::prelude::*;
 use futures::executor;
@@ -138,6 +139,25 @@ impl TestBuilder {
                 (input_stream, failed_assertions)
             }.boxed()
         }));
+
+        self
+    }
+
+    ///
+    /// Creates a test action that redirects the input for a particular message type to the test program
+    ///
+    pub fn redirect_input(mut self, stream_id: StreamId) -> Self {
+        self.actions.push(Box::new(move |input_stream, context, failed_assertions| { 
+            let program_id  = context.current_program_id().unwrap();
+            let context     = context.clone();
+
+            async move {
+                context.send_message(SceneControl::Connect(().into(), program_id.into(), stream_id)).await.unwrap();
+
+                (input_stream, failed_assertions)
+            }.boxed()
+        })
+    );
 
         self
     }
