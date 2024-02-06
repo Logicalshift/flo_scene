@@ -31,7 +31,7 @@ pub enum TextInput {
 ///
 /// The message that's sent as a response to a text input request
 ///
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash, Debug)]
 pub enum TextInputResult {
     /// The stream produced some characters as a result of a request
     Characters(String),
