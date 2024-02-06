@@ -43,3 +43,26 @@ fn read_input() {
         .expect_message(|input: TextInputResult| if input == TextInputResult::Eof { Ok(()) } else { Err(format!("EOF != {:?}", input)) })
         .run_in_scene(&scene, test_subprogram);
 }
+
+#[test]
+fn prompt_for_input() {
+    let input_source = "42".as_bytes();
+
+    let scene = Scene::default();
+
+    // Create a test input program
+    let test_input_stream = SubProgramId::new();
+    scene.add_subprogram(test_input_stream, |input, context| text_input_subprogram(BufReader::new(input_source), input, context), 20);    
+
+    // Connect it as the default IO program
+    scene.connect_programs((), test_input_stream, StreamId::with_message_type::<TextInput>()).unwrap();
+
+    // Read from the stream with a prompt
+    let test_subprogram = SubProgramId::new();
+    TestBuilder::new()
+        .redirect_input(StreamId::with_message_type::<TextOutput>())
+        .send_message(TextInput::PromptRequestLine(vec![TextOutput::Line(format!("PROMPT> "))], test_subprogram))
+        .expect_message(|output: TextOutput| if output == TextOutput::Line(format!("PROMPT> ")) { Ok(()) } else { Err(format!("'PROMPT> ' != {:?}", output))})
+        .expect_message(|input: TextInputResult| if input == TextInputResult::Characters(format!("42")) { Ok(()) } else { Err(format!("42 != {:?}", input)) })
+        .run_in_scene(&scene, test_subprogram);
+}
