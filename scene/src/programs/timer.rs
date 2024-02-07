@@ -245,11 +245,7 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
 
             // Poll the message senders, if there are any
             extra_futures.lock().unwrap().retain_mut(|future| {
-                if future.poll_unpin(context).is_ready() {
-                    false
-                } else {
-                    true
-                }
+                future.poll_unpin(context).is_pending()
             });
 
             Poll::Pending

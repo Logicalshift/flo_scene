@@ -126,7 +126,7 @@ pub (crate) async fn idle_subprogram(input_stream: InputStream<IdleRequest>, con
 
             CoreIsIdle => {
                 // Do nothing if the notifications are suppressed
-                if suppressions.len() == 0 {
+                if suppressions.is_empty() {
                     // Send notifications to everything that's waiting
                     future::join_all(pending_notifications.drain(..)
                         .flat_map(|program_id| context.send(program_id).ok())

@@ -46,6 +46,7 @@ impl TestBuilder {
     ///
     /// Creates a new test builder
     ///
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         TestBuilder {
             actions:            vec![],
@@ -132,7 +133,7 @@ impl TestBuilder {
 
                     None => {
                         // The input stream was closed while we were waiting for the message
-                        failed_assertions.send(format!("Test finished prematurely")).await.ok();
+                        failed_assertions.send("Test finished prematurely".to_string()).await.ok();
                     }
                 }
 
@@ -231,7 +232,7 @@ impl TestBuilder {
         }
 
         // Report any assertion failures
-        let succeeded = failures.len() == 0;
+        let succeeded = failures.is_empty();
         assert!(succeeded, "Scene tests failed\n\n  {}",
             failures.join("\n  "));
     }

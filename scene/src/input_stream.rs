@@ -282,7 +282,7 @@ impl<TMessage> InputStreamCore<TMessage> {
     ///
     #[inline]
     pub (crate) fn is_idle(&self) -> bool {
-        self.idle && self.waiting_messages.len() == 0
+        self.idle && self.waiting_messages.is_empty()
     }
 }
 

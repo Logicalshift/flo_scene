@@ -275,7 +275,7 @@ impl SceneCore {
         // The message type must match the expected type
         let target_input = self.sub_program_inputs[handle].as_ref().ok_or(ConnectionError::TargetNotAvailable)?;
 
-        if (*(*target_input).1).type_id() != expected_message_type {
+        if (*target_input.1).type_id() != expected_message_type {
             let stream_type     = stream_id.message_type_name();
             let program_type    = self.sub_programs[handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
 
@@ -512,8 +512,8 @@ impl SceneCore {
             StreamTarget::Program(target_program_id) => {
                 // The connections can define a redirect stream by using a StreamId target
                 let core                        = scene_core.lock().unwrap();
-                let (filter, target_program_id) = core.connections.get(&(source.into(), StreamId::with_message_type::<TMessageType>().for_target(&target_program_id)))
-                    .or_else(|| core.connections.get(&(StreamSource::All, StreamId::with_message_type::<TMessageType>().for_target(&target_program_id))))
+                let (filter, target_program_id) = core.connections.get(&(source.into(), StreamId::with_message_type::<TMessageType>().for_target(target_program_id)))
+                    .or_else(|| core.connections.get(&(StreamSource::All, StreamId::with_message_type::<TMessageType>().for_target(target_program_id))))
                     .and_then(|target| {
                         match target {
                             StreamTarget::Program(program_id)           => Some((None, *program_id)),
@@ -548,8 +548,8 @@ impl SceneCore {
             StreamTarget::Filtered(filter_handle, target_program_id) => {
                 // The connections can define a redirect stream by using a StreamId target
                 let core                = scene_core.lock().unwrap();
-                let target_program_id   = core.connections.get(&(source.into(), StreamId::with_message_type::<TMessageType>().for_target(&target_program_id)))
-                    .or_else(|| core.connections.get(&(StreamSource::All, StreamId::with_message_type::<TMessageType>().for_target(&target_program_id))))
+                let target_program_id   = core.connections.get(&(source.into(), StreamId::with_message_type::<TMessageType>().for_target(target_program_id)))
+                    .or_else(|| core.connections.get(&(StreamSource::All, StreamId::with_message_type::<TMessageType>().for_target(target_program_id))))
                     .and_then(|target| {
                         match target {
                             StreamTarget::Program(program_id)       => Some(*program_id),
