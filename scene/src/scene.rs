@@ -234,4 +234,77 @@ impl Scene {
     pub fn run_scene(&self) -> impl Future<Output=()> {
         run_core(&self.core)
     }
+
+    ///
+    /// Returns a future that will run the scene across `num_threads` threads (including the thread this is awaited from)
+    ///
+    /// The subthreads will end when the scene is ended, or the returned future is dropped.
+    ///
+    pub fn run_scene_in_threads(&self, num_threads: usize) -> impl Future<Output=()> {
+        use futures::executor;
+        use std::thread::{JoinHandle};
+        use std::thread;
+        use std::mem;
+
+        // We take a copy of the core to run on the remote threads
+        let core = Arc::clone(&self.core);
+
+        // The dropper will stop the child threads when the main thread future is dropped
+        struct Dropper {
+            /// The senders to signal when this is dropped
+            stoppers: Vec<oneshot::Sender<()>>,
+
+            /// The join handles for waiting for the threads to shut down
+            join_handles: Vec<JoinHandle<()>>,
+        }
+
+        impl Drop for Dropper {
+            fn drop(&mut self) {
+                // Wake up all the threads and tell them to stop
+                for stopper in self.stoppers.drain(..) {
+                    stopper.send(()).ok();
+                }
+
+                // Wait for all the threads to shut down before finishing the drop
+                for join_handle in self.join_handles.drain(..) {
+                    join_handle.join().ok();
+                }
+            }
+        }
+
+        async move {
+            // The stoppers are used to signal the subthreads to stop when the future is dropped
+            let mut stoppers: Vec<oneshot::Sender<()>>  = vec![];
+            let mut join_handles                        = vec![];
+
+            for _ in 1..num_threads {
+                // Create the channel used to signal the thread to stop
+                let (send_stop, recv_stop) = oneshot::channel();
+
+                // Create the thread itself
+                let core        = Arc::clone(&core);
+                let join_handle = thread::spawn(move || {
+                    executor::block_on(async move {
+                        // Run the scene until the scene itself stops or the 'stop' event is triggered
+                        let scene_runner = run_core(&core);
+
+                        future::select(scene_runner, recv_stop.map(|_| ())).await;
+                    });
+                });
+
+                // Stopper is signalled when the dropper is dropped, and the join handles are awaited at that time too
+                stoppers.push(send_stop);
+                join_handles.push(join_handle);
+            }
+
+            // The dropper will be dropped when this returned future is done
+            let dropper = Dropper { stoppers, join_handles };
+
+            // Run the scene on this thread as well
+            run_core(&core).await;
+
+            // Dropper will ensure that all the subthreads are shutdown (if we reach here, or if the future is dropped ahead of time)
+            mem::drop(dropper);
+        }
+    }
 }
