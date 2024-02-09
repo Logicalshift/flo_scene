@@ -41,7 +41,7 @@ fn read_input() {
         .expect_message(|input: TextInputResult| if input == TextInputResult::Eof { Ok(()) } else { Err(format!("EOF != {:?}", input)) })
         .send_message(TextInput::RequestCharacter(test_subprogram))
         .expect_message(|input: TextInputResult| if input == TextInputResult::Eof { Ok(()) } else { Err(format!("EOF != {:?}", input)) })
-        .run_in_scene(&scene, test_subprogram);
+        .run_in_scene_with_threads(&scene, test_subprogram, 5);
 }
 
 #[test]
@@ -64,5 +64,5 @@ fn prompt_for_input() {
         .send_message(TextInput::PromptRequestLine(vec![TextOutput::Line(format!("PROMPT> "))], test_subprogram))
         .expect_message(|output: TextOutput| if output == TextOutput::Line(format!("PROMPT> ")) { Ok(()) } else { Err(format!("'PROMPT> ' != {:?}", output))})
         .expect_message(|input: TextInputResult| if input == TextInputResult::Characters(format!("42")) { Ok(()) } else { Err(format!("42 != {:?}", input)) })
-        .run_in_scene(&scene, test_subprogram);
+        .run_in_scene_with_threads(&scene, test_subprogram, 5);
 }

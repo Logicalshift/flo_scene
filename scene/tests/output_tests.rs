@@ -43,7 +43,7 @@ pub fn send_output() {
         .send_message(TextOutput::Character('r'))
         .send_message(TextOutput::Character('\n'))
         .send_message(TextOutput::Line(format!("Final line")))
-        .run_in_scene(&scene, SubProgramId::new());
+        .run_in_scene_with_threads(&scene, SubProgramId::new(), 5);
 
     let result = String::from_utf8(output_buffer.data.lock().unwrap().clone()).unwrap();
     assert!(&result == "Some text\nA line\nAnother line char\nFinal line", "{}", result);

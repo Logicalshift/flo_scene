@@ -11,7 +11,7 @@ fn basic_timeout() {
     TestBuilder::new()
         .send_message(TimerRequest::CallAfter(test_program, 1, Duration::from_millis(10)))
         .expect_message(|_: TimeOut| { Ok(()) })
-        .run_in_scene(&scene, test_program);
+        .run_in_scene_with_threads(&scene, test_program, 5);
 }
 
 #[test]
@@ -26,7 +26,7 @@ fn multiple_timeouts() {
         .expect_message(|TimeOut(id, _)| { if id != 1 { Err(format!("Expected timer 1 first")) } else { Ok(()) } })
         .expect_message(|TimeOut(id, _)| { if id != 2 { Err(format!("Expected timer 2 next")) } else { Ok(()) } })
         .expect_message(|TimeOut(id, _)| { if id != 3 { Err(format!("Expected timer 3 last")) } else { Ok(()) } })
-        .run_in_scene(&scene, test_program);
+        .run_in_scene_with_threads(&scene, test_program, 5);
 }
 
 #[test]
@@ -39,5 +39,5 @@ fn repeating_timeouts() {
         .expect_message(|_: TimeOut| { Ok(()) })
         .expect_message(|_: TimeOut| { Ok(()) })
         .expect_message(|_: TimeOut| { Ok(()) })
-        .run_in_scene(&scene, test_program);
+        .run_in_scene_with_threads(&scene, test_program, 5);
 }
