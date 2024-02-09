@@ -164,9 +164,9 @@ impl TestBuilder {
     }
 
     ///
-    /// Runs the tests and the assertions in a scene
+    /// Sets up a scene to run the tests, then awaits the 'runner' future
     ///
-    pub fn run_in_scene(mut self, scene: &Scene, test_subprogram: SubProgramId) {
+    fn run_tests(mut self, scene: &Scene, test_subprogram: SubProgramId, runner: impl Send + Future<Output=()>) {
         use std::mem;
 
         // Create the test subprogram
@@ -204,7 +204,7 @@ impl TestBuilder {
 
         executor::block_on(future::select(async {
                 // Run the scene
-                scene.run_scene().await;
+                runner.await;
             }.boxed(),
 
             future::select(
@@ -235,5 +235,19 @@ impl TestBuilder {
         let succeeded = failures.is_empty();
         assert!(succeeded, "Scene tests failed\n\n  {}",
             failures.join("\n  "));
+    }
+
+    ///
+    /// Runs the tests and the assertions in a scene
+    ///
+    pub fn run_in_scene(self, scene: &Scene, test_subprogram: SubProgramId) {
+        self.run_tests(scene, test_subprogram, scene.run_scene());
+    }
+
+    ///
+    /// Run the test program in a scene using multithreading
+    ///
+    pub fn run_in_scene_with_threads(self, scene: &Scene, test_subprogram: SubProgramId, thread_count: usize) {
+        self.run_tests(scene, test_subprogram, scene.run_scene_in_threads(thread_count));
     }
 }
