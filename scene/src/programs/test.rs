@@ -248,6 +248,6 @@ impl TestBuilder {
     /// Run the test program in a scene using multithreading
     ///
     pub fn run_in_scene_with_threads(self, scene: &Scene, test_subprogram: SubProgramId, thread_count: usize) {
-        self.run_tests(scene, test_subprogram, scene.run_scene_in_threads(thread_count));
+        self.run_tests(scene, test_subprogram, scene.run_scene_with_threads(thread_count));
     }
 }

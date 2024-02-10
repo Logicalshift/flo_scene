@@ -240,7 +240,7 @@ impl Scene {
     ///
     /// The subthreads will end when the scene is ended, or the returned future is dropped.
     ///
-    pub fn run_scene_in_threads(&self, num_threads: usize) -> impl Future<Output=()> {
+    pub fn run_scene_with_threads(&self, num_threads: usize) -> impl Future<Output=()> {
         use futures::executor;
         use std::thread::{JoinHandle};
         use std::thread;
