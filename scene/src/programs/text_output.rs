@@ -8,6 +8,7 @@ use std::io::*;
 
 pub static STDOUT_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("STDOUT_PROGRAM"));
 pub static STDERR_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("STDERR_PROGRAM"));
+static ERROR_TO_TEXT_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<ErrorOutput>| stream.map(|err| TextOutput::from(err))));
 
 ///
 /// Messages for writing text to an output stream
@@ -24,9 +25,44 @@ pub enum TextOutput {
     Line(String),
 }
 
+///
+/// Messages for writing text to an error stream
+///
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum ErrorOutput {
+    /// Writes a single character to the output
+    Character(char),
+
+    /// Writes a string to the output
+    Text(String),
+
+    /// Writes some text at the start of a new line
+    Line(String),
+}
+
+impl From<ErrorOutput> for TextOutput {
+    fn from(error_output: ErrorOutput) -> TextOutput {
+        match error_output {
+            ErrorOutput::Character(chr)     => TextOutput::Character(chr),
+            ErrorOutput::Text(txt)          => TextOutput::Text(txt),
+            ErrorOutput::Line(line)         => TextOutput::Line(line),
+        }
+    }
+}
+
 impl SceneMessage for TextOutput {
     fn default_target() -> StreamTarget             { (*STDOUT_PROGRAM).into() }
     fn allow_thread_stealing_by_default() -> bool   { true }
+}
+
+impl SceneMessage for ErrorOutput {
+    fn default_target() -> StreamTarget             { (*STDERR_PROGRAM).into() }
+    fn allow_thread_stealing_by_default() -> bool   { true }
+
+    fn initialise(scene: &Scene) {
+        // Convert ErrorOutput into TextOutput when sending to STDERR
+        scene.connect_programs((), StreamTarget::Filtered(*ERROR_TO_TEXT_FILTER, *STDERR_PROGRAM), StreamId::with_message_type::<ErrorOutput>()).ok();
+    }
 }
 
 ///
