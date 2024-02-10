@@ -9,6 +9,8 @@ use crate::stream_source::*;
 use crate::stream_target::*;
 use crate::subprogram_id::*;
 
+use super::idle_request::*;
+
 use futures::prelude::*;
 use futures::future::{poll_fn};
 use futures::channel::oneshot;
@@ -51,7 +53,23 @@ pub enum SceneControl {
     Close(SubProgramId),
 
     ///
+    /// Waits for all of the subprograms in the scene to process all of their remaining messages and then stops the scene
+    ///
+    /// This is a less abrupt verison of 'StopScene' that will ensure that all of the subprograms have no pending messages
+    /// and are waiting for new messages to arrive before shutting the scene down: typically this will ensure that all
+    /// of the messages in the scene have been fully processed before the scene is stopped.
+    ///
+    /// If something in the scene is blocked waiting for something, or something is constantly generating messages, this 
+    /// may never actually stop the scene. `StopScene` is a bit more forceful and will terminate the scene at the point
+    /// where all the executing futures have yielded.
+    ///
+    StopSceneWhenIdle,
+
+    ///
     /// Terminates the entire scene by stopping any calls to `run_scene()`
+    ///
+    /// This will interrupt any in-progress task at the point where it most recently yielded. Use `StopSceneWhenIdle`
+    /// to shut down the scene when all the in progress messages have been completed.
     ///
     StopScene,
 }
@@ -231,6 +249,30 @@ impl SceneControl {
                         if let Ok(Some(waker)) = waker {
                             waker.wake()
                         }
+                    }
+                },
+
+                StopSceneWhenIdle => {
+                    // Start a new subprogram that requests an idle notification, then relays the 'stop' message back to us
+                    let idle_program    = SubProgramId::new();
+                    let scene_control   = context.current_program_id().unwrap();
+
+                    let wait_for_idle   = SceneProgramFn::new(idle_program, move |input: InputStream<IdleNotification>, context| async move {
+                        // Request an idle notification
+                        if context.send_message(IdleRequest::WhenIdle(idle_program)).await.is_ok() {
+                            // Wait for the notification to arrive
+                            let mut input = input;
+                            input.next().await;
+                        }
+
+                        // Tell the control program to shut down once the idle message arrives
+                        if let Ok(mut scene_control) = context.send::<SceneControl>(scene_control) {
+                            scene_control.send(SceneControl::StopScene).await.ok();
+                        }
+                    }, 0);
+
+                    if let Some(scene_core) = scene_core.upgrade() {
+                        (wait_for_idle.0)(scene_core);
                     }
                 },
 

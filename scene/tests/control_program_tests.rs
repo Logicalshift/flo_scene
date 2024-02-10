@@ -47,6 +47,36 @@ fn ask_control_to_stop_scene() {
 }
 
 #[test]
+fn ask_control_to_stop_scene_when_idle() {
+    // The default scene has the 'control' program in it
+    let scene       = Scene::default();
+    scene.add_subprogram(
+        SubProgramId::new(),
+        move |input: InputStream<()>, context| async move {
+            // Tell it to stop the stream when it's idle
+            context.send_message(SceneControl::StopSceneWhenIdle).await.unwrap();
+
+            // Read from our input forever
+            let mut input = input;
+            while let Some(_) = input.next().await {
+
+            }
+        },
+        0,
+    );
+
+    let mut has_stopped = false;
+    executor::block_on(select(async {
+        scene.run_scene().await;
+
+        has_stopped = true;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Should have stopped the scene and not just timed out
+    assert!(has_stopped, "Scene did not stop");
+}
+
+#[test]
 fn ask_control_to_start_program() {
     let has_started = Arc::new(Mutex::new(false));
 
