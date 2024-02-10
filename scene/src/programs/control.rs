@@ -262,6 +262,7 @@ impl SceneControl {
                         if context.send_message(IdleRequest::WhenIdle(idle_program)).await.is_ok() {
                             // Wait for the notification to arrive
                             let mut input = input;
+                            input.allow_thread_stealing(true);
                             input.next().await;
                         }
 
