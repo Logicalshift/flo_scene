@@ -18,6 +18,9 @@ pub (crate) struct InputStreamCore<TMessage> {
     /// The maximum number of waiting messages for this input stream
     max_waiting: usize,
 
+    /// The source of the last message sent to this stream
+    last_message_source: Option<SubProgramId>,
+
     /// Messages waiting to be delivered
     waiting_messages: VecDeque<(SubProgramId, TMessage)>,
 
@@ -119,6 +122,7 @@ where
         let core = InputStreamCore {
             program_id:             program_id,
             max_waiting:            max_waiting,
+            last_message_source:    None,
             waiting_messages:       VecDeque::new(),
             when_message_sent:      None,
             when_slots_available:   VecDeque::new(),
@@ -291,13 +295,15 @@ impl<TMessage> Stream for InputStream<TMessage> {
         use std::mem;
 
         let mut core = self.core.lock().unwrap();
+        core.last_message_source = None;
 
-        if let Some((_source, message)) = core.waiting_messages.pop_front() {
+        if let Some((source, message)) = core.waiting_messages.pop_front() {
             // If any of the output sinks are waiting to write a value, wake them up as the queue has reduced
             let next_available = core.when_slots_available.pop_front();
 
             // The core is no longer idle
             core.idle = false;
+            core.last_message_source = Some(source);
 
             // Release the core lock before waking anything
             mem::drop(core);
@@ -336,13 +342,15 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
         use std::mem;
 
         let mut core = self.core.lock().unwrap();
+        core.last_message_source = None;
 
-        if let Some(message_and_source) = core.waiting_messages.pop_front() {
+        if let Some((source, message)) = core.waiting_messages.pop_front() {
             // If any of the output sinks are waiting to write a value, wake them up as the queue has reduced
             let next_available = core.when_slots_available.pop_front();
 
-            // The core has become idle
+            // The core is no longer idle
             core.idle = false;
+            core.last_message_source = Some(source);
 
             // Release the core lock before waking anything
             mem::drop(core);
@@ -350,7 +358,7 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
             next_available.into_iter().for_each(|waker| waker.wake());
 
             // Return the message
-            Poll::Ready(Some(message_and_source))
+            Poll::Ready(Some((source, message)))
         } else if core.closed {
             // Once all the messages are delivered and the core is closed, close the stream
             Poll::Ready(None)
