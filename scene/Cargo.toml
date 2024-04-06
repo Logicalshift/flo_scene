@@ -11,7 +11,7 @@ categories      = [ "concurrency", "data-structures" ]
 keywords        = [ "message-queue" ]
 
 [features]
-serde_support   = [ "serde" ]
+serde_support   = [ "serde", "uuid/serde" ]
 
 [dependencies]
 once_cell       = "1.18"

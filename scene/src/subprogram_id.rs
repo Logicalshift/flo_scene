@@ -1,8 +1,10 @@
-use uuid::*;
+use uuid::{Uuid};
 use once_cell::sync::{Lazy};
 
 use std::collections::*;
 use std::sync::*;
+
+#[cfg(feature="serde_support")] use serde::*;
 
 static IDS_FOR_NAMES: Lazy<RwLock<HashMap<String, usize>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 static NAMES_FOR_IDS: Lazy<RwLock<Vec<String>>>            = Lazy::new(|| RwLock::new(vec![]));
@@ -35,9 +37,11 @@ fn id_for_name(name: &str) -> usize {
 /// A unique identifier for a subprogram in a scene
 ///
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct SubProgramId(SubProgramIdValue);
 
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 enum SubProgramIdValue {
     /// A subprogram identified with a well-known name
     Named(usize),
