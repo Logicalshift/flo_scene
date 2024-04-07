@@ -1,5 +1,6 @@
 use crate::error::*;
 use crate::scene_message::*;
+use crate::scene_core::*;
 use crate::subprogram_id::*;
 
 use futures::prelude::*;
@@ -17,6 +18,9 @@ pub (crate) struct InputStreamCore<TMessage> {
 
     /// The maximum number of waiting messages for this input stream
     max_waiting: usize,
+
+    /// The scene that this input is a part of
+    scene_core: Weak<Mutex<SceneCore>>,
 
     /// The source of the last message sent to this stream
     last_message_source: Option<SubProgramId>,
@@ -118,10 +122,11 @@ where
     ///
     /// Creates a new input stream
     ///
-    pub (crate) fn new(program_id: SubProgramId, max_waiting: usize) -> Self {
+    pub (crate) fn new(program_id: SubProgramId, scene_core: &Arc<Mutex<SceneCore>>, max_waiting: usize) -> Self {
         let core = InputStreamCore {
             program_id:             program_id,
             max_waiting:            max_waiting,
+            scene_core:             Arc::downgrade(scene_core),
             last_message_source:    None,
             waiting_messages:       VecDeque::new(),
             when_message_sent:      None,
@@ -196,6 +201,13 @@ where
 }
 
 impl<TMessage> InputStreamCore<TMessage> {
+    ///
+    /// Retrieves the scene core for this input stream if there is one
+    ///
+    pub (crate) fn scene_core(&self) -> Option<Arc<Mutex<SceneCore>>> {
+        self.scene_core.upgrade()
+    }
+
     ///
     /// Adds a message to this core if there's space for it, returning the waker to be called if successful (the waker must be called with the core unlocked)
     ///

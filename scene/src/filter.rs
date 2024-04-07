@@ -58,8 +58,9 @@ impl FilterHandle {
             // Downcast the source and target to the expected types
             let target_input_core   = target_input_core.downcast::<Mutex<InputStreamCore<TTargetStream::Item>>>().or(Err(ConnectionError::FilterOutputDoesNotMatch))?;
             let buffer_size         = target_input_core.lock().unwrap().num_slots();
+            let scene_core          = target_input_core.lock().unwrap().scene_core().ok_or(ConnectionError::TargetNotInScene)?;
 
-            let source_input_stream = InputStream::<TSourceMessage>::new(sending_program, buffer_size);
+            let source_input_stream = InputStream::<TSourceMessage>::new(sending_program, &scene_core, buffer_size);
             source_input_stream.allow_thread_stealing(true);
             let target_input_core   = Arc::downgrade(&target_input_core);
 

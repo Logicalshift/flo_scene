@@ -554,7 +554,7 @@ mod test {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
         let scene_core          = Arc::new(Mutex::new(SceneCore::new()));
-        let mut input_stream    = InputStream::<u32>::new(program_id, 1000);
+        let mut input_stream    = InputStream::<u32>::new(program_id, &scene_core, 1000);
         let mut output_sink     = OutputSink::new(program_id, &scene_core);
 
         // Attach the output sink to the input stream
@@ -576,7 +576,7 @@ mod test {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
         let scene_core          = Arc::new(Mutex::new(SceneCore::new()));
-        let mut input_stream    = InputStream::<u32>::new(program_id, 1000);
+        let mut input_stream    = InputStream::<u32>::new(program_id, &scene_core, 1000);
         let mut output_sink_1   = OutputSink::new(program_id, &scene_core);
         let mut output_sink_2   = OutputSink::new(program_id, &scene_core);
 
@@ -600,7 +600,7 @@ mod test {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
         let scene_core          = Arc::new(Mutex::new(SceneCore::new()));
-        let mut input_stream    = InputStream::<u32>::new(program_id, 0);
+        let mut input_stream    = InputStream::<u32>::new(program_id, &scene_core, 0);
         let mut output_sink     = OutputSink::new(program_id, &scene_core);
 
         // Attach the output sink to the input stream
@@ -629,7 +629,7 @@ mod test {
         // Create an input stream and an output sink
         let program_id          = SubProgramId::new();
         let scene_core          = Arc::new(Mutex::new(SceneCore::new()));
-        let mut input_stream    = InputStream::<u32>::new(program_id, 0);
+        let mut input_stream    = InputStream::<u32>::new(program_id, &scene_core, 0);
         let mut output_sink     = OutputSink::new(program_id, &scene_core);
 
         executor::block_on(async move {
