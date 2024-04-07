@@ -11,12 +11,15 @@ use std::collections::{VecDeque};
 use std::sync::*;
 use std::time::{Instant, Duration};
 
+#[cfg(feature="serde_support")] use serde::*;
+
 pub static TIMER_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("TIMER_PROGRAM"));
 
 ///
 /// The timer program can be used to sent one-off or recurring timer events
 ///
 #[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum TimerRequest {
     /// Sends a `TimeOut` message to a subprogram with the specified ID attached
     CallAfter(SubProgramId, usize, Duration),

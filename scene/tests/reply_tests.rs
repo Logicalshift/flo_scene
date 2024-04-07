@@ -3,8 +3,6 @@ use flo_scene::programs::*;
 
 use futures::prelude::*;
 
-use std::time::{Duration};
-
 #[test]
 fn reply_to_message() {
     struct TestMessage(String);

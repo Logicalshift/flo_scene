@@ -6,6 +6,8 @@ use once_cell::sync::{Lazy};
 
 use std::io::*;
 
+#[cfg(feature="serde_support")] use serde::*;
+
 pub static STDOUT_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("STDOUT_PROGRAM"));
 pub static STDERR_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("STDERR_PROGRAM"));
 static ERROR_TO_TEXT_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<ErrorOutput>| stream.map(|err| TextOutput::from(err))));
@@ -14,6 +16,7 @@ static ERROR_TO_TEXT_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for
 /// Messages for writing text to an output stream
 ///
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum TextOutput {
     /// Writes a single character to the output
     Character(char),
@@ -29,6 +32,7 @@ pub enum TextOutput {
 /// Messages for writing text to an error stream
 ///
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum ErrorOutput {
     /// Writes a single character to the output
     Character(char),

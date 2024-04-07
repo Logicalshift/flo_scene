@@ -11,12 +11,15 @@ use std::str;
 use std::thread;
 use std::io::{BufRead};
 
+#[cfg(feature="serde_support")] use serde::*;
+
 pub static STDIN_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("STDIN_PROGRAM"));
 
 ///
 /// Text input programs read from an input stream and sends `TextInputResult` messages to a target program
 ///
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum TextInput {
     /// Reads a single character from an input stream and sends it as a TextInputResult to a target program
     RequestCharacter(SubProgramId),
@@ -32,6 +35,7 @@ pub enum TextInput {
 /// The message that's sent as a response to a text input request
 ///
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash, Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum TextInputResult {
     /// The stream produced some characters as a result of a request
     Characters(String),
