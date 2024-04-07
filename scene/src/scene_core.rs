@@ -199,6 +199,7 @@ impl SceneCore {
             let subprogram = SubProgramCore {
                 id:                         program_id,
                 process_id:                 Some(process_handle),
+                last_message_source:        None,
                 input_stream_id:            StreamId::with_message_type::<TMessage>(),
                 outputs:                    HashMap::new(),
                 output_high_water:          0,

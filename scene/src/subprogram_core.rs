@@ -22,6 +22,9 @@ pub (crate) struct SubProgramCore {
     /// The ID of this program
     pub (super) id: SubProgramId,
 
+    /// The source of the last message that this subprogram received via its input stream
+    pub (super) last_message_source: Option<SubProgramId>,
+
     /// The handle of the process that this subprogram is running on (or None if the program has finished)
     pub (super) process_id: Option<ProcessHandle>,
 
