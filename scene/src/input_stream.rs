@@ -22,9 +22,6 @@ pub (crate) struct InputStreamCore<TMessage> {
     /// The scene that this input is a part of
     scene_core: Weak<Mutex<SceneCore>>,
 
-    /// The source of the last message sent to this stream
-    last_message_source: Option<SubProgramId>,
-
     /// Messages waiting to be delivered
     waiting_messages: VecDeque<(SubProgramId, TMessage)>,
 
@@ -127,7 +124,6 @@ where
             program_id:             program_id,
             max_waiting:            max_waiting,
             scene_core:             Arc::downgrade(scene_core),
-            last_message_source:    None,
             waiting_messages:       VecDeque::new(),
             when_message_sent:      None,
             when_slots_available:   VecDeque::new(),
@@ -331,7 +327,6 @@ impl<TMessage> Stream for InputStream<TMessage> {
         set_last_message_source(&self.core, None);
 
         let mut core = self.core.lock().unwrap();
-        core.last_message_source = None;
 
         if let Some((source, message)) = core.waiting_messages.pop_front() {
             // If any of the output sinks are waiting to write a value, wake them up as the queue has reduced
@@ -339,7 +334,6 @@ impl<TMessage> Stream for InputStream<TMessage> {
 
             // The core is no longer idle
             core.idle = false;
-            core.last_message_source = Some(source);
 
             // Release the core lock before waking anything
             mem::drop(core);
@@ -383,7 +377,6 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
         set_last_message_source(&self.core, None);
 
         let mut core = self.core.lock().unwrap();
-        core.last_message_source = None;
 
         if let Some((source, message)) = core.waiting_messages.pop_front() {
             // If any of the output sinks are waiting to write a value, wake them up as the queue has reduced
@@ -391,7 +384,6 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
 
             // The core is no longer idle
             core.idle = false;
-            core.last_message_source = Some(source);
 
             // Release the core lock before waking anything
             mem::drop(core);
