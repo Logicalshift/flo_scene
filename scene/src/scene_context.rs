@@ -142,6 +142,14 @@ impl SceneContext {
     ///
     /// Retrieves a stream for sending replies to the last message received by the current subprogram
     ///
+    /// The usual way to design a message that generates some results is to supply a target subprogram with the requests
+    /// rather than replying to the original message source. This may seem counterintuitive if you're used to a more
+    /// 'function-oriented' approach - think in terms of how output is passed on when writing a shell script rather than
+    /// the idea of a 'result' being returned to a sender.
+    ///
+    /// Replying is more useful for status updates and things like logging, where some feedback to the original sender
+    /// might be useful (eg, a sender might be able to see what log messages are being generated for their requests)
+    ///
     pub fn reply<TMessageType>(&self) -> Result<OutputSink<TMessageType>, ConnectionError>
     where
         TMessageType: 'static + SceneMessage,
@@ -164,6 +172,14 @@ impl SceneContext {
 
     ///
     /// Replies to the sender of the last message sent to this subprogram with another message
+    ///
+    /// The usual way to design a message that generates some results is to supply a target subprogram with the requests
+    /// rather than replying to the original message source. This may seem counterintuitive if you're used to a more
+    /// 'function-oriented' approach - think in terms of how output is passed on when writing a shell script rather than
+    /// the idea of a 'result' being returned to a sender.
+    ///
+    /// Replying is more useful for status updates and things like logging, where some feedback to the original sender
+    /// might be useful (eg, a sender might be able to see what log messages are being generated for their requests)
     ///
     pub async fn reply_with<TMessageType>(&self, message: TMessageType) -> Result<(), ConnectionError>
     where
