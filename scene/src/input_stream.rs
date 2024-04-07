@@ -300,11 +300,35 @@ impl<TMessage> InputStreamCore<TMessage> {
     }
 }
 
+///
+/// Sets the last message source for the subprogram owning an input stream
+///
+fn set_last_message_source<TMessage>(input_core: &Arc<Mutex<InputStreamCore<TMessage>>>, source_id: Option<SubProgramId>) {
+    // Fetch the scene core and owner ID from the input core
+    let (scene_core, owner_id) = {
+        let input_core = input_core.lock().unwrap();
+        (input_core.scene_core.clone(), input_core.program_id)
+    };
+
+    // Try to fetch the subprogram core from the scene core
+    let subprogram_core = if let Some(scene_core) = scene_core.upgrade() {
+        scene_core.lock().unwrap().get_sub_program(owner_id)
+    } else {
+        None
+    };
+
+    if let Some(subprogram_core) = subprogram_core {
+        subprogram_core.lock().unwrap().last_message_source = source_id;
+    }
+}
+
 impl<TMessage> Stream for InputStream<TMessage> {
     type Item=TMessage;
 
     fn poll_next(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
         use std::mem;
+
+        set_last_message_source(&self.core, None);
 
         let mut core = self.core.lock().unwrap();
         core.last_message_source = None;
@@ -321,6 +345,9 @@ impl<TMessage> Stream for InputStream<TMessage> {
             mem::drop(core);
 
             next_available.into_iter().for_each(|waker| waker.wake());
+
+            // Set the last message source in the core
+            set_last_message_source(&self.core, Some(source));
 
             // Return the message
             Poll::Ready(Some(message))
@@ -353,6 +380,8 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
     fn poll_next(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
         use std::mem;
 
+        set_last_message_source(&self.core, None);
+
         let mut core = self.core.lock().unwrap();
         core.last_message_source = None;
 
@@ -368,6 +397,9 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
             mem::drop(core);
 
             next_available.into_iter().for_each(|waker| waker.wake());
+
+            // Set the last message source in the core
+            set_last_message_source(&self.core, Some(source));
 
             // Return the message
             Poll::Ready(Some((source, message)))
