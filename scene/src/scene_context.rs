@@ -140,6 +140,43 @@ impl SceneContext {
     }
 
     ///
+    /// Retrieves a stream for sending replies to the last message received by the current subprogram
+    ///
+    pub fn reply<TMessageType>(&self) -> Result<OutputSink<TMessageType>, ConnectionError>
+    where
+        TMessageType: 'static + SceneMessage,
+    {
+        if let Some(program_core) = self.program_core.upgrade() {
+            // Retrieve the input core via the program ID
+            let last_message_source = program_core.lock().unwrap().last_message_source;
+
+            if let Some(last_message_source) = last_message_source {
+                self.send(last_message_source)
+            } else {
+                // Target input stream is no longer available
+                Err(ConnectionError::TargetNotInScene)
+            }
+        } else {
+            // Scene or program is no longer running
+            Err(ConnectionError::TargetNotInScene)
+        }
+    }
+
+    ///
+    /// Replies to the sender of the last message sent to this subprogram with another message
+    ///
+    pub async fn reply_with<TMessageType>(&self, message: TMessageType) -> Result<(), ConnectionError>
+    where
+        TMessageType: 'static + SceneMessage,
+    {
+        let mut stream = self.reply::<TMessageType>()?;
+
+        stream.send(message).await?;
+
+        Ok(())
+    }
+
+    ///
     /// Retrieves the scene core for this context
     ///
     pub (crate) fn scene_core(&self) -> Weak<Mutex<SceneCore>> {
