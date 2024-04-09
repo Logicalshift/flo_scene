@@ -1,0 +1,14 @@
+[package]
+name            = "flo_scene_pipe"
+version         = "0.2.0"
+edition         = "2021"
+authors         = ["Andrew Hunter"]
+license         = "Apache-2.0"
+readme          = "README.md"
+repository      = "https://github.com/Logicalshift/flo_scene"
+description     = "Inter-scene and inter-process communication for flo_scene"
+categories      = [ "concurrency", "data-structures" ]
+keywords        = [ "message-queue" ]
+
+[dependencies]
+flo_scene       = { version = "0.2", features = [ "serde_support" ] }

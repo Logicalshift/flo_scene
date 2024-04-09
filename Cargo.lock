@@ -26,6 +26,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "flo_scene_pipe"
+version = "0.2.0"
+dependencies = [
+ "flo_scene",
+]
+
+[[package]]
 name = "futures"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
