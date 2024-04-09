@@ -47,6 +47,7 @@ dependencies = [
  "flo_scene",
  "ron",
  "serde",
+ "uuid",
 ]
 
 [[package]]
