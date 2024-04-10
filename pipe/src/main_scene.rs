@@ -6,16 +6,8 @@
 
 use flo_scene::*;
 
-use serde::*;
-use uuid::{Uuid};
-
-use std::any::*;
-
 /// The subprogram ID used to communicate with the main scene from a sub-scene
 // pub static MAIN_SCENE_ID: SubProgramId = SubProgramId::called("Main scene");
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct SubSceneId(Uuid);
 
 ///
 /// Requests that can be made to a main scene from another scene
@@ -27,15 +19,4 @@ pub enum MainScene {
 
     /// Allows access to a stream via the SubScene interface in the main scene
     Publish(StreamId),
-}
-
-///
-/// Requests that can be made to a subscene from the main scene
-///
-pub enum SubScene {
-    /// Send a list of the available sub-scenes to the specified subprogram ID
-    List(SubProgramId),
-
-    /// Sends a message to a subscene
-    Send(SubSceneId, Box<dyn Any>),
 }
