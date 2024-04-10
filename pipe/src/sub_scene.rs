@@ -7,8 +7,6 @@ use flo_scene::*;
 use serde::*;
 use uuid::{Uuid};
 
-use std::any::*;
-
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SubSceneId(Uuid);
 
@@ -19,6 +17,9 @@ pub enum SubScene {
     /// Send a list of the available sub-scenes to the specified subprogram ID
     List(SubProgramId),
 
-    /// Sends a message to a subscene
-    Send(SubSceneId, Box<dyn Any>),
+    /// Creates a subprogram in this scene, with ID `our_program` to `their_progam` in the specified subscene
+    Connect { scene: SubSceneId, their_program: SubProgramId, our_program: SubProgramId },
+
+    /// Receives a stream directed at the 'main scene' program in a sub-scene into a program in the current scene
+    Receive { scene: SubSceneId, stream: StreamId, target: SubProgramId },
 }
