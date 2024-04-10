@@ -6,6 +6,10 @@
 
 use flo_scene::*;
 
+use once_cell::sync::{Lazy};
+
+use std::sync::*;
+
 /// The subprogram ID used to communicate with the main scene from a sub-scene
 // pub static MAIN_SCENE_ID: SubProgramId = SubProgramId::called("Main scene");
 
@@ -19,4 +23,24 @@ pub enum MainScene {
 
     /// Allows access to a stream via the SubScene interface in the main scene
     Publish(StreamId),
+}
+
+///
+/// Creates the main scene object
+///
+fn create_main_scene() -> Scene {
+    let main_scene = Scene::default();
+
+    main_scene
+}
+
+///
+/// Retrieves or creates the main scene
+///
+pub fn main_scene() -> Scene {
+    static MAIN_SCENE: Lazy<Mutex<Scene>> = Lazy::new(|| Mutex::new(create_main_scene()));
+
+    let main_scene = MAIN_SCENE.lock().unwrap();
+
+    (*main_scene).clone()
 }
