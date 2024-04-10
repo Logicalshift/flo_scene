@@ -23,6 +23,7 @@ use std::collections::{HashSet};
 /// A scene represents a set of running co-programs, creating a larger self-contained piece of
 /// software out of a set of smaller pieces of software that communicate via streams.
 ///
+#[derive(Clone)]
 pub struct Scene {
     core: Arc<Mutex<SceneCore>>,
 }
