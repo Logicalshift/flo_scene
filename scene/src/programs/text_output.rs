@@ -8,8 +8,8 @@ use std::io::*;
 
 #[cfg(feature="serde_support")] use serde::*;
 
-pub static STDOUT_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("STDOUT_PROGRAM"));
-pub static STDERR_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("STDERR_PROGRAM"));
+pub static STDOUT_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("STDOUT_PROGRAM");
+pub static STDERR_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("STDERR_PROGRAM");
 static ERROR_TO_TEXT_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<ErrorOutput>| stream.map(|err| TextOutput::from(err))));
 
 ///

@@ -1,6 +1,7 @@
 use uuid::{Uuid};
-use once_cell::sync::{Lazy};
+use once_cell::sync::{OnceCell, Lazy};
 
+use std::ops::{Deref};
 use std::collections::*;
 use std::sync::*;
 
@@ -50,6 +51,11 @@ enum SubProgramIdValue {
     Guid(Uuid),
 }
 
+///
+/// A static subprogram ID can be used to declare a subprogram ID in a static variable
+///
+pub struct StaticSubProgramId(&'static str, OnceCell<SubProgramId>);
+
 impl SubProgramId {
     ///
     /// Creates a new unique subprogram id
@@ -66,5 +72,29 @@ impl SubProgramId {
     #[inline]
     pub fn called(name: &str) -> SubProgramId {
         SubProgramId(SubProgramIdValue::Named(id_for_name(name)))
+    }
+}
+
+impl StaticSubProgramId {
+    ///
+    /// Creates a subprogram ID with a well-known name
+    ///
+    #[inline]
+    pub const fn called(name: &'static str) -> StaticSubProgramId {
+        StaticSubProgramId(name, OnceCell::new())
+    }
+}
+
+impl Deref for StaticSubProgramId {
+    type Target = SubProgramId;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.1.get()
+            .unwrap_or_else(|| {
+                let subprogram = SubProgramId::called(self.0);
+                self.1.set(subprogram).ok();
+                self.1.get().unwrap()
+            })
     }
 }

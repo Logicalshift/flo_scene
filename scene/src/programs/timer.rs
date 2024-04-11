@@ -5,7 +5,6 @@ use futures::{pin_mut};
 use futures::future::{poll_fn, BoxFuture};
 use futures::task::{Poll, Waker};
 use futures_timer::{Delay};
-use once_cell::sync::{Lazy};
 
 use std::collections::{VecDeque};
 use std::sync::*;
@@ -13,7 +12,7 @@ use std::time::{Instant, Duration};
 
 #[cfg(feature="serde_support")] use serde::*;
 
-pub static TIMER_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("TIMER_PROGRAM"));
+pub static TIMER_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("TIMER_PROGRAM");
 
 ///
 /// The timer program can be used to sent one-off or recurring timer events

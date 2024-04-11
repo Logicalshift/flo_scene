@@ -5,7 +5,6 @@ use futures::prelude::*;
 use futures::channel::mpsc;
 use futures::executor;
 use futures::{pin_mut};
-use once_cell::sync::{Lazy};
 
 use std::str;
 use std::thread;
@@ -13,7 +12,7 @@ use std::io::{BufRead};
 
 #[cfg(feature="serde_support")] use serde::*;
 
-pub static STDIN_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("STDIN_PROGRAM"));
+pub static STDIN_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("STDIN_PROGRAM");
 
 ///
 /// Text input programs read from an input stream and sends `TextInputResult` messages to a target program

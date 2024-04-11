@@ -15,14 +15,13 @@ use futures::prelude::*;
 use futures::future::{poll_fn};
 use futures::channel::oneshot;
 use futures::{pin_mut};
-use once_cell::sync::{Lazy};
 
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::sync::*;
 
 /// The identifier for the standard scene control program
-pub static SCENE_CONTROL_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("SCENE_CONTROL_PROGRAM"));
+pub static SCENE_CONTROL_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("SCENE_CONTROL_PROGRAM");
 
 ///
 /// Represents a program start function

@@ -3,14 +3,13 @@ use crate::input_stream::*;
 use crate::scene_context::*;
 
 use futures::prelude::*;
-use once_cell::sync::{Lazy};
 
 ///
 /// The outside scene program is a program that relays messages generated from a stream outside of a scene: it doesn't do anything directly itself
 ///
 /// This program is used as the source when `Scene::send_to_scene()` is used to send messages to the scene from outside.
 ///
-pub static OUTSIDE_SCENE_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("OUTSIDE_SCENE_PROGRAM"));
+pub static OUTSIDE_SCENE_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("OUTSIDE_SCENE_PROGRAM");
 
 ///
 /// Runs the outside scene program

@@ -6,8 +6,6 @@ use futures::future;
 use futures::stream;
 use futures::channel::mpsc;
 
-use once_cell::sync::{Lazy};
-
 use std::collections::{HashMap};
 
 #[cfg(feature="serde_support")] use serde::*;
@@ -15,7 +13,7 @@ use std::collections::{HashMap};
 ///
 /// ID of the program that sends idle notifications by default
 ///
-pub static IDLE_NOTIFICATION_PROGRAM: Lazy<SubProgramId> = Lazy::new(|| SubProgramId::called("IDLE_REQUEST"));
+pub static IDLE_NOTIFICATION_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("IDLE_REQUEST");
 
 ///
 /// Idle requests are a way to request a callback that is made when the scene is next idle
