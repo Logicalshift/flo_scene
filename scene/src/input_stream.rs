@@ -281,6 +281,13 @@ impl<TMessage> InputStreamCore<TMessage> {
     }
 
     ///
+    /// True if this input core has been closed
+    ///
+    pub (crate) fn is_closed(&self) -> bool {
+        self.closed
+    }
+
+    ///
     /// True if this input stream is blocked and shouldn't accept any more messages
     ///
     pub (crate) fn is_blocked(&self) -> bool {

@@ -143,6 +143,29 @@ impl<TMessage> OutputSink<TMessage> {
     }
 
     ///
+    /// Returns true if this output sink is still attached to a target program
+    ///
+    pub fn is_attached(&self) -> bool {
+        // Retrieve the input core. If it's 'discard' or 'disconnected' this counts as attached (both cases can deliver a message)
+        let maybe_input_core = match &self.core.lock().unwrap().target {
+            OutputSinkTarget::Discard                   => { return true; },
+            OutputSinkTarget::Disconnected              => { return true; },
+            OutputSinkTarget::Input(input)              |
+            OutputSinkTarget::CloseWhenDropped(input)   => input.upgrade()
+        };
+
+        if let Some(input_core) = maybe_input_core {
+            // We're connected provided that the input core is not closed
+            let input_core = input_core.lock().unwrap();
+
+            !input_core.is_closed()
+        } else {
+            // The input core has been freed, so this is not attached
+            false
+        }
+    }
+
+    ///
     /// Sends a message in immediate mode
     ///
     /// If the target input stream supports thread stealing, this may dispatch the message by running that program
