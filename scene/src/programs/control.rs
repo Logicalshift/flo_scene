@@ -10,6 +10,7 @@ use crate::stream_target::*;
 use crate::subprogram_id::*;
 
 use super::idle_request::*;
+use super::EventSubscribers;
 
 use futures::prelude::*;
 use futures::future::{poll_fn};
@@ -196,7 +197,9 @@ impl SceneControl {
     pub (crate) async fn scene_control_program(input: InputStream<Self>, context: SceneContext) {
         // Most of the scene control program's functionality is performed by manipulating the scene core directly
         let scene_core  = context.scene_core();
-        let mut updates = context.send::<SceneUpdate>(StreamTarget::None).unwrap();
+        let mut updates = EventSubscribers::new();
+
+        updates.add_target(context.send::<SceneUpdate>(StreamTarget::None).unwrap());
 
         // The program runs until the input is exhausted
         let mut input = input;
@@ -221,7 +224,7 @@ impl SceneControl {
                         match SceneCore::connect_programs(&scene_core, source.clone(), target.clone(), stream.clone()) {
                             Ok(())      => { }
                             Err(error)  => {
-                                updates.send(SceneUpdate::FailedConnection(error, source, target, stream)).await.ok();
+                                updates.send(SceneUpdate::FailedConnection(error, source, target, stream)).await;
                             }
                         }
                     } else {
