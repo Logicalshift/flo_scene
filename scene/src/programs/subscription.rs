@@ -22,7 +22,7 @@ where
     TEventMessage: Clone + SceneMessage,
 {
     /// The output sinks that will receive the events from this subprogram
-    receivers: Vec<(SubProgramId, OutputSink<TEventMessage>)>
+    receivers: Vec<(Option<SubProgramId>, OutputSink<TEventMessage>)>
 }
 
 impl<TEventMessage> EventSubscribers<TEventMessage>
@@ -41,7 +41,7 @@ where
     ///
     /// Subscribes a subprogram to the events sent by this object
     ///
-    pub fn subscribe(&mut self, program: SubProgramId, context: &SceneContext) {
+    pub fn subscribe(&mut self, context: &SceneContext, program: SubProgramId) {
         // Remove any subscriber that's no longer attached to a target
         self.receivers.retain(|(_, sink)| sink.is_attached());
 
@@ -49,7 +49,14 @@ where
         let output_sink = context.send(program);
         let output_sink = if let Ok(output_sink) = output_sink { output_sink } else { return; };
 
-        self.receivers.push((program, output_sink));
+        self.receivers.push((Some(program), output_sink));
+    }
+
+    ///
+    /// Removes the subscription for a particular program ID from the event subscriber list
+    ///
+    pub fn unsubscribe(&mut self, program: SubProgramId) {
+        self.receivers.retain(|(program_id, _)| program_id != &Some(program));
     }
 
     ///
