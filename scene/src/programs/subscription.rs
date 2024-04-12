@@ -53,6 +53,15 @@ where
     }
 
     ///
+    /// Adds a target output sink to the list of subscribers for this object
+    ///
+    /// This sink cannot be unsubscribed from the events, but this can be used to send to other streams where the target is not identified by a subprogram ID
+    ///
+    pub fn add_target(&mut self, output_sink: OutputSink<TEventMessage>) {
+        self.receivers.push((None, output_sink))
+    }
+
+    ///
     /// Removes the subscription for a particular program ID from the event subscriber list
     ///
     pub fn unsubscribe(&mut self, program: SubProgramId) {
