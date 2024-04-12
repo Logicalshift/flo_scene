@@ -42,6 +42,9 @@ where
     /// Subscribes a subprogram to the events sent by this object
     ///
     pub fn subscribe(&mut self, program: SubProgramId, context: &SceneContext) {
+        // Remove any subscriber that's no longer attached to a target
+        self.receivers.retain(|(_, sink)| sink.is_attached());
+
         // If we can successfully connect to the target, then send events there
         let output_sink = context.send(program);
         let output_sink = if let Ok(output_sink) = output_sink { output_sink } else { return; };
@@ -55,6 +58,9 @@ where
     /// Returns true if the message is sent to at least one subscriber, or false if there are no subscribers
     ///
     pub async fn send(&mut self, message: TEventMessage) -> bool {
+        // Remove any subscriber that's no longer attached to a target
+        self.receivers.retain(|(_, sink)| sink.is_attached());
+
         // Send to all of the streams at once
         let senders = self.receivers.iter_mut()
             .enumerate()
