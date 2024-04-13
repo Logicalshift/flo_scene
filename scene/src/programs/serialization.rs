@@ -40,6 +40,7 @@ where
 /// # #[derive(Serialize)]
 /// # enum TestMessage { Test }
 /// # impl SceneMessage for TestMessage { }
+/// #
 /// let serialize_filter = serializer_filter::<TestMessage, _, _>(|| serde_json::value::Serializer, |stream| stream);
 /// ```
 ///
@@ -51,11 +52,11 @@ where
     TTargetStream:          'static + Send + Stream,
     TTargetStream::Item:    'static + SceneMessage,
 {
-    // Create a serializer
     let serializer  = Arc::new(serializer);
     let type_id     = TypeId::of::<TMessageType>();
 
-    // 
+    // The filter creates a serializer per message, then passes the stream through the `map_stream` function to generate the final message type
+    // map_stream is here because otherwise it's quite hard to accept serialized messages along with other types as we can't combine filters
     FilterHandle::for_filter(move |message_stream: InputStream<TMessageType>| {
         let serializer = serializer.clone();
 
