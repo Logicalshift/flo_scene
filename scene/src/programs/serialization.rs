@@ -27,6 +27,8 @@ where
 ///
 /// Creates a filter that will serialize a message of the specified type
 ///
+/// If a message generates an error when serialized, this will ignore it.
+///
 /// The filter generated here will create `SerializedMessage` messages, mapped to a final output type via the map_stream message. This example
 /// leaves the message as a 'SerializedMessage':
 ///
@@ -72,5 +74,51 @@ where
             .boxed();
 
         map_stream(serialized_stream)
+    })
+}
+
+///
+/// Creates a filter that can be used to deserialize incoming messages of a particular type
+///
+/// The mapping stream can be used to further change the message type if neeeded.
+///
+/// If a message has the wrong type ID attached to it, or generates an error when deserializing, this will ignore it.
+///
+/// ```
+/// # use flo_scene::*;
+/// # use flo_scene::programs::*;
+/// #
+/// # use serde::*;
+/// # use serde_json;
+/// #
+/// # #[derive(Serialize, Deserialize)]
+/// # enum TestMessage { Test }
+/// # impl SceneMessage for TestMessage { }
+/// #
+/// let deserialize_filter = deserializer_filter::<TestMessage, serde_json::Value, _>(|stream| stream);
+/// ```
+///
+pub fn deserializer_filter<TMessageType, TSerializedValue, TTargetStream>(map_stream: impl 'static + Send + Sync + Fn(BoxStream<'static, TMessageType>) -> TTargetStream) -> FilterHandle
+where
+    TMessageType:           'static + SceneMessage + for<'a> Deserialize<'a>,
+    TSerializedValue:       'static + Send + Unpin + for<'a> Deserializer<'a>,
+    TTargetStream:          'static + Send + Stream,
+    TTargetStream::Item:    'static + SceneMessage,
+{
+    let type_id     = TypeId::of::<TMessageType>();
+
+    FilterHandle::for_filter(move |message_stream: InputStream<SerializedMessage<TSerializedValue>>| {
+        let deserialized_stream = message_stream
+            .map(move |SerializedMessage(message_value, message_type)| {
+                if message_type != type_id {
+                    stream::iter(None)
+                } else {
+                    stream::iter(TMessageType::deserialize(message_value).ok())
+                }
+            })
+            .flatten()
+            .boxed();
+
+        map_stream(deserialized_stream)
     })
 }
