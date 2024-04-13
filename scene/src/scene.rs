@@ -151,12 +151,17 @@ impl Scene {
     ///
     /// ```
     /// #   use flo_scene::*;
+    /// #   use futures::prelude::*;
+    /// #
     /// #   enum ExampleMessage { Test };
     /// #   impl SceneMessage for ExampleMessage { }
+    /// #   enum FilteredMessage { Test };
+    /// #   impl SceneMessage for FilteredMessage { }
     /// #   let scene           = Scene::empty();
     /// #   let subprogram      = SubProgramId::new();
     /// #   let source_program  = SubProgramId::new();
     /// #   let other_program   = SubProgramId::new();
+    /// #   let example_filter  = FilterHandle::for_filter(|input_stream: InputStream<FilteredMessage>| input_stream.map(|_| ExampleMessage::Test));
     /// #
     /// // Connect all the 'ExampleMessage' streams to one program
     /// scene.connect_programs((), &subprogram, StreamId::with_message_type::<ExampleMessage>());
@@ -169,6 +174,9 @@ impl Scene {
     ///
     /// // When 'source_program' tries to connect directly to 'subprogram', send its output to 'other_program' instead
     /// scene.connect_programs(&source_program, &other_program, StreamId::with_message_type::<ExampleMessage>().for_target(&subprogram));
+    ///
+    /// // Use a filter to accept a different incoming message type for a target program
+    /// scene.connect_programs((), StreamTarget::Filtered(example_filter, other_program), StreamId::with_message_type::<FilteredMessage>().for_target(&subprogram));
     /// ```
     ///
     pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ConnectionError> {
