@@ -136,13 +136,6 @@ impl<TMessage> OutputSink<TMessage> {
     }
 
     ///
-    /// Retrieves the core of this output snk
-    ///
-    pub (crate) fn core(&self) -> Arc<Mutex<OutputSinkCore<TMessage>>> {
-        Arc::clone(&self.core)
-    }
-
-    ///
     /// Returns true if this output sink is still attached to a target program
     ///
     pub fn is_attached(&self) -> bool {
