@@ -15,6 +15,7 @@ use super::EventSubscribers;
 use futures::prelude::*;
 use futures::future::{poll_fn};
 use futures::channel::oneshot;
+use futures::stream;
 use futures::{pin_mut};
 
 use std::fmt;
@@ -196,18 +197,28 @@ impl SceneControl {
     ///
     pub (crate) async fn scene_control_program(input: InputStream<Self>, context: SceneContext, updates: InputStream<SceneUpdate>) {
         // Most of the scene control program's functionality is performed by manipulating the scene core directly
-        let scene_core  = context.scene_core();
-        let mut updates = EventSubscribers::new();
+        let scene_core              = context.scene_core();
+        let mut update_subscribers  = EventSubscribers::new();
 
-        updates.add_target(context.send::<SceneUpdate>(StreamTarget::None).unwrap());
+        update_subscribers.add_target(context.send::<SceneUpdate>(StreamTarget::None).unwrap());
+
+        // We read from the update stream and the input stream at the same time
+        enum ControlInput {
+            Control(SceneControl),
+            Update(SceneUpdate),
+        }
+
+        let input   = input.map(|input| ControlInput::Control(input));
+        let updates = updates.map(|update| ControlInput::Update(update));
 
         // The program runs until the input is exhausted
-        let mut input = input;
+        let mut input = stream::select(input, updates);
         while let Some(request) = input.next().await {
             use SceneControl::*;
+            use ControlInput::*;
 
             match request {
-                Start(_program_id, start_fn) => {
+                Control(Start(_program_id, start_fn)) => {
                     // Downcast the start function and call it
                     if let Some(scene_core) = scene_core.upgrade() {
                         let start_fn = start_fn.0;
@@ -218,13 +229,13 @@ impl SceneControl {
                     }
                 },
 
-                Connect(source, target, stream) => {
+                Control(Connect(source, target, stream)) => {
                     if let Some(scene_core) = scene_core.upgrade() {
                         // Try to connect the program and send an update if the sending failed
                         match SceneCore::connect_programs(&scene_core, source.clone(), target.clone(), stream.clone()) {
                             Ok(())      => { }
                             Err(error)  => {
-                                updates.send(SceneUpdate::FailedConnection(error, source, target, stream)).await;
+                                update_subscribers.send(SceneUpdate::FailedConnection(error, source, target, stream)).await;
                             }
                         }
                     } else {
@@ -232,7 +243,7 @@ impl SceneControl {
                     }
                 },
 
-                Close(sub_program_id) => {
+                Control(Close(sub_program_id)) => {
                     // Try to close the input stream for a subprogram
                     if let Some(scene_core) = scene_core.upgrade() {
                         let waker = {
@@ -254,7 +265,7 @@ impl SceneControl {
                     }
                 },
 
-                StopSceneWhenIdle => {
+                Control(StopSceneWhenIdle) => {
                     // Start a new subprogram that requests an idle notification, then relays the 'stop' message back to us
                     let idle_program    = SubProgramId::new();
                     let scene_control   = context.current_program_id().unwrap();
@@ -279,7 +290,7 @@ impl SceneControl {
                     }
                 },
 
-                StopScene => {
+                Control(StopScene) => {
                     if let Some(scene_core) = scene_core.upgrade() {
                         // Tell the core to stop (note: awaits won't return at this point!)
                         let wakers = scene_core.lock().unwrap().stop();
@@ -288,6 +299,10 @@ impl SceneControl {
                         wakers.into_iter().for_each(|waker| waker.wake());
                     }
                 },
+
+                Update(update) => {
+                    update_subscribers.send(update).await;
+                }
             }
         }
     }
