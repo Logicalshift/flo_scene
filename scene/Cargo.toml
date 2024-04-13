@@ -19,3 +19,6 @@ futures         = "0.3"
 futures-timer   = "3.0"
 uuid            = { version = "1.0", features = [ "v4" ] }
 serde           = { version = "1.0", features = [ "derive" ], optional = true }
+
+[dev-dependencies]
+serde_json      = { version = "1.0" }

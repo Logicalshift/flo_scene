@@ -15,3 +15,9 @@ pub use idle_request::*;
 pub use timer::*;
 pub use test::*;
 pub use subscription::*;
+
+#[cfg(feature = "serde_support")]
+mod serialization;
+
+#[cfg(feature = "serde_support")]
+pub use serialization::*;
