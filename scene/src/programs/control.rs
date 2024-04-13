@@ -73,6 +73,11 @@ pub enum SceneControl {
     /// to shut down the scene when all the in progress messages have been completed.
     ///
     StopScene,
+
+    ///
+    /// Indicates that the sender wants to subscribe to the updates from this stream
+    ///
+    Subscribe,
 }
 
 ///
@@ -159,7 +164,7 @@ impl Debug for SceneProgramFn {
 
 impl SceneMessage for SceneControl { 
     fn default_target() -> StreamTarget {
-        // Send to the main control program by default
+        // Send control messages to the main control program by default
         (*SCENE_CONTROL_PROGRAM).into()
     }
 }
@@ -204,11 +209,11 @@ impl SceneControl {
 
         // We read from the update stream and the input stream at the same time
         enum ControlInput {
-            Control(SceneControl),
+            Control(SubProgramId, SceneControl),
             Update(SceneUpdate),
         }
 
-        let input   = input.map(|input| ControlInput::Control(input));
+        let input   = input.messages_with_sources().map(|(source, input)| ControlInput::Control(source, input));
         let updates = updates.map(|update| ControlInput::Update(update));
 
         // The program runs until the input is exhausted
@@ -218,7 +223,7 @@ impl SceneControl {
             use ControlInput::*;
 
             match request {
-                Control(Start(_program_id, start_fn)) => {
+                Control(_, Start(_program_id, start_fn)) => {
                     // Downcast the start function and call it
                     if let Some(scene_core) = scene_core.upgrade() {
                         let start_fn = start_fn.0;
@@ -229,7 +234,7 @@ impl SceneControl {
                     }
                 },
 
-                Control(Connect(source, target, stream)) => {
+                Control(_, Connect(source, target, stream)) => {
                     if let Some(scene_core) = scene_core.upgrade() {
                         // Try to connect the program and send an update if the sending failed
                         match SceneCore::connect_programs(&scene_core, source.clone(), target.clone(), stream.clone()) {
@@ -243,7 +248,7 @@ impl SceneControl {
                     }
                 },
 
-                Control(Close(sub_program_id)) => {
+                Control(_, Close(sub_program_id)) => {
                     // Try to close the input stream for a subprogram
                     if let Some(scene_core) = scene_core.upgrade() {
                         let waker = {
@@ -265,7 +270,7 @@ impl SceneControl {
                     }
                 },
 
-                Control(StopSceneWhenIdle) => {
+                Control(_, StopSceneWhenIdle) => {
                     // Start a new subprogram that requests an idle notification, then relays the 'stop' message back to us
                     let idle_program    = SubProgramId::new();
                     let scene_control   = context.current_program_id().unwrap();
@@ -290,7 +295,7 @@ impl SceneControl {
                     }
                 },
 
-                Control(StopScene) => {
+                Control(_, StopScene) => {
                     if let Some(scene_core) = scene_core.upgrade() {
                         // Tell the core to stop (note: awaits won't return at this point!)
                         let wakers = scene_core.lock().unwrap().stop();
@@ -298,6 +303,10 @@ impl SceneControl {
                         // Wake all the threads so they stop the core
                         wakers.into_iter().for_each(|waker| waker.wake());
                     }
+                },
+
+                Control(target, Subscribe) => {
+                    update_subscribers.subscribe(&context, target);
                 },
 
                 Update(update) => {
