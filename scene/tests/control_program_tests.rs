@@ -271,3 +271,84 @@ fn scene_update_messages() {
     assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Connected(src, tgt, _strm) => *src == program_2 && *tgt == program_1, _ => false }).count() == 1,
         "Program 2 connected the wrong number of times to program 1");
 }
+
+#[test]
+fn scene_update_messages_using_subscription() {
+    // Create a scene with two subprograms. Program_1 will send to Program_2
+    let scene       = Scene::default();
+    let program_1   = SubProgramId::new();
+    let program_2   = SubProgramId::new();
+
+    // Create a program to monitor the updates for the scene
+    let update_monitor  = SubProgramId::new();
+    let recv_updates    = Arc::new(Mutex::new(vec![]));
+    let send_updates    = recv_updates.clone();
+    scene.add_subprogram(update_monitor,
+        move |mut input: InputStream<SceneUpdate>, context| async move {
+            let mut program_1_finished = false;
+            let mut program_2_finished = false;
+
+            context.send_message(SceneControl::Subscribe).await.unwrap();
+
+            while let Some(input) = input.next().await {
+                println!("--> {:?}", input);
+
+                match &input {
+                    SceneUpdate::Stopped(stopped_program) => {
+                        if *stopped_program == program_1 { program_1_finished = true; }
+                        if *stopped_program == program_2 { program_2_finished = true; }
+                    }
+
+                    _ => {}
+                }
+
+                send_updates.lock().unwrap().push(input);
+
+                if program_1_finished && program_2_finished {
+                    break;
+                }
+            }
+
+            // Stop the scene once the two test programs are finished
+            scene_context().unwrap().send_message(SceneControl::StopScene).await.unwrap();
+        },
+        0);
+
+    // program_1 reads from its input and sets it in sent_message
+    scene.add_subprogram(program_1,
+        move |mut input: InputStream<usize>, _| async move {
+            // Read a single message and write it to the 'sent_message' structure
+            input.next().await.unwrap();
+        },
+        0);
+
+    // program_2 sends a message to program_1 directly (by requesting a stream for program_1)
+    scene.add_subprogram(program_2,
+        move |_: InputStream<()>, context| async move {
+            let mut send_usize = context.send::<usize>(program_1).unwrap();
+            send_usize.send(42).await.unwrap();
+        },
+        0);
+
+    // Run this scene
+    let mut has_finished = false;
+    executor::block_on(select(async {
+        scene.run_scene().await;
+        has_finished = true;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Check that the updates we expected are generated for this program
+    let recv_updates = recv_updates.lock().unwrap().drain(..).collect::<Vec<_>>();
+    assert!(has_finished, "Scene did not terminate properly");
+
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id) => *prog_id == program_1, _ => false }).count() == 1,
+        "Program 1 started more than once or didn't start");
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id) => *prog_id == program_2, _ => false }).count() == 1,
+        "Program 2 started more than once or didn't start");
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Stopped(prog_id) => *prog_id == program_1, _ => false }).count() == 1,
+        "Program 1 stopped more than once or didn't start");
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Stopped(prog_id) => *prog_id == program_2, _ => false }).count() == 1,
+        "Program 2 stopped more than once or didn't start");
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Connected(src, tgt, _strm) => *src == program_2 && *tgt == program_1, _ => false }).count() == 1,
+        "Program 2 connected the wrong number of times to program 1");
+}

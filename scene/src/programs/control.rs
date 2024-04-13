@@ -1,4 +1,5 @@
 use crate::error::*;
+use crate::filter::*;
 use crate::input_stream::*;
 use crate::scene_context::*;
 use crate::scene::*;
@@ -10,7 +11,7 @@ use crate::stream_target::*;
 use crate::subprogram_id::*;
 
 use super::idle_request::*;
-use super::EventSubscribers;
+use super::subscription::*;
 
 use futures::prelude::*;
 use futures::future::{poll_fn};
@@ -18,12 +19,17 @@ use futures::channel::oneshot;
 use futures::stream;
 use futures::{pin_mut};
 
+use once_cell::sync::{Lazy};
+
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::sync::*;
 
 /// The identifier for the standard scene control program
 pub static SCENE_CONTROL_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("SCENE_CONTROL_PROGRAM");
+
+/// Filter that maps the 'Subscribe' message to a SceneControl message
+static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe>| stream.map(|_| SceneControl::Subscribe)));
 
 ///
 /// Represents a program start function
@@ -166,6 +172,10 @@ impl SceneMessage for SceneControl {
     fn default_target() -> StreamTarget {
         // Send control messages to the main control program by default
         (*SCENE_CONTROL_PROGRAM).into()
+    }
+
+    fn initialise(scene: &Scene) {
+        scene.connect_programs((), StreamTarget::Filtered(*SCENE_CONTROL_SUBSCRIBE_FILTER, *SCENE_CONTROL_PROGRAM), StreamId::with_message_type::<Subscribe>()).ok();
     }
 }
 
