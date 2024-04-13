@@ -194,7 +194,7 @@ impl SceneControl {
     ///
     /// Runs the scene control program
     ///
-    pub (crate) async fn scene_control_program(input: InputStream<Self>, context: SceneContext) {
+    pub (crate) async fn scene_control_program(input: InputStream<Self>, context: SceneContext, updates: InputStream<SceneUpdate>) {
         // Most of the scene control program's functionality is performed by manipulating the scene core directly
         let scene_core  = context.scene_core();
         let mut updates = EventSubscribers::new();

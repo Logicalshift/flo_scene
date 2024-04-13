@@ -63,8 +63,9 @@ impl Scene {
         let programs    = programs.into_iter().collect::<HashSet<_>>();
 
         if programs.contains(&*SCENE_CONTROL_PROGRAM) {
-            scene.add_subprogram(*SCENE_CONTROL_PROGRAM, SceneControl::scene_control_program, 0);
-            SceneCore::set_scene_update_from(&scene.core, *SCENE_CONTROL_PROGRAM);
+            let control_updates = SceneCore::send_updates_to_stream(&scene.core, *SCENE_CONTROL_PROGRAM);
+
+            scene.add_subprogram(*SCENE_CONTROL_PROGRAM, move |input, context| SceneControl::scene_control_program(input, context, control_updates), 0);
         }
         if programs.contains(&*OUTSIDE_SCENE_PROGRAM)       { scene.add_subprogram(*OUTSIDE_SCENE_PROGRAM, outside_scene_program, 0); }
 

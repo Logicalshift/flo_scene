@@ -237,6 +237,24 @@ impl SceneCore {
     }
 
     ///
+    /// Creates a 'stream update' input stream that is independent of any running program
+    ///
+    /// This can be read from as a secondary input stream for the control program
+    ///
+    pub (crate) fn send_updates_to_stream(core: &Arc<Mutex<SceneCore>>, fake_program_id: SubProgramId) -> InputStream<SceneUpdate> {
+        // Create a new input stream with a fake program ID
+        let input_stream    = InputStream::new(fake_program_id, core, 0);
+        let output_stream   = OutputSinkCore::new(OutputSinkTarget::Input(Arc::downgrade(&input_stream.core())));
+        let output_stream   = Arc::new(Mutex::new(output_stream));
+
+        // Set the output to send to this stream
+        core.lock().unwrap().set_update_core(fake_program_id, output_stream);
+
+        // Return this stream so it can be read from
+        input_stream
+    }
+
+    ///
     /// Creates the 'scene update' stream for a particular program
     ///
     pub (crate) fn set_scene_update_from(core: &Arc<Mutex<SceneCore>>, source: SubProgramId) {
