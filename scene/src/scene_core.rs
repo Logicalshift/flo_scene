@@ -5,7 +5,6 @@ use crate::input_stream::*;
 use crate::process_core::*;
 use crate::programs::*;
 use crate::scene::*;
-use crate::scene_context::*;
 use crate::scene_message::*;
 use crate::stream_id::*;
 use crate::stream_source::*;
@@ -252,35 +251,6 @@ impl SceneCore {
 
         // Return this stream so it can be read from
         input_stream
-    }
-
-    ///
-    /// Creates the 'scene update' stream for a particular program
-    ///
-    pub (crate) fn set_scene_update_from(core: &Arc<Mutex<SceneCore>>, source: SubProgramId) {
-        // Get the subprogram for the stream
-        let subprogram = {
-            let core                = core.lock().unwrap();
-            let subprogram_handle   = core.program_indexes.get(&source).copied();
-
-            if let Some(subprogram_handle) = subprogram_handle {
-                if let Some(subprogram) = core.sub_programs.get(subprogram_handle) {
-                    subprogram.as_ref().cloned()
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        };
-
-        if let Some(subprogram) = subprogram {
-            // Create a context for that subprogram
-            let context     = SceneContext::new(core, &subprogram);
-            let update_sink = context.send::<SceneUpdate>(StreamTarget::None).unwrap();
-
-            core.lock().unwrap().set_update_core(source, update_sink.core());
-        }
     }
 
     ///
