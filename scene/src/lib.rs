@@ -199,3 +199,9 @@ pub use output_sink::*;
 pub use filter::*;
 pub use scene_message::*;
 pub use error::{ConnectionError, SceneSendError};
+
+#[cfg(feature = "serde_support")]
+mod serialization;
+
+#[cfg(feature = "serde_support")]
+pub use serialization::*;
