@@ -144,7 +144,7 @@ impl Scene {
     /// call connects it.
     ///
     /// The stream ID specifies which of the streams belonging to the target should be connected: this is usually the `MessageType`
-    /// identfier, which will connect a stream that produces data of a known type, but can also be used to redirect a stream that
+    /// identifier, which will connect a stream that produces data of a known type, but can also be used to redirect a stream that
     /// was going to a particular target.
     ///
     /// Examples:
