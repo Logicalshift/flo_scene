@@ -143,9 +143,9 @@ impl Scene {
     /// dropped with no further action. `StreamTarget::Any` is the default, and will result in the stream blocking until another
     /// call connects it.
     ///
-    /// The stream ID specifies which of the streams originating from the souce should be connected: this is usually the `MessageType`
-    /// identifier, which will connect a stream that produces data of a known type, but can also be used to redirect a stream that
-    /// was going to a particular target.
+    /// The stream ID specifies which of the streams originating from the souce should be connected. This can either be created
+    /// using `StreamId::with_message_type::<SomeMessage>()` to indicate all outgoing streams of that type, or 
+    /// `StreamId::for_target::<SomeMessage>(target)` to indicate an outgoing stream with a specific destination.
     ///
     /// Examples:
     ///
