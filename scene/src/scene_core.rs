@@ -67,6 +67,9 @@ pub (crate) struct SceneCore {
     /// The connections to assign between programs. More specific sources override less specific sources.
     connections: HashMap<(StreamSource, StreamId), StreamTarget>,
 
+    /// Filters that can convert between a output stream type and an input stream type
+    filter_conversions: HashMap<(StreamId, StreamId), FilterHandle>,
+
     /// True if this scene is stopped and shouldn't be run any more
     stopped: bool,
 
@@ -95,6 +98,7 @@ impl SceneCore {
             program_indexes:            HashMap::new(),
             awake_processes:            VecDeque::new(),
             connections:                HashMap::new(),
+            filter_conversions:         HashMap::new(),
             thread_wakers:              vec![],
             stopped:                    false,
             notify_when_idle:           false,
@@ -372,6 +376,17 @@ impl SceneCore {
                 })
             },
         };
+
+        // If the source is a filter source, then add to the list of available filter programs
+        if let StreamSource::Filtered(source_filter) = &source {
+            // Get the source and target streams IDs, with no target
+            let source_stream = source_filter.source_stream_id_any()?;
+            let target_stream = source_filter.target_stream_id_any()?;
+
+            // Store this filter handle as a possible conversion for a mismatched input
+            let mut core = core.lock().unwrap();
+            core.filter_conversions.insert((source_stream, target_stream), *source_filter);
+        }
 
         // TODO: pause the inputs of all the sub-programs matching the source, so the update is atomic?
         // TODO: if there's a filtered connection we really should wait for the filter program to stop before starting new input to avoid situations where some values can arrive out-of-order
