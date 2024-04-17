@@ -9,7 +9,7 @@ pub enum StreamSource {
     /// All sources of this type of stream
     All,
 
-    /// All sources of the input type of a filter (connecting to its output type)
+    /// Any source that can be transformed to the input of its target via the specified filter
     Filtered(FilterHandle),
 
     /// A stream of this type originating from a specific program
