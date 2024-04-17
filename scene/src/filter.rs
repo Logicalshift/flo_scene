@@ -23,6 +23,7 @@ static NEXT_FILTER_HANDLE:      AtomicUsize                                     
 static CREATE_INPUT_STREAM:     Lazy<RwLock<HashMap<FilterHandle, CreateInputStreamFn>>>    = Lazy::new(|| RwLock::new(HashMap::new()));
 static STREAM_ID_FOR_TARGET:    Lazy<RwLock<HashMap<FilterHandle, StreamIdForTargetFn>>>    = Lazy::new(|| RwLock::new(HashMap::new()));
 static SOURCE_STREAM_ID:        Lazy<RwLock<HashMap<FilterHandle, StreamId>>>               = Lazy::new(|| RwLock::new(HashMap::new()));
+static TARGET_STREAM_ID:        Lazy<RwLock<HashMap<FilterHandle, StreamId>>>               = Lazy::new(|| RwLock::new(HashMap::new()));
 
 ///
 /// A filter is a way to convert from a stream of one message type to another, and a filter
@@ -138,6 +139,7 @@ impl FilterHandle {
         mem::drop(stream_id_for_target);
 
         SOURCE_STREAM_ID.write().unwrap().insert(handle, StreamId::with_message_type::<TSourceMessage>());
+        TARGET_STREAM_ID.write().unwrap().insert(handle, StreamId::with_message_type::<TTargetStream::Item>());
 
         handle
     }
@@ -176,11 +178,21 @@ impl FilterHandle {
     ///
     /// Returns the stream ID for the source of this filter
     ///
-    pub (crate) fn source_stream_id(&self) -> Result<StreamId, ConnectionError> {
+    pub (crate) fn source_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
         let source_stream_id = SOURCE_STREAM_ID.read().unwrap();
         let source_stream_id = source_stream_id.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
 
         Ok(source_stream_id.clone())
+    }
+
+    ///
+    /// Returns the stream ID for the target of this filter
+    ///
+    pub (crate) fn target_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
+        let target_stream_id = TARGET_STREAM_ID.read().unwrap();
+        let target_stream_id = target_stream_id.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
+
+        Ok(target_stream_id.clone())
     }
 
     ///
