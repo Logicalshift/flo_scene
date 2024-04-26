@@ -520,6 +520,8 @@ impl SceneCore {
                             let target_program_handle   = core.program_indexes.get(&target_program_id).ok_or(ConnectionError::TargetNotInScene)?;
                             let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
                             let target_input_type       = core.sub_programs[*target_program_handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
+                            mem::drop(core);
+
                             let target_program_input    = target_program_input.1.downcast::<Mutex<InputStreamCore<TMessageType>>>()
                                 .map_err(move |_| ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type)))?;
 
@@ -575,6 +577,8 @@ impl SceneCore {
                     let target_program_handle   = core.program_indexes.get(&target_program_id).ok_or(ConnectionError::TargetNotInScene)?;
                     let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
                     let target_input_type       = core.sub_programs[*target_program_handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
+                    mem::drop(core);
+
                     let target_program_input    = target_program_input.1.downcast::<Mutex<InputStreamCore<TMessageType>>>()
                         .map_err(move |_| ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type)))?;
 
