@@ -502,7 +502,7 @@ fn filter_at_target() {
 }
 
 #[test]
-fn filter_one_at_source() {
+fn filter_target_using_source_filter() {
     // Create a standard scene
     let scene = Scene::default();
 
