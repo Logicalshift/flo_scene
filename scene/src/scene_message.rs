@@ -34,6 +34,7 @@ pub trait SceneMessage : Sized + Send + Unpin {
 }
 
 impl SceneMessage for () { }
+impl SceneMessage for &'static str { }
 impl SceneMessage for String { }
 impl SceneMessage for char { }
 impl SceneMessage for usize { }
