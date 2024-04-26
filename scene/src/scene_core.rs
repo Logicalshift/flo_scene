@@ -463,7 +463,10 @@ impl SceneCore {
     ///
     /// Checks for a filter that can map between a source output and a target input, and generates appropriate filtered input if one exists
     ///
-    pub (crate) fn filter_source_for_program(core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, source_id: StreamId, target_id: StreamId, target_program: SubProgramId) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
+    pub (crate) fn filter_source_for_program<TMessageType>(core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, source_id: &StreamId, target_id: &StreamId, target_program: SubProgramId) -> Result<Arc<Mutex<InputStreamCore<TMessageType>>>, ConnectionError>
+    where
+        TMessageType: 'static + SceneMessage,
+    {
         // Strip out any target program from the source and target
         let source_id = source_id.as_message_type();
         let target_id = target_id.as_message_type();
@@ -477,7 +480,9 @@ impl SceneCore {
         };
 
         if let Some(filter) = filter {
-            Self::filtered_input_for_program(core, source_program, filter, target_program)
+            let input_core = Self::filtered_input_for_program(core, source_program, filter, target_program)?;
+            input_core.downcast::<Mutex<InputStreamCore<TMessageType>>>()
+                .map_err(|_| ConnectionError::FilterInputDoesNotMatch)
         } else {
             Err(ConnectionError::WrongInputType(SourceStreamMessageType(source_id.message_type_name()), TargetInputMessageType(target_id.message_type_name())))
         }
