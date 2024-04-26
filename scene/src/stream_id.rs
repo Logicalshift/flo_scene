@@ -238,6 +238,18 @@ impl StreamId {
     }
 
     ///
+    /// Returns a stream ID that has no target program but is otherwise the same as the current stream
+    ///
+    pub fn as_message_type(&self) -> Self {
+        StreamId {
+            stream_id_type:         StreamIdType::MessageType,
+            message_type_name:      self.message_type_name,
+            message_type:           self.message_type,
+            input_stream_core_type: self.input_stream_core_type,
+        }
+    }
+
+    ///
     /// None if this stream ID is not for a specific target, otherwise the program ID of the target that this stream is for
     ///
     pub fn target_program(&self) -> Option<SubProgramId> {
