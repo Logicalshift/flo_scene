@@ -490,6 +490,8 @@ fn filter_at_target() {
             test_program.send(input).await.unwrap(); 
         }
     }, 0);
+
+    // message2_receiver_program accepts Message1 from any source as an input via a filter
     scene.connect_programs((), StreamTarget::Filtered(msg1_to_msg2, message2_receiver_program), StreamId::with_message_type::<Message1>()).unwrap();
 
     // Test program receives message2
@@ -540,6 +542,8 @@ fn filter_one_at_source() {
             test_program.send(input).await.unwrap(); 
         }
     }, 0);
+
+    // message2_receiver_program accepts Message1 from any source as an input via a filter
     scene.connect_programs(StreamSource::Filtered(msg1_to_msg2), message2_receiver_program, StreamId::with_message_type::<Message1>()).unwrap();
 
     // Test program receives message2
