@@ -315,6 +315,16 @@ impl SceneCore {
         // Make sure the target stream ID type  is initialised
         Self::initialise_message_type(core, stream_id.clone());
 
+        // Certain combinations of source and target can be expressed in a more 'standard' way
+        let (source, target) = match (source, target) {
+            (StreamSource::Filtered(filter), StreamTarget::Program(program)) => {
+                // Connecting a filter source to a program is the same as connecting anything to the filter
+                (StreamSource::All, StreamTarget::Filtered(filter, program))
+            },
+
+            (source, target) => (source, target),
+        };
+
         // Call finish_connecting_programs to generate the result
         let result = SceneCore::finish_connecting_programs(core, source.clone(), target.clone(), stream_id.clone());
 
