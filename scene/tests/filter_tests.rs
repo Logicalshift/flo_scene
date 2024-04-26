@@ -500,7 +500,57 @@ fn filter_at_target() {
 }
 
 #[test]
-fn filter_at_source() {
+fn filter_one_at_source() {
+    // Create a standard scene
+    let scene = Scene::default();
+
+    // The test program can pick up on a filter defined before it starts
+    #[derive(Debug, PartialEq)]
+    enum Message1 { Msg(String) }
+    #[derive(Debug, PartialEq)]
+    enum Message2 { Msg(String) }
+
+    impl SceneMessage for Message1 { }
+    impl SceneMessage for Message2 { }
+
+    let msg1_to_msg2 = FilterHandle::for_filter(|msg1: InputStream<Message1>| { msg1.map(|msg| match msg { Message1::Msg(val) => Message2::Msg(val) })});
+
+    // The IDs of the two programs involved
+    let message1_sender_program     = SubProgramId::new();
+    let message2_receiver_program   = SubProgramId::new();
+    let test_program                = SubProgramId::new();
+
+    // Create a program that generates 'message1' as an output
+    scene.add_subprogram(message1_sender_program, |_: InputStream<()>, context| async move {
+        let mut sender = context.send(()).unwrap();
+
+        println!("Sending 1...");
+        sender.send(Message1::Msg("Hello".to_string())).await.unwrap();
+        println!("Sending 2...");
+        sender.send(Message1::Msg("Goodbyte".to_string())).await.unwrap();
+        println!("Done");
+    }, 0);
+
+    // message2_receiver_program relays all of the messages to the test program
+    scene.add_subprogram(message2_receiver_program, |mut input: InputStream<Message2>, context| async move {
+        // We need an intermediate prorgam because the test program has its own set of filters. All this does is relay its message to the next program along.
+        let mut test_program = context.send(()).unwrap();
+
+        while let Some(input) = input.next().await { 
+            test_program.send(input).await.unwrap(); 
+        }
+    }, 0);
+    scene.connect_programs(StreamSource::Filtered(msg1_to_msg2), message2_receiver_program, StreamId::with_message_type::<Message1>()).unwrap();
+
+    // Test program receives message2
+    TestBuilder::new()
+        .expect_message(|msg2: Message2| if msg2 != Message2::Msg("Hello".to_string()) { Err(format!("Expected 'Hello'")) } else { Ok(()) })
+        .expect_message(|msg2: Message2| if msg2 != Message2::Msg("Goodbyte".to_string()) { Err(format!("Expected 'Goodbyte'")) } else { Ok(()) })
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+fn filter_all_at_source() {
     // Create a standard scene
     let scene = Scene::default();
 
