@@ -15,6 +15,7 @@ pub enum StreamTarget {
     /// Send the stream to the input of the specified program
     Program(SubProgramId),
 
+    // TODO: can be replaced by the 'filter source' with a program 
     /// Send the stream to a subprogram after running through a filter
     Filtered(FilterHandle, SubProgramId),
 }
