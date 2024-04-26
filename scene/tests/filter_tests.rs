@@ -9,6 +9,7 @@
 //!
 
 use flo_scene::*;
+use flo_scene::programs::*;
 
 use futures::prelude::*;
 use futures::future::{select};
@@ -446,4 +447,46 @@ fn disconnect_filter_target() {
     assert!(recv_messages == vec![1.to_string(), 2.to_string(), 5.to_string(), 6.to_string()], "Test program did not send correct numbers (sent {:?})", recv_messages);
     assert!(num_disconnects == 2, "Filtered stream was not dropped the expected number of times ({} != 2)", num_disconnects);
     assert!(has_finished, "Scene did not finish when the programs terminated");
+}
+
+#[test]
+fn filter_at_source() {
+    // Create a standard scene
+    let scene = Scene::default();
+
+    // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
+    enum Message1 { Msg(String) }
+    #[derive(PartialEq)]
+    enum Message2 { Msg(String) }
+
+    impl SceneMessage for Message1 { }
+    impl SceneMessage for Message2 { }
+
+    let msg1_to_msg2 = FilterHandle::for_filter(|msg1: InputStream<Message1>| { msg1.map(|msg| match msg { Message1::Msg(val) => Message2::Msg(val) })});
+
+    // For any stream that tries to connect to a program with an input stream of type 'Message2' using 'Message1', automatically use the filter we just defined
+    // Target filters will take priority
+    scene.connect_programs(msg1_to_msg2, (), StreamId::with_message_type::<Message1>()).unwrap();
+
+    // The IDs of the two programs involved
+    let message1_sender_program     = SubProgramId::new();
+    let message2_receiver_program   = SubProgramId::new();
+
+    // Create a program that generates 'message1' as an output
+    scene.add_subprogram(message1_sender_program, |_: InputStream<()>, context| async move {
+        let mut sender = context.send(()).unwrap();
+
+        sender.send(Message1::Msg("Hello".to_string())).await.unwrap();
+        sender.send(Message1::Msg("Goodbyte".to_string())).await.unwrap();
+    }, 0);
+
+    // message2_receiver_program should receive all messages of the target type. Temp subprogram here is replaced by the test later on
+    scene.add_subprogram(message2_receiver_program, |_: InputStream<Message2>, _| async { }, 0);
+    scene.connect_programs((), message2_receiver_program, StreamId::with_message_type::<Message2>()).unwrap();
+
+    // Test program receives message2
+    TestBuilder::new()
+        .expect_message(|msg2: Message2| if msg2 != Message2::Msg("Hello".to_string()) { Err(format!("Expected 'Hello'")) } else { Ok(()) })
+        .expect_message(|msg2: Message2| if msg2 != Message2::Msg("Goodbyte".to_string()) { Err(format!("Expected 'Goodbyte'")) } else { Ok(()) })
+        .run_in_scene(&scene, message2_receiver_program);
 }
