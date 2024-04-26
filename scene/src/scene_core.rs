@@ -461,6 +461,29 @@ impl SceneCore {
     }
 
     ///
+    /// Checks for a filter that can map between a source output and a target input, and generates appropriate filtered input if one exists
+    ///
+    pub (crate) fn filter_source_for_program(core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, source_id: StreamId, target_id: StreamId, target_program: SubProgramId) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
+        // Strip out any target program from the source and target
+        let source_id = source_id.as_message_type();
+        let target_id = target_id.as_message_type();
+
+        // Look up a filter corresponding to the source and target
+        let filter = {
+            let core    = core.lock().unwrap();
+            let filter  = core.filter_conversions.get(&(source_id.clone(), target_id.clone())).copied();
+
+            filter
+        };
+
+        if let Some(filter) = filter {
+            Self::filtered_input_for_program(core, source_program, filter, target_program)
+        } else {
+            Err(ConnectionError::WrongInputType(SourceStreamMessageType(source_id.message_type_name()), TargetInputMessageType(target_id.message_type_name())))
+        }
+    }
+
+    ///
     /// Returns the output sink target configured for a particular stream
     ///
     pub (crate) fn sink_for_target<TMessageType>(scene_core: &Arc<Mutex<SceneCore>>, source: &SubProgramId, target: StreamTarget) -> Result<OutputSinkTarget<TMessageType>, ConnectionError>
