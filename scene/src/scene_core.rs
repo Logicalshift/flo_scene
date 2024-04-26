@@ -524,14 +524,14 @@ impl SceneCore {
                             // Connect the stream to the input of a specific program
                             let target_program_handle   = core.program_indexes.get(&target_program_id).ok_or(ConnectionError::TargetNotInScene)?;
                             let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
-                            let target_input_type       = core.sub_programs[*target_program_handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
                             mem::drop(core);
 
                             let target_program_input    = target_program_input.1.downcast::<Mutex<InputStreamCore<TMessageType>>>()
-                                .map_err(move |_| ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type)))?;
+                                .or_else(|_| Self::filter_source_for_program::<TMessageType>(scene_core, *source, &StreamId::with_message_type::<TMessageType>(), &target_program_input.0, target_program_id))?;
 
                             Ok(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))
                         },
+
                         StreamTarget::Filtered(filter_handle, target_program_id) => {
                             // Create a stream that is processed through a filter (note that this creates a process that will need to be terminated by closing the input stream)
                             mem::drop(core);
@@ -564,7 +564,7 @@ impl SceneCore {
                             StreamTarget::Filtered(filter, program_id)  => Some((Some(*filter), *program_id)),
                             _                                           => None,
                         }
-                    })
+                    }) 
                     .unwrap_or((None, target_program_id));
 
                 if let Some(filter) = filter {
@@ -581,11 +581,10 @@ impl SceneCore {
                     // TODO: if the program hasn't started yet, we should create a disconnected stream and connect it later on
                     let target_program_handle   = core.program_indexes.get(&target_program_id).ok_or(ConnectionError::TargetNotInScene)?;
                     let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
-                    let target_input_type       = core.sub_programs[*target_program_handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
                     mem::drop(core);
 
                     let target_program_input    = target_program_input.1.downcast::<Mutex<InputStreamCore<TMessageType>>>()
-                        .map_err(move |_| ConnectionError::WrongInputType(SourceStreamMessageType(type_name::<TMessageType>().to_string()), TargetInputMessageType(target_input_type)))?;
+                        .or_else(|_| Self::filter_source_for_program::<TMessageType>(scene_core, *source, &StreamId::with_message_type::<TMessageType>(), &target_program_input.0, target_program_id))?;
 
                     Ok(OutputSinkTarget::Input(Arc::downgrade(&target_program_input)))
                 }
