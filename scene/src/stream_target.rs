@@ -15,8 +15,16 @@ pub enum StreamTarget {
     /// Send the stream to the input of the specified program
     Program(SubProgramId),
 
-    // TODO: can be replaced by the 'filter source' with a program 
     /// Send the stream to a subprogram after running through a filter
+    ///
+    /// Note that this cannot be combined with `StreamSource::Filtered()`. 
+    ///
+    /// When connecting this is the equivalent of using `StreamSource::Filtered(filter_handle)` with 
+    /// `StreamTarget::Program(program_id)`.
+    ///
+    /// This can be combined with `StreamSource::Program()` can filter only the output of a single
+    /// program. It is also useful as a target for the `StreamContext::send()` call for deliberately
+    /// filtering the output of an existing program.
     Filtered(FilterHandle, SubProgramId),
 }
 
