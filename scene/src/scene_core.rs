@@ -269,10 +269,17 @@ impl SceneCore {
         let target_input = self.sub_program_inputs[handle].as_ref().ok_or(ConnectionError::TargetNotAvailable)?;
 
         if (*target_input.1).type_id() != expected_message_type {
-            let stream_type     = stream_id.message_type_name();
-            let program_type    = self.sub_programs[handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
+            // The target doesn't have the expected message type. If there's a conversion filter, we can still return the target type
+            if self.filter_conversions.contains_key(&(stream_id.as_message_type(), target_input.0.as_message_type())) {
+                // The input stream doesn't match the output but there's a filter to convert between them available (only direct conversions are supported, so a chain of filters won't be followed)
+                Ok(Arc::clone(&target_input.1))
+            } else {
+                // Can't use this stream as it doesn't match stream_id
+                let stream_type     = stream_id.message_type_name();
+                let program_type    = self.sub_programs[handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
 
-            Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream_type), TargetInputMessageType(program_type)))
+                Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream_type), TargetInputMessageType(program_type)))
+            }
         } else {
             Ok(Arc::clone(&target_input.1))
         }
