@@ -664,21 +664,26 @@ impl SceneCore {
 
             StreamTarget::Filtered(filter_handle, target_program_id) => {
                 // The connections can define a redirect stream by using a StreamId target
-                let core                = scene_core.lock().unwrap();
-                let target_program_id   = core.connections.get(&(source.into(), StreamId::with_message_type::<TMessageType>().for_target(target_program_id)))
-                    .or_else(|| core.connections.get(&(StreamSource::All, StreamId::with_message_type::<TMessageType>().for_target(target_program_id))))
+                let core                                = scene_core.lock().unwrap();
+                let filter_output                       = filter_handle.target_stream_id_any()?;
+                let (target_filter, target_program_id)  = core.connections.get(&(source.into(), filter_output.for_target(target_program_id)))
+                    .or_else(|| core.connections.get(&(StreamSource::All, filter_output.for_target(target_program_id))))
                     .and_then(|target| {
                         match target {
-                            StreamTarget::Program(program_id)       => Some(*program_id),
-                            StreamTarget::Filtered(_, program_id)   => Some(*program_id),
-                            _                                       => None,
+                            StreamTarget::Program(program_id)           => Some((None, *program_id)),
+                            StreamTarget::Filtered(filter, program_id)  => Some((Some(*filter), *program_id)),
+                            _                                           => None,
                         }
                     })
-                    .unwrap_or(target_program_id);
+                    .unwrap_or((None, target_program_id));
 
                 // Create a stream that is processed through a filter (note that this creates a process that will need to be terminated by closing the input stream)
                 mem::drop(core);
-                let filtered_input_core = Self::filtered_input_for_program::<TMessageType>(scene_core, *source, filter_handle, target_program_id)?;
+                let filtered_input_core = if let Some(target_filter) = target_filter {
+                    todo!("Need to chain filters here")
+                } else {
+                    Self::filtered_input_for_program::<TMessageType>(scene_core, *source, filter_handle, target_program_id)?
+                };
 
                 Ok(OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core)))
             }
