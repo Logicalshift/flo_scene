@@ -500,35 +500,20 @@ impl SceneCore {
         TSourceMessageType: 'static + SceneMessage,
     {
         // Fetch the input core for the target program
-        let (target_stream_id, target_input_core) = {
+        let target_input_core = {
             let core            = core.lock().unwrap();
 
             let target_index    = core.program_indexes.get(&target_program).ok_or(ConnectionError::TargetNotInScene)?;
             let target_core     = core.sub_program_inputs.get(*target_index).ok_or(ConnectionError::TargetNotInScene)?.as_ref().ok_or(ConnectionError::TargetNotInScene)?;
 
-            (target_core.0.clone(), Arc::clone(&target_core.1))
+            Arc::clone(&target_core.1)
         };
 
         let source_stream_id    = StreamId::with_message_type::<TSourceMessageType>();
         let filter_input        = filter_handle.source_stream_id_any()?;
-        let filter_output       = filter_handle.target_stream_id_any()?;
 
         // If a source filter is applied to the output of the program, then the filter input might not match the source stream ID (we'll need to apply a conversion filter)
-        if target_stream_id != filter_output {
-            // The output of the filter needs to be mapped to the target program's input type
-            let final_filter = core.lock().unwrap().filter_conversions.get(&(filter_output, target_stream_id)).copied();
-
-            if let Some(final_filter) = final_filter {
-                // Chain the filter we found to the filter that was requested
-                filter_handle.chain_filters(core, source_program, final_filter, target_input_core)
-                    .and_then(|input_core| input_core
-                        .downcast::<Mutex<InputStreamCore<TSourceMessageType>>>()
-                        .map_err(|_| ConnectionError::FilterInputDoesNotMatch))
-            } else {
-                // Filter not defined (in general if we reach here it should have been defined)
-                Err(ConnectionError::FilterMappingMissing)
-            }
-        } else if filter_input != source_stream_id {
+        if filter_input != source_stream_id {
             // The filter needs further mapping to change the source stream to its input
             let initial_filter = core.lock().unwrap().filter_conversions.get(&(source_stream_id, filter_input)).copied();
 
