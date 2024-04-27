@@ -132,6 +132,7 @@ impl FilterHandle {
 
         mem::drop(create_input_stream);
 
+        // Store the stream ID functions
         let mut stream_id_for_target = STREAM_ID_FOR_TARGET.write().unwrap();
         stream_id_for_target.insert(handle, Box::new(|maybe_target_program| {
             if let Some(target_program) = maybe_target_program {
@@ -177,6 +178,20 @@ impl FilterHandle {
         }
 
         Ok(filtering_input_core)
+    }
+
+    ///
+    /// Chains this filter with a following filter.
+    ///
+    /// This generates an input stream that first applies this filter, and then sends its results through another filter. `next_filter` must have an input type
+    /// that matches the output type of this filter.
+    ///
+    pub (crate) fn chain_filters(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, next_filter: FilterHandle, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
+        // Send to the target from the filter that follows this one
+        let following_filter = next_filter.create_input_stream_core(scene_core, sending_program, target_input_core)?;
+
+        // Receive from the source and send to the target
+        self.create_input_stream_core(scene_core, sending_program, following_filter)
     }
 
     ///
