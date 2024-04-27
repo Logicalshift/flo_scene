@@ -495,7 +495,18 @@ impl SceneCore {
             Err(ConnectionError::FilterMappingMissing)
         } else if filter_input != source_stream_id {
             // The filter needs further mapping to change the input type
-            Err(ConnectionError::FilterMappingMissing)
+            let initial_filter = core.lock().unwrap().filter_conversions.get(&(source_stream_id, filter_input)).copied();
+
+            if let Some(initial_filter) = initial_filter {
+                // Chain the filter we found to the filter that was requested
+                initial_filter.chain_filters(core, source_program, filter_handle, target_input_core)
+                    .and_then(|input_core| input_core
+                        .downcast::<Mutex<InputStreamCore<TSourceMessageType>>>()
+                        .map_err(|_| ConnectionError::FilterInputDoesNotMatch))
+            } else {
+                // Filter not defined (in general if we reach here it should have been defined)
+                Err(ConnectionError::FilterMappingMissing)
+            }
         } else {
             // Create an input stream core to use with it
             filter_handle.create_input_stream_core(core, source_program, target_input_core)
