@@ -700,7 +700,10 @@ fn filter_at_source_with_any_target() {
         let mut test_program = context.send(()).unwrap();
 
         while let Some(input) = input.next().await { 
-            test_program.send(input).await.unwrap(); 
+            // We resend as a string, as otherwise the connection below will be overridden by the test
+            match input {
+                Message2::Msg(msg) => test_program.send(msg).await.unwrap()
+            }
         }
     }, 0);
 
@@ -709,7 +712,7 @@ fn filter_at_source_with_any_target() {
 
     // Test program receives message2
     TestBuilder::new()
-        .expect_message(|msg2: Message2| if msg2 != Message2::Msg("Hello".to_string()) { Err(format!("Expected 'Hello'")) } else { Ok(()) })
-        .expect_message(|msg2: Message2| if msg2 != Message2::Msg("Goodbyte".to_string()) { Err(format!("Expected 'Goodbyte'")) } else { Ok(()) })
+        .expect_message(|msg2: String| if msg2 != "Hello".to_string() { Err(format!("Expected 'Hello'")) } else { Ok(()) })
+        .expect_message(|msg2: String| if msg2 != "Goodbyte".to_string() { Err(format!("Expected 'Goodbyte'")) } else { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
