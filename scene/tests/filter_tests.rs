@@ -718,7 +718,7 @@ fn filter_at_source_with_any_target() {
 }
 
 #[test]
-fn override_source_filter_with_target_filter() {
+fn chain_filters_with_target_filter() {
     // Create a standard scene
     let scene = Scene::default();
 
@@ -732,7 +732,7 @@ fn override_source_filter_with_target_filter() {
     impl SceneMessage for Message3 { }
 
     let msg1_to_msg2 = FilterHandle::for_filter(|msg1: InputStream<Message1>| { msg1.map(|msg| match msg { Message1::Msg(val) => Message2::Msg(val) })});
-    let msg1_to_msg3 = FilterHandle::for_filter(|msg1: InputStream<Message1>| { msg1.map(|msg| match msg { Message1::Msg(val) => Message3::Msg(val) })});
+    let msg2_to_msg3 = FilterHandle::for_filter(|msg1: InputStream<Message2>| { msg1.map(|msg| match msg { Message2::Msg(val) => Message3::Msg(val) })});
 
     // For any stream that tries to connect to a program with an input stream of type 'Message2' using 'Message1', automatically use the filter we just defined
     // Target filters will take priority
@@ -775,9 +775,10 @@ fn override_source_filter_with_target_filter() {
 
     // Anything that generates 'Message2' should be connected to the initial message2 receiver program
     scene.connect_programs((), message2_receiver_program, StreamId::with_message_type::<Message2>()).unwrap();
+    scene.connect_programs((), message3_receiver_program, StreamId::with_message_type::<Message3>()).unwrap();
 
-    // Now connect using a different filter directly to a different program (message3_receiver_program_2)
-    scene.connect_programs((), StreamTarget::Filtered(msg1_to_msg3, message3_receiver_program), StreamId::with_message_type::<Message1>()).unwrap();
+    // Now make message3_receiver_program a receiver of Message2 messages via a filter (these can't be further filtered, so Message1 should no longer be sendable)
+    scene.connect_programs((), StreamTarget::Filtered(msg2_to_msg3, message3_receiver_program), StreamId::with_message_type::<Message1>()).unwrap();
 
     // Test program receives strings relayed by the receiver program
     TestBuilder::new()
