@@ -469,6 +469,30 @@ impl SceneCore {
     }
 
     ///
+    /// Creates an InputStreamCore that reads the input type of a filter, then chains the output through another filter to generate an output
+    ///
+    fn filtered_chain_input_for_program<TSourceMessageType>(core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, initial_filter: FilterHandle, second_filter: FilterHandle, target_program: SubProgramId) -> Result<Arc<Mutex<InputStreamCore<TSourceMessageType>>>, ConnectionError> 
+    where
+        TSourceMessageType: 'static + SceneMessage,
+    {
+        // Fetch the input core for the target program
+        let target_input_core = {
+            let core            = core.lock().unwrap();
+
+            let target_index    = core.program_indexes.get(&target_program).ok_or(ConnectionError::TargetNotInScene)?;
+            let target_core     = core.sub_program_inputs.get(*target_index).ok_or(ConnectionError::TargetNotInScene)?.as_ref().ok_or(ConnectionError::TargetNotInScene)?;
+
+            Arc::clone(&target_core.1)
+        };
+
+        // Create an input stream core to use with it by chaining the two filters
+        initial_filter.chain_filters(core, source_program, second_filter, target_input_core)
+            .and_then(|input_core| input_core
+                .downcast::<Mutex<InputStreamCore<TSourceMessageType>>>()
+                .map_err(|_| ConnectionError::FilterInputDoesNotMatch))
+    }
+
+    ///
     /// Creates an InputStreamCore that reads the input type of a filter, and outputs to the input core of a program with the output type of the filter (if the types all match up)
     ///
     fn filtered_input_for_program<TSourceMessageType>(core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, filter_handle: FilterHandle, target_program: SubProgramId) -> Result<Arc<Mutex<InputStreamCore<TSourceMessageType>>>, ConnectionError> 
@@ -489,6 +513,7 @@ impl SceneCore {
         let filter_input        = filter_handle.source_stream_id_any()?;
         let filter_output       = filter_handle.target_stream_id_any()?;
 
+        // If a source filter is applied to the output of the program, then the filter input might not match the source stream ID (we'll need to apply a conversion filter)
         if target_stream_id != filter_output {
             // The output of the filter needs to be mapped to the target program's input type
             let final_filter = core.lock().unwrap().filter_conversions.get(&(filter_output, target_stream_id)).copied();
@@ -680,7 +705,7 @@ impl SceneCore {
                 // Create a stream that is processed through a filter (note that this creates a process that will need to be terminated by closing the input stream)
                 mem::drop(core);
                 let filtered_input_core = if let Some(target_filter) = target_filter {
-                    todo!("Need to chain filters here")
+                    Self::filtered_chain_input_for_program::<TMessageType>(scene_core, *source, filter_handle, target_filter, target_program_id)?
                 } else {
                     Self::filtered_input_for_program::<TMessageType>(scene_core, *source, filter_handle, target_program_id)?
                 };
