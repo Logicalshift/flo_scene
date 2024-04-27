@@ -135,17 +135,18 @@ impl Scene {
     }
 
     ///
-    /// Specifies that an output of `source` (identified by the StreamId) should be connected to the input of `target`
+    /// Connects the output `stream` of the `source` program to the input of `target`
     ///
     /// Streams can be connected either from any program that outputs that particular message type or from a specific program.
+    /// Filters can be used to change one type of stream to another if needed.
     ///
     /// The target is usually a specific program, but can also be `StreamTarget::None` to indicate that any messages should be
     /// dropped with no further action. `StreamTarget::Any` is the default, and will result in the stream blocking until another
     /// call connects it.
     ///
     /// The stream ID specifies which of the streams originating from the souce should be connected. This can either be created
-    /// using `StreamId::with_message_type::<SomeMessage>()` to indicate all outgoing streams of that type, or 
-    /// `StreamId::for_target::<SomeMessage>(target)` to indicate an outgoing stream with a specific destination.
+    /// using `StreamId::with_message_type::<SomeMessage>()` to indicate all outgoing streams of that type from `source`, or 
+    /// `StreamId::with_message_type::<SomeMessage>().for_target(target)` to indicate an outgoing stream with a specific destination.
     ///
     /// Examples:
     ///
@@ -176,7 +177,11 @@ impl Scene {
     /// scene.connect_programs(&source_program, &other_program, StreamId::with_message_type::<ExampleMessage>().for_target(&subprogram));
     ///
     /// // Use a filter to accept a different incoming message type for a target program
-    /// scene.connect_programs((), StreamTarget::Filtered(example_filter, other_program), StreamId::with_message_type::<FilteredMessage>().for_target(&subprogram));
+    /// scene.connect_programs((), StreamTarget::Filtered(example_filter, other_program), StreamId::with_message_type::<FilteredMessage>());
+    /// scene.connect_programs(StreamSource::Filtered(example_filter), StreamTarget::Program(other_program), StreamId::with_message_type::<FilteredMessage>());
+    ///
+    /// // Filter any output if it's connected to an input of a specified type
+    /// scene.connect_programs(StreamSource::Filtered(example_filter), (), StreamId::with_message_type::<FilteredMessage>().for_target(&subprogram));
     /// ```
     ///
     pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ConnectionError> {
