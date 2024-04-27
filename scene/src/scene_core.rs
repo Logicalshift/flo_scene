@@ -70,6 +70,10 @@ pub (crate) struct SceneCore {
     /// Filters that can convert between a output stream type and an input stream type
     filter_conversions: HashMap<(StreamId, StreamId), FilterHandle>,
 
+    /// Maps source streams to target streams where the source stream should be filtered to the target stream before connecting (this 
+    /// is used for streams with an 'Any' target where there's no existing connection)
+    filtered_targets: HashMap<StreamId, StreamId>,
+
     /// True if this scene is stopped and shouldn't be run any more
     stopped: bool,
 
@@ -99,6 +103,7 @@ impl SceneCore {
             awake_processes:            VecDeque::new(),
             connections:                HashMap::new(),
             filter_conversions:         HashMap::new(),
+            filtered_targets:           HashMap::new(),
             thread_wakers:              vec![],
             stopped:                    false,
             notify_when_idle:           false,
@@ -402,7 +407,21 @@ impl SceneCore {
 
             // Store this filter handle as a possible conversion for a mismatched input
             let mut core = core.lock().unwrap();
-            core.filter_conversions.insert((source_stream, target_stream), *source_filter);
+            core.filter_conversions.insert((source_stream.clone(), target_stream.clone()), *source_filter);
+
+            match target {
+                StreamTarget::None | StreamTarget::Program(_) | StreamTarget::Filtered(_, _) => { 
+                    // Nothing to do
+                }
+
+                StreamTarget::Any => { 
+                    // Connecting a filtered target to the 'any' stream works a bit like connecting the source stream
+                    core.filtered_targets.insert(source_stream.clone(), target_stream);
+
+                    // This replaces the 'all' connection for this stream type, if there is one
+                    core.connections.remove(&(StreamSource::All, source_stream));
+                }
+            }
         }
 
         // TODO: pause the inputs of all the sub-programs matching the source, so the update is atomic?
@@ -501,6 +520,17 @@ impl SceneCore {
     }
 
     ///
+    /// If a stream can be mapped by a filter, this will return the stream ID of the target of that filter
+    ///
+    pub (crate) fn filter_mapped_target(&self, source_stream_id: &StreamId) -> Option<StreamTarget> {
+        if let Some(target_stream_id) = self.filtered_targets.get(source_stream_id) {
+            self.connections.get(&(StreamSource::All, target_stream_id.clone())).cloned()
+        } else {
+            None
+        }
+    }
+
+    ///
     /// Returns the output sink target configured for a particular stream
     ///
     pub (crate) fn sink_for_target<TMessageType>(scene_core: &Arc<Mutex<SceneCore>>, source: &SubProgramId, target: StreamTarget) -> Result<OutputSinkTarget<TMessageType>, ConnectionError>
@@ -524,6 +554,7 @@ impl SceneCore {
                     _                   => core.connections
                         .get(&(source.into(), StreamId::with_message_type::<TMessageType>())).cloned()
                         .or_else(|| core.connections.get(&(StreamSource::All, StreamId::with_message_type::<TMessageType>())).cloned())
+                        .or_else(|| core.filter_mapped_target(&StreamId::with_message_type::<TMessageType>()))
                         .or_else(|| Some(TMessageType::default_target()))
                 };
 
