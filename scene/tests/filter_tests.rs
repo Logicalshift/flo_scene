@@ -703,6 +703,8 @@ fn filter_at_source_with_any_target() {
             test_program.send(input).await.unwrap(); 
         }
     }, 0);
+
+    // Anything that generates 'Message2' should be connected to the message2 receiver program
     scene.connect_programs((), message2_receiver_program, StreamId::with_message_type::<Message2>()).unwrap();
 
     // Test program receives message2
