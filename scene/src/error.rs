@@ -38,6 +38,12 @@ pub enum ConnectionError {
     /// A filter to map from one stream to another was expected to be defined but could not be found
     FilterMappingMissing,
 
+    /// The input for the filter to a filter source must match the stream ID being connected
+    FilterSourceInputMustMatchStream,
+
+    /// The input for the filter to a filter target must match the stream ID being connected
+    FilterTargetInputMustMatchStream,
+
     /// A stream target had an unexpected value
     UnexpectedConnectionType,
 
