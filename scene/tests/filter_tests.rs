@@ -833,7 +833,7 @@ fn chain_filters_with_target_filter() {
     scene.connect_programs((), message3_receiver_program, StreamId::with_message_type::<Message3>()).unwrap();
 
     // Now make message3_receiver_program a receiver of Message2 messages via a filter (these can't be further filtered, so Message1 should no longer be sendable)
-    scene.connect_programs((), StreamTarget::Filtered(msg2_to_msg3, message3_receiver_program), StreamId::with_message_type::<Message1>()).unwrap();
+    scene.connect_programs((), StreamTarget::Filtered(msg2_to_msg3, message3_receiver_program), StreamId::with_message_type::<Message2>()).unwrap();
 
     // Test program receives strings relayed by the receiver program
     TestBuilder::new()
