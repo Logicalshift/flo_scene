@@ -327,6 +327,40 @@ impl SceneCore {
         // Make sure the target stream ID type  is initialised
         Self::initialise_message_type(core, stream_id.clone());
 
+        // Check source/target filter streams
+        match (&source, &target) {
+            (StreamSource::Filtered(source_filter), StreamTarget::Filtered(target_filter, _)) => {
+                let source_stream_id = source_filter.source_stream_id_any()?;
+                if source_stream_id.as_message_type() != stream_id.as_message_type() {
+                    return Err(ConnectionError::FilterSourceInputMustMatchStream);
+                }
+
+                let middle_stream_id = source_filter.target_stream_id_any()?;
+                let target_stream_id = target_filter.source_stream_id_any()?;
+                if middle_stream_id != target_stream_id {
+                    return Err(ConnectionError::FilterTargetInputMustMatchStream);
+                }
+            },
+
+            (StreamSource::Filtered(source_filter), _) => {
+                let source_stream_id = source_filter.source_stream_id_any()?;
+                if source_stream_id.as_message_type() != stream_id.as_message_type() {
+                    return Err(ConnectionError::FilterSourceInputMustMatchStream);
+                }
+            },
+
+            (_, StreamTarget::Filtered(target_filter, _)) => {
+                let target_stream_id = target_filter.source_stream_id_any()?;
+                if target_stream_id.as_message_type() != stream_id.as_message_type() {
+                    return Err(ConnectionError::FilterTargetInputMustMatchStream);
+                }
+            },
+
+            _ => { 
+                // Not filtered
+            }
+        }
+
         // Certain combinations of source and target can be expressed in a more 'standard' way
         let (source, target) = match (source, target) {
             (StreamSource::Filtered(filter), StreamTarget::Program(program)) => {
