@@ -72,4 +72,63 @@ mod with_serde_support {
             })
             .run_in_scene(&scene, test_program);
     }
+
+    #[test]
+    fn install_serializer() {
+        #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+        enum TestMessage {
+            StringValue(String)
+        }
+
+        impl SceneMessage for TestMessage { }
+
+        // Create a scene that will serialize and deserialize the message
+        let scene = Scene::default();
+        install_serializers::<TestMessage, _>(&scene, || serde_json::value::Serializer).unwrap();
+
+        // Add a serialized_resender program that sends whatever serialized message it gets to the test program
+        let test_program            = SubProgramId::new();
+        let serialized_resender     = SubProgramId::new();
+        let deserialized_receiver   = SubProgramId::new();
+
+        scene.add_subprogram(serialized_resender, 
+            move |input_stream, context| async move {
+                let mut input_stream = input_stream;
+
+                while let Some(message) = input_stream.next().await {
+                    let message: SerializedMessage<serde_json::Value> = message;
+
+                    println!("Serialized: {:?}", message.0);
+
+                    context.send(deserialized_receiver).unwrap()
+                        .send(message)
+                        .await
+                        .unwrap();
+                }
+            }, 0);
+
+        // The deserialized receiver takes TestMessages and passes them back to the test program
+        scene.add_subprogram(deserialized_receiver, move |input_stream, context| async move {
+            let mut input_stream = input_stream;
+
+            while let Some(message) = input_stream.next().await {
+                let message: TestMessage = message;
+
+                println!("Deserialized: {:?}", message);
+
+                context.send(test_program).unwrap()
+                    .send(message)
+                    .await
+                    .unwrap();
+            }
+        }, 0);
+
+        // Run some tests with a message that gets serialized and deserialized
+        TestBuilder::new()
+            .send_message_to_target(serialized_resender, TestMessage::StringValue(format!("Test")))
+            .expect_message(|msg: TestMessage| {
+                if msg != TestMessage::StringValue(format!("Test")) { Err(format!("Expected 'Test' (got {:?})", msg)) } else { Ok(()) }
+            })
+            .run_in_scene(&scene, test_program);
+    }
 }

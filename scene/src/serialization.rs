@@ -1,6 +1,10 @@
+use crate::error::*;
 use crate::filter::*;
 use crate::input_stream::*;
+use crate::scene::*;
 use crate::scene_message::*;
+use crate::stream_source::*;
+use crate::stream_id::*;
 
 use futures::prelude::*;
 use futures::stream;
@@ -121,4 +125,28 @@ where
 
         map_stream(deserialized_stream)
     })
+}
+
+///
+/// Install serializers and deserializers so that messages of a particular type can be filtered to and from `SerializedMessage<TSerializer::Ok>`
+///
+pub fn install_serializers<TMessageType, TSerializer>(scene: &Scene, create_serializer: impl 'static + Send + Sync + Fn() -> TSerializer) -> Result<(), ConnectionError>
+where
+    TMessageType:       'static + SceneMessage,
+    TMessageType:       for<'a> Deserialize<'a>,
+    TMessageType:       Serialize,
+    TSerializer:        'static + Send + Serializer,
+    TSerializer::Ok:    'static + Send + Unpin,
+    TSerializer::Ok:    for<'a> Deserializer<'a>,
+{
+    // Create/fetch the filters for the message type
+    let type_id             = TypeId::of::<TMessageType>();
+    let serialize_filter    = serializer_filter::<TMessageType, _, _>(move || create_serializer(), move |stream| stream.map(move |serialized| SerializedMessage(serialized, type_id)));
+    let deserialize_filter  = deserializer_filter::<TMessageType, TSerializer::Ok, _>(|stream| stream);
+
+    // Add source filters to serialize and deserialize to the scene
+    scene.connect_programs(StreamSource::Filtered(serialize_filter), (), StreamId::with_message_type::<TMessageType>())?;
+    scene.connect_programs(StreamSource::Filtered(deserialize_filter), (), StreamId::with_message_type::<SerializedMessage<TSerializer::Ok>>())?;
+
+    Ok(())
 }
