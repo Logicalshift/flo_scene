@@ -137,8 +137,14 @@ impl Scene {
     ///
     /// Connects the output `stream` of the `source` program to the input of `target`
     ///
-    /// Streams can be connected either from any program that outputs that particular message type or from a specific program.
-    /// Filters can be used to change one type of stream to another if needed.
+    /// Sub-programs can send messages without needing to know what handles them, for instance by creating an output stream using
+    /// `scene_context.send(())`. This call provides the means to specify how these streams are connected, for example by
+    /// calling `scene.connect_programs((), some_target_program_id, StreamId::with_message_type::<SomeMessageType>())` to connect
+    /// everything that sends `SomeMessageType` to the subprogram with the ID `some_target_program_id`.
+    ///
+    /// The parameters can be used to specify exactly which stream should be redirected: it's possible to redirect only the streams
+    /// originating from a specific subprogram, or even streams that requested a particular target. A filtering mechanism is also
+    /// provided, in case it's necessary to change the type of the message to suit the target.
     ///
     /// The target is usually a specific program, but can also be `StreamTarget::None` to indicate that any messages should be
     /// dropped with no further action. `StreamTarget::Any` is the default, and will result in the stream blocking until another
