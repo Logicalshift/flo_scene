@@ -608,6 +608,65 @@ impl SceneCore {
     }
 
     ///
+    /// Returns the 'mapped' StreamTarget for a connection. This is the actual target that a program should be sent to.
+    ///
+    /// The result of this function should not be mapped further, as it will point at the actual program that is the target if there 
+    /// is one.
+    ///
+    pub (crate) fn mapped_target_for_connection(&self, source: &StreamSource, target: &StreamTarget, stream_id: &StreamId) -> Result<StreamTarget, ConnectionError> {
+        let mapped_target = match target {
+            StreamTarget::None | StreamTarget::Any => {
+                if let Some(source_specific_target) = self.connections.get(&(source.clone(), stream_id.clone())) {
+                    // If there's a specific mapping for this stream ID from this source, use that for preference
+                    source_specific_target.clone()
+                } else if let Some(general_target) = self.connections.get(&(StreamSource::All, stream_id.clone())) {
+                    // Otherwise, if there's a general connection for all streams, use that
+                    general_target.clone()
+                } else if let Some(filter_mapped_target) = self.filter_mapped_target(stream_id) {
+                    // If there's no way to directly connect a stream, then see if there's a filter that can be used to make the connection instead 
+                    filter_mapped_target
+                } else if let StreamTarget::Any = target {
+                    // The 'any' stream target can use the default target for this stream ID
+                    stream_id.default_target()
+                } else {
+                    // This stream has no target at the moment (StreamTarget::None should discard its output and StreamTarget::Any should wait for a stream to become available)
+                    target.clone()
+                }
+            }
+
+            StreamTarget::Program(program_id) => {
+                if let Some(overridden_target) = self.connections.get(&(source.clone(), stream_id.for_target(program_id))) {
+                    // There's a connection that overrides the specific connection from this source to this target
+                    overridden_target.clone()
+                } else if let Some(overridden_target) = self.connections.get(&(StreamSource::All, stream_id.for_target(program_id))) {
+                    // All streams targeting this program are overidden by a different connection
+                    overridden_target.clone()
+                } else {
+                    // Use the program specified by the target
+                    StreamTarget::Program(*program_id)
+                }
+            }
+
+            StreamTarget::Filtered(filter_handle, program_id) => {
+                let filter_output = filter_handle.target_stream_id_any()?;
+
+                if let Some(filtered_redirect) = self.connections.get(&(source.clone(), filter_output.for_target(program_id))) {
+                    // The type that is output by the filter has an overridden connection
+                    filtered_redirect.clone()
+                } else if let Some(filtered_redirect) = self.connections.get(&(StreamSource::All, filter_output.for_target(program_id))) {
+                    // The type that is output by the filter has an overridden connection
+                    filtered_redirect.clone()
+                } else {
+                    // Just send directly to the target program
+                    StreamTarget::Filtered(*filter_handle, *program_id)
+                }
+            }
+        };
+
+        Ok(mapped_target)
+    }
+
+    ///
     /// Returns the output sink target configured for a particular stream
     ///
     pub (crate) fn sink_for_target<TMessageType>(scene_core: &Arc<Mutex<SceneCore>>, source: &SubProgramId, target: StreamTarget) -> Result<OutputSinkTarget<TMessageType>, ConnectionError>
