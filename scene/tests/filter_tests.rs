@@ -786,6 +786,8 @@ fn chain_filters_with_target_filter() {
     impl SceneMessage for Message2 { }
     impl SceneMessage for Message3 { }
 
+    // Our source program outputs Message1, and we install a source filter that can convert that to Message2
+    // The target program receives Message3 but has an input filter that can convert from Message2 (so if we chain the first filter to the second we should be able to receive the messages)
     let msg1_to_msg2 = FilterHandle::for_filter(|msg1: InputStream<Message1>| { msg1.map(|msg| match msg { Message1::Msg(val) => Message2::Msg(val) })});
     let msg2_to_msg3 = FilterHandle::for_filter(|msg1: InputStream<Message2>| { msg1.map(|msg| match msg { Message2::Msg(val) => Message3::Msg(val) })});
 
