@@ -11,6 +11,7 @@ use once_cell::sync::{Lazy};
 
 use std::any::*;
 use std::collections::*;
+use std::hash::*;
 use std::sync::*;
 
 static STREAM_TYPE_FUNCTIONS: Lazy<RwLock<HashMap<TypeId, StreamTypeFunctions>>> = Lazy::new(|| RwLock::new(HashMap::new()));
@@ -60,12 +61,27 @@ enum StreamIdType {
 ///
 /// Identifies a stream produced by a subprogram 
 ///
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Eq, Debug)]
 pub struct StreamId {
     stream_id_type:         StreamIdType,
     message_type_name:      &'static str,
     message_type:           TypeId,
     input_stream_core_type: TypeId,
+}
+
+impl PartialEq for StreamId {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.stream_id_type == other.stream_id_type && self.message_type == other.message_type
+    }
+}
+
+impl Hash for StreamId {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.stream_id_type.hash(state);
+        self.message_type.hash(state);
+    }
 }
 
 impl StreamTypeFunctions {
