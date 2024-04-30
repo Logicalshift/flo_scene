@@ -21,6 +21,7 @@ type ConnectOutputToDiscardFn   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync 
 type DisconnectOutputFn         = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
 type CloseInputFn               = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
 type IsIdleFn                   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<bool, ConnectionError>>;
+type DefaultTargetFn            = Arc<dyn Send + Sync + Fn() -> StreamTarget>;
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
 
 ///
@@ -41,6 +42,9 @@ struct StreamTypeFunctions {
 
     /// Indicates if an input stream is idle or not (idle = has an empty input queue and is waiting for a new message to arrive)
     is_idle: IsIdleFn,
+
+    /// Returns the defualt target for this stream type
+    default_target: DefaultTargetFn,
 
     /// Initialises the message type inside a scene
     initialise: InitialiseFn,
@@ -156,6 +160,10 @@ impl StreamTypeFunctions {
                 Ok(is_idle)
             }),
 
+            default_target: Arc::new(|| {
+                TMessageType::default_target()
+            }),
+
             initialise: Arc::new(|scene| {
                 TMessageType::initialise(scene)
             }),
@@ -213,6 +221,13 @@ impl StreamTypeFunctions {
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.is_idle))
+    }
+
+    pub fn default_target(type_id: &TypeId) -> Option<DefaultTargetFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.default_target))
     }
 
     pub fn initialise(type_id: &TypeId) -> Option<InitialiseFn> {
@@ -289,6 +304,19 @@ impl StreamId {
     ///
     pub fn message_type_name(&self) -> String {
         self.message_type_name.into()
+    }
+
+    ///
+    /// Returns the default target defined for the message type represented by this stream ID
+    ///
+    pub fn default_target(&self) -> StreamTarget {
+        let message_type = self.message_type();
+
+        if let Some(default_target) = StreamTypeFunctions::default_target(&message_type) {
+            default_target()
+        } else {
+            StreamTarget::None
+        }
     }
 
     ///
