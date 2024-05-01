@@ -658,7 +658,7 @@ impl SceneCore {
                     filtered_redirect.clone()
                 } else {
                     // Just send directly to the target program
-                    StreamTarget::Filtered(*filter_handle, *program_id)
+                    StreamTarget::Program(*program_id)
                 }
             }
         };
@@ -675,8 +675,65 @@ impl SceneCore {
     {
         use std::mem;
 
+        // Make sure that the message type is ready to use
         Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessageType>());
 
+        // Get the filter we're using as the output for the current stream
+        let output_filter = match &target {
+            StreamTarget::Filtered(filter, _)   => Some(*filter),
+            _                                   => None,
+        };
+
+        // Map the target to get the real target
+        let core            = scene_core.lock().unwrap();
+        let mapped_target   = core.mapped_target_for_connection(&source.into(), &target, &StreamId::with_message_type::<TMessageType>())?;
+
+        let output_sink_target = match (output_filter, mapped_target) {
+            (_, StreamTarget::None) => OutputSinkTarget::<TMessageType>::Discard,
+            (_, StreamTarget::Any)  => OutputSinkTarget::Disconnected,
+
+            (None, StreamTarget::Program(target_program_id)) => {
+                // Fetch the input for the target program
+                let target_program_handle   = core.program_indexes.get(&target_program_id).ok_or(ConnectionError::TargetNotInScene)?;
+                let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
+                mem::drop(core);
+
+                // Connect directly to the output if it matches the source stream type, otherwise apply an input filter to convert the type
+                let target_program_input    = target_program_input.1.downcast::<Mutex<InputStreamCore<TMessageType>>>()
+                    .or_else(|_| Self::filter_source_for_program::<TMessageType>(scene_core, *source, &StreamId::with_message_type::<TMessageType>(), &target_program_input.0, target_program_id))?;
+
+                OutputSinkTarget::Input(Arc::downgrade(&target_program_input))
+            }
+
+            (None, StreamTarget::Filtered(input_filter, target_program_id)) => {
+                // Connect the core using the input filter
+                mem::drop(core);
+                let filtered_input_core = Self::filtered_input_for_program(scene_core, *source, input_filter, target_program_id)?;
+
+                OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core))
+            }
+
+            (Some(output_filter), StreamTarget::Program(target_program_id)) => {
+                // Filter the output
+                mem::drop(core);
+                println!("Direct with filter {:?}", output_filter);
+                let filtered_output_core = Self::filtered_input_for_program(scene_core, *source, output_filter, target_program_id)?;
+
+                OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_output_core))
+            }
+
+            (Some(output_filter), StreamTarget::Filtered(input_filter, target_program_id)) => {
+                // Source filters can't be used when both sides are filtered as we need to chain the source and the target
+                mem::drop(core);
+                let filtered_core = Self::filtered_chain_input_for_program(scene_core, *source, output_filter, input_filter, target_program_id)?;
+
+                OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_core))
+            }
+        };
+
+        Ok(output_sink_target)
+
+        /*
         match target {
             StreamTarget::None  |
             StreamTarget::Any   => {
@@ -791,6 +848,7 @@ impl SceneCore {
                 Ok(OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core)))
             }
         }
+        */
     }
 
     ///
