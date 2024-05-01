@@ -604,8 +604,21 @@ impl SceneCore {
     /// If a stream can be mapped by a filter, this will return the stream ID of the target of that filter
     ///
     pub (crate) fn filter_mapped_target(&self, source_stream_id: &StreamId) -> Option<StreamTarget> {
-        if let Some(target_stream_id) = self.filtered_targets.get(source_stream_id) {
-            self.connections.get(&(StreamSource::All, target_stream_id[0].clone())).cloned()
+        if let Some(possible_target_stream_ids) = self.filtered_targets.get(source_stream_id) {
+            // Search for a connection that can accept a connection of this type
+            for target_stream_id in possible_target_stream_ids {
+                match self.connections.get(&(StreamSource::All, target_stream_id.clone())) {
+                    None                        |
+                    Some(StreamTarget::None)    | 
+                    Some(StreamTarget::Any)     => { /* No connection for this stream type */ },
+                    Some(target)                => {
+                        // There exists a connection for this stream type
+                        return Some(target.clone());
+                    }
+                }
+            }
+
+            None
         } else {
             None
         }
