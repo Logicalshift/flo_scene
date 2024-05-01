@@ -596,15 +596,18 @@ impl SceneCore {
         };
 
         if let Some(filter) = filter {
-            // Use the direct connection between the programs
+            // There's a simple conversion between the output of the source and the input of the target
             Self::filtered_input_for_program(scene_core, source_program, filter, target_program)
         } else {
+            // TODO: this is a little dense, might be good to split this up/cut things down a bit
+
             // Search for a source filter that can map from the source_id to an input supported by the stream (we'll need to use a chained filter to do this)
             let core = scene_core.lock().unwrap();
             if let Some(source_filters) = core.filtered_targets.get(&source_id) {
                 // Try to find a source filter that matches a connection for the target program
                 let filtered_connection = source_filters.iter()
                     .find_map(|filter_output_stream| {
+                        // Use this filter if the target program has a connection that accepts its output
                         if let Some(connection) = core.connections.get(&(StreamSource::Program(source_program), filter_output_stream.for_target(target_program))) {
                             // There's a filter we can use from this specific program
                             Some((connection.clone(), filter_output_stream.clone()))
@@ -616,9 +619,8 @@ impl SceneCore {
                         }
                     });
 
+                // filtered_connection will contain a connection if there's a filter we can apply to the source that will connect to the target
                 if let Some((connection, filter_output_stream_id)) = filtered_connection {
-                    // We found a filter that we can apply to the output of the source that can connect to the target
-
                     // Get the filter conversion for the source stream
                     let input_filter = core.filter_conversions.get(&(source_id.clone(), filter_output_stream_id)).copied();
 
