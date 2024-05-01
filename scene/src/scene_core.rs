@@ -577,26 +577,78 @@ impl SceneCore {
     ///
     /// Checks for a filter that can map between a source output and a target input, and generates appropriate filtered input if one exists
     ///
-    pub (crate) fn filter_source_for_program<TSourceMessageType>(core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, source_id: &StreamId, target_id: &StreamId, target_program: SubProgramId) -> Result<Arc<Mutex<InputStreamCore<TSourceMessageType>>>, ConnectionError>
+    pub (crate) fn filter_source_for_program<TSourceMessageType>(scene_core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, source_id: &StreamId, target_id: &StreamId, target_program: SubProgramId) -> Result<Arc<Mutex<InputStreamCore<TSourceMessageType>>>, ConnectionError>
     where
         TSourceMessageType: 'static + SceneMessage,
     {
+        use std::mem;
+
         // Strip out any target program from the source and target
         let source_id = source_id.as_message_type();
         let target_id = target_id.as_message_type();
 
-        // Look up a filter corresponding to the source and target
+        // Look up a direct filter between the source and target programs
         let filter = {
-            let core    = core.lock().unwrap();
+            let core    = scene_core.lock().unwrap();
             let filter  = core.filter_conversions.get(&(source_id.clone(), target_id.clone())).copied();
 
             filter
         };
 
         if let Some(filter) = filter {
-            Self::filtered_input_for_program(core, source_program, filter, target_program)
+            // Use the direct connection between the programs
+            Self::filtered_input_for_program(scene_core, source_program, filter, target_program)
         } else {
-            Err(ConnectionError::WrongInputType(SourceStreamMessageType(source_id.message_type_name()), TargetInputMessageType(target_id.message_type_name())))
+            // Search for a source filter that can map from the source_id to an input supported by the stream (we'll need to use a chained filter to do this)
+            let core = scene_core.lock().unwrap();
+            if let Some(source_filters) = core.filtered_targets.get(&source_id) {
+                // Try to find a source filter that matches a connection for the target program
+                let filtered_connection = source_filters.iter()
+                    .find_map(|filter_output_stream| {
+                        if let Some(connection) = core.connections.get(&(StreamSource::Program(source_program), filter_output_stream.for_target(target_program))) {
+                            // There's a filter we can use from this specific program
+                            Some((connection.clone(), filter_output_stream.clone()))
+                        } else if let Some(connection) = core.connections.get(&(StreamSource::All, filter_output_stream.for_target(target_program))) {
+                            // There's a filter we can use for any connection to this program
+                            Some((connection.clone(), filter_output_stream.clone()))
+                        } else {
+                            None
+                        }
+                    });
+
+                if let Some((connection, filter_output_stream_id)) = filtered_connection {
+                    // We found a filter that we can apply to the output of the source that can connect to the target
+
+                    // Get the filter conversion for the source stream
+                    let input_filter = core.filter_conversions.get(&(source_id.clone(), filter_output_stream_id)).copied();
+
+                    // Get the filter conversion and 'true' target for the connection
+                    let (output_filter, target_program) = match connection {
+                        StreamTarget::Any | StreamTarget::None      => (None, None),
+                        StreamTarget::Program(program_id)           => (None, Some(program_id)),
+                        StreamTarget::Filtered(filter, program_id)  => (Some(filter), Some(program_id)),
+                    };
+
+                    mem::drop(core);
+
+                    // Generate the connection, if we can - chain if there's both an output and an input filter, or use a direct connection if there's just an input filter
+                    // If the input filter was not found, then that's usually a bug as it should exist for the filtered connection to be non-None (we'll indicate a bad input type as if there's no conversion)
+                    match (input_filter, output_filter, target_program) {
+                        (_, _, None) => Err(ConnectionError::WrongInputType(SourceStreamMessageType(source_id.message_type_name()), TargetInputMessageType(target_id.message_type_name()))),
+
+                        (Some(input_filter), None, Some(target_program))                => Self::filtered_input_for_program(scene_core, source_program, input_filter, target_program),
+                        (Some(input_filter), Some(output_filter), Some(target_program)) => Self::filtered_chain_input_for_program(scene_core, source_program, input_filter, output_filter, target_program),
+
+                        _ => Err(ConnectionError::WrongInputType(SourceStreamMessageType(source_id.message_type_name()), TargetInputMessageType(target_id.message_type_name()))),
+                    }
+                } else {
+                    // There's no way to map this stream
+                    Err(ConnectionError::WrongInputType(SourceStreamMessageType(source_id.message_type_name()), TargetInputMessageType(target_id.message_type_name())))
+                }
+            } else {
+                // There are no source filters for this stream type
+                Err(ConnectionError::WrongInputType(SourceStreamMessageType(source_id.message_type_name()), TargetInputMessageType(target_id.message_type_name())))
+            }
         }
     }
 
@@ -733,7 +785,6 @@ impl SceneCore {
             (Some(output_filter), StreamTarget::Program(target_program_id)) => {
                 // Filter the output
                 mem::drop(core);
-                println!("Direct with filter {:?}", output_filter);
                 let filtered_output_core = Self::filtered_input_for_program(scene_core, *source, output_filter, target_program_id)?;
 
                 OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_output_core))
