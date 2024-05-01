@@ -845,7 +845,7 @@ fn chain_filters_with_target_filter() {
 }
 
 #[test]
-fn chain_two_filters_with_target_filter() {
+fn chain_two_filters_with_target_filter_1() {
     // Create a standard scene
     let scene = Scene::default();
 
@@ -868,6 +868,80 @@ fn chain_two_filters_with_target_filter() {
     // We can have more than one filter installed on a source filter, and we'll pick one that lets us match the target if we can
     scene.connect_programs(msg1_to_msg2, (), StreamId::with_message_type::<Message1>()).unwrap();
     scene.connect_programs(msg1_to_msg4, (), StreamId::with_message_type::<Message1>()).unwrap();
+
+    // The IDs of the two programs involved
+    let message1_sender_program     = SubProgramId::new();
+    let message2_receiver_program   = SubProgramId::new();
+    let message3_receiver_program   = SubProgramId::new();
+    let test_program                = SubProgramId::new();
+
+    // Create a program that generates 'message1' as an output
+    scene.add_subprogram(message1_sender_program, |_: InputStream<()>, context| async move {
+        let mut sender = context.send(()).unwrap();
+
+        sender.send(Message1::Msg("Hello".to_string())).await.unwrap();
+        sender.send(Message1::Msg("Goodbyte".to_string())).await.unwrap();
+    }, 0);
+
+    // message2_receiver_program should receive all messages of the target type. Temp subprogram here is replaced by the test later on
+    scene.add_subprogram(message2_receiver_program, |mut input: InputStream<Message2>, _| async move {
+        while let Some(_input) = input.next().await { 
+            // We should connect using the msg1_to_msg3 filter
+            assert!(false, "Should receive only Message3");
+        }
+    }, 0);
+
+    // message3_receiver_program is as above but instead receives Message3
+    scene.add_subprogram(message3_receiver_program, |mut input, context| async move {
+        // We need an intermediate prorgam because the test program has its own set of filters. All this does is relay its message to the next program along.
+        let mut test_program = context.send(()).unwrap();
+
+        while let Some(input) = input.next().await { 
+            // We resend as a string, as otherwise the connection below will be overridden by the test
+            match input {
+                Message3::Msg(msg) => test_program.send(msg).await.unwrap()
+            }
+        }
+    }, 0);
+
+    // Anything that generates 'Message2' should be connected to the initial message2 receiver program
+    scene.connect_programs((), message2_receiver_program, StreamId::with_message_type::<Message2>()).unwrap();
+    scene.connect_programs((), message3_receiver_program, StreamId::with_message_type::<Message3>()).unwrap();
+
+    // Now make message3_receiver_program a receiver of Message2 messages via a filter (these can't be further filtered, so Message1 should no longer be sendable)
+    scene.connect_programs((), StreamTarget::Filtered(msg2_to_msg3, message3_receiver_program), StreamId::with_message_type::<Message2>()).unwrap();
+
+    // Test program receives strings relayed by the receiver program
+    TestBuilder::new()
+        .expect_message(|msg2: String| if msg2 != "Hello".to_string() { Err(format!("Expected 'Hello'")) } else { Ok(()) })
+        .expect_message(|msg2: String| if msg2 != "Goodbyte".to_string() { Err(format!("Expected 'Goodbyte'")) } else { Ok(()) })
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+fn chain_two_filters_with_target_filter_2() {
+    // Create a standard scene
+    let scene = Scene::default();
+
+    // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
+    enum Message1 { Msg(String) }
+    enum Message2 { Msg(String) }
+    enum Message3 { Msg(String) }
+    enum Message4 { Msg(String) }
+
+    impl SceneMessage for Message1 { }
+    impl SceneMessage for Message2 { }
+    impl SceneMessage for Message3 { }
+    impl SceneMessage for Message4 { }
+
+    let msg1_to_msg2 = FilterHandle::for_filter(|msg1: InputStream<Message1>| { msg1.map(|msg| match msg { Message1::Msg(val) => Message2::Msg(val) })});
+    let msg1_to_msg4 = FilterHandle::for_filter(|msg1: InputStream<Message1>| { msg1.map(|msg| match msg { Message1::Msg(val) => Message4::Msg(val) })});
+    let msg2_to_msg3 = FilterHandle::for_filter(|msg1: InputStream<Message2>| { msg1.map(|msg| match msg { Message2::Msg(val) => Message3::Msg(val) })});
+
+    // Add converters for both message 2 and message 4. We should be able to find the 1 -> 2 -> 3 chain
+    // We can have more than one filter installed on a source filter, and we'll pick one that lets us match the target if we can
+    scene.connect_programs(msg1_to_msg4, (), StreamId::with_message_type::<Message1>()).unwrap();
+    scene.connect_programs(msg1_to_msg2, (), StreamId::with_message_type::<Message1>()).unwrap();
 
     // The IDs of the two programs involved
     let message1_sender_program     = SubProgramId::new();
