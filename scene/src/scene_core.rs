@@ -72,7 +72,7 @@ pub (crate) struct SceneCore {
 
     /// Maps source streams to target streams where the source stream should be filtered to the target stream before connecting (this 
     /// is used for streams with an 'Any' target where there's no existing connection)
-    filtered_targets: HashMap<StreamId, StreamId>,
+    filtered_targets: HashMap<StreamId, Vec<StreamId>>,
 
     /// True if this scene is stopped and shouldn't be run any more
     stopped: bool,
@@ -449,8 +449,12 @@ impl SceneCore {
                 }
 
                 StreamTarget::Any => { 
-                    // Connecting a filtered target to the 'any' stream works a bit like connecting the source stream
-                    core.filtered_targets.insert(source_stream.clone(), target_stream);
+                    // Add this as a possible target for an output stream of the specified type. This stream becomes the lowest priority stream if there are several choices
+                    // for making a connection
+                    let possible_targets = core.filtered_targets.entry(source_stream.clone())
+                        .or_insert_with(|| vec![]);
+                    possible_targets.retain(|old_target| old_target != &target_stream);
+                    possible_targets.push(target_stream);
 
                     // This replaces the 'all' connection for this stream type, if there is one
                     core.connections.remove(&(StreamSource::All, source_stream));
@@ -601,7 +605,7 @@ impl SceneCore {
     ///
     pub (crate) fn filter_mapped_target(&self, source_stream_id: &StreamId) -> Option<StreamTarget> {
         if let Some(target_stream_id) = self.filtered_targets.get(source_stream_id) {
-            self.connections.get(&(StreamSource::All, target_stream_id.clone())).cloned()
+            self.connections.get(&(StreamSource::All, target_stream_id[0].clone())).cloned()
         } else {
             None
         }
