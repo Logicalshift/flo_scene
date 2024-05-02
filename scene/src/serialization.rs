@@ -140,8 +140,7 @@ where
     TSerializer::Ok:    for<'a> Deserializer<'a>,
 {
     // Create/fetch the filters for the message type
-    let type_id             = TypeId::of::<TMessageType>();
-    let serialize_filter    = serializer_filter::<TMessageType, _, _>(move || create_serializer(), move |stream| stream.map(move |serialized| SerializedMessage(serialized, type_id)));
+    let serialize_filter    = serializer_filter::<TMessageType, _, _>(move || create_serializer(), move |stream| stream);
     let deserialize_filter  = deserializer_filter::<TMessageType, TSerializer::Ok, _>(|stream| stream);
 
     // Add source filters to serialize and deserialize to the scene
