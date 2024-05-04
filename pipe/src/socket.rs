@@ -171,21 +171,36 @@ where
                     // Future to write the bytes
                     let async_writer = Box::pin(async_writer);
                     let byte_writer  = async move {
+                        // Write each block as it arrives from the output byte stream to the socket target
                         let mut async_writer = async_writer;
                         while let Some(bytes) = output_byte_stream.next().await {
-                            async_writer.write(&bytes).await.unwrap();
+                            // Loop until we've written all of the bytes
+                            let mut write_pos = 0;
+
+                            while write_pos < bytes.len() {
+                                match async_writer.write(&bytes[write_pos..(bytes.len())]).await {
+                                    Ok(0)           => break,
+                                    Err(_)          => break,
+                                    Ok(num_written) => {
+                                        write_pos += num_written;
+                                        if write_pos >= bytes.len() {
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
                         }
                     };
 
                     // Ask the scene to create a subprogram that writes the output (won't work if the main 'scene' program isn't running)
                     let output_program = SubProgramId::new();
-                    let output_program = SceneControl::start_program(output_program, move |_: InputStream<()>, context| byte_writer, 0);
+                    let output_program = SceneControl::start_program(output_program, move |_: InputStream<()>, _| byte_writer, 0);
 
                     let mut control = context.send(()).unwrap();
-                    control.send_immediate(output_program);
+                    control.send_immediate(output_program).ok();
                 });
 
-                // Try to send the connection to the first subscriber that can receive the message
+                // TODO: Try to send the connection to the first subscriber that can receive the message
             }
 
             OurMessage::Subscribe(program_id) => {
