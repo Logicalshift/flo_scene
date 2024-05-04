@@ -34,7 +34,7 @@ static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterH
 ///
 /// Represents a program start function
 ///
-pub struct SceneProgramFn(Box<dyn Send + Sync + FnOnce(Arc<Mutex<SceneCore>>)>);
+pub struct SceneProgramFn(Box<dyn Send + FnOnce(Arc<Mutex<SceneCore>>)>);
 
 ///
 /// Messages that can be sent to the main scene control program
@@ -115,7 +115,7 @@ impl SceneProgramFn {
     where
         TFuture:        'static + Send + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
-        TProgramFn:     'static + Send + Sync + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
+        TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
         // TODO: this is almost the same 'start' procedure as appears in the main 'Scene' type (modified because control requests are cloneable so the start function has to be 'Sync')
         let start_fn    = move |scene_core: Arc<Mutex<SceneCore>>| {
@@ -149,7 +149,7 @@ impl SceneProgramFn {
         };
 
         // Turn the function into a SceneProgramFn
-        let start_fn: Box<dyn Send + Sync + FnOnce(Arc<Mutex<SceneCore>>)> = Box::new(start_fn);
+        let start_fn: Box<dyn Send + FnOnce(Arc<Mutex<SceneCore>>)> = Box::new(start_fn);
         SceneProgramFn(Box::new(start_fn))
     }
 
