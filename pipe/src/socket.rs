@@ -1,7 +1,16 @@
 use flo_scene::*;
+use flo_scene::programs::*;
 
-use futures::prelude::*;
-use futures::stream::{BoxStream};
+use futures::prelude::{Stream, Future};
+use futures::stream;
+use futures::stream::{BoxStream, StreamExt};
+use futures::{pin_mut};
+
+
+use tokio::io::*;
+
+use std::result::{Result};
+use std::sync::*;
 
 ///
 /// Represents an incoming socket connection. When a socket is connected, we retrieve an input stream, and need to respond with an output stream.
@@ -66,5 +75,71 @@ where
 
         // Return the input stream
         input_stream
+    }
+}
+
+///
+/// Runs a socket listener suprogram. This accepts 'Subscribe' messages from subprograms that wish to receive connections (subscription messages are sent in a round-robin fashion),
+/// and calls the 'accept_message' function to receive incoming connections
+///
+pub async fn socket_listener_subprogram<TFutureStream, TReadStream, TWriteStream, TInputStream, TOutputStream>(subscribe: impl 'static + Send + Stream<Item=(SubProgramId, Subscribe)>, context: SceneContext, 
+    accept_connection: impl 'static + Send + Fn() -> TFutureStream,
+    create_input_messages: impl 'static + Send + Sync + Fn(BoxStream<'static, u8>) -> TInputStream,
+    create_output_messages: impl 'static + Send + Sync + Fn(BoxStream<'static, u8>) -> TOutputStream)
+where
+    TFutureStream:  Send + Future<Output=Result<(TReadStream, TWriteStream), ConnectionError>>,
+    TReadStream:    'static + Send + AsyncRead,
+    TWriteStream:   'static + Send + AsyncWrite,
+    TInputStream:   'static + Send + Stream,
+    TOutputStream:  'static + Send + Stream,
+{
+    // Wrap accept_connection in a desync
+    let accept_connection = Arc::new(accept_connection);
+
+    // Combine the subscription and the acceptance streams
+    enum OurMessage<TSocketStream> {
+        Subscribe(SubProgramId),
+        NewConnection(TSocketStream),
+    }
+
+    let subscribe       = subscribe.map(|(sender, _)| OurMessage::Subscribe(sender));
+    let accept_messages = stream::unfold(0, move |_| {
+        let accept_connection = Arc::clone(&accept_connection);
+
+        async move {
+            // Fetch the next connection if there is one
+            let next_connection = accept_connection().await;
+
+            // Continue until we get an error
+            match next_connection {
+                Ok(next_connection) => Some((OurMessage::NewConnection(next_connection), 0)),
+                _                   => None,
+            }
+        }
+    });
+
+    pin_mut!(subscribe);
+    pin_mut!(accept_messages);
+    let mut input = stream::select(subscribe, accept_messages);
+
+    // Run the socket listener
+    let mut subscribers         = vec![];
+    // let mut waiting_connections = vec![];
+
+    while let Some(next_event) = input.next().await {
+        match next_event {
+            OurMessage::Subscribe(program_id) => {
+                // Add this program to the list of subscribers for our message type (any one subscriber can only be added once)
+                subscribers.retain(|prog| prog != &program_id);
+                subscribers.push(program_id);
+            }
+
+            OurMessage::NewConnection(socket_stream) => {
+                // Create the socket connection
+
+
+                // Try to send the connection to the first subscriber that can receive the message
+            }
+        }
     }
 }
