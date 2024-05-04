@@ -17,6 +17,9 @@ pub struct SourceStreamMessageType(pub String);
 ///
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum ConnectionError {
+    // Something cancelled the connection
+    Cancelled,
+
     /// The input type of the target of a connection does not match the source
     WrongInputType(SourceStreamMessageType, TargetInputMessageType),
 
@@ -52,6 +55,9 @@ pub enum ConnectionError {
 
     /// An attempt was made to 'steal' the current thread to expedite a message, which could not be completed (for example, because the subprogram was already running on the current thread)
     CannotStealThread,
+
+    /// An operation could not be completed because of an I/O problem
+    IoError(String),
 }
 
 ///
