@@ -56,6 +56,12 @@ pub enum ConnectionError {
     /// An attempt was made to 'steal' the current thread to expedite a message, which could not be completed (for example, because the subprogram was already running on the current thread)
     CannotStealThread,
 
+    /// The connection is denied due to a permissions error
+    TargetPermissionRefused,
+
+    /// The target refused the connection
+    TargetConnectionRefused,
+
     /// An operation could not be completed because of an I/O problem
     IoError(String),
 }
@@ -84,3 +90,41 @@ impl From<SceneSendError> for ConnectionError {
         }
     }
 }
+
+#[cfg(feature="tokio")]
+mod tokio_errors {
+    use super::*;
+    use tokio::io::{Error, ErrorKind};
+
+    impl From<Error> for ConnectionError {
+        fn from(err: Error) -> ConnectionError {
+            match err.kind() {
+                ErrorKind::NotFound             => ConnectionError::TargetNotAvailable,
+                ErrorKind::PermissionDenied     => ConnectionError::TargetPermissionRefused,
+                ErrorKind::ConnectionRefused    => ConnectionError::TargetConnectionRefused,
+                ErrorKind::ConnectionReset      |
+                ErrorKind::BrokenPipe           |
+                ErrorKind::ConnectionAborted    => ConnectionError::Cancelled,
+                ErrorKind::NotConnected         => ConnectionError::IoError(format!("{}", err)),
+                ErrorKind::AddrInUse            |
+                ErrorKind::AddrNotAvailable     |
+                ErrorKind::AlreadyExists        |
+                ErrorKind::WouldBlock           |
+                ErrorKind::InvalidInput         |
+                ErrorKind::InvalidData          |
+                ErrorKind::TimedOut             |
+                ErrorKind::WriteZero            |
+                ErrorKind::Interrupted          |
+                ErrorKind::Unsupported          |
+                ErrorKind::UnexpectedEof        |
+                ErrorKind::OutOfMemory          |
+                ErrorKind::Other                |
+                _                               => ConnectionError::IoError(err.to_string()),
+
+            }
+        }
+    }
+}
+
+#[cfg(feature="tokio")]
+pub use tokio_errors::*;
