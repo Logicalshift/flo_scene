@@ -20,13 +20,13 @@ use std::path::*;
 /// message. Typically, there's only one subscriber but in the event multiple are connected, they are informed of connections in
 /// a round-robin fashion.
 ///
-pub fn create_unix_socket_program<TInputStream, TOutputStream>(scene: &Scene, program_id: SubProgramId, path: impl AsRef<Path>, 
-    create_input_messages: impl 'static + Send + Sync + Fn(BoxStream<'static, u8>) -> TInputStream,
-    create_output_messages: impl 'static + Send + Sync + Fn(BoxStream<'static, u8>) -> TOutputStream) 
+pub fn create_unix_socket_program<TInputStream, TOutputMessage>(scene: &Scene, program_id: SubProgramId, path: impl AsRef<Path>, 
+    create_input_messages: impl 'static + Send + Sync + Fn(BoxStream<'static, Vec<u8>>) -> TInputStream,
+    create_output_messages: impl 'static + Send + Sync + Fn(BoxStream<'static, TOutputMessage>) -> BoxStream<'static, Vec<u8>>) 
     -> Result<(), ConnectionError> 
 where
     TInputStream:   'static + Send + Stream,
-    TOutputStream:  'static + Send + Stream,
+    TOutputMessage: 'static + Send,
 {
     // Create the listener for this program
     let listener = UnixListener::bind(path)
