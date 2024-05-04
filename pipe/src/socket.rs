@@ -179,10 +179,10 @@ where
 
                     // Ask the scene to create a subprogram that writes the output (won't work if the main 'scene' program isn't running)
                     let output_program = SubProgramId::new();
-                    // let output_program = SceneControl::start_program(output_program, move |_: InputStream<()>, context| byte_writer, 0);
+                    let output_program = SceneControl::start_program(output_program, move |_: InputStream<()>, context| byte_writer, 0);
 
-                    //let mut control = context.send(()).unwrap();
-                    //control.send_immediate(output_program);
+                    let mut control = context.send(()).unwrap();
+                    control.send_immediate(output_program);
                 });
 
                 // Try to send the connection to the first subscriber that can receive the message
