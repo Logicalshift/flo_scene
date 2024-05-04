@@ -194,7 +194,7 @@ impl SceneControl {
     where
         TFuture:        'static + Send + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
-        TProgramFn:     'static + Send + Sync + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
+        TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
         let start_fn = SceneProgramFn::new(program_id, program, max_input_waiting);
         SceneControl::Start(program_id, start_fn)
