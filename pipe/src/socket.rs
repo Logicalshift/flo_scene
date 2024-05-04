@@ -4,8 +4,8 @@ use flo_scene::programs::*;
 use futures::prelude::{Stream, Future};
 use futures::stream;
 use futures::stream::{BoxStream, StreamExt};
+use futures::sink::{SinkExt};
 use futures::{pin_mut};
-
 
 use tokio::io::*;
 
@@ -153,8 +153,9 @@ where
     let mut input = stream::select(subscribe, accept_messages);
 
     // Run the socket listener
+    let mut next_subscriber     = 0;
     let mut subscribers         = vec![];
-    // let mut waiting_connections = vec![];
+    let mut waiting_connections = vec![];
 
     while let Some(next_event) = input.next().await {
         match next_event {
@@ -200,7 +201,39 @@ where
                     control.send_immediate(output_program).ok();
                 });
 
-                // TODO: Try to send the connection to the first subscriber that can receive the message
+                // Try to send the connection to the first subscriber that can receive the message
+                let mut socket_connection = Some(socket_connection);
+
+                loop {
+                    // The subscriber to send to is picked in a round-robin fashion. We stop if there are no more subscribers left
+                    if subscribers.is_empty() { break; }
+                    if next_subscriber > subscribers.len() { next_subscriber = 0; }
+
+                    match context.send(subscribers[next_subscriber]) {
+                        Ok(mut send_new_socket) => {
+                            // Send to the subscriber
+                            if let Err(msg) = send_new_socket.send(SocketMessage::Connection(socket_connection.take().unwrap())).await {
+                                // Don't try to send to this subscriber again
+                                subscribers.remove(next_subscriber);
+
+                                todo!("Need to get the connection back from the sending error");
+                            } else {
+                                next_subscriber += 1;
+                                break;
+                            }
+                        },
+
+                        Err(_) => {
+                            // Remove the subscriber and try the next one
+                            subscribers.remove(next_subscriber);
+                        }
+                    }
+                }
+
+                if let Some(socket_connection) = socket_connection {
+                    // Failed to find a subscriber: add to the waiting connections (TODO: stop accepting connections once there are too many waiting)
+                    waiting_connections.push(socket_connection);
+                }
             }
 
             OurMessage::Subscribe(program_id) => {
@@ -208,7 +241,21 @@ where
                 subscribers.retain(|prog| prog != &program_id);
                 subscribers.push(program_id);
 
-                // TODO: If there are any waiting connections, send them all to this program
+                // If there are any waiting connections, send them all to this program
+                if !waiting_connections.is_empty() {
+                    // Connect to the new subscriber
+                    if let Ok(mut send_new_socket) = context.send(program_id) {
+                        // Try to send all of the waiting connections
+                        for connection in waiting_connections.drain(..) {
+                            if let Err(msg) = send_new_socket.send(SocketMessage::Connection(connection)).await {
+                                // The new subscriber has stopped accepting connections
+                                subscribers.pop();
+                                todo!("Need to get the connection back after the error");
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
     }
