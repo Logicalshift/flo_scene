@@ -202,7 +202,7 @@ where
                 });
 
                 // Try to send the connection to the first subscriber that can receive the message
-                let mut socket_connection = Some(socket_connection);
+                let mut socket_connection = Some(SocketMessage::Connection(socket_connection));
 
                 loop {
                     // The subscriber to send to is picked in a round-robin fashion. We stop if there are no more subscribers left
@@ -212,11 +212,17 @@ where
                     match context.send(subscribers[next_subscriber]) {
                         Ok(mut send_new_socket) => {
                             // Send to the subscriber
-                            if let Err(msg) = send_new_socket.send(SocketMessage::Connection(socket_connection.take().unwrap())).await {
+                            if let Err(err) = send_new_socket.send(socket_connection.take().unwrap()).await {
                                 // Don't try to send to this subscriber again
                                 subscribers.remove(next_subscriber);
 
-                                todo!("Need to get the connection back from the sending error");
+                                if let Some(msg) = err.to_message() {
+                                    // Try again with the same connection
+                                    socket_connection = Some(msg);
+                                } else {
+                                    // Connection was lost by the error
+                                    break;
+                                }
                             } else {
                                 next_subscriber += 1;
                                 break;
@@ -246,11 +252,17 @@ where
                     // Connect to the new subscriber
                     if let Ok(mut send_new_socket) = context.send(program_id) {
                         // Try to send all of the waiting connections
-                        for connection in waiting_connections.drain(..) {
-                            if let Err(msg) = send_new_socket.send(SocketMessage::Connection(connection)).await {
+                        waiting_connections.reverse();
+
+                        while let Some(connection) = waiting_connections.pop() {
+                            if let Err(err) = send_new_socket.send(connection).await {
                                 // The new subscriber has stopped accepting connections
                                 subscribers.pop();
-                                todo!("Need to get the connection back after the error");
+
+                                if let Some(msg) = err.to_message() {
+                                    // Failed to send to the subscriber, add back to the list of waiting messages
+                                    waiting_connections.push(msg);
+                                }
                                 break;
                             }
                         }
