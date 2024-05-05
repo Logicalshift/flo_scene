@@ -84,6 +84,41 @@ pub enum SceneSendError<TMessage> {
     CannotReEnterTargetProgram,
 }
 
+impl<TMessage> SceneSendError<TMessage> {
+    ///
+    /// Returns `Some(message)` if this error contains the message that failed to send
+    ///
+    /// A message might not be returned if the failure occurred after the message was added to the input queue for the
+    /// target program. Additionally, no message is provided for failures that occur while waiting for the input stream
+    /// to become ready.
+    ///
+    pub fn message(&self) -> Option<&TMessage> {
+        match self {
+            SceneSendError::TargetProgramEndedBeforeReady   => None,
+            SceneSendError::TargetProgramEnded(msg)         => Some(msg),
+            SceneSendError::StreamDisconnected(msg)         => Some(msg),
+            SceneSendError::CannotReEnterTargetProgram      => None,
+        }
+    }
+
+    ///
+    /// Returns `Some(message)` if this error contains the message that failed to send. This version extract the message
+    /// and discards this object. `message()` will return a reference to the message contained within the object.
+    ///
+    /// A message might not be returned if the failure occurred after the message was added to the input queue for the
+    /// target program. Additionally, no message is provided for failures that occur while waiting for the input stream
+    /// to become ready.
+    ///
+    pub fn to_message(self) -> Option<TMessage> {
+        match self {
+            SceneSendError::TargetProgramEndedBeforeReady   => None,
+            SceneSendError::TargetProgramEnded(msg)         => Some(msg),
+            SceneSendError::StreamDisconnected(msg)         => Some(msg),
+            SceneSendError::CannotReEnterTargetProgram      => None,
+        }
+    }
+}
+
 impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
     fn from(err: SceneSendError<TMessage>) -> ConnectionError {
         match err {
