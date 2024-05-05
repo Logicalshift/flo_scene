@@ -20,6 +20,7 @@ use std::sync::*;
 ///
 /// The type ID here can be used if it's necessary to deserialize the message again or determine the original type that was serialized.
 ///
+#[derive(Debug, PartialEq)]
 pub struct SerializedMessage<TSerializedType>(pub TSerializedType, pub TypeId);
 
 impl<TSerializedType> SceneMessage for SerializedMessage<TSerializedType> 

@@ -171,7 +171,7 @@ impl<TMessage> OutputSink<TMessage> {
     /// This makes it possible to send messages from functions that are not async. In general, this should be done
     /// sparingly: there's no back-pressure, and this might trigger a future to 'steal' the current thread.
     ///
-    pub fn send_immediate(&mut self, message: TMessage) -> Result<(), SceneSendError> {
+    pub fn send_immediate(&mut self, message: TMessage) -> Result<(), SceneSendError<TMessage>> {
         // Try sending the message to the target
         if let Err(message) = self.try_send_immediate(message) {
             // If we can't send it immediately, flush and try again
@@ -184,7 +184,7 @@ impl<TMessage> OutputSink<TMessage> {
 
                 match &target {
                     OutputSinkTarget::Discard                   => Ok(()),
-                    OutputSinkTarget::Disconnected              => Err(SceneSendError::StreamDisconnected),
+                    OutputSinkTarget::Disconnected              => Err(SceneSendError::StreamDisconnected(message)),
                     OutputSinkTarget::Input(input)              |
                     OutputSinkTarget::CloseWhenDropped(input)   => {
                         if let Some(input) = input.upgrade() {
@@ -195,7 +195,7 @@ impl<TMessage> OutputSink<TMessage> {
 
                             Ok(())
                         } else {
-                            Err(SceneSendError::StreamDisconnected)
+                            Err(SceneSendError::StreamDisconnected(message))
                         }
                     }
                 }
@@ -260,12 +260,12 @@ impl<TMessage> OutputSink<TMessage> {
     /// If thread stealing is enabled on the input stream, this will run the target subprogram on the current thread.
     /// If the target program is running on a different thread, this will block the current thread until it is idle.
     ///
-    pub fn try_flush_immediate(&mut self) -> Result<(), SceneSendError> {
+    pub fn try_flush_immediate(&mut self) -> Result<(), SceneSendError<TMessage>> {
         // TODO: an option is to create a separate thread to temporarily run the scene on too, which might work better for processes that can await things 
 
         // Fetch the scene core to be able to run the process
         let scene_core = self.scene_core.upgrade()
-            .ok_or(SceneSendError::TargetProgramEnded)?;
+            .ok_or(SceneSendError::TargetProgramEndedBeforeReady)?;
 
         // Fetch the input core that's in use
         let maybe_input_core = match &self.core.lock().unwrap().target {
@@ -291,7 +291,7 @@ impl<TMessage> OutputSink<TMessage> {
         if let Some(target_program_id) = maybe_target_program_id {
             // Manually poll the process
             // We only poll once, which will empty the queue provided that the target process does not await anything later on
-            SceneCore::steal_thread_for_program(&scene_core, target_program_id)?;
+            SceneCore::steal_thread_for_program::<TMessage>(&scene_core, target_program_id)?;
         }
 
         Ok(())
@@ -302,7 +302,7 @@ impl<TMessage> Sink<TMessage> for OutputSink<TMessage>
 where
     TMessage: Unpin,
 {
-    type Error = SceneSendError;
+    type Error = SceneSendError<TMessage>;
 
     fn poll_ready(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         // Say we're waiting if there's an input value waiting
@@ -328,7 +328,7 @@ where
                         core.target = OutputSinkTarget::Disconnected;
 
                         // Error if the target program is not running any more
-                        Poll::Ready(Err(SceneSendError::TargetProgramEnded))
+                        Poll::Ready(Err(SceneSendError::TargetProgramEndedBeforeReady))
                     } else {
                         // Can send the message
                         Poll::Ready(Ok(()))
@@ -382,7 +382,7 @@ where
 
                                 if let Some(scene_core) = maybe_scene_core {
                                     // Manually poll the process
-                                    let success = SceneCore::steal_thread_for_program(&scene_core, target_program_id);
+                                    let success = SceneCore::steal_thread_for_program::<TMessage>(&scene_core, target_program_id);
 
                                     success.is_ok()
                                 } else {
@@ -414,7 +414,7 @@ where
                     core.target = OutputSinkTarget::Disconnected;
 
                     // Target program is not available
-                    Err(SceneSendError::TargetProgramEnded)
+                    Err(SceneSendError::TargetProgramEnded(item))
                 }
             }
         }
@@ -503,7 +503,7 @@ where
 
                     // When the core is released during a send, the target program has terminated, so we generate an error
                     core.when_target_changed    = Some(context.waker().clone());
-                    Poll::Ready(Err(SceneSendError::TargetProgramEnded))
+                    Poll::Ready(Err(SceneSendError::TargetProgramEndedBeforeReady))
                 }
             }
         }

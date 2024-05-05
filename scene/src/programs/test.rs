@@ -82,7 +82,7 @@ impl TestBuilder {
             let mut target_stream = context.send::<TMessage>(target).unwrap();
 
             async move {
-                target_stream.send(message).await.unwrap();
+                target_stream.send(message).await.map_err(|err| ConnectionError::from(err)).unwrap();
 
                 (input_stream, failed_assertions)
             }.boxed()

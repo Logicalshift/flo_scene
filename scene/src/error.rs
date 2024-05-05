@@ -70,23 +70,27 @@ pub enum ConnectionError {
 /// Error that occurs while sending to a stream
 ///
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub enum SceneSendError {
+pub enum SceneSendError<TMessage> {
+    /// The target program ended while waiting for it to become ready (or after sending the message but before it could be flushed)
+    TargetProgramEndedBeforeReady,
+
     /// The target for the stream stopped before the message could be sent
-    TargetProgramEnded,
+    TargetProgramEnded(TMessage),
 
     /// The stream is disconnected, so messages cannot currently be sent to it
-    StreamDisconnected,
+    StreamDisconnected(TMessage),
 
     /// The target program supports thread stealing, but it is already running on the current thread's callstack and can't re-enter
     CannotReEnterTargetProgram,
 }
 
-impl From<SceneSendError> for ConnectionError {
-    fn from(err: SceneSendError) -> ConnectionError {
+impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
+    fn from(err: SceneSendError<TMessage>) -> ConnectionError {
         match err {
-            SceneSendError::TargetProgramEnded          => ConnectionError::TargetNotInScene,
-            SceneSendError::StreamDisconnected          => ConnectionError::TargetNotAvailable,
-            SceneSendError::CannotReEnterTargetProgram  => ConnectionError::CannotStealThread,
+            SceneSendError::TargetProgramEndedBeforeReady   => ConnectionError::TargetNotInScene,
+            SceneSendError::TargetProgramEnded(_)           => ConnectionError::TargetNotInScene,
+            SceneSendError::StreamDisconnected(_)           => ConnectionError::TargetNotAvailable,
+            SceneSendError::CannotReEnterTargetProgram      => ConnectionError::CannotStealThread,
         }
     }
 }

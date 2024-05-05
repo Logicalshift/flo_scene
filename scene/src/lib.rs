@@ -29,6 +29,7 @@
 //! # let scene = Scene::default();
 //! #
 //! // Simple logger
+//! #[derive(Debug)]
 //! pub enum LogMessage {
 //!     Info(String),
 //!     Warning(String),
@@ -76,6 +77,7 @@
 //! # use flo_scene::*;
 //! # use futures::prelude::*;
 //! # let scene = Scene::default();
+//! # #[derive(Debug)]
 //! # pub enum LogMessage { Warning(String) };
 //! # impl SceneMessage for LogMessage { }
 //! #

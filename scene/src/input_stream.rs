@@ -224,9 +224,9 @@ impl<TMessage> InputStreamCore<TMessage> {
     ///
     /// This is used for forcibly sending messages in immediate mode to guarantee delivery (and can result in memory leaks)
     ///
-    pub (crate) fn send_with_overfill(&mut self, source: SubProgramId, message: TMessage) -> Result<Option<Waker>, SceneSendError> {
+    pub (crate) fn send_with_overfill(&mut self, source: SubProgramId, message: TMessage) -> Result<Option<Waker>, SceneSendError<TMessage>> {
         if self.closed {
-            Err(SceneSendError::StreamDisconnected)
+            Err(SceneSendError::StreamDisconnected(message))
         } else {
             self.waiting_messages.push_back((source, message));
             self.idle = false;

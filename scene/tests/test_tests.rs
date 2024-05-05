@@ -5,6 +5,7 @@ use futures::prelude::*;
 
 #[test]
 pub fn simple_ping_test_with_test_builder() {
+    #[derive(Debug)]
     struct Ping;
     impl SceneMessage for Ping {}
 
@@ -35,6 +36,7 @@ pub fn simple_ping_test_with_test_builder() {
 
 #[test]
 pub fn multithreaded_ping() {
+    #[derive(Debug)]
     struct Ping;
     impl SceneMessage for Ping {}
 

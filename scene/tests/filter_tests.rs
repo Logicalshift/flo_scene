@@ -612,8 +612,9 @@ fn filter_at_source_with_specific_target() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
+    #[derive(Debug)]
     enum Message1 { Msg(String) }
-    #[derive(PartialEq)]
+    #[derive(Debug, PartialEq)]
     enum Message2 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -665,8 +666,9 @@ fn filter_at_source_with_any_target() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
+    #[derive(Debug)]
     enum Message1 { Msg(String) }
-    #[derive(PartialEq)]
+    #[derive(Debug, PartialEq)]
     enum Message2 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -723,8 +725,9 @@ fn filter_at_source_with_direct_target() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
+    #[derive(Debug)]
     enum Message1 { Msg(String) }
-    #[derive(PartialEq)]
+    #[derive(Debug, PartialEq)]
     enum Message2 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -778,8 +781,11 @@ fn chain_filters_with_target_filter() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
+    #[derive(Debug)]
     enum Message1 { Msg(String) }
+    #[derive(Debug)]
     enum Message2 { Msg(String) }
+    #[derive(Debug)]
     enum Message3 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -850,9 +856,13 @@ fn chain_two_filters_with_target_filter_1() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
+    #[derive(Debug)]
     enum Message1 { Msg(String) }
+    #[derive(Debug)]
     enum Message2 { Msg(String) }
+    #[derive(Debug)]
     enum Message3 { Msg(String) }
+    #[derive(Debug)]
     enum Message4 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -924,9 +934,13 @@ fn chain_two_filters_with_target_filter_2() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
+    #[derive(Debug)]
     enum Message1 { Msg(String) }
+    #[derive(Debug)]
     enum Message2 { Msg(String) }
+    #[derive(Debug)]
     enum Message3 { Msg(String) }
+    #[derive(Debug)]
     enum Message4 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -998,9 +1012,11 @@ fn chain_with_direct_target() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
+    #[derive(Debug)]
     enum Message1 { Msg(String) }
-    #[derive(PartialEq)]
+    #[derive(Debug, PartialEq)]
     enum Message2 { Msg(String) }
+    #[derive(Debug)]
     enum Message3 { Msg(String) }
 
     impl SceneMessage for Message1 { }

@@ -891,7 +891,7 @@ impl SceneCore {
     ///
     /// Polls the process for the specified program on this thread
     ///
-    pub (crate) fn steal_thread_for_program(core: &Arc<Mutex<SceneCore>>, program_id: SubProgramId) -> Result<(), SceneSendError> {
+    pub (crate) fn steal_thread_for_program<TMessage>(core: &Arc<Mutex<SceneCore>>, program_id: SubProgramId) -> Result<(), SceneSendError<TMessage>> {
         use std::mem;
         use std::thread;
 
@@ -904,7 +904,7 @@ impl SceneCore {
                 .unwrap_or(None)
         };
 
-        let subprogram = subprogram.ok_or(SceneSendError::TargetProgramEnded)?;
+        let subprogram = subprogram.ok_or(SceneSendError::TargetProgramEndedBeforeReady)?;
 
         // Try to fetch the future for the process (back to the scene core again here)
         let (process_id, mut process_future) = {
@@ -912,12 +912,12 @@ impl SceneCore {
             loop {
                 // We lock both the core and the subprogram here so that the process cannot end before we get the future
                 let mut core    = core.lock().unwrap();
-                let process_id  = subprogram.lock().unwrap().process_id.ok_or(SceneSendError::TargetProgramEnded)?;
+                let process_id  = subprogram.lock().unwrap().process_id.ok_or(SceneSendError::TargetProgramEndedBeforeReady)?;
 
                 let process     = core.processes.get_mut(process_id.0)
                     .map(|process| process.as_mut())
                     .unwrap_or(None)
-                    .ok_or(SceneSendError::TargetProgramEnded)?;
+                    .ok_or(SceneSendError::TargetProgramEndedBeforeReady)?;
 
                 // If the process is available, return it to the rest of the thread, in order to run it here
                 match process.future.take() {
