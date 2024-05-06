@@ -4,7 +4,6 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use futures::prelude::*;
 use futures::stream::{BoxStream, ReadyChunks};
 
-use std::collections::{VecDeque};
 use std::io;
 use std::io::{Error};
 use std::pin::{Pin};
@@ -88,18 +87,14 @@ where
 enum StreamWriterState {
     Idle,
     WaitingForReady,
-    ReadyToWrite,
-    WaitingForWrite,
 }
 
 ///
 /// The stream writer converts an output sink of bytes into an AsyncWrite implementation
 ///
 struct StreamWriter<TTargetSink> {
-    state:          StreamWriterState,
-    target:         Pin<Box<TTargetSink>>,
-    max_pending:    usize,
-    pending:        VecDeque<u8>,
+    state:  StreamWriterState,
+    target: Pin<Box<TTargetSink>>,
 }
 
 impl<TTargetSink> AsyncWrite for StreamWriter<TTargetSink>
@@ -107,65 +102,66 @@ where
     TTargetSink: Sink<u8>,
 {
     fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize, Error>> {
-        // Write as much as possible to the buffer
-        let max_write   = self.max_pending - self.pending.len();
-        let to_write    = buf.len().min(max_write);
+        let mut num_written = 0;
 
-        self.pending.extend(buf[0..to_write].iter().copied());
+        loop {
+            // Indicate 'ready' if all the bytes are written
+            if num_written >= buf.len() {
+                return Poll::Ready(Ok(num_written));
+            }
 
-        // Start sending to the sink
-        match TTargetSink::poll_ready(self.target.as_mut(), cx) {
-            Poll::Pending       => { self.state = StreamWriterState::WaitingForReady },
-            Poll::Ready(Ok(())) => { self.state = StreamWriterState::ReadyToWrite; },
-            Poll::Ready(Err(_)) => { return Poll::Ready(Err(io::Error ::new(io::ErrorKind::Other, "Error while waiting for ready"))); }
+            // Poll for readiness
+            match TTargetSink::poll_ready(self.target.as_mut(), cx) {
+                Poll::Pending => {
+                    // Can't send any bytes immediately
+                    self.state = StreamWriterState::WaitingForReady;
+
+                    if num_written > 0 {
+                        // Sink is no longer ready but we wrote some of the bytes
+                        return Poll::Ready(Ok(num_written));
+                    } else {
+                        // Didn't manage to send anything, so indicate that we're pending
+                        return Poll::Pending;
+                    }
+                }
+
+                Poll::Ready(Ok(())) => {
+                    self.state = StreamWriterState::Idle;
+
+                    // Send the next byte
+                    match TTargetSink::start_send(self.target.as_mut(), buf[num_written]) {
+                        Ok(()) => { },
+                        Err(_) => { return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Error while sending byte"))); },
+                    }
+
+                    // Add to the number of written bytes, go through the loop again to try to send more if we can
+                    num_written += 1;
+                }
+
+                Poll::Ready(Err(_)) => {
+                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Error while waiting for ready")));
+                }
+            }
         }
-
-        // Indicate how much was written
-        Poll::Ready(Ok(to_write))
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         loop {
-            if self.pending.is_empty() {
-                // Result is 'OK' once the pending queue is empty
-                return Poll::Ready(Ok(()));
-            }
-
-            // Wait for readiness, then send as many bytes as possible from the pending list, then wait for the sink to flush
+            // If we started to wait for readiness, finish that first
             match self.state {
-                StreamWriterState::Idle             |
                 StreamWriterState::WaitingForReady  => {
                     // Poll for readiness
                     match TTargetSink::poll_ready(self.target.as_mut(), cx) {
                         Poll::Pending       => { self.state = StreamWriterState::WaitingForReady; return Poll::Pending; },
-                        Poll::Ready(Ok(())) => { self.state = StreamWriterState::ReadyToWrite; },
+                        Poll::Ready(Ok(())) => { self.state = StreamWriterState::Idle; },
                         Poll::Ready(Err(_)) => { return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Error while waiting for ready"))); }
                     }
                 },
 
-                StreamWriterState::ReadyToWrite => {
-                    // Ready to send
-                    if let Some(next_byte) = self.pending.pop_front() {
-                        match TTargetSink::start_send(self.target.as_mut(), next_byte) {
-                            Ok(()) => {
-                                // Wait for the byte to clear before the next byte
-                                self.state = StreamWriterState::WaitingForReady;
-                            }
-
-                            Err(_) => {
-                                return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Error while sending byte")));
-                            }
-                        }
-                    } else {
-                        // Finished writing: wait to flush before finishing
-                        self.state = StreamWriterState::WaitingForWrite;
-                    }
-                }
-
-                StreamWriterState::WaitingForWrite => {
+                StreamWriterState::Idle => {
                     match TTargetSink::poll_flush(self.target.as_mut(), cx) {
-                        Poll::Pending       => { self.state = StreamWriterState::WaitingForWrite; return Poll::Pending; }
-                        Poll::Ready(Ok(())) => { self.state = StreamWriterState::Idle; return Poll::Pending; }
+                        Poll::Pending       => { return Poll::Pending; }
+                        Poll::Ready(Ok(())) => { return Poll::Ready(Ok(())); }
                         Poll::Ready(Err(_)) => { return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Error while waiting for flush"))); }
                     }
                 }
@@ -189,7 +185,7 @@ impl InternalSocketMessage {
     ///
     pub fn create_socket_from_streams(input: impl 'static + Send + Stream<Item=u8>, output: impl 'static + Send + Sink<u8>) -> InternalSocketMessage {
         let input_stream    = StreamReader { source: Some(Box::pin(input.ready_chunks(256))), pending: Vec::with_capacity(256) };
-        let output_stream   = StreamWriter { state: StreamWriterState::Idle, target: Box::pin(output), max_pending: 256, pending: VecDeque::with_capacity(256) };
+        let output_stream   = StreamWriter { state: StreamWriterState::Idle, target: Box::pin(output) };
 
         InternalSocketMessage::CreateInternalSocket(Box::new(input_stream), Box::new(output_stream))
     }
