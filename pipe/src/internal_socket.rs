@@ -86,6 +86,7 @@ where
 
 enum StreamWriterState {
     Idle,
+    Writing(usize),
     WaitingForReady,
 }
 
@@ -102,11 +103,16 @@ where
     TTargetSink: Sink<u8>,
 {
     fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize, Error>> {
-        let mut num_written = 0;
+        let mut num_written = match self.state {
+            StreamWriterState::Idle                 |
+            StreamWriterState::WaitingForReady      => 0,
+            StreamWriterState::Writing(num_bytes)   => num_bytes,
+        };
 
         loop {
             // Indicate 'ready' if all the bytes are written
             if num_written >= buf.len() {
+                self.state = StreamWriterState::Idle;
                 return Poll::Ready(Ok(num_written));
             }
 
@@ -114,20 +120,13 @@ where
             match TTargetSink::poll_ready(self.target.as_mut(), cx) {
                 Poll::Pending => {
                     // Can't send any bytes immediately
-                    self.state = StreamWriterState::WaitingForReady;
+                    self.state = StreamWriterState::Writing(num_written);
 
-                    if num_written > 0 {
-                        // Sink is no longer ready but we wrote some of the bytes
-                        return Poll::Ready(Ok(num_written));
-                    } else {
-                        // Didn't manage to send anything, so indicate that we're pending
-                        return Poll::Pending;
-                    }
+                    // Wait until the sink is ready before writing more
+                    return Poll::Pending;
                 }
 
                 Poll::Ready(Ok(())) => {
-                    self.state = StreamWriterState::Idle;
-
                     // Send the next byte
                     match TTargetSink::start_send(self.target.as_mut(), buf[num_written]) {
                         Ok(()) => { },
@@ -136,6 +135,7 @@ where
 
                     // Add to the number of written bytes, go through the loop again to try to send more if we can
                     num_written += 1;
+                    self.state = StreamWriterState::Writing(num_written);
                 }
 
                 Poll::Ready(Err(_)) => {
@@ -149,7 +149,8 @@ where
         loop {
             // If we started to wait for readiness, finish that first
             match self.state {
-                StreamWriterState::WaitingForReady  => {
+                StreamWriterState::Writing(_)      |
+                StreamWriterState::WaitingForReady => {
                     // Poll for readiness
                     match TTargetSink::poll_ready(self.target.as_mut(), cx) {
                         Poll::Pending       => { self.state = StreamWriterState::WaitingForReady; return Poll::Pending; },
