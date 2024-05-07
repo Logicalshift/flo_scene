@@ -211,7 +211,8 @@ where
 mod test {
     use super::*;
     use futures::executor;
-    use tokio::io::{AsyncReadExt};
+    use futures::channel::mpsc;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[test]
     fn stream_reader_read() {
@@ -234,5 +235,34 @@ mod test {
         });
 
         assert!(read_bytes == vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 6u8], "{:?}", read_bytes);
+    }
+
+    #[test]
+    fn stream_writer_write() {
+        // Create an output stream
+        let (write, read) = mpsc::channel::<u8>(1);
+        let output_stream = StreamWriter { target: Box::pin(write), state: StreamWriterState::Idle };
+
+        // Create a future that writes some bytes to the output stream
+        let write_bytes = async move {
+            let mut output_stream   = output_stream;
+            let bytes               = vec![0u8, 1, 2, 3, 4, 5, 6];
+
+            output_stream.write(&bytes).await.unwrap();
+        };
+
+        // Read the bytes from the reading stream
+        let read_bytes = async move {
+            let mut read        = read;
+            let mut bytes_read  = vec![];
+
+            while let Some(next_byte) = read.next().await {
+                bytes_read.push(next_byte);
+            }
+
+            assert!(bytes_read == vec![0u8, 1, 2, 3, 4, 5, 6], "Read {:?}", bytes_read);
+        };
+
+        executor::block_on(future::join(write_bytes, read_bytes));
     }
 }
