@@ -211,6 +211,7 @@ where
 {
     let create_output_messages      = Arc::new(create_output_messages);
     let mut subscribers             = EventSubscribers::new();
+    let mut pending_connections     = vec![];
 
     // The internal socket program responds to InternalSocketMessages and sends subscriptions from the inner program
     scene.add_subprogram(program_id, move |input, context| async move {
@@ -264,14 +265,25 @@ where
                     let maybe_failed_message = subscribers.send_round_robin(SocketMessage::Connection(socket_connection)).await;
 
                     if let Err(failed_message) = maybe_failed_message {
-                        // No subscriber was available to receive the message successfully
-                        todo!()
+                        // No subscriber was available to receive the message successfully: add this as a pending connection
+                        pending_connections.push(failed_message);
                     }
                 },
 
                 InternalSocketMessage::Subscribe => {
                     // Add to the subscribers
-                    subscribers.subscribe(&context, source)
+                    subscribers.subscribe(&context, source);
+
+                    // Try to flush the pending messages
+                    while let Some(pending) = pending_connections.pop() {
+                        let maybe_failed_message = subscribers.send_round_robin(pending).await;
+
+                        if let Err(failed_message) = maybe_failed_message {
+                            // Stop if there are no subscribers to send to
+                            pending_connections.push(failed_message);
+                            break;
+                        }
+                    }
                 }
             }
         }
