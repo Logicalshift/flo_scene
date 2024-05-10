@@ -19,7 +19,7 @@ impl SceneMessage for Subscribe { }
 ///
 pub struct EventSubscribers<TEventMessage>
 where
-    TEventMessage: Clone + SceneMessage,
+    TEventMessage: SceneMessage,
 {
     /// The output sinks that will receive the events from this subprogram
     receivers: Vec<(Option<SubProgramId>, OutputSink<TEventMessage>)>
@@ -27,7 +27,7 @@ where
 
 impl<TEventMessage> EventSubscribers<TEventMessage>
 where
-    TEventMessage: 'static + Clone + SceneMessage,
+    TEventMessage: 'static + SceneMessage,
 {
     ///
     /// Creates a new set of event subscribers
@@ -68,6 +68,21 @@ where
         self.receivers.retain(|(program_id, _)| program_id != &Some(program));
     }
 
+    ///
+    /// Sends a message to a single subscriber, returning true if the message is delivered
+    ///
+    /// Subscribers are sent to in a round-robin fashion
+    ///
+    pub async fn send_round_robin(&mut self, message: TEventMessage) -> Option<TEventMessage> {
+        todo!()
+    }
+}
+
+
+impl<TEventMessage> EventSubscribers<TEventMessage>
+where
+    TEventMessage: 'static + Clone + SceneMessage,
+{
     ///
     /// Sends a message to the subscribers to this object
     ///
