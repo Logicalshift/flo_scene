@@ -81,7 +81,7 @@ where
 ///
 /// Creates a stream that reads blocks of data from an AsyncRead
 ///
-fn create_reader_stream(reader: impl 'static + Send + AsyncRead) -> impl Stream<Item=Vec<u8>> {
+pub (crate) fn create_reader_stream(reader: impl 'static + Send + AsyncRead) -> impl Stream<Item=Vec<u8>> {
     let reader = Box::pin(reader);
     let reader = Arc::new(Mutex::new(Some(reader)));
 

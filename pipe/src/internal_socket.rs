@@ -1,6 +1,9 @@
-use flo_scene::*;
+use super::socket::*;
 
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use flo_scene::*;
+use flo_scene::programs::*;
+
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf, AsyncWriteExt};
 use futures::prelude::*;
 use futures::stream::{BoxStream, ReadyChunks};
 
@@ -9,6 +12,7 @@ use std::io::{Error};
 use std::pin::{Pin};
 use std::result::{Result};
 use std::task::{Context, Poll};
+use std::sync::*;
 
 ///
 /// Requests that can be made to the internal socket program
@@ -30,7 +34,7 @@ impl SceneMessage for InternalSocketMessage { }
 ///
 /// The stream reader is used to convert an input stream of bytes into an AsyncRead implementation
 ///
-struct StreamReader<TSourceStream> {
+struct StreamReader<TSourceStream: ?Sized> {
     source:     Option<Pin<Box<TSourceStream>>>,
     pending:    Vec<u8>,
 }
@@ -205,6 +209,74 @@ where
     TInputStream:   'static + Send + Stream,
     TOutputMessage: 'static + Send,
 {
+    let create_output_messages      = Arc::new(create_output_messages);
+    let mut subscribers             = EventSubscribers::new();
+
+    // The internal socket program responds to InternalSocketMessages and sends subscriptions from the inner program
+    scene.add_subprogram(program_id, move |input, context| async move {
+        let mut input = input.messages_with_sources();
+
+        while let Some((source, request)) = input.next().await {
+            match request {
+                InternalSocketMessage::CreateInternalSocket(async_reader, async_writer) => {
+                    // Create the socket connection from the reader
+                    let reader_stream = create_reader_stream(Box::into_pin(async_reader));
+                    let reader_stream = create_input_messages(reader_stream.boxed());
+
+                    let create_output_messages  = Arc::clone(&create_output_messages);
+                    let socket_connection       = SocketConnection::new(&context, reader_stream, move |context, output_stream| {
+                        // Create a stream that converts to bytes
+                        let mut output_byte_stream = create_output_messages(output_stream);
+
+                        // Future to write the bytes
+                        let async_writer = Box::into_pin(async_writer);
+                        let byte_writer  = async move {
+                            // Write each block as it arrives from the output byte stream to the socket target
+                            let mut async_writer = async_writer;
+                            while let Some(bytes) = output_byte_stream.next().await {
+                                // Loop until we've written all of the bytes
+                                let mut write_pos = 0;
+
+                                while write_pos < bytes.len() {
+                                    match async_writer.write(&bytes[write_pos..(bytes.len())]).await {
+                                        Ok(0)           => break,
+                                        Err(_)          => break,
+                                        Ok(num_written) => {
+                                            write_pos += num_written;
+                                            if write_pos >= bytes.len() {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        };
+
+                        // Ask the scene to create a subprogram that writes the output (won't work if the main 'scene' program isn't running)
+                        let output_program = SubProgramId::new();
+                        let output_program = SceneControl::start_program(output_program, move |_: InputStream<()>, _| byte_writer, 0);
+
+                        let mut control = context.send(()).unwrap();
+                        control.send_immediate(output_program).ok();
+                    });
+
+                    // Send this connection to the subscribers
+                    let maybe_failed_message = subscribers.send_round_robin(SocketMessage::Connection(socket_connection)).await;
+
+                    if let Some(failed_message) = maybe_failed_message {
+                        // No subscriber was available to receive the message successfully
+                        todo!()
+                    }
+                },
+
+                InternalSocketMessage::Subscribe => {
+                    // Add to the subscribers
+                    subscribers.subscribe(&context, source)
+                }
+            }
+        }
+    }, 0);
+
     Ok(())
 }
 
