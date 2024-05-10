@@ -1,3 +1,4 @@
+use crate::error::*;
 use crate::output_sink::*;
 use crate::scene_context::*;
 use crate::scene_message::*;
@@ -22,7 +23,10 @@ where
     TEventMessage: SceneMessage,
 {
     /// The output sinks that will receive the events from this subprogram
-    receivers: Vec<(Option<SubProgramId>, OutputSink<TEventMessage>)>
+    receivers: Vec<(Option<SubProgramId>, OutputSink<TEventMessage>)>,
+
+    /// The next receiver to use when sending a round-robin message
+    next_receiver: usize,
 }
 
 impl<TEventMessage> EventSubscribers<TEventMessage>
@@ -34,7 +38,8 @@ where
     ///
     pub fn new() -> Self {
         EventSubscribers { 
-            receivers: vec![]
+            receivers:      vec![],
+            next_receiver:  0,
         }
     }
 
@@ -69,12 +74,52 @@ where
     }
 
     ///
-    /// Sends a message to a single subscriber, returning true if the message is delivered
+    /// Sends a message to a single subscriber, returning Ok(()) if the message is delivered, otherwise returning an error that preserves the original message
     ///
     /// Subscribers are sent to in a round-robin fashion
     ///
-    pub async fn send_round_robin(&mut self, message: TEventMessage) -> Option<TEventMessage> {
-        todo!()
+    pub async fn send_round_robin(&mut self, message: TEventMessage) -> Result<(), TEventMessage> {
+        let mut message = message;
+
+        loop {
+            // If there are no receivers, then there's onothing to send a message to
+            if self.receivers.is_empty() {
+                break Err(message);
+            }
+
+            // Move on to the next receiver
+            self.next_receiver += 1;
+            if self.next_receiver >= self.receivers.len() {
+                self.next_receiver = 0;
+            }
+
+            // Try to send to this receiver
+            match self.receivers[self.next_receiver].1.send(message).await {
+                Ok(()) => { break Ok(()); }
+
+                Err(SceneSendError::TargetProgramEndedBeforeReady)  |
+                Err(SceneSendError::CannotReEnterTargetProgram)     => {
+                    // The message was sent but was not processed by the target (we treat this as 'Ok' because we can't get it back)
+                    break Ok(());
+                }
+
+                Err(SceneSendError::TargetProgramEnded(returned_message)) |
+                Err(SceneSendError::StreamDisconnected(returned_message)) => {
+                    // Remove this subscriber as it errored out
+                    self.receivers.remove(self.next_receiver);
+
+                    // Retry the same index again next time through the loop
+                    if self.next_receiver > 0 {
+                        self.next_receiver -= 1;
+                    } else if !self.receivers.is_empty() {
+                        self.next_receiver = self.receivers.len() - 1;
+                    }
+
+                    // Retry the message on the next subscriber
+                    message = returned_message;
+                }
+            }
+        }
     }
 }
 

@@ -263,7 +263,7 @@ where
                     // Send this connection to the subscribers
                     let maybe_failed_message = subscribers.send_round_robin(SocketMessage::Connection(socket_connection)).await;
 
-                    if let Some(failed_message) = maybe_failed_message {
+                    if let Err(failed_message) = maybe_failed_message {
                         // No subscriber was available to receive the message successfully
                         todo!()
                     }
