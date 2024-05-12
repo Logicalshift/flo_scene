@@ -23,10 +23,10 @@ use std::path::*;
 /// a round-robin fashion.
 ///
 pub fn start_unix_socket_program<TInputStream, TOutputMessage>(
-        scene: &Scene, 
-        program_id: SubProgramId, 
-        path: impl AsRef<Path>, 
-        create_input_messages: impl 'static + Send + Sync + Fn(BoxStream<'static, Vec<u8>>) -> TInputStream,
+        scene:                  &Scene, 
+        program_id:             SubProgramId, 
+        path:                   impl AsRef<Path>, 
+        create_input_messages:  impl 'static + Send + Sync + Fn(BoxStream<'static, Vec<u8>>) -> TInputStream,
         create_output_messages: impl 'static + Send + Sync + Fn(BoxStream<'static, TOutputMessage>) -> BoxStream<'static, Vec<u8>>
     ) -> Result<(), ConnectionError> 
 where
