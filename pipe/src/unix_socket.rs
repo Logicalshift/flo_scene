@@ -1,7 +1,6 @@
 use super::socket::*;
 
 use flo_scene::*;
-use flo_scene::programs::*;
 
 use futures::prelude::*;
 use futures::stream::{BoxStream};
