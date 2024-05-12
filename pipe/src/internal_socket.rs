@@ -7,12 +7,16 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf, AsyncWriteExt};
 use futures::prelude::*;
 use futures::stream::{BoxStream, ReadyChunks};
 
+use once_cell::sync::{Lazy};
+
 use std::io;
 use std::io::{Error};
 use std::pin::{Pin};
 use std::result::{Result};
 use std::task::{Context, Poll};
 use std::sync::*;
+
+static SUBSCRIBE_INTERNAL_SOCKET: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::conversion_filter::<Subscribe, InternalSocketMessage>());
 
 ///
 /// Requests that can be made to the internal socket program
@@ -29,7 +33,17 @@ pub enum InternalSocketMessage {
     CreateInternalSocket(Box<dyn Send + AsyncRead>, Box<dyn Send + AsyncWrite>),
 }
 
-impl SceneMessage for InternalSocketMessage { }
+impl SceneMessage for InternalSocketMessage {
+    fn initialise(scene: &Scene) {
+        scene.connect_programs(StreamSource::Filtered(*SUBSCRIBE_INTERNAL_SOCKET), (), StreamId::with_message_type::<Subscribe>()).unwrap();
+    }
+}
+
+impl From<Subscribe> for InternalSocketMessage {
+    fn from(_: Subscribe) -> InternalSocketMessage {
+        InternalSocketMessage::Subscribe
+    }
+}
 
 ///
 /// The stream reader is used to convert an input stream of bytes into an AsyncRead implementation
@@ -288,6 +302,9 @@ where
             }
         }
     }, 0);
+
+    // Allow 'subscribe' messages to be sent directly to the new program
+    scene.connect_programs((), StreamTarget::Filtered(*SUBSCRIBE_INTERNAL_SOCKET, program_id), StreamId::with_message_type::<Subscribe>()).unwrap();
 
     Ok(())
 }
