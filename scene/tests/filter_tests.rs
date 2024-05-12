@@ -77,6 +77,62 @@ fn write_to_filter_target() {
 }
 
 #[test]
+fn write_to_conversion_filter() {
+    // List of messages that were received by the subprogram
+    let recv_messages = Arc::new(Mutex::new(vec![]));
+
+    // Create a scene with just this subprogram in it
+    let scene           = Scene::empty();
+    let sent_messages   = recv_messages.clone();
+
+    // Create a filter that converts u32s to u64s
+    let u32_to_u64 = FilterHandle::conversion_filter::<u32, u64>();
+
+    // Add a program that receives some u64s and writes them to recv_messages as strings
+    let string_program = SubProgramId::new();
+    scene.add_subprogram(
+        string_program,
+        move |mut numbers: InputStream<u64>, _| async move {
+            let next_number = numbers.next().await.unwrap();
+            sent_messages.lock().unwrap().push(next_number.to_string());
+            let next_number = numbers.next().await.unwrap();
+            sent_messages.lock().unwrap().push(next_number.to_string());
+            let next_number = numbers.next().await.unwrap();
+            sent_messages.lock().unwrap().push(next_number.to_string());
+            let next_number = numbers.next().await.unwrap();
+            sent_messages.lock().unwrap().push(next_number.to_string());
+        },
+        0,
+    );
+
+    // Add another program that outputs some u32s to the first program via the conversion filter
+    let number_program = SubProgramId::new();
+    scene.add_subprogram(
+        number_program, 
+        move |_: InputStream<()>, context| async move {
+            let mut filtered_output = context.send::<u32>(StreamTarget::Filtered(u32_to_u64, string_program)).unwrap();
+
+            filtered_output.send(1u32).await.unwrap();
+            filtered_output.send(2u32).await.unwrap();
+            filtered_output.send(3u32).await.unwrap();
+            filtered_output.send(4u32).await.unwrap();
+        }, 
+        0);
+
+    // Run the scene
+    let mut has_finished = false;
+    executor::block_on(select(async {
+        scene.run_scene().await;
+        has_finished = true;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Received output should match the numbers
+    let recv_messages = (*recv_messages.lock().unwrap()).clone();
+    assert!(recv_messages == vec![1.to_string(), 2.to_string(), 3.to_string(), 4.to_string()], "Test program did not send correct numbers (sent {:?})", recv_messages);
+    assert!(has_finished, "Scene did not finish when the programs terminated");
+}
+
+#[test]
 fn apply_filter_to_direct_connection() {
     // List of messages that were received by the subprogram
     let recv_messages = Arc::new(Mutex::new(vec![]));

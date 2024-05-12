@@ -150,6 +150,38 @@ impl FilterHandle {
     }
 
     ///
+    /// Creates a filter that converts between two message types that implements `From`
+    ///
+    /// This will cache the filter handle for specific message types so this won't allocate additional filters every time it's called
+    ///
+    pub fn conversion_filter<TSourceMessage, TTargetMessage>() -> FilterHandle
+    where
+        TSourceMessage: 'static + SceneMessage,
+        TTargetMessage: 'static + SceneMessage + From<TSourceMessage>
+    {
+        use std::mem;
+        static EXISTING_FILTERS: Lazy<RwLock<HashMap<(TypeId, TypeId), FilterHandle>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
+        // We cache the filter handle so that if more than one thing wants the same conversion we don't allocate another one
+        let conversion_type = (TypeId::of::<TSourceMessage>(), TypeId::of::<TTargetMessage>());
+
+        // Try to fetch the existing filter if there is one
+        let existing_filters = EXISTING_FILTERS.read().unwrap();
+        if let Some(existing) = existing_filters.get(&conversion_type) {
+            *existing
+        } else {
+            // Create a new filter and cache it
+            mem::drop(existing_filters);
+            let mut existing_filters = EXISTING_FILTERS.write().unwrap();
+
+            let new_filter = Self::for_filter(|input| input.map(|source_message: TSourceMessage| TTargetMessage::from(source_message)));
+            existing_filters.insert(conversion_type, new_filter);
+
+            new_filter
+        }
+    }
+
+    ///
     /// Creates an input stream core which will filter its results using this filter and send them to a target core
     ///
     /// This is an input stream that accepts the 'source' type of the filter, and sends its results to the target core, as if they came 
