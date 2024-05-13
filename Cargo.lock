@@ -106,6 +106,7 @@ dependencies = [
  "once_cell",
  "ron",
  "serde",
+ "serde_json",
  "tokio",
  "uuid",
 ]
