@@ -101,12 +101,24 @@ version = "0.2.0"
 dependencies = [
  "desync",
  "flo_scene",
+ "flo_stream",
  "futures",
  "once_cell",
  "ron",
  "serde",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "flo_stream"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a7246db09b6a924fb11fedc1e33c34e6d5d0ba3c95a87cd2994f9581cf5a470"
+dependencies = [
+ "futures",
+ "lazy_static",
+ "smallvec",
 ]
 
 [[package]]
@@ -389,6 +401,12 @@ checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "smallvec"
+version = "1.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
 name = "socket2"
