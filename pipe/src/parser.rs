@@ -179,16 +179,22 @@ where
     ///
     /// Returns false if the stream if exhausted and no character could be matched, or true if an extra character has been appended to the lookahead characters
     ///
-    async fn read_next_char(&mut self) -> bool {
+    async fn read_more_characters(&mut self) -> bool {
         loop {
-            // Accept characters from the lookahead if we can
+            // Accept characters from the lookahead if we can, and stop if any are added
+            if self.read_lookahead_character() {
+                // Managed to read at least one character
+                while self.read_lookahead_character() { }
+
+                return true;
+            }
 
             // Read the next batch of characters from the stream
             if let Some(stream) = &mut self.source_stream {
                 if let Some(next_bytes) = stream.next().await {
                     self.lookahead_bytes.extend(next_bytes);
                 } else {
-                    // The stream is closed
+                    // The stream is closed, so there are no more bytes to read
                     self.source_stream = None;
                 }
             } else {
