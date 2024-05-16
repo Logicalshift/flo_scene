@@ -98,10 +98,60 @@ where
     }
 
     ///
-    /// Matches the next token from the input stream
+    /// Matches the next token from the input stream, returning 'None' once the end of stream is reached
     ///
     pub async fn match_token(&mut self) -> Option<TokenMatch<TToken>> {
-        todo!()
+        // Initially any of the matchers can match a token, and we're not at the end of the file
+        let mut possible_matches    = self.matchers.clone();
+        let mut eof                 = false;
+        let mut expired             = Vec::with_capacity(possible_matches.len());
+
+        loop {
+            // Check for matches (and eliminate any that aren't active)
+            if self.lookahead_chars.len() > 0 {
+                expired.clear();
+
+                // Try each of the possible matchers against the current lookahead to see if we've matched a token
+                for (idx, matcher) in possible_matches.iter().enumerate() {
+                    match matcher.try_match(&self.lookahead_chars, eof) {
+                        TokenMatchResult::Matches(token, num_chars) => {
+                            // Remove the matched characters
+                            let matched_fragment = self.lookahead_chars.chars().take(num_chars).collect();
+                            self.lookahead_chars = self.lookahead_chars.chars().skip(num_chars).collect();
+
+                            // Return a matched token
+                            return Some(TokenMatch { token: Some(token), fragment: matched_fragment });
+                        }
+
+                        TokenMatchResult::LookaheadIsPrefix => { 
+                            // Leave this matcher alone
+                        }
+
+                        TokenMatchResult::LookaheadCannotMatch => {
+                            // The token is not a valid match: don't try this matcher against further characters
+                            expired.push(idx);
+                        }
+                    }
+                }
+
+                // Delete any matchers that can't match against the current lookahead
+                // (as the last iterator went through in ascending order, we'll delete in descending order so the indexes are always valid here)
+                while let Some(expired_idx) = expired.pop() {
+                    possible_matches.remove(expired_idx);
+                }
+            }
+
+            // Try to read more characters if possible
+            if !self.read_more_characters().await {
+                if !eof {
+                    // Try to match the lookahead one more time with the EOF flag set
+                    eof = true;
+                } else {
+                    // No more matches
+                    return None;
+                }
+            }
+        }
     }
 
     ///
