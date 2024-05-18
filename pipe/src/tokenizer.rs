@@ -7,6 +7,7 @@ use std::sync::*;
 ///
 /// Results of matching some lookahead aganst a token
 ///
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum TokenMatchResult<TToken> {
     /// The token matches against the start of the lookahead, by consuming the specified number of characters
     Matches(TToken, usize),
