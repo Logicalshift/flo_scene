@@ -146,6 +146,15 @@ fn match_null(lookahead: &str, _eof: bool) -> TokenMatchResult<JsonToken> {
     }
 }
 
+/// Matches any character
+fn match_character(lookahead: &str, _eof: bool) -> TokenMatchResult<JsonToken> {
+    if let Some(chr) = lookahead.chars().next() {
+        TokenMatchResult::Matches(JsonToken::Character(chr), 1)
+    } else {
+        TokenMatchResult::LookaheadCannotMatch
+    }
+}
+
 impl TokenMatcher<JsonToken> for JsonToken {
     fn try_match(&self, lookahead: &'_ str, eof: bool) -> TokenMatchResult<JsonToken> {
         use JsonToken::*;
@@ -153,7 +162,7 @@ impl TokenMatcher<JsonToken> for JsonToken {
         match self {
             Whitespace      => match_whitespace(lookahead, eof),
             Number          => match_number(lookahead, eof),
-            Character(_)    => todo!(),
+            Character(_)    => match_character(lookahead, eof),
             String          => match_string(lookahead, eof),
             True            => match_true(lookahead, eof),
             False           => match_false(lookahead, eof),
