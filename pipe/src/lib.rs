@@ -3,6 +3,7 @@ mod unix_socket;
 mod internal_socket;
 mod tcp_socket;
 mod command_stream;
+mod tokenizer;
 
 pub mod main_scene;
 pub mod sub_scene;
