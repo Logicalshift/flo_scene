@@ -101,6 +101,51 @@ fn match_string(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
     }
 }
 
+/// Matches a string against the 'true' keyword
+fn match_true(lookahead: &str, _eof: bool) -> TokenMatchResult<JsonToken> {
+    if lookahead.len() < 4 {
+        if lookahead == &"true"[0..lookahead.len()] {
+            TokenMatchResult::LookaheadIsPrefix
+        } else {
+            TokenMatchResult::LookaheadCannotMatch
+        }
+    } else if &lookahead[0..4] == "true" {
+        TokenMatchResult::Matches(JsonToken::True, 4)
+    } else {
+        TokenMatchResult::LookaheadCannotMatch
+    }
+}
+
+/// Matches a string against the 'false' keyword
+fn match_false(lookahead: &str, _eof: bool) -> TokenMatchResult<JsonToken> {
+    if lookahead.len() < 5 {
+        if lookahead == &"false"[0..lookahead.len()] {
+            TokenMatchResult::LookaheadIsPrefix
+        } else {
+            TokenMatchResult::LookaheadCannotMatch
+        }
+    } else if &lookahead[0..5] == "false" {
+        TokenMatchResult::Matches(JsonToken::False, 5)
+    } else {
+        TokenMatchResult::LookaheadCannotMatch
+    }
+}
+
+/// Matches a string against the 'null' keyword
+fn match_null(lookahead: &str, _eof: bool) -> TokenMatchResult<JsonToken> {
+    if lookahead.len() < 4 {
+        if lookahead == &"null"[0..lookahead.len()] {
+            TokenMatchResult::LookaheadIsPrefix
+        } else {
+            TokenMatchResult::LookaheadCannotMatch
+        }
+    } else if &lookahead[0..4] == "null" {
+        TokenMatchResult::Matches(JsonToken::Null, 4)
+    } else {
+        TokenMatchResult::LookaheadCannotMatch
+    }
+}
+
 impl TokenMatcher<JsonToken> for JsonToken {
     fn try_match(&self, lookahead: &'_ str, eof: bool) -> TokenMatchResult<JsonToken> {
         use JsonToken::*;
@@ -110,9 +155,9 @@ impl TokenMatcher<JsonToken> for JsonToken {
             Number          => match_number(lookahead, eof),
             Character(_)    => todo!(),
             String          => match_string(lookahead, eof),
-            True            => todo!(),
-            False           => todo!(),
-            Null            => todo!(),
+            True            => match_true(lookahead, eof),
+            False           => match_false(lookahead, eof),
+            Null            => match_null(lookahead, eof),
         }
     }
 }
@@ -263,5 +308,41 @@ mod test {
     pub fn match_string_with_following_data() {
         let match_result = match_string(r#""Hello, world" with following data"#, true);
         assert!(match_result == TokenMatchResult::Matches(JsonToken::String, 14), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_true_full() {
+        let match_result = match_true(r#"true"#, true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::True, 4), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_true_prefix() {
+        let match_result = match_true(r#"tru"#, true);
+        assert!(match_result == TokenMatchResult::LookaheadIsPrefix, "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_false_full() {
+        let match_result = match_false(r#"false"#, true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::False, 5), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_false_prefix() {
+        let match_result = match_false(r#"fal"#, true);
+        assert!(match_result == TokenMatchResult::LookaheadIsPrefix, "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_null_full() {
+        let match_result = match_null(r#"null"#, true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Null, 4), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_null_prefix() {
+        let match_result = match_null(r#"nul"#, true);
+        assert!(match_result == TokenMatchResult::LookaheadIsPrefix, "{:?}", match_result);
     }
 }
