@@ -183,25 +183,19 @@ mod test {
 
     #[test]
     pub fn match_number_with_following_data_1() {
-        let match_result = match_number("1234 ", false);
+        let match_result = match_number("1234  ", false);
         assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 4), "{:?}", match_result);
     }
 
     #[test]
     pub fn match_number_with_following_data_2() {
-        let match_result = match_number("1234  ", false);
+        let match_result = match_number("1234 ", true);
         assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 4), "{:?}", match_result);
     }
 
     #[test]
     pub fn match_number_with_following_number() {
         let match_result = match_number("1234 12345", false);
-        assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 4), "{:?}", match_result);
-    }
-
-    #[test]
-    pub fn match_number_with_following_data_3() {
-        let match_result = match_number("1234 ", true);
         assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 4), "{:?}", match_result);
     }
 
