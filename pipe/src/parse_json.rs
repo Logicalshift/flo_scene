@@ -43,16 +43,18 @@ fn match_regex(dfa: &dense::DFA<Vec<u32>>, lookahead: &str, eof: bool) -> TokenM
     let mut state       = dfa.start_state_forward(&Input::new(lookahead)).unwrap();
 
     for (current_pos, byte) in lookahead.bytes().enumerate() {
-        valid_pos   = current_pos;
-        state       = dfa.next_state(state, byte);
+        state = dfa.next_state(state, byte);
 
         if dfa.is_match_state(state) {
             // Found a possible match after consuming this byte
             match_pos = current_pos;
         } else if dfa.is_dead_state(state) || dfa.is_quit_state(state) {
-            // Stop in dead states
+            // Stop in dead states. Set valid_pos to 0 as this is no longer a prefix.
+            valid_pos = 0;
             break;
         }
+
+        valid_pos = current_pos + 1;
     }
 
     if eof && !dfa.is_dead_state(state) && !dfa.is_quit_state(state) {
@@ -61,10 +63,13 @@ fn match_regex(dfa: &dense::DFA<Vec<u32>>, lookahead: &str, eof: bool) -> TokenM
         if dfa.is_match_state(state) {
             // Found a possible match after consuming this byte
             match_pos = lookahead.len();
+        } else if dfa.is_dead_state(state) || dfa.is_quit_state(state) {
+            // No longer a valid prefix
+            valid_pos = 0;
         }
     }
 
-    if valid_pos == 0 {
+    if valid_pos == 0 && match_pos == 0 {
         // No characters matched, so this isn't a match
         TokenMatchResult::LookaheadCannotMatch
     } else if match_pos != 0 && (eof || dfa.is_dead_state(state) || dfa.is_quit_state(state)) {
@@ -195,6 +200,12 @@ mod test {
     }
 
     #[test]
+    pub fn match_number_with_following_data_3() {
+        let match_result = match_number("1234 ", true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 4), "{:?}", match_result);
+    }
+
+    #[test]
     pub fn match_exponent_number() {
         let match_result = match_number("12e34", true);
         assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 5), "{:?}", match_result);
@@ -222,6 +233,12 @@ mod test {
     pub fn match_partial_string_2() {
         let match_result = match_string(r#""partial"#, false);
         assert!(match_result == TokenMatchResult::LookaheadIsPrefix, "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn eof_is_not_partial_string() {
+        let match_result = match_string(r#""partial"#, true);
+        assert!(match_result == TokenMatchResult::LookaheadCannotMatch, "{:?}", match_result);
     }
 
     #[test]
