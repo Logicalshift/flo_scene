@@ -35,45 +35,52 @@ fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
     }
 }
 
-/// Matches a string against the JSON number syntax
-fn match_number(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
+fn match_regex(dfa: &dense::DFA<Vec<u32>>, lookahead: &str, eof: bool) -> TokenMatchResult<()> {
     // Longest match in the lookahead
-    let number          = &*NUMBER;
     let mut match_pos   = 0;
-    let mut state       = number.start_state_forward(&Input::new(lookahead)).unwrap();
+    let mut state       = dfa.start_state_forward(&Input::new(lookahead)).unwrap();
 
     for (current_pos, byte) in lookahead.bytes().enumerate() {
         state = (*NUMBER).next_state(state, byte);
 
-        if number.is_match_state(state) {
+        if dfa.is_match_state(state) {
             // Found a possible match after consuming this byte
             match_pos = current_pos;
-        } else if number.is_dead_state(state) || number.is_quit_state(state) {
+        } else if dfa.is_dead_state(state) || dfa.is_quit_state(state) {
             // Stop in dead states
             break;
         }
     }
 
-    if eof && !number.is_dead_state(state) && !number.is_quit_state(state) {
-        state = number.next_eoi_state(state);
+    if eof && !dfa.is_dead_state(state) && !dfa.is_quit_state(state) {
+        state = dfa.next_eoi_state(state);
 
-        if number.is_match_state(state) {
+        if dfa.is_match_state(state) {
             // Found a possible match after consuming this byte
             match_pos = lookahead.len();
         }
     }
 
     if match_pos == 0 {
-        // No characters matched, so this isn't a number
+        // No characters matched, so this isn't a match
         TokenMatchResult::LookaheadCannotMatch
-    } else if eof || number.is_dead_state(state) || number.is_quit_state(state) {
+    } else if eof || dfa.is_dead_state(state) || dfa.is_quit_state(state) {
         // Finished a match
-        TokenMatchResult::Matches(JsonToken::Number, lookahead
+        TokenMatchResult::Matches((), lookahead
             .char_indices()
             .take_while(|(byte_index, _chr)| *byte_index < match_pos)
             .count())
     } else {
         TokenMatchResult::LookaheadIsPrefix
+    }
+}
+
+/// Matches a string against the JSON number syntax
+fn match_number(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
+    match match_regex(&*NUMBER, lookahead, eof) {
+        TokenMatchResult::LookaheadIsPrefix     => TokenMatchResult::LookaheadIsPrefix,
+        TokenMatchResult::LookaheadCannotMatch  => TokenMatchResult::LookaheadCannotMatch,
+        TokenMatchResult::Matches(_, len)       => TokenMatchResult::Matches(JsonToken::Number, len)
     }
 }
 
@@ -84,7 +91,7 @@ impl TokenMatcher<JsonToken> for JsonToken {
         match self {
             Whitespace      => match_whitespace(lookahead, eof),
             Number          => match_number(lookahead, eof),
-            Character(c)    => todo!(),
+            Character(_)    => todo!(),
             String          => todo!(),
             True            => todo!(),
             False           => todo!(),
