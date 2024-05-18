@@ -155,6 +155,14 @@ where
     }
 
     ///
+    /// Returns a set of characters to the lookahead (this can be used when switching tokenizers to return the characters accepted by a token for the old tokenizer)
+    ///
+    #[inline]
+    pub fn return_characters(&mut self, new_lookahead: String) {
+        self.lookahead_chars = new_lookahead + &self.lookahead_chars;
+    }
+
+    ///
     /// If the start of the lookahead matches a character, add it to the lookahead. Returns false if no character could be added.
     ///
     fn read_lookahead_character(&mut self) -> bool {
