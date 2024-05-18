@@ -5,6 +5,7 @@ use regex_automata::dfa::{dense, Automaton};
 use once_cell::sync::{Lazy};
 
 static NUMBER: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new("^(-)?[0-9]+(\\.[0-9]+)?([eE]([+-])?[0-9]+)?").unwrap());
+static STRING: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r#"^"([^"\\]|(\\["\\/bfnrtu]))*""#).unwrap());
 
 ///
 /// The tokens that make up the JSON language
@@ -38,10 +39,12 @@ fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
 fn match_regex(dfa: &dense::DFA<Vec<u32>>, lookahead: &str, eof: bool) -> TokenMatchResult<()> {
     // Longest match in the lookahead
     let mut match_pos   = 0;
+    let mut valid_pos   = 0;
     let mut state       = dfa.start_state_forward(&Input::new(lookahead)).unwrap();
 
     for (current_pos, byte) in lookahead.bytes().enumerate() {
-        state = (*NUMBER).next_state(state, byte);
+        valid_pos   = current_pos;
+        state       = dfa.next_state(state, byte);
 
         if dfa.is_match_state(state) {
             // Found a possible match after consuming this byte
@@ -61,10 +64,10 @@ fn match_regex(dfa: &dense::DFA<Vec<u32>>, lookahead: &str, eof: bool) -> TokenM
         }
     }
 
-    if match_pos == 0 {
+    if valid_pos == 0 {
         // No characters matched, so this isn't a match
         TokenMatchResult::LookaheadCannotMatch
-    } else if eof || dfa.is_dead_state(state) || dfa.is_quit_state(state) {
+    } else if match_pos != 0 && (eof || dfa.is_dead_state(state) || dfa.is_quit_state(state)) {
         // Finished a match
         TokenMatchResult::Matches((), lookahead
             .char_indices()
@@ -84,6 +87,15 @@ fn match_number(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
     }
 }
 
+/// Matches a string against the JSON string syntax
+fn match_string(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
+    match match_regex(&*STRING, lookahead, eof) {
+        TokenMatchResult::LookaheadIsPrefix     => TokenMatchResult::LookaheadIsPrefix,
+        TokenMatchResult::LookaheadCannotMatch  => TokenMatchResult::LookaheadCannotMatch,
+        TokenMatchResult::Matches(_, len)       => TokenMatchResult::Matches(JsonToken::String, len)
+    }
+}
+
 impl TokenMatcher<JsonToken> for JsonToken {
     fn try_match(&self, lookahead: &'_ str, eof: bool) -> TokenMatchResult<JsonToken> {
         use JsonToken::*;
@@ -92,7 +104,7 @@ impl TokenMatcher<JsonToken> for JsonToken {
             Whitespace      => match_whitespace(lookahead, eof),
             Number          => match_number(lookahead, eof),
             Character(_)    => todo!(),
-            String          => todo!(),
+            String          => match_string(lookahead, eof),
             True            => todo!(),
             False           => todo!(),
             Null            => todo!(),
@@ -107,6 +119,12 @@ mod test {
     #[test]
     pub fn reject_not_a_number() {
         let match_result = match_number("erg", true);
+        assert!(match_result == TokenMatchResult::LookaheadCannotMatch, "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn reject_not_a_string() {
+        let match_result = match_string("1234", true);
         assert!(match_result == TokenMatchResult::LookaheadCannotMatch, "{:?}", match_result);
     }
 
@@ -153,6 +171,30 @@ mod test {
     }
 
     #[test]
+    pub fn partial_match_number() {
+        let match_result = match_number("1234", false);
+        assert!(match_result == TokenMatchResult::LookaheadIsPrefix, "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_number_with_following_data_1() {
+        let match_result = match_number("1234 ", false);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 4), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_number_with_following_data_2() {
+        let match_result = match_number("1234  ", false);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 4), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_number_with_following_number() {
+        let match_result = match_number("1234 12345", false);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 4), "{:?}", match_result);
+    }
+
+    #[test]
     pub fn match_exponent_number() {
         let match_result = match_number("12e34", true);
         assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 5), "{:?}", match_result);
@@ -162,5 +204,53 @@ mod test {
     pub fn match_decimal_exponent_number() {
         let match_result = match_number("12.34e56", true);
         assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 8), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_empty_string() {
+        let match_result = match_string(r#""""#, true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::String, 2), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_partial_string_1() {
+        let match_result = match_string(r#"""#, false);
+        assert!(match_result == TokenMatchResult::LookaheadIsPrefix, "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_partial_string_2() {
+        let match_result = match_string(r#""partial"#, false);
+        assert!(match_result == TokenMatchResult::LookaheadIsPrefix, "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_basic_string() {
+        let match_result = match_string(r#""Hello, world""#, true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::String, 14), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_unicode_string() {
+        let match_result = match_string(r#""𐍈""#, true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::String, 3), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_quoted_string() {
+        let match_result = match_string(r#""\"""#, true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::String, 4), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_other_quotes() {
+        let match_result = match_string(r#""\\\n\r\b\t\f\/\uabcd""#, true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::String, 22), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_string_with_following_data() {
+        let match_result = match_string(r#""Hello, world" with following data"#, true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::String, 14), "{:?}", match_result);
     }
 }
