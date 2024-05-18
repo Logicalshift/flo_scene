@@ -4,7 +4,7 @@ use regex_automata::{Input};
 use regex_automata::dfa::{dense, Automaton};
 use once_cell::sync::{Lazy};
 
-static NUMBER: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new("(-)?[0-9]+(\\.[0-9]+)?([eE]([+-])?[0-9]+)?").unwrap());
+static NUMBER: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new("^(-)?[0-9]+(\\.[0-9]+)?([eE]([+-])?[0-9]+)?").unwrap());
 
 ///
 /// The tokens that make up the JSON language
@@ -106,6 +106,12 @@ mod test {
     #[test]
     pub fn reject_not_a_number_negative() {
         let match_result = match_number("-erg", true);
+        assert!(match_result == TokenMatchResult::LookaheadCannotMatch, "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn reject_not_a_number_suffix() {
+        let match_result = match_number("er1234", true);
         assert!(match_result == TokenMatchResult::LookaheadCannotMatch, "{:?}", match_result);
     }
 
