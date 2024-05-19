@@ -1,7 +1,8 @@
 use crate::parser::*;
 
 use regex_automata::{Input};
-use regex_automata::dfa::{dense, Automaton};
+use regex_automata::dfa::{Automaton};
+use regex_automata::dfa::dense;
 use once_cell::sync::{Lazy};
 
 static NUMBER: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new("^(-)?[0-9]+(\\.[0-9]+)?([eE]([+-])?[0-9]+)?").unwrap());
@@ -439,6 +440,56 @@ mod test {
             assert!(num2.token == Some(JsonToken::Number), "Token is {:?} (should be Number)", num2.token);
 
             assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
+
+            let num3 = tokenizer.match_token().await.unwrap();
+            assert!(num3.fragment == "1234.4", "Fragment is {:?} (should be '1234.4')", num3);
+            assert!(num3.token == Some(JsonToken::Number), "Token is {:?} (should be Number)", num3.token);
+
+            assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
+
+            let num4 = tokenizer.match_token().await.unwrap();
+            assert!(num4.fragment == "-24", "Fragment is {:?} (should be '-24')", num4);
+            assert!(num4.token == Some(JsonToken::Number), "Token is {:?} (should be Number)", num4.token);
+
+            assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
+
+            let string = tokenizer.match_token().await.unwrap();
+            assert!(string.fragment == "\"string\"", "Fragment is {:?} (should be '\"string\"')", string);
+            assert!(string.token == Some(JsonToken::String), "Token is {:?} (should be String)", string.token);
+
+            assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
+
+            let token = tokenizer.match_token().await.unwrap();
+            assert!(token.fragment == "true", "Fragment is {:?} (should be 'true')", token);
+            assert!(token.token == Some(JsonToken::True), "Token is {:?} (should be True)", token.token);
+
+            assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
+
+            let token = tokenizer.match_token().await.unwrap();
+            assert!(token.fragment == "false", "Fragment is {:?} (should be 'false')", token);
+            assert!(token.token == Some(JsonToken::False), "Token is {:?} (should be Fa)", token.token);
+
+            assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
+
+            let token = tokenizer.match_token().await.unwrap();
+            assert!(token.fragment == "null", "Fragment is {:?} (should be 'null')", token);
+            assert!(token.token == Some(JsonToken::Null), "Token is {:?} (should be Null)", token.token);
+
+            assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
+
+            let token = tokenizer.match_token().await.unwrap();
+            assert!(token.fragment == "{", "Fragment is {:?} (should be '{{')", token);
+            assert!(token.token == Some(JsonToken::Character('{')), "Token is {:?} (should be Character)", token.token);
+
+            assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
+
+            let token = tokenizer.match_token().await.unwrap();
+            assert!(token.fragment == "}", "Fragment is {:?} (should be '}}')", token);
+            assert!(token.token == Some(JsonToken::Character('}')), "Token is {:?} (should be Character)", token.token);
+
+            assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
+
+            assert!(tokenizer.match_token().await == None, "Final token not None");
         });
     }
 }
