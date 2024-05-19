@@ -106,6 +106,7 @@ where
         let mut possible_matches    = self.matchers.clone();
         let mut eof                 = false;
         let mut expired             = Vec::with_capacity(possible_matches.len());
+        let mut matches             = Vec::with_capacity(possible_matches.len());
 
         loop {
             // Check for matches (and eliminate any that aren't active)
@@ -116,12 +117,9 @@ where
                 for (idx, matcher) in possible_matches.iter().enumerate() {
                     match matcher.try_match(&self.lookahead_chars, eof) {
                         TokenMatchResult::Matches(token, num_chars) => {
-                            // Remove the matched characters
-                            let matched_fragment = self.lookahead_chars.chars().take(num_chars).collect();
-                            self.lookahead_chars = self.lookahead_chars.chars().skip(num_chars).collect();
-
-                            // Return a matched token
-                            return Some(TokenMatch { token: Some(token), fragment: matched_fragment });
+                            // Add to the list of possible matches and expire this matcher
+                            matches.push((token, num_chars));
+                            expired.push(idx);
                         }
 
                         TokenMatchResult::LookaheadIsPrefix => { 
@@ -142,6 +140,11 @@ where
                 }
             }
 
+            // Stop when there are no more possible matches
+            if possible_matches.is_empty() || eof {
+                break;
+            }
+
             // Try to read more characters if possible
             if !self.read_more_characters().await {
                 if !eof {
@@ -149,9 +152,26 @@ where
                     eof = true;
                 } else {
                     // No more matches
-                    return None;
+                    break;
                 }
             }
+        }
+
+        if matches.is_empty() {
+            // Nothing matched the lookahead (we treat this as the same as EOF)
+            None
+        } else {
+            // Find the longest match
+            let (token, num_chars) = matches.into_iter()
+                .max_by(|(_, a), (_, b)| a.cmp(b))
+                .unwrap();
+
+            // Remove the matched characters
+            let matched_fragment = self.lookahead_chars.chars().take(num_chars).collect();
+            self.lookahead_chars = self.lookahead_chars.chars().skip(num_chars).collect();
+
+            // Return a matched token
+            return Some(TokenMatch { token: Some(token), fragment: matched_fragment });
         }
     }
 
