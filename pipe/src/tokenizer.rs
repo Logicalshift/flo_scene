@@ -66,10 +66,7 @@ pub struct Tokenizer<TToken, TStream> {
     lookahead_bytes: VecDeque<u8>,
 }
 
-impl<TToken, TStream> Tokenizer<TToken, TStream> 
-where
-    TStream: Stream<Item = Vec<u8>>,
-{
+impl<TToken, TStream> Tokenizer<TToken, TStream> {
     ///
     /// Creates a tokenizer that will read from the specified stream
     ///
@@ -97,7 +94,13 @@ where
         self.matchers.clear();
         self
     }
+}
 
+
+impl<TToken, TStream> Tokenizer<TToken, TStream> 
+where
+    TStream: Stream<Item = Vec<u8>>,
+{
     ///
     /// Matches the next token from the input stream, returning 'None' once the end of stream is reached
     ///
