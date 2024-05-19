@@ -424,7 +424,7 @@ mod test {
         let input           = r#"1 1234 1234.4 -24 "string" true false null { } "#;
 
         // Create a JSON tokenizer
-        let mut tokenizer   = Tokenizer::new(stream::iter(input.bytes()).ready_chunks(32));
+        let mut tokenizer   = Tokenizer::new(stream::iter(input.bytes()).ready_chunks(2));
         tokenizer.with_json_matchers();
 
         // Tokenize all the symbols
