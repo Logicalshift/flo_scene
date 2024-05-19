@@ -108,7 +108,7 @@ where
         let mut expired             = Vec::with_capacity(possible_matches.len());
         let mut matches             = Vec::with_capacity(possible_matches.len());
 
-        loop {
+        'match_tokens: loop {
             // Check for matches (and eliminate any that aren't active)
             if self.lookahead_chars.len() > 0 {
                 expired.clear();
@@ -146,12 +146,21 @@ where
             }
 
             // Try to read more characters if possible
-            if !self.read_more_characters().await {
-                if !eof {
-                    // Try to match the lookahead one more time with the EOF flag set
-                    eof = true;
-                } else {
-                    // No more matches
+            loop {
+                // Always read at least one more character if we can
+                if !self.read_more_characters().await {
+                    if !eof {
+                        // Try to match the lookahead one more time with the EOF flag set
+                        eof = true;
+                        break;
+                    } else {
+                        // If the EOF flag was already set then we're not going to get any more matches from the current tokenizer
+                        break 'match_tokens;
+                    }
+                }
+
+                if eof || self.lookahead_chars.len() >= 32 {
+                    // Want to build up a buffer of at least 32 characters to match against
                     break;
                 }
             }
