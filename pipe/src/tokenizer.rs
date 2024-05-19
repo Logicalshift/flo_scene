@@ -147,6 +147,8 @@ where
 
             // Try to read more characters if possible
             loop {
+                let last_pos = self.lookahead_chars.len();
+
                 // Always read at least one more character if we can
                 if !self.read_more_characters().await {
                     if !eof {
@@ -157,6 +159,11 @@ where
                         // If the EOF flag was already set then we're not going to get any more matches from the current tokenizer
                         break 'match_tokens;
                     }
+                }
+
+                if self.lookahead_chars[last_pos..(self.lookahead_chars.len())].chars().any(|c| c == '\n' || c == '\r' || c == ';') {
+                    // In case we're parsing interactively, treat ';', and '\n' as short-circuits to try to accept more tokens
+                    break;
                 }
 
                 if eof || self.lookahead_chars.len() >= 32 {
