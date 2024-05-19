@@ -37,7 +37,7 @@ pub trait TokenMatcher<TToken> {
 ///
 /// A match from the tokenizer
 ///
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct TokenMatch<TToken> {
     /// The token that was matched, or None if no token could be matched and the input is being discarded
     pub token: Option<TToken>,

@@ -405,13 +405,13 @@ mod test {
         // Tokenize all the symbols
         executor::block_on(async {
             let num1 = tokenizer.match_token().await.unwrap();
-            assert!(num1.fragment == "1", "Fragment is {:?} (should be '1')", num1.fragment);
+            assert!(num1.fragment == "1", "Fragment is {:?} (should be '1')", num1);
             assert!(num1.token == Some(JsonToken::Number), "Token is {:?} (should be Number)", num1.token);
 
             assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
 
             let num2 = tokenizer.match_token().await.unwrap();
-            assert!(num2.fragment == "1234", "Fragment is {:?} (should be '1234')", num2.fragment);
+            assert!(num2.fragment == "1234", "Fragment is {:?} (should be '1234')", num2);
             assert!(num2.token == Some(JsonToken::Number), "Token is {:?} (should be Number)", num2.token);
 
             assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
