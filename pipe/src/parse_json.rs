@@ -177,13 +177,13 @@ impl<TStream> Tokenizer<JsonToken, TStream> {
     ///
     pub fn with_json_matchers(&mut self) -> &mut Self {
         self
+            .with_matcher(JsonToken::Character(' '))
             .with_matcher(JsonToken::Whitespace)
             .with_matcher(JsonToken::Number)
             .with_matcher(JsonToken::String)
             .with_matcher(JsonToken::True)
             .with_matcher(JsonToken::False)
             .with_matcher(JsonToken::Null)
-            .with_matcher(JsonToken::Character(' '))
     }
 }
 
