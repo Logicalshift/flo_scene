@@ -394,6 +394,24 @@ mod test {
     }
 
     #[test]
+    pub fn match_whitespace_with_following_data() {
+        let match_result = match_whitespace(r#"    1234"#, true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Whitespace, 4), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn rejects_not_whitespace() {
+        let match_result = match_whitespace(r#"1 234"#, true);
+        assert!(match_result == TokenMatchResult::LookaheadCannotMatch, "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_whitespace_prefix() {
+        let match_result = match_whitespace(r#"  "#, false);
+        assert!(match_result == TokenMatchResult::LookaheadIsPrefix, "{:?}", match_result);
+    }
+
+    #[test]
     pub fn json_tokenizer() {
         // Input stream with all the JSON token types
         let input           = r#"1 1234 1234.4 -24 "string" true false null { } "#;
