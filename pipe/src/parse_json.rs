@@ -1,5 +1,6 @@
 use crate::parser::*;
 
+use futures::prelude::*;
 use regex_automata::{Input};
 use regex_automata::dfa::{Automaton};
 use regex_automata::dfa::dense;
@@ -186,6 +187,88 @@ impl<TStream> Tokenizer<JsonToken, TStream> {
             .with_matcher(JsonToken::False)
             .with_matcher(JsonToken::Null)
     }
+}
+
+///
+/// Reads a token from the tokenizer
+///
+pub async fn json_read_token<TStream>(tokenizer: &mut Tokenizer<JsonToken, TStream>) -> Option<TokenMatch<JsonToken>>
+where
+    TStream: Stream<Item=Vec<u8>>,
+{
+    None
+}
+
+use std::sync::*;
+
+///
+/// Attempts to parse a JSON value starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
+/// (or returning an error state if the value is not recognised)
+///
+pub async fn json_parse_value<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<JsonToken, TStream>) -> Result<(), ()>
+where
+    TStream: Stream<Item=Vec<u8>>,
+{
+    let tokenizer = Mutex::new(tokenizer);
+    let lookahead = parser.lookahead(0, || async { json_read_token(*tokenizer.lock().unwrap()).await }).await;
+
+    Err(())
+}
+
+///
+/// Attempts to parse a JSON object starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
+/// (or returning an error state if the value is not recognised)
+///
+pub async fn json_parse_object<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<JsonToken, TStream>) -> Result<(), ()>
+where
+    TStream: Stream<Item=Vec<u8>>,
+{
+    let tokenizer = Mutex::new(tokenizer);
+    let lookahead = parser.lookahead(0, || async { json_read_token(*tokenizer.lock().unwrap()).await }).await;
+
+    Err(())
+}
+
+///
+/// Attempts to parse a JSON array starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
+/// (or returning an error state if the value is not recognised)
+///
+pub async fn json_parse_array<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<JsonToken, TStream>) -> Result<(), ()>
+where
+    TStream: Stream<Item=Vec<u8>>,
+{
+    let tokenizer = Mutex::new(tokenizer);
+    let lookahead = parser.lookahead(0, || async { json_read_token(*tokenizer.lock().unwrap()).await }).await;
+
+    Err(())
+}
+
+///
+/// Attempts to parse a JSON string starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
+/// (or returning an error state if the value is not recognised)
+///
+pub async fn json_parse_string<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<JsonToken, TStream>) -> Result<(), ()>
+where
+    TStream: Stream<Item=Vec<u8>>,
+{
+    let tokenizer = Mutex::new(tokenizer);
+    let lookahead = parser.lookahead(0, || async { json_read_token(*tokenizer.lock().unwrap()).await }).await;
+
+    Err(())
+}
+
+///
+/// Attempts to parse a JSON object starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
+/// (or returning an error state if the value is not recognised)
+///
+pub async fn json_parse_number<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<JsonToken, TStream>) -> Result<(), ()>
+where
+    TStream: Stream<Item=Vec<u8>>,
+{
+    let tokenizer = Mutex::new(tokenizer);
+    let lookahead = parser.lookahead(0, || async { json_read_token(*tokenizer.lock().unwrap()).await }).await;
+
+    Err(())
 }
 
 #[cfg(test)]
