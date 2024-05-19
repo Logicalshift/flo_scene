@@ -221,7 +221,24 @@ where
     let tokenizer = Mutex::new(tokenizer);
     let lookahead = parser.lookahead(0, || async { json_read_token(*tokenizer.lock().unwrap()).await }).await;
 
-    Err(())
+    if let Some(lookahead) = lookahead {
+        let tokenizer = tokenizer.into_inner().unwrap();
+
+        // Decide which matcher to use based on the lookahead
+        match lookahead.token {
+            Some(JsonToken::String)         => json_parse_string(parser, tokenizer).await,
+            Some(JsonToken::Number)         => json_parse_number(parser, tokenizer).await,
+            Some(JsonToken::Character('{')) => json_parse_object(parser, tokenizer).await,
+            Some(JsonToken::Character('[')) => json_parse_array(parser, tokenizer).await,
+            Some(JsonToken::True)           => { parser.accept_token().map_err(|_| ())?.reduce(1, |_| serde_json::Value::Bool(true)).map_err(|_| ())?; Ok(()) },
+            Some(JsonToken::False)          => { parser.accept_token().map_err(|_| ())?.reduce(1, |_| serde_json::Value::Bool(false)).map_err(|_| ())?; Ok(()) },
+            Some(JsonToken::Null)           => { parser.accept_token().map_err(|_| ())?.reduce(1, |_| serde_json::Value::Null).map_err(|_| ())?; Ok(()) },
+            _                               => Err(())
+        }
+    } else {
+        // Error if there's no symbol
+        Err(())
+    }
 }
 
 ///
