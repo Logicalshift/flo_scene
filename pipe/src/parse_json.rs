@@ -171,9 +171,29 @@ impl TokenMatcher<JsonToken> for JsonToken {
     }
 }
 
+impl<TStream> Tokenizer<JsonToken, TStream> {
+    ///
+    /// Adds the set of JSON token matchers to this tokenizer
+    ///
+    pub fn with_json_matchers(&mut self) -> &mut Self {
+        self
+            .with_matcher(JsonToken::Whitespace)
+            .with_matcher(JsonToken::Number)
+            .with_matcher(JsonToken::String)
+            .with_matcher(JsonToken::True)
+            .with_matcher(JsonToken::False)
+            .with_matcher(JsonToken::Null)
+            .with_matcher(JsonToken::Character(' '))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+
+    use futures::prelude::*;
+    use futures::executor;
+    use futures::stream;
 
     #[test]
     pub fn reject_not_a_number() {
@@ -353,5 +373,30 @@ mod test {
     pub fn match_null_prefix() {
         let match_result = match_null(r#"nul"#, true);
         assert!(match_result == TokenMatchResult::LookaheadIsPrefix, "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn json_tokenizer() {
+        // Input stream with all the JSON token types
+        let input           = r#"1 1234 1234.4 -24 "string" true false null { } "#;
+
+        // Create a JSON tokenizer
+        let mut tokenizer   = Tokenizer::new(stream::iter(input.bytes()).ready_chunks(32));
+        tokenizer.with_json_matchers();
+
+        // Tokenize all the symbols
+        executor::block_on(async {
+            let num1 = tokenizer.match_token().await.unwrap();
+            assert!(num1.fragment == "1", "Fragment is {:?} (should be '1')", num1.fragment);
+            assert!(num1.token == Some(JsonToken::Number), "Token is {:?} (should be Number)", num1.token);
+
+            assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
+
+            let num2 = tokenizer.match_token().await.unwrap();
+            assert!(num2.fragment == "1234", "Fragment is {:?} (should be '1234')", num2.fragment);
+            assert!(num2.token == Some(JsonToken::Number), "Token is {:?} (should be Number)", num2.token);
+
+            assert!(tokenizer.match_token().await.unwrap().token == Some(JsonToken::Whitespace), "Not followed by whitespace");
+        });
     }
 }
