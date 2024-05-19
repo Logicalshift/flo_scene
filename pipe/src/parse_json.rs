@@ -268,6 +268,24 @@ mod test {
     }
 
     #[test]
+    pub fn match_number_with_following_data_3() {
+        let match_result = match_number("1 1234", false);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 1), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_number_with_following_data_4() {
+        let match_result = match_number("1234 1234", true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 4), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_number_with_following_data_5() {
+        let match_result = match_number("-1 1234", true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 2), "{:?}", match_result);
+    }
+
+    #[test]
     pub fn match_number_with_following_number() {
         let match_result = match_number("1234 12345", false);
         assert!(match_result == TokenMatchResult::Matches(JsonToken::Number, 4), "{:?}", match_result);
