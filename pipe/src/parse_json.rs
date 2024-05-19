@@ -29,7 +29,7 @@ fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
 
     if num_whitespace == 0 {
         TokenMatchResult::LookaheadCannotMatch
-    } else if num_whitespace < lookahead.len() && !eof {
+    } else if num_whitespace < lookahead.len() || eof {
         TokenMatchResult::Matches(JsonToken::Whitespace, num_whitespace)
     } else {
         TokenMatchResult::LookaheadIsPrefix
@@ -409,6 +409,12 @@ mod test {
     pub fn match_whitespace_prefix() {
         let match_result = match_whitespace(r#"  "#, false);
         assert!(match_result == TokenMatchResult::LookaheadIsPrefix, "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_whitespace_eof() {
+        let match_result = match_whitespace(r#"  "#, true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Whitespace, 2), "{:?}", match_result);
     }
 
     #[test]
