@@ -196,7 +196,16 @@ pub async fn json_read_token<TStream>(tokenizer: &mut Tokenizer<JsonToken, TStre
 where
     TStream: Stream<Item=Vec<u8>>,
 {
-    None
+    loop {
+        // Acquire a token from the tokenizer
+        let next_token = tokenizer.match_token().await?;
+
+        // Skip over whitespace, then return the first 'sold' value
+        match next_token.token? {
+            JsonToken::Whitespace   => { }
+            _                       => { break Some(next_token); }
+        }
+    }
 }
 
 use std::sync::*;
