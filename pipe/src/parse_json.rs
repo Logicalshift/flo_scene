@@ -24,7 +24,7 @@ pub enum JsonToken {
 /// Matches a string against the JSON whitespace syntax
 fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
     let num_whitespace = lookahead.chars()
-        .filter(|c| *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
+        .take_while(|c| *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
         .count();
 
     if num_whitespace == 0 {
