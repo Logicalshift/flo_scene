@@ -1,4 +1,5 @@
 use futures::prelude::*;
+use futures::future::{LocalBoxFuture};
 
 use std::collections::{VecDeque};
 
@@ -58,13 +59,10 @@ impl<TToken, TTreeNode> Parser<TToken, TTreeNode> {
     ///
     /// Attempts to look ahead by the specified number of tokens and returns what's there. Returns 'None' if the lookahead is beyond the end of file marker.
     ///
-    pub async fn lookahead<'a, TTokenFuture>(&'a mut self, distance: usize, read_token: impl 'a + Fn() -> TTokenFuture) -> Option<&'a TToken> 
-    where
-        TTokenFuture: 'a + Future<Output=Option<TToken>>,
-    {
+    pub async fn lookahead<'a, TTokenizer>(&'a mut self, distance: usize, tokenizer: &mut TTokenizer, read_token: impl 'a + Fn(&mut TTokenizer) -> LocalBoxFuture<'_, Option<TToken>>) -> Option<&'a TToken> {
         // Fill the lookahead until the token is available
         while self.lookahead.len() <= distance {
-            if let Some(next_token) = read_token().await {
+            if let Some(next_token) = read_token(tokenizer).await {
                 // Add the next token
                 self.lookahead.push_back(next_token);
             } else {

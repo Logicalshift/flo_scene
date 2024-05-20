@@ -218,12 +218,9 @@ pub async fn json_parse_value<TStream>(parser: &mut Parser<TokenMatch<JsonToken>
 where
     TStream: Stream<Item=Vec<u8>>,
 {
-    let tokenizer = Mutex::new(tokenizer);
-    let lookahead = parser.lookahead(0, || async { json_read_token(*tokenizer.lock().unwrap()).await }).await;
+    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
 
     if let Some(lookahead) = lookahead {
-        let tokenizer = tokenizer.into_inner().unwrap();
-
         // Decide which matcher to use based on the lookahead
         match lookahead.token {
             Some(JsonToken::String)         => json_parse_string(parser, tokenizer).await,
@@ -249,8 +246,7 @@ pub async fn json_parse_object<TStream>(parser: &mut Parser<TokenMatch<JsonToken
 where
     TStream: Stream<Item=Vec<u8>>,
 {
-    let tokenizer = Mutex::new(tokenizer);
-    let lookahead = parser.lookahead(0, || async { json_read_token(*tokenizer.lock().unwrap()).await }).await;
+    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
 
     Err(())
 }
@@ -263,8 +259,7 @@ pub async fn json_parse_array<TStream>(parser: &mut Parser<TokenMatch<JsonToken>
 where
     TStream: Stream<Item=Vec<u8>>,
 {
-    let tokenizer = Mutex::new(tokenizer);
-    let lookahead = parser.lookahead(0, || async { json_read_token(*tokenizer.lock().unwrap()).await }).await;
+    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
 
     Err(())
 }
@@ -277,8 +272,7 @@ pub async fn json_parse_string<TStream>(parser: &mut Parser<TokenMatch<JsonToken
 where
     TStream: Stream<Item=Vec<u8>>,
 {
-    let tokenizer = Mutex::new(tokenizer);
-    let lookahead = parser.lookahead(0, || async { json_read_token(*tokenizer.lock().unwrap()).await }).await;
+    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
 
     Err(())
 }
@@ -291,8 +285,7 @@ pub async fn json_parse_number<TStream>(parser: &mut Parser<TokenMatch<JsonToken
 where
     TStream: Stream<Item=Vec<u8>>,
 {
-    let tokenizer = Mutex::new(tokenizer);
-    let lookahead = parser.lookahead(0, || async { json_read_token(*tokenizer.lock().unwrap()).await }).await;
+    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
 
     Err(())
 }
