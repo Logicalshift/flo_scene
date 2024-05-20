@@ -208,8 +208,6 @@ where
     }
 }
 
-use std::sync::*;
-
 ///
 /// Attempts to parse a JSON value starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
@@ -274,7 +272,21 @@ where
 {
     let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
 
-    Err(())
+    if let Some(lookahead) = lookahead {
+        if let Some(JsonToken::String) = lookahead.token {
+            // Reduce as a string
+            let value = serde_json::from_str(&lookahead.fragment).map_err(|_| ())?;
+
+            parser.accept_token().map_err(|_| ())?.reduce(1, |_| value).map_err(|_| ())?;
+            Ok(())
+        } else {
+            // Not a string
+            Err(())
+        }
+    } else {
+        // No lookahead
+        Err(())
+    }
 }
 
 ///
@@ -287,14 +299,27 @@ where
 {
     let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
 
-    Err(())
+    if let Some(lookahead) = lookahead {
+        if let Some(JsonToken::Number) = lookahead.token {
+            // Reduce as a number
+            let value = serde_json::from_str(&lookahead.fragment).map_err(|_| ())?;
+
+            parser.accept_token().map_err(|_| ())?.reduce(1, |_| value).map_err(|_| ())?;
+            Ok(())
+        } else {
+            // Not a number
+            Err(())
+        }
+    } else {
+        // No lookahead
+        Err(())
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
 
-    use futures::prelude::*;
     use futures::executor;
     use futures::stream;
 
@@ -593,5 +618,69 @@ mod test {
 
             assert!(tokenizer.match_token().await == None, "Final token not None");
         });
+    }
+
+    #[test]
+    pub fn parse_string() {
+        let test_value      = r#" "string" "#;
+        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut parser      = Parser::new();
+        tokenizer.with_json_matchers();
+
+        executor::block_on(async move {
+            json_parse_string(&mut parser, &mut tokenizer).await.unwrap();
+
+            let result = parser.finish().unwrap();
+
+            assert!(result == serde_json::Value::String("string".into()));
+        })
+    }
+
+    #[test]
+    pub fn parse_number() {
+        let test_value      = r#" 1234 "#;
+        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut parser      = Parser::new();
+        tokenizer.with_json_matchers();
+
+        executor::block_on(async move {
+            json_parse_number(&mut parser, &mut tokenizer).await.unwrap();
+
+            let result = parser.finish().unwrap();
+
+            assert!(result == serde_json::Value::Number(1234.into()));
+        })
+    }
+
+    #[test]
+    pub fn parse_value_string() {
+        let test_value      = r#" "string" "#;
+        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut parser      = Parser::new();
+        tokenizer.with_json_matchers();
+
+        executor::block_on(async move {
+            json_parse_value(&mut parser, &mut tokenizer).await.unwrap();
+
+            let result = parser.finish().unwrap();
+
+            assert!(result == serde_json::Value::String("string".into()));
+        })
+    }
+
+    #[test]
+    pub fn parse_value_number() {
+        let test_value      = r#" 1234 "#;
+        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut parser      = Parser::new();
+        tokenizer.with_json_matchers();
+
+        executor::block_on(async move {
+            json_parse_value(&mut parser, &mut tokenizer).await.unwrap();
+
+            let result = parser.finish().unwrap();
+
+            assert!(result == serde_json::Value::Number(1234.into()));
+        })
     }
 }
