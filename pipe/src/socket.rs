@@ -12,6 +12,8 @@ use tokio::io::*;
 use std::result::{Result};
 use std::sync::*;
 
+// TODO: maybe just send the connections as an output instead of using subscriptions (doesn't really make sense to have multiple things connecting sockets)
+
 ///
 /// Represents an incoming socket connection. When a socket is connected, we retrieve an input stream, and need to respond with an output stream.
 ///
