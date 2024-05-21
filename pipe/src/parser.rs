@@ -84,7 +84,7 @@ impl<TToken, TTreeNode> Parser<TToken, TTreeNode> {
     /// Ensures that lookahead is available up until 'distance' tokens ahead (so that `accept_expected_token` will work).
     ///
     pub async fn ensure_lookahead<'a, TTokenizer>(&'a mut self, distance: usize, tokenizer: &mut TTokenizer, read_token: impl 'a + Fn(&mut TTokenizer) -> LocalBoxFuture<'_, Option<TToken>>) -> &mut Self {
-        self.lookahead(distance, tokenizer, read_token);
+        self.lookahead(distance, tokenizer, read_token).await;
 
         self
     }
