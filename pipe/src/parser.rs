@@ -1,4 +1,3 @@
-use futures::prelude::*;
 use futures::future::{LocalBoxFuture};
 
 use std::collections::{VecDeque};

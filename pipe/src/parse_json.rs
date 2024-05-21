@@ -336,7 +336,6 @@ where
             serde_json::Value::Object(values.collect())
         }).map_err(|_| ())?;
 
-        // Read an object
         Ok(())
     } else {
         // Doesn't start with '{'
@@ -353,8 +352,78 @@ where
     TStream: Stream<Item=Vec<u8>>,
 {
     let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
 
-    Err(())
+    if let Some(JsonToken::Character('[')) = lookahead.token {
+        // Accept the initial '['
+        parser.accept_token().map_err(|_| ())?;
+
+        let mut num_tokens = 1;
+
+
+        loop {
+            // Look ahead to the next value
+            let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+            let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
+
+            // ']' to finish the array, or else a JSON value
+            match lookahead.token {
+                Some(JsonToken::Character(']')) => {
+                    // Accept the ']'
+                    parser.accept_token().map_err(|_| ())?;
+                    num_tokens += 1;
+
+                    // Successfully parsed the array
+                    break;
+                }
+
+                _ => {
+                    // Read the next value
+                    json_parse_value(parser, tokenizer).await?;
+                    num_tokens += 1;
+
+                    // Next token should be a ',' for more array or ']' for the end of the array
+                    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+                    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
+
+                    match lookahead.token {
+                        Some(JsonToken::Character(',')) => {
+                            // Continues the array
+                            parser.accept_token().map_err(|_| ())?;
+                            num_tokens += 1;
+                        }
+
+                        Some(JsonToken::Character(']')) => {
+                            // Finishes the array
+                            parser.accept_token().map_err(|_| ())?;
+                            num_tokens += 1;
+                            break;
+                        }
+
+                        _ => {
+                            // Invalid value
+                            return Err(());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Reduce the array to a value
+        parser.reduce(num_tokens, |values| {
+            let values = values.into_iter()
+                .skip(1)
+                .tuples()
+                .map(|(value, _comma_or_bracket)| value.to_node().unwrap());
+
+            serde_json::Value::Array(values.collect())
+        }).map_err(|_| ())?;
+
+        Ok(())
+    } else {
+        // Not an array
+        Err(())
+    }
 }
 
 ///
@@ -859,6 +928,60 @@ mod test {
                     "field4": 56.1
                 }
             }));
+        })
+    }
+
+    #[test]
+    pub fn parse_value_array_1() {
+        use serde_json::json;
+
+        let test_value      = r#" [ ] "#;
+        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut parser      = Parser::new();
+        tokenizer.with_json_matchers();
+
+        executor::block_on(async move {
+            json_parse_value(&mut parser, &mut tokenizer).await.unwrap();
+
+            let result = parser.finish().unwrap();
+
+            assert!(result == json!([ ]));
+        })
+    }
+
+    #[test]
+    pub fn parse_value_array_2() {
+        use serde_json::json;
+
+        let test_value      = r#" [ 1 ] "#;
+        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut parser      = Parser::new();
+        tokenizer.with_json_matchers();
+
+        executor::block_on(async move {
+            json_parse_value(&mut parser, &mut tokenizer).await.unwrap();
+
+            let result = parser.finish().unwrap();
+
+            assert!(result == json!([ 1 ]));
+        })
+    }
+
+    #[test]
+    pub fn parse_value_array_3() {
+        use serde_json::json;
+
+        let test_value      = r#" [ 1,2,3,4 ] "#;
+        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut parser      = Parser::new();
+        tokenizer.with_json_matchers();
+
+        executor::block_on(async move {
+            json_parse_value(&mut parser, &mut tokenizer).await.unwrap();
+
+            let result = parser.finish().unwrap();
+
+            assert!(result == json!([ 1, 2, 3, 4 ]));
         })
     }
 }
