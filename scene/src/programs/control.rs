@@ -50,7 +50,7 @@ pub enum SceneControl {
     ///
     /// Starts a new sub-program in this scene
     ///
-    Start(SubProgramId, SceneProgramFn),
+    Start(SceneProgramFn),
 
     ///
     /// Spawns a processor
@@ -240,7 +240,7 @@ impl SceneControl {
         TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
         let start_fn = SceneProgramFn::new(program_id, program, max_input_waiting);
-        SceneControl::Start(program_id, start_fn)
+        SceneControl::Start(start_fn)
     }
 
     ///
@@ -276,7 +276,7 @@ impl SceneControl {
             use ControlInput::*;
 
             match request {
-                Control(_, Start(_program_id, start_fn)) => {
+                Control(_, Start(start_fn)) => {
                     // Downcast the start function and call it
                     if let Some(scene_core) = scene_core.upgrade() {
                         let start_fn = start_fn.0;
