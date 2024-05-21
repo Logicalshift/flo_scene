@@ -17,6 +17,7 @@ use futures::prelude::*;
 use futures::future::{poll_fn};
 use futures::channel::oneshot;
 use futures::stream;
+use futures::stream::{BoxStream};
 use futures::{pin_mut};
 
 use once_cell::sync::{Lazy};
@@ -37,6 +38,11 @@ static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterH
 pub struct SceneProgramFn(Box<dyn Send + FnOnce(Arc<Mutex<SceneCore>>)>);
 
 ///
+/// Represents a processor start function
+///
+pub struct SpawnProcessorFn(Box<dyn Send + FnOnce(Arc<Mutex<SceneCore>>)>);
+
+///
 /// Messages that can be sent to the main scene control program
 ///
 #[derive(Debug)]
@@ -45,6 +51,16 @@ pub enum SceneControl {
     /// Starts a new sub-program in this scene
     ///
     Start(SubProgramId, SceneProgramFn),
+
+    ///
+    /// Spawns a processor
+    ///
+    /// Processors are sub-programs that read input from a single source and return data via a 'standard' output. They
+    /// don't accept connections from other parts of the scene and generally don't run once their input stream has been
+    /// consumed. In addition to the standard output, which is relayed back to whatever spawned the process, these can
+    /// send to any other stream target in the scene.
+    ///
+    SpawnProcessor(SpawnProcessorFn),
 
     ///
     /// Sets up a connection between the output of a source to a target. The StreamId identifies which output in the
@@ -168,6 +184,33 @@ impl Debug for SceneProgramFn {
     }
 }
 
+impl SpawnProcessorFn {
+    ///
+    /// Creates a new processor spawning function
+    ///
+    /// These subprograms are expected to terminate after they process the contents of the output stream. The input stream is supplied to the subprogram, and
+    /// the output stream that generates TOutputMessage is redirected to the stream returned by this function.
+    ///
+    /// Processors are useful for spawning tasks that deal with some input and then terminate, unlike 'normal' subprograms which typically run in a loop accepting
+    /// input from anywhere in the scene.
+    ///
+    pub fn new<TProgramFn, TOutputMessage, TInputMessage, TFuture>(program: TProgramFn, input: impl 'static + Send + Stream<Item=TInputMessage>) -> BoxStream<'static, TOutputMessage>
+    where
+        TFuture:        'static + Send + Future<Output=()>,
+        TInputMessage:  'static + SceneMessage,
+        TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
+    {
+        // TODO: another use case is a 'query' system which asks a target subprogram for its state and sends it to the processor
+        todo!()
+    }
+}
+
+impl Debug for SpawnProcessorFn {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "SpawnProcessorFn(...)")
+    }
+}
+
 impl SceneMessage for SceneControl { 
     fn default_target() -> StreamTarget {
         // Send control messages to the main control program by default
@@ -242,6 +285,11 @@ impl SceneControl {
                     } else {
                         break;
                     }
+                },
+
+                Control(_, Self::SpawnProcessor(start_fn)) => {
+                    // Start the processor
+                    todo!();
                 },
 
                 Control(_, Connect(source, target, stream)) => {
