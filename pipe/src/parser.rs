@@ -81,6 +81,15 @@ impl<TToken, TTreeNode> Parser<TToken, TTreeNode> {
     }
 
     ///
+    /// Ensures that lookahead is available up until 'distance' tokens ahead (so that `accept_expected_token` will work).
+    ///
+    pub async fn ensure_lookahead<'a, TTokenizer>(&'a mut self, distance: usize, tokenizer: &mut TTokenizer, read_token: impl 'a + Fn(&mut TTokenizer) -> LocalBoxFuture<'_, Option<TToken>>) -> &mut Self {
+        self.lookahead(distance, tokenizer, read_token);
+
+        self
+    }
+
+    ///
     /// Accepts the token that's currently the first lookahead, adding it to the stack as a Token. Call `lookahead(0)` to ensure that this token exists.
     ///
     /// Returns `Err(ParserLookaheadEmpty` if there is no lookahead, or `Ok(&mut Parser)` if valid, to allow chaining when performing a lot of stack actions
@@ -149,6 +158,70 @@ impl<TToken, TTreeNode> Parser<TToken, TTreeNode> {
             }
         } else {
             Err(ParserDidNotConverge(self.stack))
+        }
+    }
+
+    ///
+    /// As for 'accept_token' except we first check that the lookahead matches a specific token. This will return an error if the lookahead has not been loaded
+    /// yet: call `ensure_lookahead` (or just `lookahead`) to expand the lookahead to at least one token before using this.
+    ///
+    pub fn accept_expected_token(&mut self, matches: impl Fn(&TToken) -> bool) -> Result<&mut Self, ParserLookaheadEmpty> {
+        if let Some(lookahead) = self.lookahead.get(0) {
+            if matches(lookahead) {
+                self.stack.push(ParserStackEntry::Token(self.lookahead.pop_front().unwrap()));
+
+                Ok(self)
+            } else {
+                Err(ParserLookaheadEmpty)
+            }
+        } else {
+            Err(ParserLookaheadEmpty)
+        }
+    }
+}
+
+impl<TToken, TTreeNode> ParserStackEntry<TToken, TTreeNode> {
+    ///
+    /// Reads the value that's in this stack entry if it's a node
+    ///
+    #[inline]
+    pub fn node(&self) -> Option<&TTreeNode> {
+        match self {
+            ParserStackEntry::Node(node)    => Some(node),
+            _                               => None
+        }
+    }
+
+    ///
+    /// Reads the value that's in this stack entry if it's a node
+    ///
+    #[inline]
+    pub fn to_node(self) -> Option<TTreeNode> {
+        match self {
+            ParserStackEntry::Node(node)    => Some(node),
+            _                               => None
+        }
+    }
+
+    ///
+    /// Reads the value that's in this stack entry if it's a token
+    ///
+    #[inline]
+    pub fn token(&self) -> Option<&TToken> {
+        match self {
+            ParserStackEntry::Token(token)  => Some(token),
+            _                               => None
+        }
+    }
+
+    ///
+    /// Reads the value that's in this stack entry if it's a token
+    ///
+    #[inline]
+    pub fn to_token(self) -> Option<TToken> {
+        match self {
+            ParserStackEntry::Token(token)  => Some(token),
+            _                               => None
         }
     }
 }
