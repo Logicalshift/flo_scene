@@ -8,7 +8,10 @@ use futures::prelude::*;
 
 ///
 /// Sub-programs that can send events should support this 'Subscribe' message (via a filter). This is a request that the
-/// program should send its events to the sender of the message.
+/// program should send its events to the sender of the message: this is useful for messages that work like events that
+/// can be sent to multiple targets.
+///
+/// It's better to use an output stream so that `connect()` can be most easily used to specify where the events are going.
 ///
 #[derive(Clone, Copy)]
 pub struct Subscribe;
