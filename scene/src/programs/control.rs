@@ -29,7 +29,7 @@ use std::sync::*;
 pub static SCENE_CONTROL_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("SCENE_CONTROL_PROGRAM");
 
 /// Filter that maps the 'Subscribe' message to a SceneControl message
-static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe>| stream.map(|_| SceneControl::Subscribe)));
+static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe<SceneUpdate>>| stream.map(|_| SceneControl::Subscribe)));
 
 ///
 /// Represents a program start function
@@ -175,7 +175,7 @@ impl SceneMessage for SceneControl {
     }
 
     fn initialise(scene: &Scene) {
-        scene.connect_programs((), StreamTarget::Filtered(*SCENE_CONTROL_SUBSCRIBE_FILTER, *SCENE_CONTROL_PROGRAM), StreamId::with_message_type::<Subscribe>()).ok();
+        scene.connect_programs((), StreamTarget::Filtered(*SCENE_CONTROL_SUBSCRIBE_FILTER, *SCENE_CONTROL_PROGRAM), StreamId::with_message_type::<Subscribe<SceneUpdate>>()).ok();
     }
 }
 

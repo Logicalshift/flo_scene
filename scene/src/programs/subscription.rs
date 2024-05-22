@@ -6,17 +6,40 @@ use crate::subprogram_id::*;
 
 use futures::prelude::*;
 
+use std::marker::{PhantomData};
+
 ///
 /// Sub-programs that can send events should support this 'Subscribe' message (via a filter). This is a request that the
 /// program should send its events to the sender of the message: this is useful for messages that work like events that
 /// can be sent to multiple targets.
 ///
+/// The type parameter is used to specify what type of message the subscription will return. This can be used to support
+/// multiple subscriptions of different types, but this should generally be avoided if possible: it's more useful as
+/// a way of ensuring that the expected events are subscribed to and to subscribe to events without knowing the source
+/// (via, the `connect()` function in `Scene`)
+///
 /// It's better to use an output stream so that `connect()` can be most easily used to specify where the events are going.
 ///
 #[derive(Clone, Copy)]
-pub struct Subscribe;
+pub struct Subscribe<TMessageType: SceneMessage>(PhantomData<TMessageType>);
 
-impl SceneMessage for Subscribe { }
+impl<TMessageType: SceneMessage> SceneMessage for Subscribe<TMessageType> { }
+
+impl<TMessageType: SceneMessage> Default for Subscribe<TMessageType> { 
+    #[inline]
+    fn default() -> Self {
+        Subscribe(PhantomData)
+    }
+}
+
+///
+/// Creates a 'Subscribe' message that will return a particular type
+///
+#[inline]
+pub fn subscribe<TMessageType: SceneMessage>() -> Subscribe<TMessageType> {
+    Subscribe::default()
+}
+
 
 ///
 /// Stores the subscribers for an event stream, and forwards events as needed
