@@ -9,14 +9,15 @@ use futures::stream::{BoxStream, ReadyChunks};
 
 use once_cell::sync::{Lazy};
 
+use std::any::{TypeId};
+use std::collections::{HashMap};
 use std::io;
 use std::io::{Error};
+use std::mem;
 use std::pin::{Pin};
 use std::result::{Result};
 use std::task::{Context, Poll};
 use std::sync::*;
-
-static SUBSCRIBE_INTERNAL_SOCKET: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::conversion_filter::<Subscribe, InternalSocketMessage>());
 
 ///
 /// Requests that can be made to the internal socket program
@@ -33,14 +34,10 @@ pub enum InternalSocketMessage {
     CreateInternalSocket(Box<dyn Send + AsyncRead>, Box<dyn Send + AsyncWrite>),
 }
 
-impl SceneMessage for InternalSocketMessage {
-    fn initialise(scene: &Scene) {
-        scene.connect_programs(StreamSource::Filtered(*SUBSCRIBE_INTERNAL_SOCKET), (), StreamId::with_message_type::<Subscribe>()).unwrap();
-    }
-}
+impl SceneMessage for InternalSocketMessage { }
 
-impl From<Subscribe> for InternalSocketMessage {
-    fn from(_: Subscribe) -> InternalSocketMessage {
+impl<TInputMessage, TOutputMessage> From<Subscribe<SocketMessage<TInputMessage, TOutputMessage>>> for InternalSocketMessage {
+    fn from(_: Subscribe<SocketMessage<TInputMessage, TOutputMessage>>) -> InternalSocketMessage {
         InternalSocketMessage::Subscribe
     }
 }
@@ -223,6 +220,8 @@ where
     TInputStream:   'static + Send + Stream,
     TOutputMessage: 'static + Send,
 {
+    static FILTERS: Lazy<RwLock<HashMap<(TypeId, TypeId), FilterHandle>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
     let create_output_messages      = Arc::new(create_output_messages);
     let mut subscribers             = EventSubscribers::new();
     let mut pending_connections     = vec![];
@@ -276,7 +275,7 @@ where
                     });
 
                     // Send this connection to the subscribers
-                    let maybe_failed_message = subscribers.send_round_robin(SocketMessage::Connection(socket_connection)).await;
+                    let maybe_failed_message = subscribers.send_round_robin(SocketMessage::<TInputStream::Item, TOutputMessage>::Connection(socket_connection)).await;
 
                     if let Err(failed_message) = maybe_failed_message {
                         // No subscriber was available to receive the message successfully: add this as a pending connection
@@ -303,8 +302,30 @@ where
         }
     }, 0);
 
+    // Look up or create the filter handle for the subscription message
+    let filter_handle = {
+        let socket_type = (TypeId::of::<TInputStream::Item>(), TypeId::of::<TOutputMessage>());
+        let filters     = (*FILTERS).read().unwrap();
+
+        if let Some(existing_handle) = filters.get(&socket_type) {
+            // Just use the existing filter
+            *existing_handle
+        } else {
+            // Create a new conversion filter
+            mem::drop(filters);
+
+            let mut filters = (*FILTERS).write().unwrap();
+            let new_filter  = FilterHandle::conversion_filter::<Subscribe<SocketMessage<TInputStream::Item, TOutputMessage>>, InternalSocketMessage>();
+
+            filters.insert(socket_type, new_filter);
+
+            new_filter
+        }
+
+    };
+
     // Allow 'subscribe' messages to be sent directly to the new program
-    scene.connect_programs((), StreamTarget::Filtered(*SUBSCRIBE_INTERNAL_SOCKET, program_id), StreamId::with_message_type::<Subscribe>()).unwrap();
+    scene.connect_programs((), StreamTarget::Filtered(filter_handle, program_id), StreamId::with_message_type::<Subscribe<SocketMessage<TInputStream::Item, TOutputMessage>>>()).unwrap();
 
     Ok(())
 }
