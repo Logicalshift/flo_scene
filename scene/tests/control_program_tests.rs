@@ -288,7 +288,7 @@ fn scene_update_messages_using_subscription() {
             let mut program_1_finished = false;
             let mut program_2_finished = false;
 
-            context.send_message(SceneControl::Subscribe).await.unwrap();
+            context.send_message(subscribe::<SceneUpdate>()).await.unwrap();
 
             while let Some(input) = input.next().await {
                 println!("--> {:?}", input);
