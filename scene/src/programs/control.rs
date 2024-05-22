@@ -175,7 +175,10 @@ impl SceneMessage for SceneControl {
     }
 
     fn initialise(scene: &Scene) {
-        scene.connect_programs((), StreamTarget::Filtered(*SCENE_CONTROL_SUBSCRIBE_FILTER, *SCENE_CONTROL_PROGRAM), StreamId::with_message_type::<Subscribe<SceneUpdate>>()).ok();
+        scene.connect_programs(StreamSource::Filtered(*SCENE_CONTROL_SUBSCRIBE_FILTER), (), StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
+
+        // TODO: this is done in the scene 'with_standard_programs' right now because you can't connect before a program is added
+        // scene.connect_programs((), *SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
     }
 }
 
