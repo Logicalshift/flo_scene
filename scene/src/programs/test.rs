@@ -19,7 +19,7 @@ type ActionFn = Box<dyn Send + FnOnce(InputStream<TestRequest>, &SceneContext, m
 ///
 enum TestRequest {
     /// A converted message from another source
-    AnyMessage(Box<dyn Send + Sync + Any>),
+    AnyMessage(Box<dyn Send + Any>),
 }
 
 impl SceneMessage for TestRequest {
@@ -97,7 +97,7 @@ impl TestBuilder {
     /// The test program will configure itself to be able to receive messages of this type
     /// using a filter.
     ///
-    pub fn expect_message<TMessage: 'static + Send + Sync + SceneMessage>(mut self, assertion: impl 'static + Send + FnOnce(TMessage) -> Result<(), String>) -> Self {
+    pub fn expect_message<TMessage: 'static + Send + SceneMessage>(mut self, assertion: impl 'static + Send + FnOnce(TMessage) -> Result<(), String>) -> Self {
         // Create a filter for the message type
         self.filters.entry(StreamId::with_message_type::<TMessage>())
             .or_insert_with(|| {
