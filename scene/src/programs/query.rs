@@ -1,6 +1,7 @@
 use crate::scene_message::*;
 
 use futures::prelude::*;
+use futures::stream;
 use futures::stream::{BoxStream};
 
 use std::marker::{PhantomData};
@@ -38,5 +39,33 @@ impl<TResponseData: Send + Unpin> Stream for QueryResponse<TResponseData> {
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.0.size_hint()
+    }
+}
+
+impl<TResponseData: 'static + Send + Unpin> QueryResponse<TResponseData> {
+    ///
+    /// Creates a query response with a stream of data
+    ///
+    pub fn with_stream(stream: impl 'static + Send + Stream<Item=TResponseData>) -> Self {
+        QueryResponse(stream.boxed())
+    }
+
+    ///
+    /// Creates a query response with a stream of data
+    ///
+    pub fn with_iterator<TIter>(stream: TIter) -> Self
+    where
+        TIter:              'static + Send + IntoIterator<Item=TResponseData>,
+        TIter::IntoIter:    'static + Send,
+    {
+        QueryResponse(stream::iter(stream).boxed())
+    }
+
+    ///
+    /// Creates a query response that sends a single item of data
+    ///
+    pub fn with_data(item: TResponseData) -> Self {
+        use std::iter;
+        QueryResponse(stream::iter(iter::once(item)).boxed())
     }
 }
