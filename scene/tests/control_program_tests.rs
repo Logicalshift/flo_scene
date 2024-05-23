@@ -366,9 +366,18 @@ fn query_control_program() {
         0);
 
     // Need to make sure that the query happens after the control program has had time to load the initial set of programs: using a timeout for this at the moment
+    // TODO: really the idle notification shouldn't fire while we're still sending the scene updates into the control program, but it seems to have a tendency to do so (hence the delay and multiple passes)
     TestBuilder::new()
-        .send_message(TimerRequest::CallAfter(test_program, 0, Duration::from_millis(100)))
+        .send_message(TimerRequest::CallAfter(test_program, 0, Duration::from_millis(10)))
         .expect_message(|TimeOut(_, _)| { Ok(()) })
+        .send_message(IdleRequest::WhenIdle(test_program))
+        .expect_message(|IdleNotification| { Ok(()) })
+        .send_message(IdleRequest::WhenIdle(test_program))
+        .expect_message(|IdleNotification| { Ok(()) })
+        .send_message(IdleRequest::WhenIdle(test_program))
+        .expect_message(|IdleNotification| { Ok(()) })
+        .send_message(IdleRequest::WhenIdle(test_program))
+        .expect_message(|IdleNotification| { Ok(()) })
         .send_message(query::<SceneUpdate>())
         .expect_message_async(move |response: QueryResponse::<SceneUpdate>| async move { 
             let response = response.collect::<Vec<_>>().await;
