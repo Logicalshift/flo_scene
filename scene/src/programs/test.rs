@@ -97,7 +97,20 @@ impl TestBuilder {
     /// The test program will configure itself to be able to receive messages of this type
     /// using a filter.
     ///
-    pub fn expect_message<TMessage: 'static + Send + SceneMessage>(mut self, assertion: impl 'static + Send + FnOnce(TMessage) -> Result<(), String>) -> Self {
+    pub fn expect_message<TMessage: 'static + Send + SceneMessage>(self, assertion: impl 'static + Send + FnOnce(TMessage) -> Result<(), String>) -> Self {
+        self.expect_message_async(move |value| async move { assertion(value) })
+    }
+
+    ///
+    /// Expects a message of a particular type to be received by the test program
+    ///
+    /// The test program will configure itself to be able to receive messages of this type
+    /// using a filter.
+    ///
+    pub fn expect_message_async<TMessage: 'static + Send + SceneMessage, TFuture>(mut self, assertion: impl 'static + Send + FnOnce(TMessage) -> TFuture) -> Self 
+    where
+        TFuture: 'static + Send + Future<Output=Result<(), String>>,
+    {
         // Create a filter for the message type
         self.filters.entry(StreamId::with_message_type::<TMessage>())
             .or_insert_with(|| {
@@ -115,7 +128,7 @@ impl TestBuilder {
                     Some(TestRequest::AnyMessage(any_message))  => {
                         // Check that the message matches
                         if let Ok(message) = any_message.downcast::<TMessage>() {
-                            match assertion(*message) {
+                            match assertion(*message).await {
                                 Ok(()) => {
                                     // Assertion OK so we can continue
                                 }
