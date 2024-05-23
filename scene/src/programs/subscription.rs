@@ -40,7 +40,6 @@ pub fn subscribe<TMessageType: SceneMessage>() -> Subscribe<TMessageType> {
     Subscribe::default()
 }
 
-
 ///
 /// Stores the subscribers for an event stream, and forwards events as needed
 ///
