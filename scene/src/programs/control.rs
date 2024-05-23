@@ -21,6 +21,7 @@ use futures::{pin_mut};
 
 use once_cell::sync::{Lazy};
 
+use std::collections::{HashSet, HashMap};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::sync::*;
@@ -214,6 +215,11 @@ impl SceneControl {
     /// Runs the scene control program
     ///
     pub (crate) async fn scene_control_program(input: InputStream<Self>, context: SceneContext, updates: InputStream<SceneUpdate>) {
+        // We store the state by monitoring the updates (used to respond to queries or new subscription requests)
+        // This state is kept separate from the scene core state so that if we're starting a subscription we won't send a pending update more than once (ie, the events we've sent can be out of date with respect to the actual scene core state)
+        let mut started_subprograms = HashSet::<SubProgramId>::new();
+        let mut active_connections  = HashMap::<(SubProgramId, StreamId), SubProgramId>::new();
+
         // Most of the scene control program's functionality is performed by manipulating the scene core directly
         let scene_core              = context.scene_core();
         let mut update_subscribers  = EventSubscribers::new();
@@ -323,6 +329,17 @@ impl SceneControl {
                 },
 
                 Update(update) => {
+                    // Update our internal state
+                    match &update {
+                        SceneUpdate::Started(program_id)                    => { started_subprograms.insert(*program_id); },
+                        SceneUpdate::Connected(source, target, stream_id)   => { active_connections.insert((*source, stream_id.clone()), *target); },
+                        SceneUpdate::Disconnected(source, stream_id)        => { active_connections.remove(&(*source, stream_id.clone())); },
+                        SceneUpdate::Stopped(program_id)                    => { started_subprograms.remove(program_id); },
+
+                        SceneUpdate::FailedConnection(_, _, _, _)           => { },
+                    }
+
+                    // Send the update to the subscribers
                     update_subscribers.send(update).await;
                 }
             }
