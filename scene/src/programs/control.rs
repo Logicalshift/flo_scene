@@ -12,6 +12,7 @@ use crate::subprogram_id::*;
 
 use super::idle_request::*;
 use super::subscription::*;
+use super::query::*;
 
 use futures::prelude::*;
 use futures::future::{poll_fn};
@@ -31,6 +32,9 @@ pub static SCENE_CONTROL_PROGRAM: StaticSubProgramId = StaticSubProgramId::calle
 
 /// Filter that maps the 'Subscribe' message to a SceneControl message
 static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe<SceneUpdate>>| stream.map(|_| SceneControl::Subscribe)));
+
+/// Filter that maps the 'Query' message to a SceneControl message
+static SCENE_CONTROL_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Query<SceneUpdate>>| stream.map(|_| SceneControl::Query)));
 
 ///
 /// Represents a program start function
@@ -85,6 +89,11 @@ pub enum SceneControl {
     /// Indicates that the sender wants to subscribe to the updates from this stream
     ///
     Subscribe,
+
+    ///
+    /// Sends the updates as a QueryResponse<SceneUpdate>
+    ///
+    Query,
 }
 
 ///
@@ -177,6 +186,7 @@ impl SceneMessage for SceneControl {
 
     fn initialise(scene: &Scene) {
         scene.connect_programs(StreamSource::Filtered(*SCENE_CONTROL_SUBSCRIBE_FILTER), (), StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
+        scene.connect_programs(StreamSource::Filtered(*SCENE_CONTROL_QUERY_FILTER), (), StreamId::with_message_type::<Query<SceneUpdate>>()).unwrap();
 
         // TODO: this is done in the scene 'with_standard_programs' right now because you can't connect before a program is added
         // scene.connect_programs((), *SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
@@ -341,6 +351,20 @@ impl SceneControl {
                         }
                     }
                 },
+
+                Control(target, Query) => {
+                    // Send a query response to the target
+                    if let Ok(mut query_response) = context.send(target) {
+                        // Build a response out of the current state of the scene
+                        let response = started_subprograms.iter()
+                            .map(|prog| SceneUpdate::Started(*prog))
+                            .chain(active_connections.iter().map(|((source, stream), target)| SceneUpdate::Connected(*source, *target, stream.clone())))
+                            .collect::<Vec<_>>();
+
+                        // Send as a query response
+                        query_response.send(QueryResponse::with_stream(stream::iter(response))).await.ok();
+                    }
+                }
 
                 Update(update) => {
                     // Update our internal state

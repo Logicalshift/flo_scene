@@ -352,3 +352,14 @@ fn scene_update_messages_using_subscription() {
     assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Connected(src, tgt, _strm) => *src == program_2 && *tgt == program_1, _ => false }).count() == 1,
         "Program 2 connected the wrong number of times to program 1");
 }
+
+#[test]
+fn query_control_program() {
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+
+    TestBuilder::new()
+        .send_message(query::<SceneUpdate>())
+        .expect_message(|response: QueryResponse::<SceneUpdate>| { Ok(()) })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}

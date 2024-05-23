@@ -42,6 +42,20 @@ impl<TResponseData: Send + Unpin> Stream for QueryResponse<TResponseData> {
     }
 }
 
+impl<TResponseData: 'static + Send + Unpin> Default for Query<TResponseData> {
+    fn default() -> Self {
+        Query(PhantomData)
+    }
+}
+
+///
+/// Creates a 'Query' message that will return a `QueryResponse<TMessageType>` message to the sender
+///
+#[inline]
+pub fn query<TMessageType: 'static + Send + Unpin>() -> Query<TMessageType> {
+    Query::default()
+}
+
 impl<TResponseData: 'static + Send + Unpin> QueryResponse<TResponseData> {
     ///
     /// Creates a query response with a stream of data

@@ -67,6 +67,7 @@ impl Scene {
 
             scene.add_subprogram(*SCENE_CONTROL_PROGRAM, move |input, context| SceneControl::scene_control_program(input, context, control_updates), 0);
             scene.connect_programs((), *SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
+            scene.connect_programs((), *SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<Query<SceneUpdate>>()).unwrap();
         }
         if programs.contains(&*OUTSIDE_SCENE_PROGRAM)       { scene.add_subprogram(*OUTSIDE_SCENE_PROGRAM, outside_scene_program, 0); }
 
