@@ -357,9 +357,27 @@ fn scene_update_messages_using_subscription() {
 fn query_control_program() {
     let scene           = Scene::default();
     let test_program    = SubProgramId::new();
+    let program_1       = SubProgramId::new();
 
+    scene.add_subprogram(program_1,
+        move |mut input: InputStream<()>, _| async move {
+            input.next().await.unwrap();
+        },
+        0);
+
+    // Need to make sure that the query happens after the control program has had time to load the initial set of programs: using a timeout for this at the moment
     TestBuilder::new()
+        .send_message(TimerRequest::CallAfter(test_program, 0, Duration::from_millis(100)))
+        .expect_message(|TimeOut(_, _)| { Ok(()) })
         .send_message(query::<SceneUpdate>())
-        .expect_message(|response: QueryResponse::<SceneUpdate>| { Ok(()) })
+        .expect_message_async(move |response: QueryResponse::<SceneUpdate>| async move { 
+            let response = response.collect::<Vec<_>>().await;
+
+            if response.is_empty() { return Err("No updates in query response".to_string()); }
+            if !response.iter().any(|update| update == &SceneUpdate::Started(program_1)) { return Err(format!("Program 1 ({:?}) not in query response ({:?})", program_1, response)); }
+            if !response.iter().any(|update| update == &SceneUpdate::Started(*SCENE_CONTROL_PROGRAM)) { return Err(format!("Scene control program not in query response ({:?})", response)); }
+
+            Ok(()) 
+        })
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
