@@ -325,7 +325,21 @@ impl SceneControl {
                 },
 
                 Control(target, Subscribe) => {
+                    // Add to the subscribers
                     update_subscribers.subscribe(&context, target);
+
+                    // Send the current state
+                    if let Ok(mut subscriber) = context.send(target) {
+                        // Indicate all the programs have started
+                        for prog in started_subprograms.iter() {
+                            subscriber.send(SceneUpdate::Started(*prog)).await.ok();
+                        }
+
+                        // Send all of the connections
+                        for ((source, stream), target) in active_connections.iter() {
+                            subscriber.send(SceneUpdate::Connected(*source, *target, stream.clone())).await.ok();
+                        }
+                    }
                 },
 
                 Update(update) => {
