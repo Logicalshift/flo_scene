@@ -14,6 +14,7 @@ use futures::future::{select};
 use futures::executor;
 use futures_timer::*;
 
+use std::mem;
 use std::time::{Duration};
 use std::sync::*;
 
@@ -107,6 +108,8 @@ fn cannot_reenter_existing_program() {
                 assert!(send_error == Ok(()), "Send immediate: {:?}", send_error);
 
                 context.send_message(SceneControl::StopScene).await.unwrap();
+
+                mem::drop(messages);
             }
         },
         0);
