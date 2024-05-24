@@ -64,6 +64,9 @@ pub struct InputStreamBlocker<TMessage>(Weak<Mutex<InputStreamCore<TMessage>>>);
 ///
 pub struct InputStream<TMessage> {
     pub (crate) core: Arc<Mutex<InputStreamCore<TMessage>>>,
+
+    /// Set to false if the core is transferred elsewhere (the core won't be closed when this is dropped)
+    active: bool,
 }
 
 ///
@@ -134,7 +137,8 @@ where
         };
 
         InputStream {
-            core: Arc::new(Mutex::new(core))
+            core:   Arc::new(Mutex::new(core)),
+            active: true,
         }
     }
 
@@ -148,9 +152,11 @@ where
     ///
     /// Upgrades this stream to return the messages with the source subprogram IDs
     ///
-    pub fn messages_with_sources(self) -> impl Stream<Item=(SubProgramId, TMessage)> {
+    pub fn messages_with_sources(mut self) -> impl Stream<Item=(SubProgramId, TMessage)> {
+        self.active = false;
+
         InputStreamWithSources {
-            core: self.core
+            core: self.core.clone(),
         }
     }
 
@@ -427,13 +433,15 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
 
 impl<TMessage> Drop for InputStream<TMessage> {
     fn drop(&mut self) {
-        let mut core = self.core.lock().unwrap();
+        if self.active {
+            let mut core = self.core.lock().unwrap();
 
-        // Core becomes idle if the input stream is dropped (it will never process any messages again)
-        core.idle   = true;
+            // Core becomes idle if the input stream is dropped (it will never process any messages again)
+            core.idle   = true;
 
-        // Stream is closed at this point, shouldn't handle any more messages
-        core.closed = true;
+            // Stream is closed at this point, shouldn't handle any more messages
+            core.closed = true;
+        }
     }
 }
 
