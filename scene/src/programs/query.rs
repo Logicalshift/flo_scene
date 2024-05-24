@@ -1,4 +1,5 @@
 use crate::scene_message::*;
+use crate::subprogram_id::*;
 
 use futures::prelude::*;
 use futures::stream;
@@ -15,12 +16,12 @@ use std::task::{Context, Poll};
 /// except that `Subscribe` creates an ongoing series of messages as events happen, and `Query` returns a stream
 /// representing the state at the time that the query was received.
 ///
-pub struct Query<TResponseData: Send + Unpin>(PhantomData<TResponseData>);
+pub struct Query<TResponseData: Send + Unpin>(SubProgramId, PhantomData<TResponseData>);
 
 ///
 /// A query response is the message sent whenever a subprogram accepts a `Query`
 ///
-/// Responses to queries are always streams of data items
+/// Responses to queries are always streams of data items, and each query message should produce exactly one QueryResponse.
 ///
 pub struct QueryResponse<TResponseData>(BoxStream<'static, TResponseData>);
 
@@ -42,9 +43,20 @@ impl<TResponseData: Send + Unpin> Stream for QueryResponse<TResponseData> {
     }
 }
 
-impl<TResponseData: 'static + Send + Unpin> Default for Query<TResponseData> {
-    fn default() -> Self {
-        Query(PhantomData)
+impl<TResponseData: 'static + Send + Unpin> Query<TResponseData> {
+    ///
+    /// Creates a query message that will send its response to the specified target
+    ///
+    pub fn with_target(target: SubProgramId) -> Self {
+        Query(target, PhantomData)
+    }
+
+    ///
+    /// Retrieves the place where the query response should be sent
+    ///
+    #[inline]
+    pub fn target(&self) -> SubProgramId {
+        self.0
     }
 }
 
@@ -52,8 +64,8 @@ impl<TResponseData: 'static + Send + Unpin> Default for Query<TResponseData> {
 /// Creates a 'Query' message that will return a `QueryResponse<TMessageType>` message to the sender
 ///
 #[inline]
-pub fn query<TMessageType: 'static + Send + Unpin>() -> Query<TMessageType> {
-    Query::default()
+pub fn query<TMessageType: 'static + Send + Unpin>(target: SubProgramId) -> Query<TMessageType> {
+    Query::with_target(target)
 }
 
 impl<TResponseData: 'static + Send + Unpin> QueryResponse<TResponseData> {

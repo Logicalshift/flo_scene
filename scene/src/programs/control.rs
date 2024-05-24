@@ -31,10 +31,10 @@ use std::sync::*;
 pub static SCENE_CONTROL_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("SCENE_CONTROL_PROGRAM");
 
 /// Filter that maps the 'Subscribe' message to a SceneControl message
-static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe<SceneUpdate>>| stream.map(|subscribe| SceneControl::Subscribe(subscribe.target()))));
+static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe<SceneUpdate>>| stream.map(|msg| SceneControl::Subscribe(msg.target()))));
 
 /// Filter that maps the 'Query' message to a SceneControl message
-static SCENE_CONTROL_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Query<SceneUpdate>>| stream.map(|_| SceneControl::Query)));
+static SCENE_CONTROL_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Query<SceneUpdate>>| stream.map(|msg| SceneControl::Query(msg.target()))));
 
 ///
 /// Represents a program start function
@@ -92,9 +92,9 @@ pub enum SceneControl {
     Subscribe(SubProgramId),
 
     ///
-    /// Sends the updates as a QueryResponse<SceneUpdate>
+    /// Sends the updates as a QueryResponse<SceneUpdate> to the specified subprogram
     ///
-    Query,
+    Query(SubProgramId),
 }
 
 ///
@@ -239,11 +239,11 @@ impl SceneControl {
 
         // We read from the update stream and the input stream at the same time
         enum ControlInput {
-            Control(SubProgramId, SceneControl),
+            Control(SceneControl),
             Update(SceneUpdate),
         }
 
-        let input   = input.messages_with_sources().map(|(source, input)| ControlInput::Control(source, input));
+        let input   = input.map(|input| ControlInput::Control(input));
         let updates = updates.map(|update| ControlInput::Update(update));
 
         // The program runs until the input is exhausted
@@ -253,7 +253,7 @@ impl SceneControl {
             use ControlInput::*;
 
             match request {
-                Control(_, Start(start_fn)) => {
+                Control(Start(start_fn)) => {
                     // Downcast the start function and call it
                     if let Some(scene_core) = scene_core.upgrade() {
                         let start_fn = start_fn.0;
@@ -264,7 +264,7 @@ impl SceneControl {
                     }
                 },
 
-                Control(_, Connect(source, target, stream)) => {
+                Control(Connect(source, target, stream)) => {
                     if let Some(scene_core) = scene_core.upgrade() {
                         // Try to connect the program and send an update if the sending failed
                         match SceneCore::connect_programs(&scene_core, source.clone(), target.clone(), stream.clone()) {
@@ -278,7 +278,7 @@ impl SceneControl {
                     }
                 },
 
-                Control(_, Close(sub_program_id)) => {
+                Control(Close(sub_program_id)) => {
                     // Try to close the input stream for a subprogram
                     if let Some(scene_core) = scene_core.upgrade() {
                         let waker = {
@@ -300,7 +300,7 @@ impl SceneControl {
                     }
                 },
 
-                Control(_, StopSceneWhenIdle) => {
+                Control(StopSceneWhenIdle) => {
                     // Start a new subprogram that requests an idle notification, then relays the 'stop' message back to us
                     let idle_program    = SubProgramId::new();
                     let scene_control   = context.current_program_id().unwrap();
@@ -325,7 +325,7 @@ impl SceneControl {
                     }
                 },
 
-                Control(_, StopScene) => {
+                Control(StopScene) => {
                     if let Some(scene_core) = scene_core.upgrade() {
                         // Tell the core to stop (note: awaits won't return at this point!)
                         let wakers = scene_core.lock().unwrap().stop();
@@ -335,7 +335,7 @@ impl SceneControl {
                     }
                 },
 
-                Control(_, Subscribe(target)) => {
+                Control(Subscribe(target)) => {
                     // Add to the subscribers
                     update_subscribers.subscribe(&context, target);
 
@@ -353,7 +353,7 @@ impl SceneControl {
                     }
                 },
 
-                Control(target, Query) => {
+                Control(Query(target)) => {
                     // Send a query response to the target
                     if let Ok(mut query_response) = context.send(target) {
                         // Build a response out of the current state of the scene

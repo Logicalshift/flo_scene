@@ -369,7 +369,7 @@ fn query_control_program() {
     TestBuilder::new()
         .send_message(IdleRequest::WhenIdle(test_program))
         .expect_message(|IdleNotification| { Ok(()) })
-        .send_message(query::<SceneUpdate>())
+        .send_message(query::<SceneUpdate>(test_program))
         .expect_message_async(move |response: QueryResponse::<SceneUpdate>| async move { 
             let response = response.collect::<Vec<_>>().await;
 
