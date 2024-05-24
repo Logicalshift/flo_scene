@@ -300,23 +300,15 @@ impl SceneCore {
             return;
         }
 
-        let mut core    = scene_core.lock().unwrap();
-        let mut waker   = None;
+        let core = scene_core.lock().unwrap();
+
         if let Some((pid, update_core)) = core.updates.as_ref() {
             let mut update_sink = OutputSink::attach(*pid, Arc::clone(update_core), scene_core);
+            mem::drop(core);
 
-            let (_, process_waker) = core.start_process(async move {
-                for update in updates {
-                    update_sink.send(update).await.ok();
-                }
-            });
-
-            waker = process_waker;
-        }
-
-        mem::drop(core);
-        if let Some(waker) = waker {
-            waker.wake()
+            for update in updates {
+                update_sink.send_immediate(update).ok();
+            }
         }
     }
 
