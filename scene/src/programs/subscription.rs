@@ -35,7 +35,7 @@ impl<TMessageType: SceneMessage> Subscribe<TMessageType> {
     }
 
     ///
-    /// 
+    /// Retrieves the place where the messages for this subscription should be sent
     ///
     #[inline]
     pub fn target(&self) -> SubProgramId {
