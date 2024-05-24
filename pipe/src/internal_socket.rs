@@ -26,7 +26,7 @@ pub enum InternalSocketMessage {
     ///
     /// Subscribes to connection requests for an internal socket program
     ///
-    Subscribe(SubProgramId),
+    Subscribe(StreamTarget),
 
     ///
     /// Creates an internal socket connection

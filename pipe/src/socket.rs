@@ -130,7 +130,7 @@ where
 
     // Combine the subscription and the acceptance streams
     enum OurMessage<TSocketStream> {
-        Subscribe(SubProgramId),
+        Subscribe(StreamTarget),
         NewConnection(TSocketStream),
     }
 
@@ -155,9 +155,9 @@ where
     let mut input = stream::select(subscribe, accept_messages);
 
     // Run the socket listener
-    let mut next_subscriber     = 0;
-    let mut subscribers         = vec![];
-    let mut waiting_connections = vec![];
+    let mut next_subscriber                 = 0;
+    let mut subscribers: Vec<StreamTarget>  = vec![];
+    let mut waiting_connections             = vec![];
 
     while let Some(next_event) = input.next().await {
         match next_event {
@@ -211,7 +211,7 @@ where
                     if subscribers.is_empty() { break; }
                     if next_subscriber > subscribers.len() { next_subscriber = 0; }
 
-                    match context.send(subscribers[next_subscriber]) {
+                    match context.send(subscribers[next_subscriber].clone()) {
                         Ok(mut send_new_socket) => {
                             // Send to the subscriber
                             if let Err(err) = send_new_socket.send(socket_connection.take().unwrap()).await {
@@ -244,15 +244,15 @@ where
                 }
             }
 
-            OurMessage::Subscribe(program_id) => {
+            OurMessage::Subscribe(stream_target) => {
                 // Add this program to the list of subscribers for our message type (any one subscriber can only be added once)
-                subscribers.retain(|prog| prog != &program_id);
-                subscribers.push(program_id);
+                subscribers.retain(|prog| prog != &stream_target);
+                subscribers.push(stream_target.clone());
 
                 // If there are any waiting connections, send them all to this program
                 if !waiting_connections.is_empty() {
                     // Connect to the new subscriber
-                    if let Ok(mut send_new_socket) = context.send(program_id) {
+                    if let Ok(mut send_new_socket) = context.send(stream_target) {
                         // Try to send all of the waiting connections
                         waiting_connections.reverse();
 

@@ -2,7 +2,7 @@ use crate::error::*;
 use crate::output_sink::*;
 use crate::scene_context::*;
 use crate::scene_message::*;
-use crate::subprogram_id::*;
+use crate::stream_target::*;
 
 use futures::prelude::*;
 
@@ -20,8 +20,8 @@ use std::marker::{PhantomData};
 ///
 /// It's better to use an output stream so that `connect()` can be most easily used to specify where the events are going.
 ///
-#[derive(Clone, Copy)]
-pub struct Subscribe<TMessageType: SceneMessage>(SubProgramId, PhantomData<TMessageType>);
+#[derive(Clone)]
+pub struct Subscribe<TMessageType: SceneMessage>(StreamTarget, PhantomData<TMessageType>);
 
 impl<TMessageType: SceneMessage> SceneMessage for Subscribe<TMessageType> { }
 
@@ -30,7 +30,7 @@ impl<TMessageType: SceneMessage> Subscribe<TMessageType> {
     /// Creates a 'subscribe' message that will send its requests to the specified target
     ///
     #[inline]
-    pub fn with_target(target: SubProgramId) -> Self {
+    pub fn with_target(target: StreamTarget) -> Self {
         Subscribe(target, PhantomData)
     }
 
@@ -38,8 +38,8 @@ impl<TMessageType: SceneMessage> Subscribe<TMessageType> {
     /// Retrieves the place where the messages for this subscription should be sent
     ///
     #[inline]
-    pub fn target(&self) -> SubProgramId {
-        self.0
+    pub fn target(&self) -> StreamTarget {
+        self.0.clone()
     }
 }
 
@@ -47,8 +47,8 @@ impl<TMessageType: SceneMessage> Subscribe<TMessageType> {
 /// Creates a 'Subscribe' message that will return a particular type
 ///
 #[inline]
-pub fn subscribe<TMessageType: SceneMessage>(target: SubProgramId) -> Subscribe<TMessageType> {
-    Subscribe::with_target(target)
+pub fn subscribe<TMessageType: SceneMessage>(target: impl Into<StreamTarget>) -> Subscribe<TMessageType> {
+    Subscribe::with_target(target.into())
 }
 
 ///
@@ -59,7 +59,7 @@ where
     TEventMessage: SceneMessage,
 {
     /// The output sinks that will receive the events from this subprogram
-    receivers: Vec<(Option<SubProgramId>, OutputSink<TEventMessage>)>,
+    receivers: Vec<OutputSink<TEventMessage>>,
 
     /// The next receiver to use when sending a round-robin message
     next_receiver: usize,
@@ -82,15 +82,17 @@ where
     ///
     /// Subscribes a subprogram to the events sent by this object
     ///
-    pub fn subscribe(&mut self, context: &SceneContext, program: SubProgramId) {
+    pub fn subscribe(&mut self, context: &SceneContext, target: impl Into<StreamTarget>) {
+        let target = target.into();
+
         // Remove any subscriber that's no longer attached to a target
-        self.receivers.retain(|(_, sink)| sink.is_attached());
+        self.receivers.retain(|sink| sink.is_attached());
 
         // If we can successfully connect to the target, then send events there
-        let output_sink = context.send(program);
+        let output_sink = context.send(target);
         let output_sink = if let Ok(output_sink) = output_sink { output_sink } else { return; };
 
-        self.receivers.push((Some(program), output_sink));
+        self.receivers.push(output_sink);
     }
 
     ///
@@ -99,14 +101,7 @@ where
     /// This sink cannot be unsubscribed from the events, but this can be used to send to other streams where the target is not identified by a subprogram ID
     ///
     pub fn add_target(&mut self, output_sink: OutputSink<TEventMessage>) {
-        self.receivers.push((None, output_sink))
-    }
-
-    ///
-    /// Removes the subscription for a particular program ID from the event subscriber list
-    ///
-    pub fn unsubscribe(&mut self, program: SubProgramId) {
-        self.receivers.retain(|(program_id, _)| program_id != &Some(program));
+        self.receivers.push(output_sink)
     }
 
     ///
@@ -130,7 +125,7 @@ where
             }
 
             // Try to send to this receiver
-            match self.receivers[self.next_receiver].1.send(message).await {
+            match self.receivers[self.next_receiver].send(message).await {
                 Ok(()) => { break Ok(()); }
 
                 Err(SceneSendError::TargetProgramEndedBeforeReady)  |
@@ -171,12 +166,12 @@ where
     ///
     pub async fn send(&mut self, message: TEventMessage) -> bool {
         // Remove any subscriber that's no longer attached to a target
-        self.receivers.retain(|(_, sink)| sink.is_attached());
+        self.receivers.retain(|sink| sink.is_attached());
 
         // Send to all of the streams at once
         let senders = self.receivers.iter_mut()
             .enumerate()
-            .map(|(idx, (_, sender))| sender.send(message.clone()).map(move |result| (idx, result)))
+            .map(|(idx, sender)| sender.send(message.clone()).map(move |result| (idx, result)))
             .collect::<Vec<_>>();
 
         // Wait for all the messages to send

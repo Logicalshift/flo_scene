@@ -89,7 +89,7 @@ pub enum SceneControl {
     /// Subscribes the specified program to `SceneUpdate` events from the controller. This will send messages for the
     /// current state of the control before the new messages so the entire state can be determined
     ///
-    Subscribe(SubProgramId),
+    Subscribe(StreamTarget),
 
     ///
     /// Sends the updates as a QueryResponse<SceneUpdate> to the specified subprogram
@@ -337,7 +337,7 @@ impl SceneControl {
 
                 Control(Subscribe(target)) => {
                     // Add to the subscribers
-                    update_subscribers.subscribe(&context, target);
+                    update_subscribers.subscribe(&context, target.clone());
 
                     // Send the current state
                     if let Ok(mut subscriber) = context.send(target) {
