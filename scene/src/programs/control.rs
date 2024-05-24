@@ -31,7 +31,7 @@ use std::sync::*;
 pub static SCENE_CONTROL_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("SCENE_CONTROL_PROGRAM");
 
 /// Filter that maps the 'Subscribe' message to a SceneControl message
-static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe<SceneUpdate>>| stream.map(|_| SceneControl::Subscribe)));
+static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe<SceneUpdate>>| stream.map(|subscribe| SceneControl::Subscribe(subscribe.target()))));
 
 /// Filter that maps the 'Query' message to a SceneControl message
 static SCENE_CONTROL_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Query<SceneUpdate>>| stream.map(|_| SceneControl::Query)));
@@ -86,9 +86,10 @@ pub enum SceneControl {
     StopScene,
 
     ///
-    /// Indicates that the sender wants to subscribe to the updates from this stream
+    /// Subscribes the specified program to `SceneUpdate` events from the controller. This will send messages for the
+    /// current state of the control before the new messages so the entire state can be determined
     ///
-    Subscribe,
+    Subscribe(SubProgramId),
 
     ///
     /// Sends the updates as a QueryResponse<SceneUpdate>
@@ -334,7 +335,7 @@ impl SceneControl {
                     }
                 },
 
-                Control(target, Subscribe) => {
+                Control(_, Subscribe(target)) => {
                     // Add to the subscribers
                     update_subscribers.subscribe(&context, target);
 

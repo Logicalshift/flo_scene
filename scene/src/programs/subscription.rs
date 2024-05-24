@@ -21,14 +21,25 @@ use std::marker::{PhantomData};
 /// It's better to use an output stream so that `connect()` can be most easily used to specify where the events are going.
 ///
 #[derive(Clone, Copy)]
-pub struct Subscribe<TMessageType: SceneMessage>(PhantomData<TMessageType>);
+pub struct Subscribe<TMessageType: SceneMessage>(SubProgramId, PhantomData<TMessageType>);
 
 impl<TMessageType: SceneMessage> SceneMessage for Subscribe<TMessageType> { }
 
-impl<TMessageType: SceneMessage> Default for Subscribe<TMessageType> { 
+impl<TMessageType: SceneMessage> Subscribe<TMessageType> { 
+    ///
+    /// Creates a 'subscribe' message that will send its requests to the specified target
+    ///
     #[inline]
-    fn default() -> Self {
-        Subscribe(PhantomData)
+    pub fn with_target(target: SubProgramId) -> Self {
+        Subscribe(target, PhantomData)
+    }
+
+    ///
+    /// 
+    ///
+    #[inline]
+    pub fn target(&self) -> SubProgramId {
+        self.0
     }
 }
 
@@ -36,8 +47,8 @@ impl<TMessageType: SceneMessage> Default for Subscribe<TMessageType> {
 /// Creates a 'Subscribe' message that will return a particular type
 ///
 #[inline]
-pub fn subscribe<TMessageType: SceneMessage>() -> Subscribe<TMessageType> {
-    Subscribe::default()
+pub fn subscribe<TMessageType: SceneMessage>(target: SubProgramId) -> Subscribe<TMessageType> {
+    Subscribe::with_target(target)
 }
 
 ///
