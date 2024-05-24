@@ -94,7 +94,7 @@ pub enum SceneControl {
     ///
     /// Sends the updates as a QueryResponse<SceneUpdate> to the specified subprogram
     ///
-    Query(SubProgramId),
+    Query(StreamTarget),
 }
 
 ///

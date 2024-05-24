@@ -1,5 +1,5 @@
 use crate::scene_message::*;
-use crate::subprogram_id::*;
+use crate::stream_target::*;
 
 use futures::prelude::*;
 use futures::stream;
@@ -16,7 +16,8 @@ use std::task::{Context, Poll};
 /// except that `Subscribe` creates an ongoing series of messages as events happen, and `Query` returns a stream
 /// representing the state at the time that the query was received.
 ///
-pub struct Query<TResponseData: Send + Unpin>(SubProgramId, PhantomData<TResponseData>);
+#[derive(Clone)]
+pub struct Query<TResponseData: Send + Unpin>(StreamTarget, PhantomData<TResponseData>);
 
 ///
 /// A query response is the message sent whenever a subprogram accepts a `Query`
@@ -47,16 +48,17 @@ impl<TResponseData: 'static + Send + Unpin> Query<TResponseData> {
     ///
     /// Creates a query message that will send its response to the specified target
     ///
-    pub fn with_target(target: SubProgramId) -> Self {
-        Query(target, PhantomData)
+    #[inline]
+    pub fn with_target(target: impl Into<StreamTarget>) -> Self {
+        Query(target.into(), PhantomData)
     }
 
     ///
     /// Retrieves the place where the query response should be sent
     ///
     #[inline]
-    pub fn target(&self) -> SubProgramId {
-        self.0
+    pub fn target(&self) -> StreamTarget {
+        self.0.clone()
     }
 }
 
@@ -64,8 +66,8 @@ impl<TResponseData: 'static + Send + Unpin> Query<TResponseData> {
 /// Creates a 'Query' message that will return a `QueryResponse<TMessageType>` message to the sender
 ///
 #[inline]
-pub fn query<TMessageType: 'static + Send + Unpin>(target: SubProgramId) -> Query<TMessageType> {
-    Query::with_target(target)
+pub fn query<TMessageType: 'static + Send + Unpin>(target: impl Into<StreamTarget>) -> Query<TMessageType> {
+    Query::with_target(target.into())
 }
 
 impl<TResponseData: 'static + Send + Unpin> QueryResponse<TResponseData> {
