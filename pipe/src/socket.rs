@@ -134,7 +134,7 @@ where
         NewConnection(TSocketStream),
     }
 
-    let subscribe       = subscribe.map(|(sender, _)| OurMessage::Subscribe(sender));
+    let subscribe       = subscribe.map(|(_, msg)| OurMessage::Subscribe(msg.target()));
     let accept_messages = stream::unfold(0, move |_| {
         let accept_connection = Arc::clone(&accept_connection);
 

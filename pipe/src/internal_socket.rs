@@ -26,7 +26,7 @@ pub enum InternalSocketMessage {
     ///
     /// Subscribes to connection requests for an internal socket program
     ///
-    Subscribe,
+    Subscribe(SubProgramId),
 
     ///
     /// Creates an internal socket connection
@@ -37,8 +37,8 @@ pub enum InternalSocketMessage {
 impl SceneMessage for InternalSocketMessage { }
 
 impl<TInputMessage, TOutputMessage> From<Subscribe<SocketMessage<TInputMessage, TOutputMessage>>> for InternalSocketMessage {
-    fn from(_: Subscribe<SocketMessage<TInputMessage, TOutputMessage>>) -> InternalSocketMessage {
-        InternalSocketMessage::Subscribe
+    fn from(msg: Subscribe<SocketMessage<TInputMessage, TOutputMessage>>) -> InternalSocketMessage {
+        InternalSocketMessage::Subscribe(msg.target())
     }
 }
 
@@ -228,9 +228,9 @@ where
 
     // The internal socket program responds to InternalSocketMessages and sends subscriptions from the inner program
     scene.add_subprogram(program_id, move |input, context| async move {
-        let mut input = input.messages_with_sources();
+        let mut input = input;
 
-        while let Some((source, request)) = input.next().await {
+        while let Some(request) = input.next().await {
             match request {
                 InternalSocketMessage::CreateInternalSocket(async_reader, async_writer) => {
                     // Create the socket connection from the reader
@@ -283,9 +283,9 @@ where
                     }
                 },
 
-                InternalSocketMessage::Subscribe => {
+                InternalSocketMessage::Subscribe(target) => {
                     // Add to the subscribers
-                    subscribers.subscribe(&context, source);
+                    subscribers.subscribe(&context, target);
 
                     // Try to flush the pending messages
                     while let Some(pending) = pending_connections.pop() {
