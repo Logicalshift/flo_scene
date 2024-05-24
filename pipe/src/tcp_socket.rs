@@ -36,7 +36,7 @@ where
         // Add a socket runner subprogram. We don't use the address for anything, ie we accept all connections here
         let listener = Desync::new(listener);
 
-        socket_listener_subprogram(input.messages_with_sources(), context, move || 
+        socket_listener_subprogram(input, context, move || 
             listener.future_desync(|listener| async {
                 listener.accept().await
                     .map(|(socket, _addr)| {

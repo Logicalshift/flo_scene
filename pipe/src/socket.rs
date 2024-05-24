@@ -112,7 +112,7 @@ pub (crate) fn create_reader_stream(reader: impl 'static + Send + AsyncRead) -> 
 /// and calls the 'accept_message' function to receive incoming connections
 ///
 pub async fn socket_listener_subprogram<TFutureStream, TReadStream, TWriteStream, TInputStream, TOutputMessage>(
-    subscribe:              impl 'static + Send + Stream<Item=(SubProgramId, Subscribe<SocketMessage<TInputStream::Item, TOutputMessage>>)>, 
+    subscribe:              impl 'static + Send + Stream<Item=Subscribe<SocketMessage<TInputStream::Item, TOutputMessage>>>, 
     context:                SceneContext, 
     accept_connection:      impl 'static + Send + Fn() -> TFutureStream,
     create_input_messages:  impl 'static + Send + Sync + Fn(BoxStream<'static, Vec<u8>>) -> TInputStream,
@@ -134,7 +134,7 @@ where
         NewConnection(TSocketStream),
     }
 
-    let subscribe       = subscribe.map(|(_, msg)| OurMessage::Subscribe(msg.target()));
+    let subscribe       = subscribe.map(|msg| OurMessage::Subscribe(msg.target()));
     let accept_messages = stream::unfold(0, move |_| {
         let accept_connection = Arc::clone(&accept_connection);
 
