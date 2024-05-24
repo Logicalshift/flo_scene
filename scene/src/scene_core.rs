@@ -1021,8 +1021,23 @@ impl SceneCore {
         let all_inputs_idle = sub_program_inputs.iter()
             .all(|(stream_id, input_stream)| stream_id.is_idle(input_stream) == Ok(true));
 
+        let all_processes_idle = if !all_inputs_idle {
+            // If the inputs are not idle, then the core is not idle (we'll just assume that the processes are asleep)
+            // (The scene is not idle until all the processes are asleep and all subprograms are ready to process their next input)
+            false
+        } else {
+            // If the inputs are all idle, then all the processes must be asleep and waiting for more input as well
+            core.lock().unwrap()
+                .processes.iter()
+                .all(|process| if let Some(process) = process {
+                    !process.is_awake && process.future.is_waiting()
+                } else {
+                    true
+                })
+        };
+
         // If all inputs are idle and the core is still in 'notification' mode, notify the waiting messages
-        if all_inputs_idle {
+        if all_inputs_idle && all_processes_idle {
             let mut locked_core = core.lock().unwrap();
 
             if !locked_core.notify_when_idle {
