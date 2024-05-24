@@ -424,3 +424,27 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
         }
     }
 }
+
+impl<TMessage> Drop for InputStream<TMessage> {
+    fn drop(&mut self) {
+        let mut core = self.core.lock().unwrap();
+
+        // Core becomes idle if the input stream is dropped (it will never process any messages again)
+        core.idle   = true;
+
+        // Stream is closed at this point, shouldn't handle any more messages
+        core.closed = true;
+    }
+}
+
+impl<TMessage> Drop for InputStreamWithSources<TMessage> {
+    fn drop(&mut self) {
+        let mut core = self.core.lock().unwrap();
+
+        // Core becomes idle if the input stream is dropped (it will never process any messages again)
+        core.idle   = true;
+
+        // Stream is closed at this point, shouldn't handle any more messages
+        core.closed = true;
+    }
+}
