@@ -9,6 +9,7 @@ use crate::subprogram_core::*;
 use crate::subprogram_id::*;
 
 use futures::prelude::*;
+use futures::stream::{BoxStream};
 
 use std::cell::*;
 use std::sync::*;
@@ -197,6 +198,28 @@ impl SceneContext {
     ///
     pub (crate) fn scene_core(&self) -> Weak<Mutex<SceneCore>> {
         self.scene_core.clone()
+    }
+
+    ///
+    /// A task processes an input stream and returns its output as a captured output stream
+    ///
+    /// Tasks are considered part of the subprogram that spawns them, and are useful as a way to get feedback from a query or run some background processing.
+    ///
+    /// The difference between a task and a subprogram is that a subprogram will accept input from multiple sources, while a task will only accept input from the supplied
+    /// stream. A task should also process its input and then stop, where a subprogram generally runs indefinitely.
+    ///
+    /// The default stream for the specified `TOutput` type is captured from the spawned task and returned to the subprogram that spawned it, which makes it possible
+    /// for the spawning subprogram to receive feedback from its subtasks.
+    ///
+    pub fn spawn_task<TInput, TOutput, TFuture>(task: impl Fn(BoxStream<'static, TInput>, SceneContext) -> TFuture, input: impl 'static + Send + Stream<Item=TInput>) -> Result<impl 'static + Send + Stream<Item=TOutput>, ConnectionError>
+    where
+        TInput:     'static + Send,
+        TOutput:    'static + SceneMessage,
+        TFuture:    'static + Send + Future<Output = ()>,
+    {
+        todo!();
+
+        Ok(stream::empty())
     }
 }
 
