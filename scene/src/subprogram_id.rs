@@ -50,15 +50,15 @@ enum SubProgramIdValue {
     /// A subprogram identified with a GUID
     Guid(Uuid),
 
-    /// A subtask created by a named subprogram. The second 'usize' value is a unique serial number for this subtask
+    /// A task created by a named subprogram. The second 'usize' value is a unique serial number for this task
     ///
-    /// Subtasks differ from subprograms in that they have a limited lifespan and read an input stream specified at creation
-    NamedSubtask(usize, usize),
+    /// Tasks differ from subprograms in that they have a limited lifespan and read an input stream specified at creation
+    NamedTask(usize, usize),
 
-    /// A subtask created by a GUID subprogram. The 'usize' value is a unique serial number for this subtask
+    /// A task created by a GUID subprogram. The 'usize' value is a unique serial number for this task
     ///
-    /// Subtasks differ from subprograms in that they have a limited lifespan and read an input stream specified at creation
-    GuidSubtask(Uuid, usize),
+    /// Tasks differ from subprograms in that they have a limited lifespan and read an input stream specified at creation
+    GuidTask(Uuid, usize),
 }
 
 ///
