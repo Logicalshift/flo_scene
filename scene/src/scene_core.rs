@@ -671,7 +671,11 @@ impl SceneCore {
     }
 
     ///
-    /// Returns the 'mapped' StreamTarget for a connection. This is the actual target that a program should be sent to.
+    /// Returns the 'mapped' StreamTarget for a connection. This is the actual target that a program should be sent to: for example if the `target` is passed
+    /// in as 'Any' and there's a connection specified for that target, this will return that connection.
+    ///
+    /// This can still return 'Any' (indicating that output should be held until a connection is specified), or 'None' (indicating that output should be
+    /// immediately discarded).
     ///
     /// The result of this function should not be mapped further, as it will point at the actual program that is the target if there 
     /// is one.
