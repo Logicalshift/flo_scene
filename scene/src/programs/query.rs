@@ -40,9 +40,9 @@ pub struct QueryResponse<TResponseData>(BoxStream<'static, TResponseData>);
 
 impl<TResponseData: Send + Unpin> SceneMessage for Query<TResponseData> { }
 
-impl<TResponseData: Send + Unpin> SceneMessage for QueryResponse<TResponseData> { }
+impl<TResponseData: Send> SceneMessage for QueryResponse<TResponseData> { }
 
-impl<TResponseData: Send + Unpin> Stream for QueryResponse<TResponseData> {
+impl<TResponseData: Send> Stream for QueryResponse<TResponseData> {
     type Item = TResponseData;
 
     #[inline]
