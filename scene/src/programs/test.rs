@@ -92,6 +92,33 @@ impl TestBuilder {
     }
 
     ///
+    /// Runs a `Command` and then evaluates an assertion against the messages that it returns
+    ///
+    /// The command is run to completion and the output stream is gathered into a vec that's passed to the assertion routine.
+    ///
+    pub fn run_command<TCommand: 'static + Command>(mut self, command: TCommand, input: Vec<TCommand::Input>, assertion: impl 'static + Send + Fn(Vec<TCommand::Output>) -> Result<(), String>) -> Self {
+        self.actions.push(Box::new(move |input_stream, context, failed_assertions| {
+            let context = context.clone();
+
+            async move {
+                // Run the command and gather the output
+                let command_result = context.spawn_command(command, stream::iter(input)).unwrap().collect::<Vec<_>>().await;
+
+                // Check the result against the assertion
+                let mut failed_assertions = failed_assertions;
+                match assertion(command_result) {
+                    Ok(())                  => { }
+                    Err(failure_messge)     => { failed_assertions.send(failure_messge).await.unwrap(); }
+                }
+
+                (input_stream, failed_assertions)
+            }.boxed()
+        }));
+
+        self
+    }
+
+    ///
     /// Expects a message of a particular type to be received by the test program
     ///
     /// The test program will configure itself to be able to receive messages of this type
