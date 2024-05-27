@@ -266,6 +266,89 @@ impl SceneContext {
             Err(ConnectionError::SubProgramNotRunning)
         }
     }
+
+    ///
+    /// Spawns a command that reads the response from a query to a target
+    ///
+    pub fn spawn_query<TCommand>(&self, command: TCommand, query: impl 'static + QueryRequest<ResponseData=TCommand::Input>, query_target: impl Into<StreamTarget>) -> Result<impl 'static + Stream<Item=TCommand::Output>, ConnectionError>
+    where
+        TCommand: 'static + Command,
+    {
+        // TODO: this is very similar to spawn_command, might be more easy to maintain if some common core is extracted from both messages (the different handling of the input stream makes it tricky to find something natural, though)
+
+        if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
+            use std::mem;
+
+            // Get the ID for this task
+            let our_program_id  = program_core.lock().unwrap().id;
+            let task_program_id = program_core.lock().unwrap().new_task_id();
+
+            // Connect to the target
+            let mut target_connection = self.send(query_target)?;
+
+            // The task has an input stream that is immediately closed (can't receive any input from elsewhere in the program)
+            let response_input_stream = InputStream::<QueryResponse<TCommand::Input>>::new(task_program_id, &scene_core, 0);
+            let response_input_core   = response_input_stream.core();
+
+            // We generate a 
+            let command_result      = InputStream::new(our_program_id, &scene_core, 4);
+            let command_result_core = command_result.core();
+
+            // We need to receive the context after the subprogram has been added to the core
+            let (send_context, recv_context)    = oneshot::channel::<SceneContext>();
+            let command_result_core             = Arc::downgrade(&command_result_core);
+
+            let run_program = async move {
+                if let Ok(scene_context) = recv_context.await {
+                    // Send the query
+                    let mut response_input_stream = response_input_stream;
+                    if let Ok(()) = target_connection.send(query).await {
+                        if let Some(response) = response_input_stream.next().await {
+                            // Refuse any further input
+                            mem::drop(response_input_stream);
+
+                            // Run the command with the response to the query
+                            command.run(response, scene_context).await;
+
+                            // Close the result stream once the command finishes running
+                            if let Some(command_result_core) = command_result_core.upgrade() {
+                                let waker = command_result_core.lock().unwrap().close();
+                                if let Some(waker) = waker {
+                                    waker.wake();
+                                }
+                            }
+                        } else {
+                            // Could not receive the response (TODO)
+                        }
+                    } else {
+                        // Could not send the query (TODO: maybe make the input a TryStream?)
+                    }
+                }
+            };
+
+            // Use the run_program future to spawn a new task in the scene
+            let subtask = SceneCore::start_subprogram(&scene_core, task_program_id, run_program, response_input_core);
+
+            // Send the context to the waiting program
+            let subtask_context = SceneContext::new(&scene_core, &subtask);
+            send_context.send(subtask_context.clone()).ok();
+
+            // Specify that the output for the standard stream is connected to 'Any' by default
+            // (There's a bit of fragility over the output stream here, if it gets reconnected it will stop sending to us)
+            SceneCore::connect_programs(&scene_core, task_program_id.into(), StreamTarget::Any, StreamId::with_message_type::<TCommand::Output>()).unwrap();
+
+            // Create a stream from the command output stream (this is an extra input stream for the target program)
+            let mut target_output_sink  = subtask_context.send::<TCommand::Output>(())?;
+            let command_result_core     = command_result.core();
+
+            target_output_sink.attach_to_core(&command_result_core);
+
+            Ok(command_result)
+        } else {
+            // The core or the program is not running any more
+            Err(ConnectionError::SubProgramNotRunning)
+        }
+    }
 }
 
 thread_local! {
