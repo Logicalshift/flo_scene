@@ -270,6 +270,9 @@ impl SceneContext {
     ///
     /// Spawns a command that reads the response from a query to a target
     ///
+    /// The query should be created with `StreamTarget::None` (any other target will also work, but because the query response will not be sent to the 
+    /// specified target, 'None' makes this more clear)
+    ///
     pub fn spawn_query<TCommand>(&self, command: TCommand, query: impl 'static + QueryRequest<ResponseData=TCommand::Input>, query_target: impl Into<StreamTarget>) -> Result<impl 'static + Stream<Item=TCommand::Output>, ConnectionError>
     where
         TCommand: 'static + Command,
@@ -302,7 +305,8 @@ impl SceneContext {
                 if let Ok(scene_context) = recv_context.await {
                     // Send the query
                     let mut response_input_stream = response_input_stream;
-                    if let Ok(()) = target_connection.send(query).await {
+                    if let Ok(()) = target_connection.send(query.with_new_target(task_program_id.into())).await {
+                        // Wait for the response
                         if let Some(response) = response_input_stream.next().await {
                             // Refuse any further input
                             mem::drop(response_input_stream);
