@@ -36,6 +36,9 @@ pub (crate) struct SubProgramCore {
 
     /// The name of the expected input type of this program
     pub (super) expected_input_type_name: &'static str,
+
+    /// The ID assigned to the next command that this subprogram will launch
+    pub (super) next_command_sequence: usize,
 }
 
 impl SubProgramCore {
@@ -178,5 +181,15 @@ impl SubProgramCore {
         self.output_high_water = self.outputs.len();
 
         unused_output_sinks
+    }
+
+    ///
+    /// Creates a new subprogram ID for a task launched by this program
+    ///
+    pub (crate) fn new_task_id(&mut self) -> SubProgramId {
+        let sequence_number = self.next_command_sequence;
+        self.next_command_sequence += 1;
+
+        self.id.with_command_id(sequence_number)
     }
 }

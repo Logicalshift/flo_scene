@@ -10,6 +10,17 @@ use std::pin::*;
 use std::task::{Context, Poll};
 
 ///
+/// A query request is a type of message representing a request for a query response of a particular type
+///
+pub trait QueryRequest : SceneMessage {
+    /// An object receiving this query request will send back a `QueryResponse<Self::ResponseData>`
+    type ResponseData: Send + Unpin;
+
+    /// Updates this request to use a different target
+    fn with_new_target(self, new_target: StreamTarget) -> Self;
+}
+
+///
 /// A query is a request to send a single `QueryResponse<TResponseData>` back to its sender.
 ///
 /// Queries are typically identified by their data type. The `Query` message is a bit like the `Subscribe` message
@@ -18,6 +29,16 @@ use std::task::{Context, Poll};
 ///
 #[derive(Clone)]
 pub struct Query<TResponseData: Send + Unpin>(StreamTarget, PhantomData<TResponseData>);
+
+impl<TResponseData: Send + Unpin> QueryRequest for Query<TResponseData> {
+    type ResponseData = TResponseData;
+
+    #[inline]
+    fn with_new_target(mut self, new_target: StreamTarget) -> Self {
+        self.0 = new_target;
+        self
+    }
+}
 
 ///
 /// A query response is the message sent whenever a subprogram accepts a `Query`
@@ -28,9 +49,9 @@ pub struct QueryResponse<TResponseData>(BoxStream<'static, TResponseData>);
 
 impl<TResponseData: Send + Unpin> SceneMessage for Query<TResponseData> { }
 
-impl<TResponseData: Send + Unpin> SceneMessage for QueryResponse<TResponseData> { }
+impl<TResponseData: Send> SceneMessage for QueryResponse<TResponseData> { }
 
-impl<TResponseData: Send + Unpin> Stream for QueryResponse<TResponseData> {
+impl<TResponseData: Send> Stream for QueryResponse<TResponseData> {
     type Item = TResponseData;
 
     #[inline]
@@ -51,6 +72,14 @@ impl<TResponseData: 'static + Send + Unpin> Query<TResponseData> {
     #[inline]
     pub fn with_target(target: impl Into<StreamTarget>) -> Self {
         Query(target.into(), PhantomData)
+    }
+
+    ///
+    /// Creates a query message with no target defined (used for `spawn_query` in scene_context)
+    ///
+    #[inline]
+    pub fn with_no_target() -> Self {
+        Query(StreamTarget::None, PhantomData)
     }
 
     ///

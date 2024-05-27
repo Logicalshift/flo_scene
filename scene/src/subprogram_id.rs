@@ -49,6 +49,16 @@ enum SubProgramIdValue {
 
     /// A subprogram identified with a GUID
     Guid(Uuid),
+
+    /// A task created by a named subprogram. The second 'usize' value is a unique serial number for this task
+    ///
+    /// Tasks differ from subprograms in that they have a limited lifespan and read an input stream specified at creation
+    NamedTask(usize, usize),
+
+    /// A task created by a GUID subprogram. The 'usize' value is a unique serial number for this task
+    ///
+    /// Tasks differ from subprograms in that they have a limited lifespan and read an input stream specified at creation
+    GuidTask(Uuid, usize),
 }
 
 ///
@@ -72,6 +82,19 @@ impl SubProgramId {
     #[inline]
     pub fn called(name: &str) -> SubProgramId {
         SubProgramId(SubProgramIdValue::Named(id_for_name(name)))
+    }
+
+    ///
+    /// Creates a command subprogram ID (with a particular sequence number)
+    ///
+    pub (crate) fn with_command_id(&self, command_sequence_number: usize) -> SubProgramId {
+        match self.0 {
+            SubProgramIdValue::Named(name_num)          |
+            SubProgramIdValue::NamedTask(name_num, _)   => SubProgramId(SubProgramIdValue::NamedTask(name_num, command_sequence_number)),
+
+            SubProgramIdValue::Guid(guid)               |
+            SubProgramIdValue::GuidTask(guid, _)        => SubProgramId(SubProgramIdValue::GuidTask(guid, command_sequence_number))
+        }
     }
 }
 

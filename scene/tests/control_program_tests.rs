@@ -7,6 +7,7 @@
 
 use flo_scene::*;
 use flo_scene::programs::*;
+use flo_scene::commands::*;
 
 use futures::prelude::*;
 use futures::future::{select};
@@ -369,15 +370,13 @@ fn query_control_program() {
     TestBuilder::new()
         .send_message(IdleRequest::WhenIdle(test_program))
         .expect_message(|IdleNotification| { Ok(()) })
-        .send_message(query::<SceneUpdate>(test_program))
-        .expect_message_async(move |response: QueryResponse::<SceneUpdate>| async move { 
-            let response = response.collect::<Vec<_>>().await;
+        .run_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), *SCENE_CONTROL_PROGRAM, 
+            move |response| {
+                if response.is_empty() { return Err("No updates in query response".to_string()); }
+                if !response.iter().any(|update| update == &SceneUpdate::Started(program_1)) { return Err(format!("Program 1 ({:?}) not in query response ({:?})", program_1, response)); }
+                if !response.iter().any(|update| update == &SceneUpdate::Started(*SCENE_CONTROL_PROGRAM)) { return Err(format!("Scene control program not in query response ({:?})", response)); }
 
-            if response.is_empty() { return Err("No updates in query response".to_string()); }
-            if !response.iter().any(|update| update == &SceneUpdate::Started(program_1)) { return Err(format!("Program 1 ({:?}) not in query response ({:?})", program_1, response)); }
-            if !response.iter().any(|update| update == &SceneUpdate::Started(*SCENE_CONTROL_PROGRAM)) { return Err(format!("Scene control program not in query response ({:?})", response)); }
-
-            Ok(()) 
-        })
+                Ok(()) 
+            })
         .run_in_scene_with_threads(&scene, test_program, 5);
 }

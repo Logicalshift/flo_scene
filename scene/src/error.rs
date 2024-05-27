@@ -20,6 +20,9 @@ pub enum ConnectionError {
     // Something cancelled the connection
     Cancelled,
 
+    /// The subprogram a context belongs to is no longer running
+    SubProgramNotRunning,
+
     /// The input type of the target of a connection does not match the source
     WrongInputType(SourceStreamMessageType, TargetInputMessageType),
 
