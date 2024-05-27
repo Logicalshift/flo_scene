@@ -15,6 +15,9 @@ use std::task::{Context, Poll};
 pub trait QueryRequest : SceneMessage {
     /// An object receiving this query request will send back a `QueryResponse<Self::ResponseData>`
     type ResponseData: Send + Unpin;
+
+    /// Updates this request to use a different target
+    fn for_target(self, new_target: StreamTarget) -> Self;
 }
 
 ///
@@ -29,6 +32,12 @@ pub struct Query<TResponseData: Send + Unpin>(StreamTarget, PhantomData<TRespons
 
 impl<TResponseData: Send + Unpin> QueryRequest for Query<TResponseData> {
     type ResponseData = TResponseData;
+
+    #[inline]
+    fn for_target(mut self, new_target: StreamTarget) -> Self {
+        self.0 = new_target;
+        self
+    }
 }
 
 ///
