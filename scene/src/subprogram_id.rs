@@ -83,6 +83,19 @@ impl SubProgramId {
     pub fn called(name: &str) -> SubProgramId {
         SubProgramId(SubProgramIdValue::Named(id_for_name(name)))
     }
+
+    ///
+    /// Creates a command subprogram ID (with a particular sequence number)
+    ///
+    pub (crate) fn with_command_id(&self, command_sequence_number: usize) -> SubProgramId {
+        match self.0 {
+            SubProgramIdValue::Named(name_num)          |
+            SubProgramIdValue::NamedTask(name_num, _)   => SubProgramId(SubProgramIdValue::NamedTask(name_num, command_sequence_number)),
+
+            SubProgramIdValue::Guid(guid)               |
+            SubProgramIdValue::GuidTask(guid, _)        => SubProgramId(SubProgramIdValue::GuidTask(guid, command_sequence_number))
+        }
+    }
 }
 
 impl StaticSubProgramId {

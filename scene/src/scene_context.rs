@@ -1,3 +1,4 @@
+use crate::command::*;
 use crate::error::*;
 use crate::output_sink::*;
 use crate::programs::*;
@@ -201,21 +202,11 @@ impl SceneContext {
     }
 
     ///
-    /// A task processes an input stream and returns its output as a captured output stream
+    /// Spawns a command to run in this scene, returning the command's standard output
     ///
-    /// Tasks are considered part of the subprogram that spawns them, and are useful as a way to get feedback from a query or run some background processing.
-    ///
-    /// The difference between a task and a subprogram is that a subprogram will accept input from multiple sources, while a task will only accept input from the supplied
-    /// stream. A task should also process its input and then stop, where a subprogram generally runs indefinitely.
-    ///
-    /// The default stream for the specified `TOutput` type is captured from the spawned task and returned to the subprogram that spawned it, which makes it possible
-    /// for the spawning subprogram to receive feedback from its subtasks.
-    ///
-    pub fn spawn_task<TInput, TOutput, TFuture>(task: impl Fn(BoxStream<'static, TInput>, SceneContext) -> TFuture, input: impl 'static + Send + Stream<Item=TInput>) -> Result<impl 'static + Send + Stream<Item=TOutput>, ConnectionError>
+    pub fn spawn_command<TCommand>(&self, command: TCommand, input: impl 'static + Send + Stream<Item=TCommand::Input>) -> Result<impl 'static + Stream<Item=TCommand::Output>, ConnectionError>
     where
-        TInput:     'static + Send,
-        TOutput:    'static + SceneMessage,
-        TFuture:    'static + Send + Future<Output = ()>,
+        TCommand: Command,
     {
         todo!();
 

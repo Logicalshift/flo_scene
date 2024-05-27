@@ -36,6 +36,9 @@ pub (crate) struct SubProgramCore {
 
     /// The name of the expected input type of this program
     pub (super) expected_input_type_name: &'static str,
+
+    /// The ID assigned to the next command that this subprogram will launch
+    pub (super) next_command_sequence: usize,
 }
 
 impl SubProgramCore {

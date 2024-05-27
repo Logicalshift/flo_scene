@@ -212,6 +212,7 @@ impl SceneCore {
                 outputs:                    HashMap::new(),
                 output_high_water:          0,
                 expected_input_type_name:   type_name::<TMessage>(),
+                next_command_sequence:      0,
             };
 
             // Allocate space for the program
