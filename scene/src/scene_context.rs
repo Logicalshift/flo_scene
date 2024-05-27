@@ -250,8 +250,9 @@ impl SceneContext {
             let subtask_context = SceneContext::new(&scene_core, &subtask);
             send_context.send(subtask_context.clone()).ok();
 
-            // TODO: Specify that the output for the standard stream is connected to 'Any' by default
+            // Specify that the output for the standard stream is connected to 'Any' by default
             // (There's a bit of fragility over the output stream here, if it gets reconnected it will stop sending to us)
+            SceneCore::connect_programs(&scene_core, task_program_id.into(), StreamTarget::Any, StreamId::with_message_type::<TCommand::Output>()).unwrap();
 
             // Create a stream from the command output stream (this is an extra input stream for the target program)
             let mut target_output_sink  = subtask_context.send::<TCommand::Output>(())?;
