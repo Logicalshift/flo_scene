@@ -28,6 +28,41 @@ fn simple_command() {
 }
 
 #[test]
+fn pipe_command() {
+    let scene = Scene::default();
+
+    // Create a test command that sends some usize values to its output
+    let test_command = FnCommand::<(), usize>::new(|_input, context| async move {
+        // Connect the usize output
+        let mut output = context.send::<usize>(()).unwrap();
+
+        // Send some output data
+        output.send(1).await.unwrap();
+        output.send(2).await.unwrap();
+        output.send(3).await.unwrap();
+        output.send(4).await.unwrap();
+    });
+
+    let add_one_command = FnCommand::<usize, usize>::new(|input, context| async move {
+        let mut input  = input;
+        let mut output = context.send::<usize>(()).unwrap();
+
+        // Add one to the input
+        while let Some(next) = input.next().await {
+            output.send(next+1).await.unwrap();
+        }
+    });
+
+    let combined_command = test_command.pipe_to(add_one_command);
+
+    // Run the command using the test builder
+    let test_program = SubProgramId::new();
+    TestBuilder::new()
+        .run_command(combined_command.clone(), vec![], |output| if &output != &vec![2, 3, 4, 5] { Err(format!("Unexpected command output: {:?}", output)) } else { Ok(()) })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
 fn query_command() {
     let scene = Scene::default();
 
