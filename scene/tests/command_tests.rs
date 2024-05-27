@@ -5,7 +5,7 @@ use flo_scene::commands::*;
 use futures::prelude::*;
 
 #[test]
-fn basic_timeout() {
+fn simple_command() {
     let scene = Scene::default();
 
     // Create a test command that sends some usize values to its output
