@@ -6,6 +6,7 @@ use futures::future::{BoxFuture};
 use futures::stream::{BoxStream};
 
 use std::marker::{PhantomData};
+use std::sync::*;
 
 ///
 /// Commands are spawnable tasks that carry out actions on behalf of a parent subprogram. A command can send multiple messages
@@ -21,7 +22,8 @@ pub trait Command : Send {
 ///
 /// Basic type of a command that runs a function
 ///
-pub struct FnCommand<TInput, TOutput>(PhantomData<TOutput>, Box<dyn 'static + Send + Sync + Fn(BoxStream<'static, TInput>, SceneContext) -> BoxFuture<'static, ()>>);
+#[derive(Clone)]
+pub struct FnCommand<TInput, TOutput>(PhantomData<TOutput>, Arc<dyn 'static + Send + Sync + Fn(BoxStream<'static, TInput>, SceneContext) -> BoxFuture<'static, ()>>);
 
 impl<TInput, TOutput> FnCommand<TInput, TOutput>
 where
@@ -35,7 +37,7 @@ where
     where
         TFuture: 'static + Send + Future<Output=()>,
     {
-        FnCommand(PhantomData, Box::new(move |stream, context| action(stream, context).boxed()))
+        FnCommand(PhantomData, Arc::new(move |stream, context| action(stream, context).boxed()))
     }
 }
 
