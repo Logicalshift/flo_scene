@@ -125,7 +125,7 @@ it's also possible to create a scene with a particular set of default programs s
 ### Filtering messages
 
 Filters make it possible to connect two subprograms that take different message types by transforming
-them. They need to be registered, then they can be used as a stream target:
+them. They need to be registered, then they can be used as a stream source or target:
 
 ```Rust
 // Note that the stream ID identifies the *source* stream: there's only one input stream for any program
@@ -240,6 +240,71 @@ Scenes are inherently testable: automatic initialisation can save on setup time,
 intercept internal method calls as all messages are available and can be redirected with the 
 `connect_programs()` call, and the `StreamTarget::None` target can be used to dump messages that
 are not relevant to the test.
+
+### Queries and subscriptions
+
+The `Subscribe` message is often accepted via a filter and indicates a target where events of a
+particular type should be sent. For instance, a program can monitor the overall state of the
+scene by sending a `Subscribe<SceneUpdate>` message, which is handled by the control program
+by default.
+
+The companion `Query` message is used to send a request for a single `QueryResponse` message.
+Where subscriptions send messages indefinitely, queries send just one `QueryResponse`, which
+is itself a stream of data indicating the result of the query. For instance, to receive a
+response indicating the current state of the scene, the `Query<SceneUpdate>` message can be
+sent. A single response will be received indicating which subprograms are running and how
+they are connected.
+
+Queries can be combined with Commands as a way to make a query against the state of something without
+needing to set up a filter to convert the QueryResponse (or making it possible to send unsolicited
+QueryResponses to confuse the subprogram)
+
+### Commands
+
+Sub-programs run for an indefinite period of time and can accept messages from any source. Commands
+represent re-usable requests that process their input and return a single output stream. They can be
+used to perform background processing, group a sequence of messages into a single unit or retrieve
+the results of a query to another component. For instance, a command that sends a couple of messages
+can be created as follows:
+
+```Rust
+let example_command = FnCommand::<(), ()>::new(|_no_input, context| async move {
+    context.send_message(Message1::SampleMessage).await.ok();
+    context.send_message(Message2::ExampleMessage).await.ok();
+});
+```
+
+This can be spawned by a subprogram to perform this sequence of actions:
+
+```Rust
+context.spawn_command(example_command.clone(), stream::empty()).unwrap();
+```
+
+The command is passed an input stream, and captures a single 'standard' output stream to return to 
+the subprogram that spawned it:
+
+```Rust
+let number_to_string = FnCommand::<usize, String>::new(|numbers, context| async move {
+    let mut numbers = numbers;
+    let mut strings = context.send(()).unwrap();
+
+    while let Some(number) = numbers.next().await {
+        strings.send(number.to_string()).await.ok();
+    }
+});
+
+let strings = context.spawn_command(number_to_string.clone(), stream::iter(vec![1, 2, 3, 4])).unwrap();
+
+// strings is a stream ["1", "2", "3", "4"]
+```
+
+The input to a command can be a query using the `spawn_query` function, and this is useful in combination
+with the `ReadCommand` which is a very basic command that sends its input straight to its output:
+
+```Rust
+// Retrieve the current state of the scene as a stream of SceneUpdates
+let current_scene_state = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), SceneTarget::Any).unwrap();
+```
 
 ### Multiple scenes
 
