@@ -1,5 +1,6 @@
 use crate::command::*;
 use crate::error::*;
+use crate::input_stream::*;
 use crate::output_sink::*;
 use crate::programs::*;
 use crate::scene_core::*;
@@ -11,6 +12,7 @@ use crate::subprogram_id::*;
 
 use futures::prelude::*;
 use futures::stream::{BoxStream};
+use futures::channel::oneshot;
 
 use std::cell::*;
 use std::sync::*;
@@ -206,11 +208,52 @@ impl SceneContext {
     ///
     pub fn spawn_command<TCommand>(&self, command: TCommand, input: impl 'static + Send + Stream<Item=TCommand::Input>) -> Result<impl 'static + Stream<Item=TCommand::Output>, ConnectionError>
     where
-        TCommand: Command,
+        TCommand: 'static + Command,
     {
-        todo!();
+        if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
+            use std::mem;
 
-        Ok(stream::empty())
+            // Get the ID for this task
+            let our_program_id  = program_core.lock().unwrap().id;
+            let task_program_id = program_core.lock().unwrap().new_task_id();
+
+            // The task has an input stream that is immediately closed (can't receive any input from elsewhere in the program)
+            let closed_input_stream = InputStream::<()>::new(task_program_id, &scene_core, 0);
+            let closed_input_core   = closed_input_stream.core();
+            mem::drop(closed_input_stream);
+
+            // We need to receive the context after the subprogram has been added to the core
+            let (send_context, recv_context) = oneshot::channel::<SceneContext>();
+
+            let run_program = async move {
+                if let Ok(scene_context) = recv_context.await {
+                    command.run(input, scene_context).await;
+                }
+            };
+
+            // Use the run_program future to spawn a new task in the scene
+            let subtask = SceneCore::start_subprogram(&scene_core, task_program_id, run_program, closed_input_core);
+
+            // Send the context to the waiting program
+            let subtask_context = SceneContext::new(&scene_core, &subtask);
+            send_context.send(subtask_context.clone()).ok();
+
+            // TODO: Specify that the output for the standard stream is connected to 'Any' by default
+            // (There's a bit of fragility over the output stream here, if it gets reconnected it will stop sending to us)
+
+            // Create a stream from the command output stream (this is an extra input stream for the target program)
+            // TODO: make the output sink 'close when dropped'
+            let mut target_output_sink  = subtask_context.send::<TCommand::Output>(())?;
+            let command_result          = InputStream::new(our_program_id, &scene_core, 4);
+            let command_result_core     = command_result.core();
+
+            target_output_sink.attach_to_core(&command_result_core);
+
+            Ok(command_result)
+        } else {
+            // The core or the program is not running any more
+            Err(ConnectionError::SubProgramNotRunning)
+        }
     }
 }
 
