@@ -12,10 +12,10 @@ use std::marker::{PhantomData};
 /// to different targets and also can return a 'standard' output stream to to the subprogram that spawned it.
 ///
 pub trait Command {
-    type TInput:  'static + Send;
-    type TOutput: 'static + SceneMessage;
+    type Input:  'static + Send;
+    type Output: 'static + SceneMessage;
 
-    fn run(&self, input: impl 'static + Send + Stream<Item=Self::TInput>, context: SceneContext) -> impl 'static + Send + Future<Output=()>;
+    fn run(&self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'static + Send + Future<Output=()>;
 }
 
 ///
@@ -44,11 +44,11 @@ where
     TInput:     'static + Send,
     TOutput:    'static + SceneMessage
 {
-    type TInput     = TInput;
-    type TOutput    = TOutput;
+    type Input  = TInput;
+    type Output = TOutput;
 
     #[inline]
-    fn run(&self, input: impl 'static + Send + Stream<Item=Self::TInput>, context: SceneContext) -> impl 'static + Send + Future<Output=()> {
+    fn run(&self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'static + Send + Future<Output=()> {
         self.1(input.boxed(), context)
     }
 }
