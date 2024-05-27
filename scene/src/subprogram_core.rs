@@ -182,4 +182,14 @@ impl SubProgramCore {
 
         unused_output_sinks
     }
+
+    ///
+    /// Creates a new subprogram ID for a task launched by this program
+    ///
+    pub (crate) fn new_task_id(&mut self) -> SubProgramId {
+        let sequence_number = self.next_command_sequence;
+        self.next_command_sequence += 1;
+
+        self.id.with_command_id(sequence_number)
+    }
 }
