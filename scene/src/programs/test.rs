@@ -1,5 +1,6 @@
 use crate::*;
 use super::control::*;
+use super::query::*;
 
 use futures::prelude::*;
 use futures::executor;
@@ -103,6 +104,35 @@ impl TestBuilder {
             async move {
                 // Run the command and gather the output
                 let command_result = context.spawn_command(command, stream::iter(input)).unwrap().collect::<Vec<_>>().await;
+
+                // Check the result against the assertion
+                let mut failed_assertions = failed_assertions;
+                match assertion(command_result) {
+                    Ok(())                  => { }
+                    Err(failure_messge)     => { failed_assertions.send(failure_messge).await.unwrap(); }
+                }
+
+                (input_stream, failed_assertions)
+            }.boxed()
+        }));
+
+        self
+    }
+
+    ///
+    /// Runs a `Command` with the output of a query and then evaluates an assertion against the messages that it returns
+    ///
+    /// The command is run to completion and the output stream is gathered into a vec that's passed to the assertion routine.
+    ///
+    pub fn run_query<TCommand: 'static + Command>(mut self, command: TCommand, query: impl 'static + QueryRequest<ResponseData=TCommand::Input>, query_target: impl Into<StreamTarget>, assertion: impl 'static + Send + Fn(Vec<TCommand::Output>) -> Result<(), String>) -> Self {
+        let query_target = query_target.into();
+
+        self.actions.push(Box::new(move |input_stream, context, failed_assertions| {
+            let context = context.clone();
+
+            async move {
+                // Run the command and gather the output
+                let command_result = context.spawn_query(command, query, query_target).unwrap().collect::<Vec<_>>().await;
 
                 // Check the result against the assertion
                 let mut failed_assertions = failed_assertions;
