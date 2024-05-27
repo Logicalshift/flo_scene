@@ -1,5 +1,5 @@
 mod fn_command;
-mod pipe;
+mod pipe_command;
 
 pub use fn_command::*;
-pub use pipe::*;
+pub use pipe_command::*;
