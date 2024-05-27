@@ -1,4 +1,4 @@
-use crate::command::*;
+use crate::command_trait::*;
 use crate::error::*;
 use crate::input_stream::*;
 use crate::output_sink::*;

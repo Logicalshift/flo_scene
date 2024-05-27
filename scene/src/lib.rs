@@ -186,10 +186,12 @@ mod input_stream;
 mod output_sink;
 mod filter;
 mod scene_message;
+mod thread_stealer;
+mod command_trait;
+
 pub mod error;
 pub mod programs;
-mod thread_stealer;
-mod command;
+pub mod commands;
 
 pub use scene::*;
 pub use scene_context::*;
@@ -201,7 +203,7 @@ pub use input_stream::*;
 pub use output_sink::*;
 pub use filter::*;
 pub use scene_message::*;
-pub use command::*;
+pub use command_trait::*;
 pub use error::{ConnectionError, SceneSendError};
 
 #[cfg(feature = "serde_support")]
