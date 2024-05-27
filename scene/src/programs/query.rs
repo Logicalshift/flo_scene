@@ -75,6 +75,14 @@ impl<TResponseData: 'static + Send + Unpin> Query<TResponseData> {
     }
 
     ///
+    /// Creates a query message with no target defined (used for `spawn_query` in scene_context)
+    ///
+    #[inline]
+    pub fn with_no_target() -> Self {
+        Query(StreamTarget::None, PhantomData)
+    }
+
+    ///
     /// Retrieves the place where the query response should be sent
     ///
     #[inline]
