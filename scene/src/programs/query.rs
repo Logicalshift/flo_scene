@@ -10,6 +10,14 @@ use std::pin::*;
 use std::task::{Context, Poll};
 
 ///
+/// A query request is a type of message representing a request for a query response of a particular type
+///
+pub trait QueryRequest : SceneMessage {
+    /// An object receiving this query request will send back a `QueryResponse<Self::ResponseData>`
+    type ResponseData: Send + Unpin;
+}
+
+///
 /// A query is a request to send a single `QueryResponse<TResponseData>` back to its sender.
 ///
 /// Queries are typically identified by their data type. The `Query` message is a bit like the `Subscribe` message
@@ -18,6 +26,10 @@ use std::task::{Context, Poll};
 ///
 #[derive(Clone)]
 pub struct Query<TResponseData: Send + Unpin>(StreamTarget, PhantomData<TResponseData>);
+
+impl<TResponseData: Send + Unpin> QueryRequest for Query<TResponseData> {
+    type ResponseData = TResponseData;
+}
 
 ///
 /// A query response is the message sent whenever a subprogram accepts a `Query`
