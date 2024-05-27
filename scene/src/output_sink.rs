@@ -136,6 +136,20 @@ impl<TMessage> OutputSink<TMessage> {
     }
 
     ///
+    /// Sends the messages from this sink to an input stream core
+    ///
+    pub (crate) fn attach_to_core(&mut self, input_stream_core: &Arc<Mutex<InputStreamCore<TMessage>>>) {
+        // Connect to the target
+        self.core.lock().unwrap().target = OutputSinkTarget::Input(Arc::downgrade(input_stream_core));
+
+        // Wake anything waiting for the stream to become ready or to send a message
+        let waker = self.core.lock().unwrap().when_target_changed.take();
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+    }
+
+    ///
     /// Returns true if this output sink is still attached to a target program
     ///
     pub fn is_attached(&self) -> bool {
@@ -548,20 +562,6 @@ mod test {
         ///
         pub (crate) fn attach_to(&mut self, input_stream: &InputStream<TMessage>) {
             self.attach_to_core(&input_stream.core);
-        }
-
-        ///
-        /// Sends the messages from this sink to an input stream core
-        ///
-        pub (crate) fn attach_to_core(&mut self, input_stream_core: &Arc<Mutex<InputStreamCore<TMessage>>>) {
-            // Connect to the target
-            self.core.lock().unwrap().target = OutputSinkTarget::Input(Arc::downgrade(input_stream_core));
-
-            // Wake anything waiting for the stream to become ready or to send a message
-            let waker = self.core.lock().unwrap().when_target_changed.take();
-            if let Some(waker) = waker {
-                waker.wake();
-            }
         }
     }
 
