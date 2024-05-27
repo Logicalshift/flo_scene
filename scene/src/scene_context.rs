@@ -11,7 +11,6 @@ use crate::subprogram_core::*;
 use crate::subprogram_id::*;
 
 use futures::prelude::*;
-use futures::stream::{BoxStream};
 use futures::channel::oneshot;
 
 use std::cell::*;
@@ -222,12 +221,25 @@ impl SceneContext {
             let closed_input_core   = closed_input_stream.core();
             mem::drop(closed_input_stream);
 
+            // We generate a 
+            let command_result      = InputStream::new(our_program_id, &scene_core, 4);
+            let command_result_core = command_result.core();
+
             // We need to receive the context after the subprogram has been added to the core
-            let (send_context, recv_context) = oneshot::channel::<SceneContext>();
+            let (send_context, recv_context)    = oneshot::channel::<SceneContext>();
+            let command_result_core             = Arc::downgrade(&command_result_core);
 
             let run_program = async move {
                 if let Ok(scene_context) = recv_context.await {
                     command.run(input, scene_context).await;
+
+                    // Close the result stream once the command finishes running
+                    if let Some(command_result_core) = command_result_core.upgrade() {
+                        let waker = command_result_core.lock().unwrap().close();
+                        if let Some(waker) = waker {
+                            waker.wake();
+                        }
+                    }
                 }
             };
 
@@ -242,9 +254,7 @@ impl SceneContext {
             // (There's a bit of fragility over the output stream here, if it gets reconnected it will stop sending to us)
 
             // Create a stream from the command output stream (this is an extra input stream for the target program)
-            // TODO: make the output sink 'close when dropped'
             let mut target_output_sink  = subtask_context.send::<TCommand::Output>(())?;
-            let command_result          = InputStream::new(our_program_id, &scene_core, 4);
             let command_result_core     = command_result.core();
 
             target_output_sink.attach_to_core(&command_result_core);
