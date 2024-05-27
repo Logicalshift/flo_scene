@@ -17,7 +17,7 @@ pub trait QueryRequest : SceneMessage {
     type ResponseData: Send + Unpin;
 
     /// Updates this request to use a different target
-    fn for_target(self, new_target: StreamTarget) -> Self;
+    fn with_new_target(self, new_target: StreamTarget) -> Self;
 }
 
 ///
@@ -34,7 +34,7 @@ impl<TResponseData: Send + Unpin> QueryRequest for Query<TResponseData> {
     type ResponseData = TResponseData;
 
     #[inline]
-    fn for_target(mut self, new_target: StreamTarget) -> Self {
+    fn with_new_target(mut self, new_target: StreamTarget) -> Self {
         self.0 = new_target;
         self
     }
