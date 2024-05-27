@@ -1,4 +1,7 @@
 use crate::command_trait::*;
+use crate::scene_context::*;
+
+use futures::prelude::*;
 
 ///
 /// A pipe command takes the output of one command and sends it to the input of another
@@ -32,7 +35,7 @@ where
     type Output = TTargetCommand::Output;
 
     #[inline]
-    fn run(&self, input: impl 'static + Send + futures::prelude::Stream<Item=Self::Input>, context: crate::SceneContext) -> impl 'static + Send + futures::prelude::Future<Output=()> {
+    fn run(&self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'static + Send + Future<Output=()> {
         let source_cmd = self.0.clone();
         let target_cmd = self.1.clone();
 
