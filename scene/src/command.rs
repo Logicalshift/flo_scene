@@ -11,7 +11,7 @@ use std::marker::{PhantomData};
 /// Commands are spawnable tasks that carry out actions on behalf of a parent subprogram. A command can send multiple messages
 /// to different targets and also can return a 'standard' output stream to to the subprogram that spawned it.
 ///
-pub trait Command {
+pub trait Command : Send {
     type Input:  'static + Send;
     type Output: 'static + SceneMessage;
 
