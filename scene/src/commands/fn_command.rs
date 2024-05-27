@@ -12,7 +12,6 @@ use std::sync::*;
 ///
 /// Basic type of a command that runs a function
 ///
-#[derive(Clone)]
 pub struct FnCommand<TInput, TOutput>(PhantomData<TOutput>, Arc<dyn 'static + Send + Sync + Fn(BoxStream<'static, TInput>, SceneContext) -> BoxFuture<'static, ()>>);
 
 impl<TInput, TOutput> FnCommand<TInput, TOutput>
@@ -34,7 +33,7 @@ where
 impl<TInput, TOutput> Command for FnCommand<TInput, TOutput> 
 where
     TInput:     'static + Send,
-    TOutput:    'static + SceneMessage
+    TOutput:    'static + SceneMessage,
 {
     type Input  = TInput;
     type Output = TOutput;
@@ -42,5 +41,12 @@ where
     #[inline]
     fn run(&self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'static + Send + Future<Output=()> {
         self.1(input.boxed(), context)
+    }
+}
+
+impl<TInput, TOutput> Clone for FnCommand<TInput, TOutput> {
+    #[inline]
+    fn clone(&self) -> Self {
+        FnCommand(PhantomData, Arc::clone(&self.1))
     }
 }
