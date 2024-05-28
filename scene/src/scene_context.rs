@@ -273,6 +273,18 @@ impl SceneContext {
     /// The query should be created with `StreamTarget::None` (any other target will also work, but because the query response will not be sent to the 
     /// specified target, 'None' makes this more clear)
     ///
+    /// Some care should be taken when deciding to use a query command: this provides a more direct feedback mechanism from a target, but it is also
+    /// somewhat equivalent to a function call, which may be a better mechanism. Normally, `flo_scene` subprograms send messages forward: so a typical
+    /// design for a data storage mechanism would be to have a message that asks to retrieve the data and then sends it on to another subprogram. A query
+    /// command could do the same thing but return the data to the sender instead, but so could a simple function call.
+    ///
+    /// A query command is a more heavyweight approach than a function call, so a positive reason for using one is needed.
+    ///
+    /// Sending a message instead of making a function call has some unique properties, however. For the database example, a function call requires more
+    /// concrete knowledge of the database and a hard dependency: the query message on the other hand requires neither any knowledge of the actual database
+    /// or any kind of dependency: both of these can be set up entirely independently. Queries can also be used to forward the response elsewhere. A 
+    /// `query_target` of `StreamTarget::Any` is a good sign that this API is being used appropriately.
+    ///
     pub fn spawn_query<TCommand>(&self, command: TCommand, query: impl 'static + QueryRequest<ResponseData=TCommand::Input>, query_target: impl Into<StreamTarget>) -> Result<impl 'static + Stream<Item=TCommand::Output>, ConnectionError>
     where
         TCommand: 'static + Command,
