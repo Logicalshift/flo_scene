@@ -2,6 +2,8 @@ use crate::error::*;
 use crate::filter::*;
 use crate::input_stream::*;
 use crate::scene::*;
+use crate::output_sink::*;
+use crate::scene_context::*;
 use crate::scene_message::*;
 use crate::stream_source::*;
 use crate::stream_id::*;
@@ -185,4 +187,33 @@ where
     scene.connect_programs(StreamSource::Filtered(deserialize_filter), (), StreamId::with_message_type::<SerializedMessage<TSerializer::Ok>>())?;
 
     Ok(())
+}
+
+static SEND_SERIALIZED: Lazy<RwLock<HashMap<(TypeId, String), Arc<dyn Send + Sync + Fn(&SceneContext) -> Box<dyn Send + Any>>>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
+
+impl SceneContext {
+    ///
+    /// Creates an output sink that receives messages serialized using a serde serializer, and sends them using the native type.
+    ///
+    /// The serializer needs to be installed using `install_serializers` with a matching `type_name`.
+    ///
+    pub fn send_serialized<TSerializedType>(&self, type_name: &str) -> Result<impl 'static + Unpin + Send + Sink<TSerializedType, Error=SceneSendError<TSerializedType>>, ConnectionError>
+    where
+        TSerializedType:    'static + Send + Unpin,
+    {
+        // Try to fetch the function that creates the sink for this type
+        let send_serialized = SEND_SERIALIZED.read().unwrap();
+
+        if let Some(create_sink) = send_serialized.get(&(TypeId::of::<TSerializedType>(), type_name.to_string())) {
+            // Create a sink for the type name
+            let any_sink    = (create_sink)(self);
+            let boxed_sink  = any_sink.downcast::<Box<dyn Unpin + Send + Sink<TSerializedType, Error=SceneSendError<TSerializedType>>>>().unwrap();
+
+            Ok(*boxed_sink)
+        } else {
+            // This type is not available
+            Err(ConnectionError::TargetNotAvailable)
+        }
+    }
 }
