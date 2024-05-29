@@ -131,7 +131,10 @@ where
 ///
 /// Install serializers and deserializers so that messages of a particular type can be filtered to and from `SerializedMessage<TSerializer::Ok>`
 ///
-pub fn install_serializers<TMessageType, TSerializer>(scene: &Scene, create_serializer: impl 'static + Send + Sync + Fn() -> TSerializer) -> Result<(), ConnectionError>
+/// The type name is associated with the filters created by this function and can be used to create a sink that sends the raw serialized messages. This name
+/// must be unique: use something like `crate_name::type_name` for this value to ensure that there are no conflicts.
+///
+pub fn install_serializers<TMessageType, TSerializer>(scene: &Scene, type_name: &str, create_serializer: impl 'static + Send + Sync + Fn() -> TSerializer) -> Result<(), ConnectionError>
 where
     TMessageType:       'static + SceneMessage,
     TMessageType:       for<'a> Deserialize<'a>,

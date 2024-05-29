@@ -84,7 +84,7 @@ mod with_serde_support {
 
         // Create a scene that will serialize and deserialize the message
         let scene = Scene::default();
-        install_serializers::<TestMessage, _>(&scene, || serde_json::value::Serializer).unwrap();
+        install_serializers::<TestMessage, _>(&scene, "flo_scene::TestMessage", || serde_json::value::Serializer).unwrap();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         let test_program            = SubProgramId::new();
