@@ -194,6 +194,7 @@ where
             let sink = scene_context.send::<TMessageType>(target)?;
 
             // Map it to the deserializer
+            // TODO: report deserialization errors
             let sink = sink.with_flat_map(|msg: TSerializer::Ok| {
                 stream::iter(TMessageType::deserialize(msg).ok().map(|msg| Ok(msg)))
             }).sink_map_err(|err| {
