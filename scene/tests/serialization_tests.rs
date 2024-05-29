@@ -131,4 +131,38 @@ mod with_serde_support {
             })
             .run_in_scene(&scene, test_program);
     }
+
+    #[test]
+    fn send_serialized_messages() {
+        #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+        enum TestMessage2 {
+            StringValue(String)
+        }
+
+        impl SceneMessage for TestMessage2 { }
+
+        // Create a scene that will serialize and deserialize the message
+        let scene           = Scene::default();
+        let test_program    = SubProgramId::new();
+        install_serializers::<TestMessage2, _>(&scene, "flo_scene::TestMessage2", || serde_json::value::Serializer).unwrap();
+
+        // Add a subprogram that sends some serialized messages to the test program
+        let send_program = SubProgramId::new();
+        scene.add_subprogram(send_program, move |_: InputStream<()>, context| async move {
+            // Create a sink to send serialized messages to
+            let mut send_sink   = context.send_serialized::<serde_json::Value>("flo_scene::TestMessage2", test_program).unwrap();
+
+            // Send some serialized messages via the sink (which get turned straight back into TestMessage2)
+            send_sink.send(TestMessage2::StringValue("Hello".to_string()).serialize(serde_json::value::Serializer).unwrap()).await.unwrap();
+            send_sink.send(TestMessage2::StringValue("Goodbye".to_string()).serialize(serde_json::value::Serializer).unwrap()).await.unwrap();
+        }, 0);
+
+        TestBuilder::new()
+            .expect_message(|msg: TestMessage2| {
+                if msg != TestMessage2::StringValue(format!("Hello")) { Err(format!("Expected 'Hello' (got {:?})", msg)) } else { Ok(()) }
+            }).expect_message(|msg: TestMessage2| {
+                if msg != TestMessage2::StringValue(format!("Goodbye")) { Err(format!("Expected 'Goodbye' (got {:?})", msg)) } else { Ok(()) }
+            })
+            .run_in_scene(&scene, test_program);
+    }
 }
