@@ -10,9 +10,11 @@ use futures::prelude::*;
 use futures::stream;
 use futures::stream::{BoxStream};
 
+use once_cell::sync::{Lazy};
 use serde::*;
 
 use std::any::*;
+use std::collections::{HashMap};
 use std::sync::*;
 
 ///
@@ -143,9 +145,40 @@ where
     TSerializer::Ok:    'static + Send + Unpin,
     TSerializer::Ok:    for<'a> Deserializer<'a>,
 {
-    // Create/fetch the filters for the message type
-    let serialize_filter    = serializer_filter::<TMessageType, _, _>(move || create_serializer(), move |stream| stream);
-    let deserialize_filter  = deserializer_filter::<TMessageType, TSerializer::Ok, _>(|stream| stream);
+    use std::mem;
+
+    // Stores the currently known filters
+    static FILTERS_FOR_TYPE: Lazy<RwLock<HashMap<(TypeId, TypeId), (FilterHandle, FilterHandle)>>> = 
+        Lazy::new(|| RwLock::new(HashMap::new()));
+
+    // Fetch the existing filters if there are any for this type
+    let message_type        = TypeId::of::<TMessageType>();
+    let serializer_type     = TypeId::of::<TSerializer>();
+    let filters_for_type    = FILTERS_FOR_TYPE.read().unwrap();
+
+    let (serialize_filter, deserialize_filter) = if let Some(filters) = filters_for_type.get(&(message_type, serializer_type)) {
+        // Use the known filters
+        *filters
+    } else {
+        // Try again with the write lock (to avoid a race condition)
+        mem::drop(filters_for_type);
+        let mut filters_for_type = FILTERS_FOR_TYPE.write().unwrap();
+
+        if let Some(filters) = filters_for_type.get(&(message_type, serializer_type)) {
+            // Rare race condition occurred and the filters were being created on another thread
+            *filters
+        } else {
+            // Create some new filters for this message type
+            let serialize_filter    = serializer_filter::<TMessageType, _, _>(move || create_serializer(), move |stream| stream);
+            let deserialize_filter  = deserializer_filter::<TMessageType, TSerializer::Ok, _>(|stream| stream);
+
+            // Cache them
+            filters_for_type.insert((message_type, serializer_type), (serialize_filter, deserialize_filter));
+
+            // Use them as the filters to connect
+            (serialize_filter, deserialize_filter)
+        }
+    };
 
     // Add source filters to serialize and deserialize to the scene
     scene.connect_programs(StreamSource::Filtered(serialize_filter), (), StreamId::with_message_type::<TMessageType>())?;
