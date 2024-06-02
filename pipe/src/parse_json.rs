@@ -1000,4 +1000,22 @@ mod test {
             assert!(result == json!([ 1, 2, 3, 4 ]));
         })
     }
+
+    #[test]
+    pub fn parse_value_array_4() {
+        use serde_json::json;
+
+        let test_value      = r#"[ 1,2,3,4 ]"#;
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut parser      = Parser::new();
+        tokenizer.with_json_matchers();
+
+        executor::block_on(async move {
+            json_parse_value(&mut parser, &mut tokenizer).await.unwrap();
+
+            let result = parser.finish().unwrap();
+
+            assert!(result == json!([ 1, 2, 3, 4 ]));
+        })
+    }
 }
