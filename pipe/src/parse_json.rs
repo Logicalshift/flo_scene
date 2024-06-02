@@ -10,7 +10,7 @@ use itertools::*;
 
 static NUMBER: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new("^(-)?[0-9]+(\\.[0-9]+)?([eE]([+-])?[0-9]+)?").unwrap());
 static STRING: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r#"^"([^"\\]|(\\["\\/bfnrtu]))*""#).unwrap());
-static WHITESPACE: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r#"[ \t]*[\r\n]?"#).unwrap());
+static WHITESPACE: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r#"^[ \t]*[\r\n]?"#).unwrap());
 
 ///
 /// The tokens that make up the JSON language

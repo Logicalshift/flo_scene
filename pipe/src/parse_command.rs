@@ -6,8 +6,8 @@ use futures::prelude::*;
 use regex_automata::dfa::dense;
 use once_cell::sync::{Lazy};
 
-static COMMAND: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r"(\p{L}|[_:-])(\p{L}|\p{N}|[_:-])*").unwrap());
-static COMMENT: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r"(//[^\r\n]*)").unwrap());
+static COMMAND: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r"^(\p{L}|[_:-])(\p{L}|\p{N}|[_:-])*").unwrap());
+static COMMENT: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r"^(//[^\r\n]*)").unwrap());
 
 ///
 /// Tokens from the command stream
@@ -130,7 +130,7 @@ fn match_command_comment(lookahead: &str, eof: bool) -> TokenMatchResult<Command
 ///
 pub async fn command_read_token<TStream>(tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Option<TokenMatch<CommandToken>>
 where
-    TStream:    Stream<Item=Vec<u8>>,
+    TStream: Stream<Item=Vec<u8>>,
 {
     loop {
         // Acquire a token from the tokenizer
