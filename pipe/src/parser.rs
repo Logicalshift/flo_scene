@@ -22,7 +22,7 @@ pub struct ParserStackTooSmall;
 /// Error indicating that `finish()` was called when the stack does not have exactly one treenode item in it
 ///
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ParserDidNotConverge<TToken, TTreeNode>(pub Vec<ParserStackEntry<TToken, TTreeNode>>);
+pub struct ParserDidNotConverge;
 
 ///
 /// An entry for the parser stack used by the ParserClass
@@ -166,15 +166,17 @@ impl<TToken, TTreeNode> Parser<TToken, TTreeNode> {
     ///
     /// Finishes this parser, returning the node that the input was reduced to, or the stack if the parser did not converge to a single node
     ///
-    pub fn finish(mut self) -> Result<TTreeNode, ParserDidNotConverge<TToken, TTreeNode>> {
+    /// If there are multiple things to parse, this can be used to read out the thing that was matched before continuing to match more items
+    ///
+    pub fn finish(&mut self) -> Result<TTreeNode, ParserDidNotConverge> {
         if self.stack.len() == 1 {
             if let Some(ParserStackEntry::Node(result)) = self.stack.pop() {
                 Ok(result)
             } else {
-                Err(ParserDidNotConverge(self.stack))
+                Err(ParserDidNotConverge)
             }
         } else {
-            Err(ParserDidNotConverge(self.stack))
+            Err(ParserDidNotConverge)
         }
     }
 
