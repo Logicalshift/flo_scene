@@ -63,6 +63,16 @@ impl<TToken, TTreeNode> Parser<TToken, TTreeNode> {
     }
 
     ///
+    /// Initialise this parser with the lookahead from another parser
+    ///
+    pub fn with_lookahead_from<TOtherNode>(other_parser: &mut Parser<impl Into<TToken>, TOtherNode>) -> Self {
+        Self {
+            stack:      Vec::with_capacity(32),
+            lookahead:  other_parser.return_lookahead().map(|token| token.into()).collect(),
+        }
+    }
+
+    ///
     /// Attempts to look ahead by the specified number of tokens and returns what's there. Returns 'None' if the lookahead is beyond the end of file marker.
     ///
     pub async fn lookahead<'a, TTokenizer>(&'a mut self, distance: usize, tokenizer: &mut TTokenizer, read_token: impl 'a + Fn(&mut TTokenizer) -> LocalBoxFuture<'_, Option<TToken>>) -> Option<&'a TToken> {
@@ -126,6 +136,13 @@ impl<TToken, TTreeNode> Parser<TToken, TTreeNode> {
     #[inline]
     pub fn return_lookahead(&mut self) -> impl '_ + Iterator<Item=TToken> {
         self.lookahead.drain(..)
+    }
+
+    ///
+    /// Takes the lookahead from another parser and makes it the lookahead for this parser
+    ///
+    pub fn take_lookahead_from<TNode>(&mut self, other_parser: &mut Parser<impl Into<TToken>, TNode>) {
+        self.lookahead.extend(other_parser.return_lookahead().map(|token| token.into()));
     }
 
     ///
