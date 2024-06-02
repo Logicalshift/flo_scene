@@ -27,7 +27,7 @@ pub enum JsonToken {
 }
 
 /// Matches a string against the JSON whitespace syntax
-fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
+pub (crate) fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
     match_regex(&*WHITESPACE, lookahead, eof).with_token(JsonToken::Whitespace)
 }
 
