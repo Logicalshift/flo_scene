@@ -29,7 +29,7 @@ pub enum CommandToken {
     /// A '// comment'
     Comment,
 
-    /// Whitespace ending in a newline
+    /// Whitespace ending in a newline (also used to end a command)
     Newline,
 
     /// A JSON token
