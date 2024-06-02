@@ -200,18 +200,19 @@ where
 ///
 /// Reads a token from the tokenizer
 ///
-pub async fn json_read_token<TStream>(tokenizer: &mut Tokenizer<JsonToken, TStream>) -> Option<TokenMatch<JsonToken>>
+pub async fn json_read_token<TStream>(tokenizer: &mut Tokenizer<impl Clone + TryInto<JsonToken>, TStream>) -> Option<TokenMatch<JsonToken>>
 where
     TStream: Stream<Item=Vec<u8>>,
 {
     loop {
         // Acquire a token from the tokenizer
-        let next_token = tokenizer.match_token().await?;
+        let next_match = tokenizer.match_token().await?;
 
         // Skip over whitespace, then return the first 'sold' value
-        match next_token.token? {
-            JsonToken::Whitespace   => { }
-            _                       => { break Some(next_token); }
+        match next_match.token.clone()?.try_into() {
+            Ok(JsonToken::Whitespace)   => { }
+            Ok(next_token)              => { break Some(next_match.with_token(Some(next_token))); }
+            Err(_)                      => { break Some(next_match.with_token(None)); }
         }
     }
 }

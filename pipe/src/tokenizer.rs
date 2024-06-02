@@ -83,6 +83,19 @@ impl<TToken> TokenMatchResult<TToken> {
     }
 }
 
+impl<TToken> TokenMatch<TToken> {
+    ///
+    /// Returns this token match with a substituted token value
+    ///
+    #[inline]
+    pub fn with_token<TNewToken>(self, new_token: Option<TNewToken>) -> TokenMatch<TNewToken> {
+        TokenMatch {
+            token:      new_token,
+            fragment:   self.fragment,
+        }
+    }
+}
+
 impl<TToken, TStream> Tokenizer<TToken, TStream> {
     ///
     /// Creates a tokenizer that will read from the specified stream
@@ -112,7 +125,6 @@ impl<TToken, TStream> Tokenizer<TToken, TStream> {
         self
     }
 }
-
 
 impl<TToken, TStream> Tokenizer<TToken, TStream> 
 where
