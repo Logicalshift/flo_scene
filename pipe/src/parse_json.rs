@@ -88,21 +88,15 @@ fn match_regex(dfa: &dense::DFA<Vec<u32>>, lookahead: &str, eof: bool) -> TokenM
 }
 
 /// Matches a string against the JSON number syntax
+#[inline]
 fn match_number(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
-    match match_regex(&*NUMBER, lookahead, eof) {
-        TokenMatchResult::LookaheadIsPrefix     => TokenMatchResult::LookaheadIsPrefix,
-        TokenMatchResult::LookaheadCannotMatch  => TokenMatchResult::LookaheadCannotMatch,
-        TokenMatchResult::Matches(_, len)       => TokenMatchResult::Matches(JsonToken::Number, len)
-    }
+    match_regex(&*NUMBER, lookahead, eof).with_token(JsonToken::Number)
 }
 
 /// Matches a string against the JSON string syntax
+#[inline]
 fn match_string(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
-    match match_regex(&*STRING, lookahead, eof) {
-        TokenMatchResult::LookaheadIsPrefix     => TokenMatchResult::LookaheadIsPrefix,
-        TokenMatchResult::LookaheadCannotMatch  => TokenMatchResult::LookaheadCannotMatch,
-        TokenMatchResult::Matches(_, len)       => TokenMatchResult::Matches(JsonToken::String, len)
-    }
+    match_regex(&*STRING, lookahead, eof).with_token(JsonToken::String)
 }
 
 /// Matches a string against the 'true' keyword
