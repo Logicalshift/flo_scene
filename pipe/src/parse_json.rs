@@ -186,7 +186,7 @@ where
 }
 
 ///
-/// Reads a token from the tokenizer
+/// Reads a JSON token from the tokenizer
 ///
 pub async fn json_read_token<TStream, TToken>(tokenizer: &mut Tokenizer<TToken, TStream>) -> Option<TokenMatch<TToken>>
 where
