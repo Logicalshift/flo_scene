@@ -155,12 +155,78 @@ where
         let lookahead = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed_local()).await;
 
         if let Some(lookahead) = lookahead {
-            todo!()
+            match lookahead.token {
+                Some(CommandToken::Newline) => { /* Carry on through the loop */ }
+                Some(CommandToken::Command) => { command_parse_command(parser, tokenizer).await?; break Ok(()); }
+
+                _ => { break Err(()); }
+            }
         } else {
             // No symbol
             break Err(());
         }
     }
+}
+
+///
+/// Parses a command, at the point where the lookahead contains the 'Command' token
+///
+///
+async fn command_parse_command<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, Command>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), ()>
+where
+    TStream: Stream<Item=Vec<u8>>,
+ {
+    // Lookahead must be a 'Command'
+    let command_name = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed_local()).await.ok_or(())?;
+    if command_name.token != Some(CommandToken::Command) { return Err(()); }
+
+    parser.accept_token().map_err(|_| ())?;
+
+    // Next lookahead determines the type of command
+    let maybe_argument = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed_local()).await;
+    if let Some(maybe_argument) = maybe_argument {
+        match maybe_argument.token {
+            Some(CommandToken::Json(_)) => {
+                // Argument is a JSON value which may be followed by a pipe or an equals
+                command_parse_argument(parser, tokenizer).await?;
+
+                parser.reduce(2, |cmd| {
+                    let name        = cmd[0].token().unwrap().fragment.clone();
+                    let argument    = cmd[1].node().unwrap().clone();
+
+                    match argument {
+                        Command::Command { argument, .. }   => Command::Command { command: CommandName(name), argument: argument },
+                        _                                   => { unreachable!() }
+                    }
+                }).map_err(|_| ())?;
+
+                // TODO: command can use pipe or an equals here
+            }
+
+            Some(CommandToken::Newline)     |
+            Some(CommandToken::SemiColon)   => {
+                // Command has no argument
+                parser.accept_token().map_err(|_| ())?;
+
+                parser.reduce(2, |cmd| {
+                    let name = cmd[0].token().unwrap().fragment.clone();
+                    Command::Command { command: CommandName(name), argument: serde_json::Value::Null }
+                }).map_err(|_| ())?;
+            }
+
+            // TODO: command can have no arguments and be followed by a pipe or an equals
+
+            _ => { return Err(()); }
+        }
+    } else {
+        // No argument, so just a command
+        parser.reduce(1, |cmd| {
+            let name = cmd[0].token().unwrap().fragment.clone();
+            Command::Command { command: CommandName(name), argument: serde_json::Value::Null }
+        }).map_err(|_| ())?;
+    }
+
+    Ok(())
 }
 
 ///
@@ -235,6 +301,38 @@ mod test {
             let result = parser.finish().unwrap();
 
             assert!(result == Command::Command { command: CommandName("".to_string()), argument: json!{[1, 2, 3, 4]} });
+        });
+    }
+
+    #[test]
+    fn parse_command_without_arguments() {
+        let argument        = stream::iter(r#"some::command"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == Command::Command { command: CommandName("some::command".to_string()), argument: serde_json::Value::Null });
+        });
+    }
+
+    #[test]
+    fn parse_command_with_arguments() {
+        let argument        = stream::iter(r#"some::command [ 1, 2, 3, 4 ]"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == Command::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]} });
         });
     }
 }
