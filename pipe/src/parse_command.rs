@@ -335,4 +335,67 @@ mod test {
             assert!(result == Command::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]} });
         });
     }
+
+    #[test]
+    fn parse_command_with_arguments_and_newline() {
+        let argument        = stream::iter("some::command [ 1, 2, 3, 4 ]\n".bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == Command::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]} });
+        });
+    }
+
+    #[test]
+    fn parse_command_with_arguments_and_following_data() {
+        let argument        = stream::iter("some::command [ 1, 2, 3, 4 ]\nfoo".bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == Command::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]} });
+        });
+    }
+
+    #[test]
+    fn parse_several_commands() {
+        let argument        = stream::iter(r#"
+            some::command [ 1, 2, 3, 4 ]
+            another::command
+            one_more ; and_another [ "Hello" ]
+            "#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+            assert!(result == Command::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]} });
+
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+            assert!(result == Command::Command { command: CommandName("another::command".to_string()), argument: serde_json::Value::Null });
+
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+            assert!(result == Command::Command { command: CommandName("one_more".to_string()), argument: serde_json::Value::Null });
+
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+            assert!(result == Command::Command { command: CommandName("and_another".to_string()), argument: json!{["Hello"]} });
+        });
+    }
 }
