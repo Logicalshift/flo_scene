@@ -53,12 +53,31 @@ impl TryInto<JsonToken> for CommandToken {
     }
 }
 
+impl TokenMatcher<CommandToken> for CommandToken {
+    fn try_match(&self, lookahead: &'_ str, eof: bool) -> TokenMatchResult<CommandToken> {
+        match self {
+            CommandToken::Command   => match_command(lookahead, eof),
+            CommandToken::Comment   => match_command_comment(lookahead, eof),
+            CommandToken::Pipe      => if lookahead.starts_with("|") { TokenMatchResult::Matches(CommandToken::Pipe, 1) } else { TokenMatchResult::LookaheadCannotMatch },
+            CommandToken::SemiColon => if lookahead.starts_with(";") { TokenMatchResult::Matches(CommandToken::SemiColon, 1) } else { TokenMatchResult::LookaheadCannotMatch },
+            CommandToken::Equals    => if lookahead.starts_with("=") { TokenMatchResult::Matches(CommandToken::Equals, 1) } else { TokenMatchResult::LookaheadCannotMatch },
+            CommandToken::Json(_)   => TokenMatchResult::LookaheadCannotMatch
+        }
+    }
+}
+
 impl<TStream> Tokenizer<CommandToken, TStream> {
     ///
     /// Adds the set of JSON token matchers to this tokenizer
     ///
     pub fn with_command_matchers(&mut self) -> &mut Self {
-        self.with_json_matchers();
+        self
+            .with_matcher(CommandToken::Command)
+            .with_matcher(CommandToken::Comment)
+            .with_matcher(CommandToken::Pipe)
+            .with_matcher(CommandToken::SemiColon)
+            .with_matcher(CommandToken::Equals)
+            .with_json_matchers();
 
         self
     }
