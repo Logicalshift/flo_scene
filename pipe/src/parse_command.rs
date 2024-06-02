@@ -156,7 +156,7 @@ where
 
         if let Some(lookahead) = lookahead {
             match lookahead.token {
-                Some(CommandToken::Newline) => { /* Carry on through the loop */ }
+                Some(CommandToken::Newline) => { parser.skip_token(); }
                 Some(CommandToken::Command) => { command_parse_command(parser, tokenizer).await?; break Ok(()); }
 
                 _ => { break Err(()); }
