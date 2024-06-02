@@ -66,6 +66,23 @@ pub struct Tokenizer<TToken, TStream> {
     lookahead_bytes: VecDeque<u8>,
 }
 
+impl<TToken> TokenMatchResult<TToken> {
+    ///
+    /// Converts this match result into another compatible token type
+    ///
+    #[inline]
+    pub fn into<TIntoToken>(self) -> TokenMatchResult<TIntoToken>
+    where
+        TToken: Into<TIntoToken>,
+    {
+        match self {
+            TokenMatchResult::Matches(token, len)   => TokenMatchResult::Matches(token.into(), len),
+            TokenMatchResult::LookaheadIsPrefix     => TokenMatchResult::LookaheadIsPrefix,
+            TokenMatchResult::LookaheadCannotMatch  => TokenMatchResult::LookaheadCannotMatch,
+        }
+    }
+}
+
 impl<TToken, TStream> Tokenizer<TToken, TStream> {
     ///
     /// Creates a tokenizer that will read from the specified stream

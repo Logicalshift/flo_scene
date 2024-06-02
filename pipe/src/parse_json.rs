@@ -159,23 +159,29 @@ fn match_character(lookahead: &str, _eof: bool) -> TokenMatchResult<JsonToken> {
     }
 }
 
-impl TokenMatcher<JsonToken> for JsonToken {
-    fn try_match(&self, lookahead: &'_ str, eof: bool) -> TokenMatchResult<JsonToken> {
+impl<TToken> TokenMatcher<TToken> for JsonToken 
+where
+    TToken: From<JsonToken>,
+{
+    fn try_match(&self, lookahead: &'_ str, eof: bool) -> TokenMatchResult<TToken> {
         use JsonToken::*;
 
         match self {
-            Whitespace      => match_whitespace(lookahead, eof),
-            Number          => match_number(lookahead, eof),
-            Character(_)    => match_character(lookahead, eof),
-            String          => match_string(lookahead, eof),
-            True            => match_true(lookahead, eof),
-            False           => match_false(lookahead, eof),
-            Null            => match_null(lookahead, eof),
+            Whitespace      => match_whitespace(lookahead, eof).into(),
+            Number          => match_number(lookahead, eof).into(),
+            Character(_)    => match_character(lookahead, eof).into(),
+            String          => match_string(lookahead, eof).into(),
+            True            => match_true(lookahead, eof).into(),
+            False           => match_false(lookahead, eof).into(),
+            Null            => match_null(lookahead, eof).into(),
         }
     }
 }
 
-impl<TStream> Tokenizer<JsonToken, TStream> {
+impl<TToken, TStream> Tokenizer<TToken, TStream> 
+where
+    TToken: From<JsonToken>,
+{
     ///
     /// Adds the set of JSON token matchers to this tokenizer
     ///
