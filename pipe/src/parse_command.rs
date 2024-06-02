@@ -29,6 +29,9 @@ pub enum CommandToken {
     /// A '// comment'
     Comment,
 
+    /// Whitespace ending in a newline
+    Newline,
+
     /// A JSON token
     Json(JsonToken),
 }
@@ -48,6 +51,7 @@ impl TryInto<JsonToken> for CommandToken {
         match self {
             CommandToken::Json(token)   => Ok(token),
             CommandToken::Comment       => Ok(JsonToken::Whitespace),
+            CommandToken::Newline       => Ok(JsonToken::Whitespace),
             other                       => Err(other),
         }
     }
@@ -61,6 +65,29 @@ impl TokenMatcher<CommandToken> for CommandToken {
             CommandToken::Pipe      => if lookahead.starts_with("|") { TokenMatchResult::Matches(CommandToken::Pipe, 1) } else { TokenMatchResult::LookaheadCannotMatch },
             CommandToken::SemiColon => if lookahead.starts_with(";") { TokenMatchResult::Matches(CommandToken::SemiColon, 1) } else { TokenMatchResult::LookaheadCannotMatch },
             CommandToken::Equals    => if lookahead.starts_with("=") { TokenMatchResult::Matches(CommandToken::Equals, 1) } else { TokenMatchResult::LookaheadCannotMatch },
+            CommandToken::Newline   => {
+                match match_whitespace(lookahead, eof) {
+                    TokenMatchResult::Matches(JsonToken::Whitespace, count) => {
+                        if lookahead.as_bytes()[count-1] == b'\n' || lookahead.as_bytes()[count-1] == b'\r' {
+                            TokenMatchResult::Matches(CommandToken::Newline, count)
+                        } else {
+                            TokenMatchResult::LookaheadCannotMatch
+                        }
+                    }
+
+                    TokenMatchResult::Matches(_, _) => {
+                        unreachable!()
+                    }
+
+                    TokenMatchResult::LookaheadCannotMatch => {
+                        TokenMatchResult::LookaheadCannotMatch
+                    }
+
+                    TokenMatchResult::LookaheadIsPrefix => {
+                        TokenMatchResult::LookaheadIsPrefix
+                    }
+                }
+            }
             CommandToken::Json(_)   => TokenMatchResult::LookaheadCannotMatch
         }
     }
@@ -72,12 +99,13 @@ impl<TStream> Tokenizer<CommandToken, TStream> {
     ///
     pub fn with_command_matchers(&mut self) -> &mut Self {
         self
+            .with_json_matchers()
             .with_matcher(CommandToken::Command)
             .with_matcher(CommandToken::Comment)
             .with_matcher(CommandToken::Pipe)
             .with_matcher(CommandToken::SemiColon)
             .with_matcher(CommandToken::Equals)
-            .with_json_matchers();
+            .with_matcher(CommandToken::Newline);
 
         self
     }
@@ -98,13 +126,41 @@ fn match_command_comment(lookahead: &str, eof: bool) -> TokenMatchResult<Command
 }
 
 ///
+/// Reads a command token from the tokenizer
+///
+pub async fn command_read_token<TStream>(tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Option<TokenMatch<CommandToken>>
+where
+    TStream:    Stream<Item=Vec<u8>>,
+{
+    loop {
+        // Acquire a token from the tokenizer
+        let next_match = tokenizer.match_token().await?;
+
+        // Skip over whitespace, then return the first 'sold' value
+        match next_match.token {
+            Some(CommandToken::Json(JsonToken::Whitespace)) => { }
+            _ => { break Some(next_match); }
+        }
+    }
+}
+
+///
 /// Parses a command from an input stream
 ///
 pub async fn command_parse<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, Command>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), ()> 
 where
     TStream: Stream<Item=Vec<u8>>,
 {
-    todo!()
+    loop {
+        let lookahead = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed_local()).await;
+
+        if let Some(lookahead) = lookahead {
+            todo!()
+        } else {
+            // No symbol
+            break Err(());
+        }
+    }
 }
 
 ///
@@ -148,6 +204,22 @@ mod test {
     fn match_simple_comment() {
         let match_result = match_command_comment("// comment", true);
         assert!(match_result == TokenMatchResult::Matches(CommandToken::Comment, "// comment".chars().count()));
+    }
+
+    #[test]
+    fn tokenize_newline() {
+        let whitespace      = "    \n    ";
+        let mut tokenizer   = Tokenizer::new(stream::iter(whitespace.bytes()).ready_chunks(2));
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async move {
+            let newline     = command_read_token(&mut tokenizer).await;
+            let eof         = command_read_token(&mut tokenizer).await;
+
+            assert!(newline.unwrap().token == Some(CommandToken::Newline));
+            assert!(eof.is_none());
+        });
     }
 
     #[test]
