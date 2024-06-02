@@ -221,7 +221,7 @@ where
 /// Attempts to parse a JSON value starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub fn json_parse_value<'a, TStream>(parser: &'a mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &'a mut Tokenizer<JsonToken, TStream>) -> LocalBoxFuture<'a, Result<(), ()>>
+pub fn json_parse_value<'a, TStream>(parser: &'a mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &'a mut Tokenizer<impl Clone + TryInto<JsonToken>, TStream>) -> LocalBoxFuture<'a, Result<(), ()>>
 where
     TStream: Stream<Item=Vec<u8>>,
 {
@@ -251,7 +251,7 @@ where
 /// Attempts to parse a JSON object starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_object<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<JsonToken, TStream>) -> Result<(), ()>
+pub async fn json_parse_object<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<impl Clone + TryInto<JsonToken>, TStream>) -> Result<(), ()>
 where
     TStream: Stream<Item=Vec<u8>>,
 {
@@ -354,7 +354,7 @@ where
 /// Attempts to parse a JSON array starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_array<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<JsonToken, TStream>) -> Result<(), ()>
+pub async fn json_parse_array<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<impl Clone + TryInto<JsonToken>, TStream>) -> Result<(), ()>
 where
     TStream: Stream<Item=Vec<u8>>,
 {
@@ -437,7 +437,7 @@ where
 /// Attempts to parse a JSON string starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_string<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<JsonToken, TStream>) -> Result<(), ()>
+pub async fn json_parse_string<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<impl Clone + TryInto<JsonToken>, TStream>) -> Result<(), ()>
 where
     TStream: Stream<Item=Vec<u8>>,
 {
@@ -464,7 +464,7 @@ where
 /// Attempts to parse a JSON object starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_number<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<JsonToken, TStream>) -> Result<(), ()>
+pub async fn json_parse_number<TStream>(parser: &mut Parser<TokenMatch<JsonToken>, serde_json::Value>, tokenizer: &mut Tokenizer<impl Clone + TryInto<JsonToken>, TStream>) -> Result<(), ()>
 where
     TStream: Stream<Item=Vec<u8>>,
 {
@@ -722,7 +722,7 @@ mod test {
         let input           = r#"1 1234 1234.4 -24 "string" true false null { } "#;
 
         // Create a JSON tokenizer
-        let mut tokenizer   = Tokenizer::new(stream::iter(input.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(input.bytes()).ready_chunks(2));
         tokenizer.with_json_matchers();
 
         // Tokenize all the symbols
@@ -794,7 +794,7 @@ mod test {
     #[test]
     pub fn parse_string() {
         let test_value      = r#" "string" "#;
-        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
         let mut parser      = Parser::new();
         tokenizer.with_json_matchers();
 
@@ -810,7 +810,7 @@ mod test {
     #[test]
     pub fn parse_number() {
         let test_value      = r#" 1234 "#;
-        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
         let mut parser      = Parser::new();
         tokenizer.with_json_matchers();
 
@@ -826,7 +826,7 @@ mod test {
     #[test]
     pub fn parse_value_string() {
         let test_value      = r#" "string" "#;
-        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
         let mut parser      = Parser::new();
         tokenizer.with_json_matchers();
 
@@ -842,7 +842,7 @@ mod test {
     #[test]
     pub fn parse_value_number() {
         let test_value      = r#" 1234 "#;
-        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
         let mut parser      = Parser::new();
         tokenizer.with_json_matchers();
 
@@ -860,7 +860,7 @@ mod test {
         use serde_json::json;
 
         let test_value      = r#" { } "#;
-        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
         let mut parser      = Parser::new();
         tokenizer.with_json_matchers();
 
@@ -878,7 +878,7 @@ mod test {
         use serde_json::json;
 
         let test_value      = r#" { "field1": 12 } "#;
-        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
         let mut parser      = Parser::new();
         tokenizer.with_json_matchers();
 
@@ -898,7 +898,7 @@ mod test {
         use serde_json::json;
 
         let test_value      = r#" { "field1": 12, "field2": false } "#;
-        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
         let mut parser      = Parser::new();
         tokenizer.with_json_matchers();
 
@@ -919,7 +919,7 @@ mod test {
         use serde_json::json;
 
         let test_value      = r#" { "field1": 12, "field2": { "field3": 34, "field4": 56.1 } } "#;
-        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
         let mut parser      = Parser::new();
         tokenizer.with_json_matchers();
 
@@ -943,7 +943,7 @@ mod test {
         use serde_json::json;
 
         let test_value      = r#" [ ] "#;
-        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
         let mut parser      = Parser::new();
         tokenizer.with_json_matchers();
 
@@ -961,7 +961,7 @@ mod test {
         use serde_json::json;
 
         let test_value      = r#" [ 1 ] "#;
-        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
         let mut parser      = Parser::new();
         tokenizer.with_json_matchers();
 
@@ -979,7 +979,7 @@ mod test {
         use serde_json::json;
 
         let test_value      = r#" [ 1,2,3,4 ] "#;
-        let mut tokenizer   = Tokenizer::new(stream::iter(test_value.bytes()).ready_chunks(2));
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(stream::iter(test_value.bytes()).ready_chunks(2));
         let mut parser      = Parser::new();
         tokenizer.with_json_matchers();
 
