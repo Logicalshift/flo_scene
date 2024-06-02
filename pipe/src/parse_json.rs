@@ -10,6 +10,7 @@ use itertools::*;
 
 static NUMBER: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new("^(-)?[0-9]+(\\.[0-9]+)?([eE]([+-])?[0-9]+)?").unwrap());
 static STRING: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r#"^"([^"\\]|(\\["\\/bfnrtu]))*""#).unwrap());
+static WHITESPACE: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r#"[ \t]*[\r\n]?"#).unwrap());
 
 ///
 /// The tokens that make up the JSON language
@@ -27,17 +28,7 @@ pub enum JsonToken {
 
 /// Matches a string against the JSON whitespace syntax
 fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
-    let num_whitespace = lookahead.chars()
-        .take_while(|c| *c == ' ' || *c == '\n' || *c == '\r' || *c == '\t')
-        .count();
-
-    if num_whitespace == 0 {
-        TokenMatchResult::LookaheadCannotMatch
-    } else if num_whitespace < lookahead.len() || eof {
-        TokenMatchResult::Matches(JsonToken::Whitespace, num_whitespace)
-    } else {
-        TokenMatchResult::LookaheadIsPrefix
-    }
+    match_regex(&*WHITESPACE, lookahead, eof).with_token(JsonToken::Whitespace)
 }
 
 ///
@@ -705,6 +696,12 @@ mod test {
     pub fn match_whitespace_with_following_data() {
         let match_result = match_whitespace(r#"    1234"#, true);
         assert!(match_result == TokenMatchResult::Matches(JsonToken::Whitespace, 4), "{:?}", match_result);
+    }
+
+    #[test]
+    pub fn match_whitespace_stops_at_newline() {
+        let match_result = match_whitespace("  \n  1234", true);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Whitespace, 3), "{:?}", match_result);
     }
 
     #[test]
