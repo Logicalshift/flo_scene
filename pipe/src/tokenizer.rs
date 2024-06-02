@@ -68,6 +68,18 @@ pub struct Tokenizer<TToken, TStream> {
 
 impl<TToken> TokenMatchResult<TToken> {
     ///
+    /// Returns this token match with a substituted token value
+    ///
+    #[inline]
+    pub fn with_token<TNewToken>(self, new_token: TNewToken) -> TokenMatchResult<TNewToken> {
+        match self {
+            TokenMatchResult::Matches(_, len)       => TokenMatchResult::Matches(new_token, len),
+            TokenMatchResult::LookaheadIsPrefix     => TokenMatchResult::LookaheadIsPrefix,
+            TokenMatchResult::LookaheadCannotMatch  => TokenMatchResult::LookaheadCannotMatch,
+        }
+    }
+
+    ///
     /// Converts this match result into another compatible token type
     ///
     #[inline]
