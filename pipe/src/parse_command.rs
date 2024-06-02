@@ -1,6 +1,8 @@
+use crate::command_stream::*;
 use crate::parser::*;
 use crate::parse_json::*;
 
+use futures::prelude::*;
 use regex_automata::dfa::dense;
 use once_cell::sync::{Lazy};
 
@@ -51,6 +53,17 @@ impl TryInto<JsonToken> for CommandToken {
     }
 }
 
+impl<TStream> Tokenizer<CommandToken, TStream> {
+    ///
+    /// Adds the set of JSON token matchers to this tokenizer
+    ///
+    pub fn with_command_matchers(&mut self) -> &mut Self {
+        self.with_json_matchers();
+
+        self
+    }
+}
+
 ///
 /// Matches against the command syntax
 ///
@@ -65,9 +78,46 @@ fn match_command_comment(lookahead: &str, eof: bool) -> TokenMatchResult<Command
     match_regex(&*COMMENT, lookahead, eof).with_token(CommandToken::Comment)
 }
 
+///
+/// Parses a command from an input stream
+///
+pub async fn command_parse<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, Command>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), ()> 
+where
+    TStream: Stream<Item=Vec<u8>>,
+{
+    todo!()
+}
+
+///
+/// Parses an argument to a command (resulting in a Command::Command with no name)
+///
+async fn command_parse_argument<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, Command>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), ()> 
+where
+    TStream: Stream<Item=Vec<u8>>,
+{
+    // Create a JSON parser to read the following JSON value
+    let mut json_parser = Parser::with_lookahead_from(parser);
+    json_parse_value(&mut json_parser, tokenizer).await?;
+
+    // Restore any lookahead to the original parser
+    parser.take_lookahead_from(&mut json_parser);
+
+    // Fetch the JSON value for the argument
+    let json_value = json_parser.finish().map_err(|_| ())?;
+
+    // Add as a node to the current parser
+    parser.reduce(0, |_| Command::Command { command: CommandName("".to_string()), argument: json_value }).map_err(|_| ())?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::tokenizer::*;
+
+    use serde_json::*;
+    use futures::executor;
 
     #[test]
     fn match_simple_command() {
@@ -79,5 +129,21 @@ mod test {
     fn match_simple_comment() {
         let match_result = match_command_comment("// comment", true);
         assert!(match_result == TokenMatchResult::Matches(CommandToken::Comment, "// comment".chars().count()));
+    }
+
+    #[test]
+    fn parse_argument() {
+        let argument        = stream::iter(r#"[ 1, 2, 3, 4 ]"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse_argument(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == Command::Command { command: CommandName("".to_string()), argument: json!{[1, 2, 3, 4]} });
+        });
     }
 }
