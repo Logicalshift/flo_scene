@@ -12,6 +12,12 @@ use serde_json;
 pub struct CommandName(pub String);
 
 ///
+/// A string value representing the name of a variable to assign
+///
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct VariableName(pub String);
+
+///
 /// An argument to a command sent to a stream
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,9 +32,10 @@ pub enum CommandArgument {
 /// JSON value (multiple values can be passed by chained together commands using '|' operator)
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Command {
-    pub command:    CommandName,
-    pub arguments:  Vec<CommandArgument>,
+pub enum Command {
+    Command { command: CommandName, argument: serde_json::Value },
+    Pipe    { from: Box<Command>, to: Box<Command> },
+    Assign  { variable: VariableName, from: Box<Command> },
 }
 
 impl SceneMessage for Command { }
