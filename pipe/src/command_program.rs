@@ -32,6 +32,8 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
         match connection {
             SocketMessage::Connection(connection) => {
                 // Create a channel to receive the responses on
+                // TODO: ideally we'd send the result of the 'spawn_command' routine to the connection here instead of relaying via another command
+                // (but that requires a two-stage connection)
                 let (send_response, recv_response) = mpsc::channel(0);
                 let command_input = connection.connect(recv_response);
 
