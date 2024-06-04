@@ -55,6 +55,7 @@ pub enum CommandResponse {
 }
 
 impl SceneMessage for Command { }
+impl SceneMessage for CommandResponse { }
 
 ///
 /// Reads an input stream containing commands in text form and outputs the command structures as they are matched
