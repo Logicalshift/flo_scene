@@ -24,7 +24,7 @@ pub enum TokenMatchResult<TToken> {
 ///
 /// Trait implemented by matchers that can recognise a token
 ///
-pub trait TokenMatcher<TToken> {
+pub trait TokenMatcher<TToken> : Send + Sync {
     ///
     /// Called after we've read one or more characters from the source to check if the start of the lookahead matches this token
     ///

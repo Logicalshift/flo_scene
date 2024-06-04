@@ -149,10 +149,10 @@ where
 ///
 pub async fn command_parse<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, Command>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), ()> 
 where
-    TStream: Stream<Item=Vec<u8>>,
+    TStream: Send + Stream<Item=Vec<u8>>,
 {
     loop {
-        let lookahead = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed_local()).await;
+        let lookahead = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
 
         if let Some(lookahead) = lookahead {
             match lookahead.token {
@@ -174,16 +174,16 @@ where
 ///
 async fn command_parse_command<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, Command>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), ()>
 where
-    TStream: Stream<Item=Vec<u8>>,
+    TStream: Send + Stream<Item=Vec<u8>>,
  {
     // Lookahead must be a 'Command'
-    let command_name = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed_local()).await.ok_or(())?;
+    let command_name = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await.ok_or(())?;
     if command_name.token != Some(CommandToken::Command) { return Err(()); }
 
     parser.accept_token().map_err(|_| ())?;
 
     // Next lookahead determines the type of command
-    let maybe_argument = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed_local()).await;
+    let maybe_argument = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
     if let Some(maybe_argument) = maybe_argument {
         match maybe_argument.token {
             Some(CommandToken::Json(_)) => {
@@ -234,7 +234,7 @@ where
 ///
 async fn command_parse_argument<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, Command>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), ()> 
 where
-    TStream: Stream<Item=Vec<u8>>,
+    TStream: Send + Stream<Item=Vec<u8>>,
 {
     // Create a JSON parser to read the following JSON value
     let mut json_parser = Parser::with_lookahead_from(parser);

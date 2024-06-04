@@ -1,7 +1,7 @@
 use crate::parser::*;
 
 use futures::prelude::*;
-use futures::future::{LocalBoxFuture};
+use futures::future::{BoxFuture};
 use regex_automata::{Input};
 use regex_automata::dfa::{Automaton};
 use regex_automata::dfa::dense;
@@ -190,8 +190,8 @@ where
 ///
 pub async fn json_read_token<TStream, TToken>(tokenizer: &mut Tokenizer<TToken, TStream>) -> Option<TokenMatch<TToken>>
 where
-    TStream:    Stream<Item=Vec<u8>>,
-    TToken:     Clone + TryInto<JsonToken>,
+    TStream:    Send + Stream<Item=Vec<u8>>,
+    TToken:     Clone + Send + TryInto<JsonToken>,
 {
     loop {
         // Acquire a token from the tokenizer
@@ -210,13 +210,14 @@ where
 /// Attempts to parse a JSON value starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub fn json_parse_value<'a, TStream, TToken>(parser: &'a mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &'a mut Tokenizer<TToken, TStream>) -> LocalBoxFuture<'a, Result<(), ()>>
+pub fn json_parse_value<'a, TStream, TToken>(parser: &'a mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &'a mut Tokenizer<TToken, TStream>) -> BoxFuture<'a, Result<(), ()>>
 where
-    TStream:    Stream<Item=Vec<u8>>,
-    TToken:     Clone + TryInto<JsonToken>,
+    TStream:        Send + Stream<Item=Vec<u8>>,
+    TToken:         Clone + Send + TryInto<JsonToken>,
+    TToken::Error:  Send
 {
     async move {
-        let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+        let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
 
         if let Some(lookahead) = lookahead {
             // Decide which matcher to use based on the lookahead
@@ -234,7 +235,7 @@ where
             // Error if there's no symbol
             Err(())
         }
-    }.boxed_local()
+    }.boxed()
 }
 
 ///
@@ -243,10 +244,11 @@ where
 ///
 pub async fn json_parse_object<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), ()>
 where
-    TStream:    Stream<Item=Vec<u8>>,
-    TToken:     Clone + TryInto<JsonToken>,
+    TStream:        Send + Stream<Item=Vec<u8>>,
+    TToken:         Clone + Send + TryInto<JsonToken>,
+    TToken::Error:  Send
 {
-    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
     let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
 
     if let Some(Ok(JsonToken::Character('{'))) = lookahead.token.clone().map(|token| token.try_into()) {
@@ -257,10 +259,10 @@ where
 
         loop {
             // Read two tokens ahead
-            parser.ensure_lookahead(1, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+            parser.ensure_lookahead(1, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
             
             // Look to the next value to decide what to do
-            let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+            let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
             let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
 
             match lookahead.token.clone().map(|token| token.try_into()) {
@@ -291,7 +293,7 @@ where
                     num_tokens += 1;
 
                     // ',' or '}'
-                    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+                    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
                     let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
 
                     match lookahead.token.clone().map(|token| token.try_into()) {
@@ -353,10 +355,11 @@ where
 ///
 pub async fn json_parse_array<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), ()>
 where
-    TStream:    Stream<Item=Vec<u8>>,
-    TToken:     Clone + TryInto<JsonToken>,
+    TStream:        Send + Stream<Item=Vec<u8>>,
+    TToken:         Clone + Send + TryInto<JsonToken>,
+    TToken::Error:  Send
 {
-    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
     let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
 
     if let Some(Ok(JsonToken::Character('['))) = lookahead.token.clone().map(|token| token.try_into()) {
@@ -368,7 +371,7 @@ where
 
         loop {
             // Look ahead to the next value
-            let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+            let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
             let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
 
             // ']' to finish the array, or else a JSON value
@@ -388,7 +391,7 @@ where
                     num_tokens += 1;
 
                     // Next token should be a ',' for more array or ']' for the end of the array
-                    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+                    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
                     let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
 
                     match lookahead.token.clone().map(|token| token.try_into()) {
@@ -437,10 +440,11 @@ where
 ///
 pub async fn json_parse_string<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), ()>
 where
-    TStream:    Stream<Item=Vec<u8>>,
-    TToken:     Clone + TryInto<JsonToken>,
+    TStream:        Send + Stream<Item=Vec<u8>>,
+    TToken:         Clone + Send + TryInto<JsonToken>,
+    TToken::Error:  Send
 {
-    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
 
     if let Some(lookahead) = lookahead {
         if let Some(Ok(JsonToken::String)) = lookahead.token.clone().map(|token| token.try_into()) {
@@ -465,10 +469,11 @@ where
 ///
 pub async fn json_parse_number<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), ()>
 where
-    TStream:    Stream<Item=Vec<u8>>,
-    TToken:     Clone + TryInto<JsonToken>,
+    TStream:        Send + Stream<Item=Vec<u8>>,
+    TToken:         Clone + Send + TryInto<JsonToken>,
+    TToken::Error:  Send
 {
-    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed_local()).await;
+    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
 
     if let Some(lookahead) = lookahead {
         if let Some(Ok(JsonToken::Number)) = lookahead.token.clone().map(|token| token.try_into()) {
