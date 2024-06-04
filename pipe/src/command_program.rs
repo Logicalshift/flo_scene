@@ -22,7 +22,7 @@ pub type CommandProgramSocketMessage = SocketMessage<Result<CommandRequest, ()>,
 ///
 pub async fn command_connection_program(input: InputStream<CommandProgramSocketMessage>, context: SceneContext) {
     // Request that the socket send messages to this program
-    // TODO: this would work a lot better if it was just a straight connection...
+    // TODO: this would work a lot better if it was just a straight connection instead of requiring a subscription, then this could deal with multiple sources
     let our_program_id = context.current_program_id().unwrap();
     context.send_message(Subscribe::<CommandProgramSocketMessage>::with_target(our_program_id.into())).await.unwrap();
 
