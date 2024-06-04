@@ -36,10 +36,10 @@ pub enum CommandArgument {
 /// JSON value (multiple values can be passed by chained together commands using '|' operator)
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Command {
+pub enum CommandRequest {
     Command { command: CommandName, argument: serde_json::Value },
-    Pipe    { from: Box<Command>, to: Box<Command> },
-    Assign  { variable: VariableName, from: Box<Command> },
+    Pipe    { from: Box<CommandRequest>, to: Box<CommandRequest> },
+    Assign  { variable: VariableName, from: Box<CommandRequest> },
 }
 
 ///
@@ -54,7 +54,7 @@ pub enum CommandResponse {
     Error(String),    
 }
 
-impl SceneMessage for Command { }
+impl SceneMessage for CommandRequest { }
 impl SceneMessage for CommandResponse { }
 
 ///
@@ -63,7 +63,7 @@ impl SceneMessage for CommandResponse { }
 /// Commands are relatively simple, they have the structure `<name> <parameters>` where the name is an identifier (containing alphanumeric characters, 
 /// alongside '_', '.' and ':'). Parameters are just JSON values, and commands are ended by a newline character that is outside of a JSON value.
 ///
-pub fn parse_command_stream(input: impl 'static + Send + Unpin + Stream<Item=Vec<u8>>) -> impl 'static + Send + Unpin + Stream<Item=Result<Command, ()>> {
+pub fn parse_command_stream(input: impl 'static + Send + Unpin + Stream<Item=Vec<u8>>) -> impl 'static + Send + Unpin + Stream<Item=Result<CommandRequest, ()>> {
     generator_stream(move |yield_value| async move {
         let mut tokenizer   = Tokenizer::new(input);
         let mut parser      = Parser::new();

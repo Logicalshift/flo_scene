@@ -1,5 +1,4 @@
-use crate::command_stream;
-use crate::command_stream::{CommandResponse};
+use crate::command_stream::{CommandRequest, CommandResponse};
 use crate::socket::*;
 
 use flo_scene::*;
@@ -16,7 +15,7 @@ use futures::channel::mpsc;
 ///
 /// The simple command program can just read and write command responses, and cannot provide direct access to the terminal
 ///
-pub type CommandProgramSocketMessage = SocketMessage<Result<command_stream::Command, ()>, CommandResponse>;
+pub type CommandProgramSocketMessage = SocketMessage<Result<CommandRequest, ()>, CommandResponse>;
 
 ///
 /// The command program accepts connections from a socket and will generate command output messages
@@ -65,7 +64,7 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
 pub struct CommandProcessor;
 
 impl Command for CommandProcessor {
-    type Input  = Result<command_stream::Command, ()>;
+    type Input  = Result<CommandRequest, ()>;
     type Output = CommandResponse;
 
     fn run(&self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'static + Send + Future<Output=()> {
