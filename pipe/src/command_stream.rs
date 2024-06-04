@@ -42,6 +42,18 @@ pub enum Command {
     Assign  { variable: VariableName, from: Box<Command> },
 }
 
+///
+/// Possible responses from a command
+///
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CommandResponse {
+    /// A stream of JSON values
+    Json(Vec<serde_json::Value>),
+
+    /// An error message
+    Error(String),    
+}
+
 impl SceneMessage for Command { }
 
 ///
