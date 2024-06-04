@@ -181,6 +181,15 @@ impl<TToken, TTreeNode> Parser<TToken, TTreeNode> {
     }
 
     ///
+    /// Aborts and resets the current parse results
+    ///
+    /// The stack at the time of the abort is returned, and the current lookahead is preserved
+    ///
+    pub fn abort(&mut self) -> Vec<ParserStackEntry<TToken, TTreeNode>> {
+        self.stack.drain(..).collect()
+    }
+
+    ///
     /// As for 'accept_token' except we first check that the lookahead matches a specific token. This will return an error if the lookahead has not been loaded
     /// yet: call `ensure_lookahead` (or just `lookahead`) to expand the lookahead to at least one token before using this.
     ///
