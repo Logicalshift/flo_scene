@@ -1,4 +1,4 @@
-use crate::command_stream::{CommandRequest, CommandResponse};
+use crate::command_stream::*;
 use crate::socket::*;
 
 use flo_scene::*;
@@ -21,11 +21,6 @@ pub type CommandProgramSocketMessage = SocketMessage<Result<CommandRequest, ()>,
 /// The command program accepts connections from a socket and will generate command output messages
 ///
 pub async fn command_connection_program(input: InputStream<CommandProgramSocketMessage>, context: SceneContext) {
-    // Request that the socket send messages to this program
-    // TODO: this would work a lot better if it was just a straight connection instead of requiring a subscription, then this could deal with multiple sources
-    let our_program_id = context.current_program_id().unwrap();
-    context.send_message(Subscribe::<CommandProgramSocketMessage>::with_target(our_program_id.into())).await.unwrap();
-
     // Spawn processor tasks for each connection
     let mut input = input;
     while let Some(connection) = input.next().await {
