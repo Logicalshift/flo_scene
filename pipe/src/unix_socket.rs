@@ -40,7 +40,7 @@ where
 
         // Add a socket runner subprogram. We don't use the address for anything, ie we accept all connections here
         let listener = Desync::new(listener);
-        scene.add_subprogram(program_id, move |input, context| socket_listener_subprogram(input, context, move || 
+        scene.add_subprogram(program_id, move |_input: InputStream<()>, context| socket_listener_subprogram(context, move || 
             listener.future_desync(|listener| async {
                 listener.accept().await
                     .map(|(socket, _addr)| socket.into_split())

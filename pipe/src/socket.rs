@@ -4,7 +4,6 @@ use flo_scene::programs::*;
 use futures::prelude::{Stream, Future};
 use futures::stream;
 use futures::stream::{BoxStream, StreamExt};
-use futures::sink::{SinkExt};
 use futures::{pin_mut};
 
 use tokio::io::*;
@@ -112,7 +111,6 @@ pub (crate) fn create_reader_stream(reader: impl 'static + Send + AsyncRead) -> 
 /// and calls the 'accept_message' function to receive incoming connections
 ///
 pub async fn socket_listener_subprogram<TFutureStream, TReadStream, TWriteStream, TInputStream, TOutputMessage>(
-    subscribe:              impl 'static + Send + Stream<Item=Subscribe<SocketMessage<TInputStream::Item, TOutputMessage>>>, 
     context:                SceneContext, 
     accept_connection:      impl 'static + Send + Fn() -> TFutureStream,
     create_input_messages:  impl 'static + Send + Sync + Fn(BoxStream<'static, Vec<u8>>) -> TInputStream,
@@ -129,12 +127,6 @@ where
     let create_output_messages  = Arc::new(create_output_messages);
 
     // Combine the subscription and the acceptance streams
-    enum OurMessage<TSocketStream> {
-        Subscribe(StreamTarget),
-        NewConnection(TSocketStream),
-    }
-
-    let subscribe       = subscribe.map(|msg| OurMessage::Subscribe(msg.target()));
     let accept_messages = stream::unfold(0, move |_| {
         let accept_connection = Arc::clone(&accept_connection);
 
@@ -144,24 +136,19 @@ where
 
             // Continue until we get an error
             match next_connection {
-                Ok(next_connection) => Some((OurMessage::NewConnection(next_connection), 0)),
+                Ok(next_connection) => Some((next_connection, 0)),
                 _                   => None,
             }
         }
     });
 
-    pin_mut!(subscribe);
     pin_mut!(accept_messages);
-    let mut input = stream::select(subscribe, accept_messages);
+    let mut input = accept_messages;
 
     // Run the socket listener
-    let mut next_subscriber                 = 0;
-    let mut subscribers: Vec<StreamTarget>  = vec![];
-    let mut waiting_connections             = vec![];
-
     while let Some(next_event) = input.next().await {
         match next_event {
-            OurMessage::NewConnection((async_reader, async_writer)) => {
+            (async_reader, async_writer) => {
                 // Create the socket connection from the reader
                 let reader_stream = create_reader_stream(async_reader);
                 let reader_stream = create_input_messages(reader_stream.boxed());
@@ -203,73 +190,9 @@ where
                     control.send_immediate(output_program).ok();
                 });
 
-                // Try to send the connection to the first subscriber that can receive the message
-                let mut socket_connection = Some(SocketMessage::Connection(socket_connection));
-
-                loop {
-                    // The subscriber to send to is picked in a round-robin fashion. We stop if there are no more subscribers left
-                    if subscribers.is_empty() { break; }
-                    if next_subscriber > subscribers.len() { next_subscriber = 0; }
-
-                    match context.send(subscribers[next_subscriber].clone()) {
-                        Ok(mut send_new_socket) => {
-                            // Send to the subscriber
-                            if let Err(err) = send_new_socket.send(socket_connection.take().unwrap()).await {
-                                // Don't try to send to this subscriber again
-                                subscribers.remove(next_subscriber);
-
-                                if let Some(msg) = err.to_message() {
-                                    // Try again with the same connection
-                                    socket_connection = Some(msg);
-                                } else {
-                                    // Connection was lost by the error
-                                    break;
-                                }
-                            } else {
-                                next_subscriber += 1;
-                                break;
-                            }
-                        },
-
-                        Err(_) => {
-                            // Remove the subscriber and try the next one
-                            subscribers.remove(next_subscriber);
-                        }
-                    }
-                }
-
-                if let Some(socket_connection) = socket_connection {
-                    // Failed to find a subscriber: add to the waiting connections (TODO: stop accepting connections once there are too many waiting)
-                    waiting_connections.push(socket_connection);
-                }
-            }
-
-            OurMessage::Subscribe(stream_target) => {
-                // Add this program to the list of subscribers for our message type (any one subscriber can only be added once)
-                subscribers.retain(|prog| prog != &stream_target);
-                subscribers.push(stream_target.clone());
-
-                // If there are any waiting connections, send them all to this program
-                if !waiting_connections.is_empty() {
-                    // Connect to the new subscriber
-                    if let Ok(mut send_new_socket) = context.send(stream_target) {
-                        // Try to send all of the waiting connections
-                        waiting_connections.reverse();
-
-                        while let Some(connection) = waiting_connections.pop() {
-                            if let Err(err) = send_new_socket.send(connection).await {
-                                // The new subscriber has stopped accepting connections
-                                subscribers.pop();
-
-                                if let Some(msg) = err.to_message() {
-                                    // Failed to send to the subscriber, add back to the list of waiting messages
-                                    waiting_connections.push(msg);
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
+                // Send the connection to whoever is connected to this socket listener
+                let socket_connection = SocketMessage::Connection(socket_connection);
+                context.send_message(socket_connection).await.ok();
             }
         }
     }
