@@ -6,8 +6,6 @@ use futures::prelude::*;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 
-use serde_json;
-
 #[test]
 pub fn send_error_command() {
     let scene = Scene::default();
