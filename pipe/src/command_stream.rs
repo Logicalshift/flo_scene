@@ -128,6 +128,7 @@ pub fn parse_command_stream(input: impl 'static + Send + Unpin + Stream<Item=Vec
                     // TODO: Discard tokens until we encounter a newline
 
                     // TODO: parse until EOF
+                    break;
                 }
             }
         }
