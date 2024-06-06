@@ -2,10 +2,10 @@ mod socket;
 mod unix_socket;
 mod internal_socket;
 mod tcp_socket;
-mod command_stream;
 mod tokenizer;
 mod parse_json;
 mod parse_command;
+mod command_stream;
 mod command_program;
 
 pub mod main_scene;

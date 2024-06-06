@@ -5,10 +5,15 @@ use flo_scene::programs::QueryRequest;
 use flo_scene::*;
 
 use futures::prelude::*;
+use futures::{pin_mut};
+use futures::future::{BoxFuture};
+use futures::stream::{BoxStream};
 
 use serde::{Deserialize, Serialize};
 use serde_json;
 use flo_stream::{generator_stream};
+
+use std::task::{Poll};
 
 ///
 /// A string value representing the name of a command sent to a stream
@@ -94,6 +99,8 @@ impl CommandRequest {
 ///
 /// Reads an input stream containing commands in text form and outputs the command structures as they are matched
 ///
+/// This can be used as the input side of a socket
+///
 /// Commands are relatively simple, they have the structure `<name> <parameters>` where the name is an identifier (containing alphanumeric characters, 
 /// alongside '_', '.' and ':'). Parameters are just JSON values, and commands are ended by a newline character that is outside of a JSON value.
 ///
@@ -125,4 +132,76 @@ pub fn parse_command_stream(input: impl 'static + Send + Unpin + Stream<Item=Vec
             }
         }
     })
+}
+
+///
+/// Displays the result of a command
+///
+async fn display_response(yield_value: &(impl Send + Fn(String) -> BoxFuture<'static, ()>), response: CommandResponse) {
+    match response {
+        CommandResponse::Json(json) => {
+            // Format the JSON as a pretty-printed string (TODO: the to_writer_pretty version would be better for very long JSON)
+            let json_string = serde_json::to_string_pretty(&json);
+            yield_value(format!("{:?}\n", json_string)).await;
+        },
+
+        CommandResponse::Error(error_message) => {
+            // '!!! <error>' if there's a problem
+            yield_value(format!("!!! {:?}\n", error_message)).await;
+        }
+    }
+}
+
+///
+/// Displays the output of the responses to a set of commands as a stream of UTF-8 data
+///
+/// This can be used as the output side of a socket
+///
+pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Item=CommandResponse>) -> BoxStream<'static, u8> {
+    // The way we generate the responses and prompts is to generate strings and then convert them into bytes later on
+    generator_stream::<String, _, _>(|yield_value| async move {
+        pin_mut!(input);
+
+        // We always start by showing a prompt for the next command
+        yield_value("\n\n> ".into()).await;
+
+        'main_loop: loop {
+            // Process until the input is exhuasted
+            match input.next().await {
+                None => {
+                    // No more input
+                    break; 
+                }
+
+                Some(response) => {
+                    // Display the response
+                    yield_value("\n".into()).await;
+                    display_response(&yield_value, response).await;
+
+                    // Poll the input future for more responses if there are any waiting immediately
+                    while let Ok(next_response) = future::poll_fn(|context| {
+                        match input.poll_next_unpin(context) {
+                            Poll::Ready(result) => Poll::Ready(Ok(result)),
+                            Poll::Pending       => Poll::Ready(Err(()))
+                        }
+                    }).await {
+                        match next_response {
+                            Some(response) => {
+                                yield_value("\n".into()).await;
+                                display_response(&yield_value, response).await;
+                            }
+
+                            None => { break 'main_loop; }
+                        }
+                    }
+                }
+            }
+
+            // Display a prompt once input is no longer being generated
+            yield_value("\n> ".into()).await;
+        }
+
+        // Sign out
+        yield_value("\n\n.\n".into()).await;
+    }).map(|string| stream::iter(string.into_bytes())).flatten().boxed()
 }
