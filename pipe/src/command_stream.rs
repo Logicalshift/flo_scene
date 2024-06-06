@@ -157,7 +157,7 @@ async fn display_response(yield_value: &(impl Send + Fn(String) -> BoxFuture<'st
 ///
 /// This can be used as the output side of a socket
 ///
-pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Item=CommandResponse>) -> BoxStream<'static, u8> {
+pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Item=CommandResponse>) -> BoxStream<'static, Vec<u8>> {
     // The way we generate the responses and prompts is to generate strings and then convert them into bytes later on
     generator_stream::<String, _, _>(|yield_value| async move {
         pin_mut!(input);
@@ -203,5 +203,5 @@ pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Ite
 
         // Sign out
         yield_value("\n\n.\n".into()).await;
-    }).map(|string| stream::iter(string.into_bytes())).flatten().boxed()
+    }).map(|string| string.into_bytes()).boxed()
 }
