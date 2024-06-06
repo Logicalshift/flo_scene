@@ -57,6 +57,22 @@ pub enum CommandResponse {
 impl SceneMessage for CommandRequest { }
 impl SceneMessage for CommandResponse { }
 
+impl CommandRequest {
+    ///
+    /// Creates a command by parsing a string
+    ///
+    pub async fn parse(command: &str) -> Result<CommandRequest, ()> {
+        let mut parser      = Parser::new();
+        let mut tokenizer   = Tokenizer::new(stream::iter(command.bytes()).ready_chunks(256));
+
+        tokenizer.with_command_matchers();
+
+        command_parse(&mut parser, &mut tokenizer).await?;
+
+        Ok(parser.finish().map_err(|_| ())?)
+    }
+}
+
 ///
 /// Reads an input stream containing commands in text form and outputs the command structures as they are matched
 ///

@@ -37,7 +37,8 @@ pub fn send_error_command() {
 
         // Send an error command
         println!("Send command...");
-        send_commands.send(Ok(CommandRequest::Command { command: CommandName("example::doesnotexist".into()), argument: serde_json::Value::Null })).await.unwrap();
+        let command = CommandRequest::parse("example::doesnotexist").await;
+        send_commands.send(command).await.unwrap();
 
         // Retrieve the response
         println!("Receive...");
