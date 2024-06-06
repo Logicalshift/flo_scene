@@ -1,10 +1,13 @@
 use crate::filter::*;
 use crate::subprogram_id::*;
 
+#[cfg(feature="serde_support")] use serde::*;
+
 ///
 /// A stream target describes where the output of a particular stream should be sent
 ///
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature="serde_support", derive(Serialize, Deserialize))]
 pub enum StreamTarget {
     /// Discard any output sent to this stream
     None,

@@ -16,6 +16,8 @@ use std::collections::{HashMap};
 use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[cfg(feature="serde_support")] use serde::*;
+
 type CreateInputStreamFn = Box<dyn Send + Sync + Fn(SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>;
 type StreamIdForTargetFn = Box<dyn Send + Sync + Fn(Option<SubProgramId>) -> StreamId>;
 
@@ -30,11 +32,14 @@ static STREAM_ID_FOR_TARGET:    Lazy<RwLock<HashMap<FilterHandle, StreamIdForTar
 /// Maps filter handles to the stream ID of the source
 static SOURCE_STREAM_ID:        Lazy<RwLock<HashMap<FilterHandle, StreamId>>>               = Lazy::new(|| RwLock::new(HashMap::new()));
 
+// TODO: filter handles are shareable out of necessity, so we can send stream sources and targets to other programs, but they currently will be invalid after being sent
+
 ///
 /// A filter is a way to convert from a stream of one message type to another, and a filter
 /// handle references a predefined filter.
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature="serde_support", derive(Serialize, Deserialize))]
 pub struct FilterHandle(usize);
 
 impl FilterHandle {
