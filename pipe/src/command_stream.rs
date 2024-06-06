@@ -1,6 +1,7 @@
 use crate::parser::*;
 use crate::parse_command::*;
 
+use flo_scene::programs::QueryRequest;
 use flo_scene::*;
 
 use futures::prelude::*;
@@ -37,9 +38,10 @@ pub enum CommandArgument {
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CommandRequest {
-    Command { command: CommandName, argument: serde_json::Value },
-    Pipe    { from: Box<CommandRequest>, to: Box<CommandRequest> },
-    Assign  { variable: VariableName, from: Box<CommandRequest> },
+    Command     { command: CommandName, argument: serde_json::Value },
+    Pipe        { from: Box<CommandRequest>, to: Box<CommandRequest> },
+    Assign      { variable: VariableName, from: Box<CommandRequest> },
+    ForTarget   { target: StreamTarget, request: Box<CommandRequest> }
 }
 
 ///
@@ -56,6 +58,22 @@ pub enum CommandResponse {
 
 impl SceneMessage for CommandRequest { }
 impl SceneMessage for CommandResponse { }
+
+impl QueryRequest for CommandRequest {
+    type ResponseData = CommandResponse;
+
+    fn with_new_target(self, new_target: StreamTarget) -> Self {
+        match self {
+            CommandRequest::ForTarget { request, .. } => {
+                CommandRequest::ForTarget { target: new_target, request: request }
+            }
+
+            other => {
+                CommandRequest::ForTarget { target: new_target, request: Box::new(other) }
+            }
+        }
+    }
+}
 
 impl CommandRequest {
     ///
