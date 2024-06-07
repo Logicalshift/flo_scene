@@ -5,8 +5,6 @@ use flo_scene_pipe::*;
 use futures::prelude::*;
 use tokio::io::*;
 
-use std::io::*;
-
 #[test]
 fn error_from_internal_socket() {
     let scene           = Scene::default();
@@ -30,15 +28,21 @@ fn error_from_internal_socket() {
     scene.add_subprogram(SubProgramId::new(), |_input: InputStream<()>, context| async move {
         // Crete a message to send
         let test_commands = "error::message\n";
-        let test_commands = test_commands.bytes().collect::<Vec<_>>();
-        let test_commands = Cursor::new(test_commands);
 
         // Also create an internal buffer to write to
-        let (read_result, write_result) = duplex(1024);
+        let (our_side, their_side)          = duplex(1024);
+        let (command_input, command_output) = split(their_side);
+        let (read_result, write_command)    = split(our_side);
 
         // Request that the socket program read from the test commands and writes to the internal buffer
         let mut socket_program = context.send(socket_program).unwrap();
-        socket_program.send(InternalSocketMessage::CreateInternalSocket(Box::new(test_commands), Box::new(write_result))).await.ok().unwrap();
+        socket_program.send(InternalSocketMessage::CreateInternalSocket(Box::new(command_input), Box::new(command_output))).await.ok().unwrap();
+
+        // Send the test command to the writer
+        let mut write_command = write_command;
+        println!("> {:?}", test_commands);
+        write_command.write_all(&test_commands.bytes().collect::<Vec<u8>>()).await.unwrap();
+        write_command.shutdown().await.unwrap();
 
         // Read the interal buffer to get the final result
         let mut read_result = read_result;
