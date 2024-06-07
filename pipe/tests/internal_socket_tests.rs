@@ -27,7 +27,7 @@ fn error_from_internal_socket() {
     // Add another program that talks to the command program via a socket connection
     scene.add_subprogram(SubProgramId::new(), |_input: InputStream<()>, context| async move {
         // Crete a message to send
-        let test_commands = "error::message\n";
+        let test_commands = "error::message [ \"json\", \"array\" ]\n";
 
         // Also create an internal buffer to write to
         let (our_side, their_side)          = duplex(1024);
