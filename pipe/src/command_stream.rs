@@ -109,6 +109,8 @@ pub fn parse_command_stream(input: impl 'static + Send + Unpin + Stream<Item=Vec
         let mut tokenizer   = Tokenizer::new(input);
         let mut parser      = Parser::new();
 
+        tokenizer.with_command_matchers();
+
         // TODO: loop until EOF
         loop {
             // Read the next command
