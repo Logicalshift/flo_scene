@@ -70,14 +70,17 @@ impl Command for CommandProcessor {
             let mut responses   = context.send::<CommandResponse>(()).unwrap();
 
             while let Some(next_command) = input.next().await {
-                match next_command {
-                    _ => {
-                        // Just send error responses
-                        if responses.send(CommandResponse::Error(format!("Not implemented yet"))).await.is_err() {
-                            break;
-                        }
-                    }
-                }
+                use CommandRequest::*;
+
+                let response = match next_command {
+                    Ok(Command     { command, argument }) => { CommandResponse::Error("Not implemented yet".into()) }
+                    Ok(Pipe        { from, to })          => { CommandResponse::Error("Not implemented yet".into()) }
+                    Ok(Assign      { variable, from })    => { CommandResponse::Error("Not implemented yet".into()) }
+                    Ok(ForTarget   { target, request })   => { CommandResponse::Error("Not implemented yet".into()) }
+                    Err(_)                                => { CommandResponse::Error("Not implemented yet".into()) }
+                };
+
+                responses.send(response).await;
             }
         }
     }
