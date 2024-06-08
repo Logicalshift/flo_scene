@@ -80,7 +80,9 @@ impl Command for CommandProcessor {
                     Err(_)                                => { CommandResponse::Error("Not implemented yet".into()) }
                 };
 
-                responses.send(response).await;
+                if responses.send(response).await.is_err() {
+                    break;
+                }
             }
         }
     }
