@@ -1,7 +1,7 @@
 use super::socket::*;
 
 use flo_scene::*;
-use flo_scene::programs::*;
+use flo_scene::commands::*;
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf, AsyncWriteExt};
 use futures::prelude::*;
@@ -249,13 +249,17 @@ where
                                 }
                             }
                         };
+                        let byte_writer = Mutex::new(Some(byte_writer));
 
                         // Ask the scene to create a subprogram that writes the output (won't work if the main 'scene' program isn't running)
-                        let output_program = SubProgramId::new();
-                        let output_program = SceneControl::start_program(output_program, move |_: InputStream<()>, _| byte_writer, 0);
-
-                        let mut control = context.send(()).unwrap();
-                        control.send_immediate(output_program).ok();
+                        context.spawn_command(FnCommand::<(), ()>::new(move |_input, _context| {
+                            let byte_writer = byte_writer.lock().unwrap().take();
+                            async move {
+                                if let Some(byte_writer) = byte_writer {
+                                    byte_writer.await
+                                }
+                            }
+                        }), stream::empty()).ok();
                     });
 
                     // Send this connection to anything connected to this socket
