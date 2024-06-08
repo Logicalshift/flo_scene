@@ -21,6 +21,7 @@ use futures::channel::mpsc;
 use std::any::*;
 use std::collections::*;
 use std::sync::*;
+use std::sync::atomic::{AtomicUsize};
 
 ///
 /// Used to wake up anything polling a scene core when a subprogram is ready
@@ -212,7 +213,7 @@ impl SceneCore {
                 outputs:                    HashMap::new(),
                 output_high_water:          0,
                 expected_input_type_name:   type_name::<TMessage>(),
-                next_command_sequence:      0,
+                next_command_sequence:      Arc::new(AtomicUsize::new(0)),
             };
 
             // Allocate space for the program

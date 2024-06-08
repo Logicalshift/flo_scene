@@ -246,6 +246,10 @@ impl SceneContext {
             // Use the run_program future to spawn a new task in the scene
             let subtask = SceneCore::start_subprogram(&scene_core, task_program_id, run_program, closed_input_core);
 
+            // Before allowing the program to proceed, share the subtask ID counter
+            let id_counter = program_core.lock().unwrap().next_command_sequence.clone();
+            subtask.lock().unwrap().next_command_sequence = id_counter;
+
             // Send the context to the waiting program
             let subtask_context = SceneContext::new(&scene_core, &subtask);
             send_context.send(subtask_context.clone()).ok();
@@ -344,6 +348,10 @@ impl SceneContext {
 
             // Use the run_program future to spawn a new task in the scene
             let subtask = SceneCore::start_subprogram(&scene_core, task_program_id, run_program, response_input_core);
+
+            // Before allowing the program to proceed, share the subtask ID counter
+            let id_counter = program_core.lock().unwrap().next_command_sequence.clone();
+            subtask.lock().unwrap().next_command_sequence = id_counter;
 
             // Send the context to the waiting program
             let subtask_context = SceneContext::new(&scene_core, &subtask);

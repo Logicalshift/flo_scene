@@ -9,6 +9,7 @@ use futures::task::{Waker};
 use std::any::*;
 use std::collections::*;
 use std::sync::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 ///
 /// Data that's stored for an individual program.
@@ -37,8 +38,8 @@ pub (crate) struct SubProgramCore {
     /// The name of the expected input type of this program
     pub (super) expected_input_type_name: &'static str,
 
-    /// The ID assigned to the next command that this subprogram will launch
-    pub (super) next_command_sequence: usize,
+    /// The ID assigned to the next command that this subprogram will launch (shared with any commands launched by this program)
+    pub (super) next_command_sequence: Arc<AtomicUsize>,
 }
 
 impl SubProgramCore {
@@ -187,8 +188,7 @@ impl SubProgramCore {
     /// Creates a new subprogram ID for a task launched by this program
     ///
     pub (crate) fn new_task_id(&mut self) -> SubProgramId {
-        let sequence_number = self.next_command_sequence;
-        self.next_command_sequence += 1;
+        let sequence_number = self.next_command_sequence.fetch_add(1, Ordering::Relaxed);
 
         self.id.with_command_id(sequence_number)
     }
