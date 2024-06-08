@@ -38,6 +38,20 @@ where
     pub fn target(&self) -> StreamTarget {
         self.target.clone()
     }
+
+    ///
+    /// The name of the command that is to be run
+    ///
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    ///
+    /// The parameter to the command
+    ///
+    pub fn parameter(&self) -> &TParameter {
+        &self.parameter
+    }
 }
 
 impl<TParameter, TResponse> SceneMessage for RunCommand<TParameter, TResponse>
