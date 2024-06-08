@@ -4,7 +4,7 @@ use std::collections::{VecDeque};
 
 pub use super::tokenizer::*;
 pub use super::parse_json::*;
-pub use super::parse_command::*;
+pub use crate::commands::parse_command::*;
 
 ///
 /// Error indicating that a token cannot be accepted by the parser because there is no token in the lookahead

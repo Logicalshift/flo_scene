@@ -1,6 +1,7 @@
 use flo_scene::*;
 use flo_scene::programs::*;
 use flo_scene_pipe::*;
+use flo_scene_pipe::commands::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
