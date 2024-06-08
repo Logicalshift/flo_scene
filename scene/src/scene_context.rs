@@ -221,7 +221,7 @@ impl SceneContext {
             let closed_input_core   = closed_input_stream.core();
             mem::drop(closed_input_stream);
 
-            // We generate a 
+            // The output of the command needs to be connected to an input stream (which is not the input of a subprogram in this case) 
             let command_result      = InputStream::new(our_program_id, &scene_core, 4);
             let command_result_core = command_result.core();
 
