@@ -29,7 +29,7 @@ fn simple_command() {
 
 #[test]
 fn pipe_command() {
-    let scene = Scene::default();
+    let scene = Scene::empty();
 
     // Create a test command that sends some usize values to its output
     let test_command = FnCommand::<(), usize>::new(|_input, context| async move {
