@@ -37,10 +37,15 @@ fn pipe_command() {
         let mut output = context.send::<usize>(()).unwrap();
 
         // Send some output data
+        println!("send(1)");
         output.send(1).await.unwrap();
+        println!("send(2)");
         output.send(2).await.unwrap();
+        println!("send(3)");
         output.send(3).await.unwrap();
+        println!("send(4)");
         output.send(4).await.unwrap();
+        println!("done.");
     });
 
     let add_one_command = FnCommand::<usize, usize>::new(|input, context| async move {
@@ -48,9 +53,13 @@ fn pipe_command() {
         let mut output = context.send::<usize>(()).unwrap();
 
         // Add one to the input
+        println!("+1 start");
         while let Some(next) = input.next().await {
+            println!("+1: {:?}", next);
             output.send(next+1).await.unwrap();
+            println!("  = {:?}", next+1);
         }
+        println!("+1 done");
     });
 
     let combined_command = test_command.pipe_to(add_one_command);
