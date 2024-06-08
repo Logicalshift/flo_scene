@@ -92,8 +92,8 @@ impl SubProgramId {
             SubProgramIdValue::Named(name_num)          |
             SubProgramIdValue::NamedTask(name_num, _)   => SubProgramId(SubProgramIdValue::NamedTask(name_num, command_sequence_number)),
 
-            SubProgramIdValue::Guid(guid)               |
-            SubProgramIdValue::GuidTask(guid, _)        => SubProgramId(SubProgramIdValue::GuidTask(guid, command_sequence_number))
+            SubProgramIdValue::Guid(guid)               => SubProgramId(SubProgramIdValue::GuidTask(guid, command_sequence_number)),
+            SubProgramIdValue::GuidTask(guid, _)        => SubProgramId(SubProgramIdValue::GuidTask(guid, command_sequence_number+1)),
         }
     }
 }
