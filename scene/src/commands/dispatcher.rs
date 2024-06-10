@@ -4,6 +4,7 @@ use super::read_command::*;
 use super::error::*;
 use crate::input_stream::*;
 use crate::scene_context::*;
+use crate::scene_message::*;
 use crate::subprogram_id::*;
 use crate::programs::*;
 
@@ -30,8 +31,8 @@ pub const LIST_COMMANDS: &str = "::list_commands";
 ///
 pub async fn command_dispatcher_subprogram<TParameter, TResponse>(input: InputStream<RunCommand<TParameter, Result<TResponse, CommandError>>>, context: SceneContext)
 where
-    TParameter: 'static + Unpin + Send,
-    TResponse:  'static + Unpin + Send + TryInto<ListCommandResponse>,
+    TParameter: 'static + Unpin + Send + From<()>,
+    TResponse:  'static + Unpin + Send + SceneMessage + TryInto<ListCommandResponse>,
 {
     let our_program_id = context.current_program_id().unwrap();
 
@@ -56,18 +57,58 @@ where
             let scene_status = if let Ok(scene_status) = scene_status {
                 scene_status
             } else {
-                // Can't list commands: need to reply with an error to the command target
+                // Can't list programs: need to reply with an error to the command target
                 todo!();
                 break;
             };
 
-            let scene_status = scene_status.collect::<Vec<_>>().await;
+            let scene_status        = scene_status.collect::<Vec<_>>().await;
 
-            // TODO: remove any commands that belong to subprogram that are no longer in the list
+            // Figure out which subprograms have been removed or added
+            let active_subprograms  = scene_status.iter().flat_map(|update| match update {
+                SceneUpdate::Started(program_id)    => Some(*program_id),
+                _                                   => None,
+            }).collect::<HashSet<SubProgramId>>();
+            let removed_subprograms = subprograms.iter()
+                .filter(|old_program| !active_subprograms.contains(old_program))
+                .copied()
+                .collect::<HashSet<_>>();
+            let added_subprograms = active_subprograms.iter()
+                .filter(|new_program| !subprograms.contains(new_program))
+                .copied()
+                .collect::<HashSet<_>>();
 
-            // TODO: Try to send a list command to each missing program in the scene and fill in the commands (except ourselves if we find ourselves)
+            // Remove any commands that belong to subprogram that are no longer in the list
+            if !removed_subprograms.is_empty() {
+                commands.retain(|_, program_id| !removed_subprograms.contains(program_id));
+            }
 
-            // Retry fetching the command owner stream
+            // Try to send a list command to each missing program in the scene and fill in the commands (except ourselves if we find ourselves)
+            for added_program_id in added_subprograms.iter() {
+                // Don't recursively request the list of programs
+                if *added_program_id == our_program_id { continue; }
+
+                // Send the LIST_COMMANDS command to the new program
+                if let Ok(supported_commands) = context.spawn_query(ReadCommand::default(), RunCommand::<TParameter, TResponse>::new((), LIST_COMMANDS, ()), added_program_id) {
+                    let mut supported_commands = supported_commands;
+                    while let Some(cmd) = supported_commands.next().await {
+                        // Convert to a list command response
+                        let cmd: ListCommandResponse = if let Ok(cmd) = cmd.try_into() { cmd } else { continue; };
+
+                        // Add this command to the known list if it's not present
+                        if !commands.contains_key(&cmd.0) {
+                            commands.insert(cmd.0, *added_program_id);
+                        }
+
+                        // TODO: also give the command a name that specifies the subprogram
+                    }
+                }
+            }
+
+            // Update the list of active subprograms
+            subprograms = active_subprograms;
+
+            // Retry fetching the command owner stream to determine the final command
             command_owner_stream = commands.get(next_command.name())
                 .and_then(|command_owner| {
                     context.send::<RunCommand<TParameter, Result<TResponse, CommandError>>>(*command_owner).ok()
@@ -75,7 +116,8 @@ where
         }
 
         // Forward the command to the subprogram that listed it
-        if let Some(command_owner_stream) = command_owner_stream {
+        if next_command.name() == LIST_COMMANDS {
+        } else if let Some(command_owner_stream) = command_owner_stream {
             // Forward the command to the target stream
             let mut command_owner_stream = command_owner_stream;
             if let Ok(()) = command_owner_stream.send(next_command).await {
