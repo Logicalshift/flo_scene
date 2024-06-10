@@ -120,14 +120,16 @@ where
         } else if let Some(command_owner_stream) = command_owner_stream {
             // Forward the command to the target stream
             let mut command_owner_stream = command_owner_stream;
+            let command_target  = next_command.target();
+            let command_name    = next_command.name().to_string();
+
             if let Ok(()) = command_owner_stream.send(next_command).await {
                 // Command was sent OK, target should have responded
             } else {
                 // Message was rejected for some reason: we should send an error
-                //if let Ok(mut response_stream) = context.send::<QueryResponse<Result<TResponse, CommandError>>>(next_command.target()) {
-                //    response_stream.send(QueryResponse::with_data(Err(CommandError::CommandFailedToRespond(next_command.name().into())))).await.ok();
-                //}
-                todo!()
+                if let Ok(mut response_stream) = context.send::<QueryResponse<Result<TResponse, CommandError>>>(command_target) {
+                    response_stream.send(QueryResponse::with_data(Err(CommandError::CommandFailedToRespond(command_name)))).await.ok();
+                }
             }
         } else {
             // This command is not known: send a query response indicating the error
