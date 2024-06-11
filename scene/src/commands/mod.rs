@@ -5,6 +5,7 @@ mod run_command;
 mod list_commands;
 mod error;
 mod dispatcher;
+mod launcher;
 
 pub use fn_command::*;
 pub use pipe_command::*;
@@ -13,3 +14,4 @@ pub use run_command::*;
 pub use list_commands::*;
 pub use error::*;
 pub use dispatcher::*;
+pub use launcher::*;
