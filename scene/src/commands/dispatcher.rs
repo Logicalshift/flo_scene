@@ -32,7 +32,7 @@ pub const LIST_COMMANDS: &str = "::list_commands";
 pub async fn command_dispatcher_subprogram<TParameter, TResponse>(input: InputStream<RunCommand<TParameter, Result<TResponse, CommandError>>>, context: SceneContext)
 where
     TParameter: 'static + Unpin + Send + From<()>,
-    TResponse:  'static + Unpin + Send + SceneMessage + TryInto<ListCommandResponse>,
+    TResponse:  'static + Unpin + Send + SceneMessage + TryInto<ListCommandResponse> + From<ListCommandResponse>,
 {
     let our_program_id = context.current_program_id().unwrap();
 
@@ -117,6 +117,10 @@ where
 
         // Forward the command to the subprogram that listed it
         if next_command.name() == LIST_COMMANDS {
+            // Respond with a list of commands (parameter is always ignored)
+            if let Ok(mut response_stream) = context.send::<QueryResponse<Result<TResponse, CommandError>>>(next_command.target()) {
+                response_stream.send(QueryResponse::with_iterator(commands.iter().map(|(name, _)| Ok(ListCommandResponse(name.to_string()).into())).collect::<Vec<_>>())).await.ok();
+            }
         } else if let Some(command_owner_stream) = command_owner_stream {
             // Forward the command to the target stream
             let mut command_owner_stream = command_owner_stream;
