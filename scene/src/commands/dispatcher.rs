@@ -29,10 +29,10 @@ pub const LIST_COMMANDS: &str = "::list_commands";
 /// This dispatcher itself also supports the list commands request, to list all of the commands found in all of the subprograms
 /// in the scene.
 ///
-pub async fn command_dispatcher_subprogram<TParameter, TResponse>(input: InputStream<RunCommand<TParameter, Result<TResponse, CommandError>>>, context: SceneContext)
+pub async fn command_dispatcher_subprogram<TParameter, TResponse>(input: InputStream<RunCommand<TParameter, TResponse>>, context: SceneContext)
 where
     TParameter: 'static + Unpin + Send + From<()>,
-    TResponse:  'static + Unpin + Send + SceneMessage + TryInto<ListCommandResponse> + From<ListCommandResponse>,
+    TResponse:  'static + Unpin + Send + SceneMessage + TryInto<ListCommandResponse> + From<ListCommandResponse> + From<CommandError>,
 {
     let our_program_id = context.current_program_id().unwrap();
 
@@ -46,7 +46,7 @@ where
         // Try to fetch the stream to send queries to the command owner
         let mut command_owner_stream = commands.get(next_command.name())
             .and_then(|command_owner| {
-                context.send::<RunCommand<TParameter, Result<TResponse, CommandError>>>(*command_owner).ok()
+                context.send::<RunCommand<TParameter, TResponse>>(*command_owner).ok()
             });
 
         // We might need to update our list of commands before evaluating this one
@@ -111,15 +111,15 @@ where
             // Retry fetching the command owner stream to determine the final command
             command_owner_stream = commands.get(next_command.name())
                 .and_then(|command_owner| {
-                    context.send::<RunCommand<TParameter, Result<TResponse, CommandError>>>(*command_owner).ok()
+                    context.send::<RunCommand<TParameter, TResponse>>(*command_owner).ok()
                 });
         }
 
         // Forward the command to the subprogram that listed it
         if next_command.name() == LIST_COMMANDS {
             // Respond with a list of commands (parameter is always ignored)
-            if let Ok(mut response_stream) = context.send::<QueryResponse<Result<TResponse, CommandError>>>(next_command.target()) {
-                response_stream.send(QueryResponse::with_iterator(commands.iter().map(|(name, _)| Ok(ListCommandResponse(name.to_string()).into())).collect::<Vec<_>>())).await.ok();
+            if let Ok(mut response_stream) = context.send::<QueryResponse<TResponse>>(next_command.target()) {
+                response_stream.send(QueryResponse::with_iterator(commands.iter().map(|(name, _)| ListCommandResponse(name.to_string()).into()).collect::<Vec<_>>())).await.ok();
             }
         } else if let Some(command_owner_stream) = command_owner_stream {
             // Forward the command to the target stream
@@ -131,14 +131,15 @@ where
                 // Command was sent OK, target should have responded
             } else {
                 // Message was rejected for some reason: we should send an error
-                if let Ok(mut response_stream) = context.send::<QueryResponse<Result<TResponse, CommandError>>>(command_target) {
-                    response_stream.send(QueryResponse::with_data(Err(CommandError::CommandFailedToRespond(command_name)))).await.ok();
+                if let Ok(mut response_stream) = context.send::<QueryResponse<TResponse>>(command_target) {
+                    response_stream.send(QueryResponse::with_data(CommandError::CommandFailedToRespond(command_name).into())).await.ok();
                 }
             }
         } else {
             // This command is not known: send a query response indicating the error
-            if let Ok(mut response_stream) = context.send::<QueryResponse<Result<TResponse, CommandError>>>(next_command.target()) {
-                response_stream.send(QueryResponse::with_data(Err(CommandError::CommandNotFound(next_command.name().into())))).await.ok();
+            if let Ok(mut response_stream) = context.send::<QueryResponse<TResponse>>(next_command.target()) {
+                let command_name = next_command.name().to_string();
+                response_stream.send(QueryResponse::with_data(CommandError::CommandNotFound(command_name).into())).await.ok();
             }
         }
     }
