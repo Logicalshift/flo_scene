@@ -32,7 +32,7 @@ pub struct CommandLauncher<TParameter, TResponse> {
 impl<TParameter, TResponse> CommandLauncher<TParameter, TResponse>
 where
     TParameter: 'static + Unpin + Send + Sync,
-    TResponse:  'static + Unpin + Send + Sync + SceneMessage + From<ListCommandResponse>,
+    TResponse:  'static + Unpin + Send + Sync + SceneMessage + From<ListCommandResponse> + From<CommandError>,
 {
     ///
     /// Creates a new command launcher, with no built in commands
@@ -59,7 +59,7 @@ where
     ///
     /// Converts this launcher to a subprogram that can be added to a scene to respond to the run command requests
     ///
-    pub fn to_subprogram(self) -> impl 'static + Send + FnOnce(InputStream<RunCommand<TParameter, Result<TResponse, CommandError>>>, SceneContext) -> BoxFuture<'static, ()> {
+    pub fn to_subprogram(self) -> impl 'static + Send + FnOnce(InputStream<RunCommand<TParameter, TResponse>>, SceneContext) -> BoxFuture<'static, ()> {
         move |input, context| async move {
             let mut input = input;
 
@@ -82,10 +82,10 @@ where
 
                     if let Ok(command_output) = command_output {
                         // Send the output to the target
-                        let output      = command_output.map(|item| Ok(item));
-                        let response    = context.send::<QueryResponse<Result<TResponse, CommandError>>>(command_target);
+                        let response = context.send::<QueryResponse<TResponse>>(command_target);
+                        
                         if let Ok(mut response) = response {
-                            response.send(QueryResponse::with_stream(output)).await.ok();
+                            response.send(QueryResponse::with_stream(command_output)).await.ok();
                         } else {
                             // Could not send the response: send to the source
                             todo!()
