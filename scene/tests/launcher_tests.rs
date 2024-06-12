@@ -2,9 +2,6 @@ use flo_scene::*;
 use flo_scene::programs::*;
 use flo_scene::commands::*;
 
-use futures::prelude::*;
-
-
 #[test]
 pub fn call_launcher_command() {
     let test_program        = SubProgramId::new();
