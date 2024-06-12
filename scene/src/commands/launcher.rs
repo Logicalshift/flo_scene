@@ -31,7 +31,7 @@ pub struct CommandLauncher<TParameter, TResponse> {
 
 impl<TParameter, TResponse> CommandLauncher<TParameter, TResponse>
 where
-    TParameter: 'static + Unpin + Send + Sync + From<()>,
+    TParameter: 'static + Unpin + Send + Sync,
     TResponse:  'static + Unpin + Send + Sync + SceneMessage + From<ListCommandResponse>,
 {
     ///
