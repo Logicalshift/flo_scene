@@ -66,8 +66,20 @@ where
             // Read run command requests from the input
             while let Some(run_request) = input.next().await {
                 if run_request.name() == LIST_COMMANDS {
-                    // List the command
-                    todo!()
+                    // List the commands in the launcher
+                    let command_target = run_request.target();
+
+                    let list_commands_response = QueryResponse::with_iterator(
+                        self.commands.iter()
+                        .map(|(name, _)| ListCommandResponse(name.clone()))
+                        .map(|response| TResponse::from(response))
+                        .collect::<Vec<_>>());
+
+                    let response = context.send::<QueryResponse<TResponse>>(command_target);
+                    
+                    if let Ok(mut response) = response {
+                        response.send(list_commands_response).await.ok();
+                    }
                 } else if let Some(command) = self.commands.get(run_request.name()).cloned() {
                     // Run the command
                     let command_target = run_request.target();
