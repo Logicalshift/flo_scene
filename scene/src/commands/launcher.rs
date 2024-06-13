@@ -72,6 +72,7 @@ where
                     let list_commands_response = QueryResponse::with_iterator(
                         self.commands.iter()
                         .map(|(name, _)| ListCommandResponse(name.clone()))
+                        .chain([ListCommandResponse(LIST_COMMANDS.into())])
                         .map(|response| TResponse::from(response))
                         .collect::<Vec<_>>());
 
