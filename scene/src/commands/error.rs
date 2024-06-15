@@ -8,4 +8,7 @@ pub enum CommandError {
 
     /// Managed to connect to the owner of the command but it produced an error when trying to send the message
     CommandFailedToRespond(String),
+
+    /// The scene has no scene control program to query
+    CannotQueryScene,
 }

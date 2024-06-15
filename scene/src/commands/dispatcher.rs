@@ -58,8 +58,13 @@ where
                 scene_status
             } else {
                 // Can't list programs: need to reply with an error to the command target
-                todo!();
-                break;
+                if let Ok(mut response) = context.send(next_command.target())
+                {
+                    response.send(TResponse::from(CommandError::CannotQueryScene)).await.ok();
+                }
+
+                // Fetch the next command
+                continue;
             };
 
             let scene_status        = scene_status.collect::<Vec<_>>().await;
