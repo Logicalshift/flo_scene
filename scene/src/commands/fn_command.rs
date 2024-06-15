@@ -39,7 +39,7 @@ where
     type Output = TOutput;
 
     #[inline]
-    fn run(&self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'static + Send + Future<Output=()> {
+    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         self.1(input.boxed(), context)
     }
 }

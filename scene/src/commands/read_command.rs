@@ -30,7 +30,7 @@ where
     type Input = TInputType;
     type Output = TInputType;
 
-    fn run(&self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'static + Send + Future<Output=()> {
+    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         async move {
             if let Ok(output) = context.send(()) {
                 let mut input   = Box::pin(input);

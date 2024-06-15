@@ -12,7 +12,7 @@ pub trait Command : Send + Clone {
     type Input:  'static + Send;
     type Output: 'static + SceneMessage;
 
-    fn run(&self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'static + Send + Future<Output=()>;
+    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()>;
 }
 
 ///

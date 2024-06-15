@@ -35,7 +35,7 @@ where
     type Output = TTargetCommand::Output;
 
     #[inline]
-    fn run(&self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'static + Send + Future<Output=()> {
+    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         let source_cmd = self.0.clone();
         let target_cmd = self.1.clone();
 
