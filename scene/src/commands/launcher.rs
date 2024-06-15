@@ -99,9 +99,6 @@ where
                         
                         if let Ok(mut response) = response {
                             response.send(QueryResponse::with_stream(command_output)).await.ok();
-                        } else {
-                            // Could not send the response: send to the source
-                            todo!()
                         }
                     }
                 } else {
