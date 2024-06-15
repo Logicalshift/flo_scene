@@ -14,4 +14,7 @@ pub enum CommandError {
 
     /// The scene has no scene control program to query
     CannotQueryScene,
+
+    /// The response was in the wrong format
+    CannotConvertResponse,
 }

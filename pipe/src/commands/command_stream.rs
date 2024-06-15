@@ -1,7 +1,8 @@
 use crate::parser::*;
 
-use flo_scene::programs::QueryRequest;
 use flo_scene::*;
+use flo_scene::commands::*;
+use flo_scene::programs::*;
 
 use futures::prelude::*;
 use futures::{pin_mut};
@@ -62,6 +63,43 @@ pub enum CommandResponse {
 
 impl SceneMessage for CommandRequest { }
 impl SceneMessage for CommandResponse { }
+
+impl From<CommandError> for CommandResponse {
+    fn from(err: CommandError) -> Self {
+        CommandResponse::Error(format!("{:?}", err))
+    }
+}
+
+impl From<ListCommandResponse> for CommandResponse {
+    fn from(list_response: ListCommandResponse) -> Self {
+        CommandResponse::Json(vec![list_response.serialize(serde_json::value::Serializer).unwrap()])
+    }
+}
+
+impl TryInto<ListCommandResponse> for CommandResponse {
+    type Error = CommandError;
+
+    fn try_into(self) -> Result<ListCommandResponse, CommandError> {
+        match self {
+            CommandResponse::Json(json) => {
+                if json.len() == 1 {
+                    // Should be only one JSON value in a ListCommandResponse result
+                    let mut json    = json;
+                    let json        = json.pop().unwrap();
+
+                    ListCommandResponse::deserialize(json)
+                        .map_err(|_| CommandError::CannotConvertResponse)
+                } else {
+                    // 0 or more than one response, not a list command response
+                    Err(CommandError::CannotConvertResponse)
+                }
+            }
+
+            // Other types of response cannot be JSON requests
+            _ => Err(CommandError::CannotConvertResponse)
+        }
+    }
+}
 
 impl QueryRequest for CommandRequest {
     type ResponseData = CommandResponse;
