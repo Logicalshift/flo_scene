@@ -1,4 +1,5 @@
 use flo_scene::*;
+use flo_scene::commands::*;
 use flo_scene::programs::*;
 use flo_scene_pipe::*;
 use flo_scene_pipe::commands::*;
@@ -54,4 +55,24 @@ pub fn send_error_command() {
         .redirect_input(StreamId::with_message_type::<TestSucceeded>())
         .expect_message(|_: TestSucceeded| Ok(()))
         .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
+pub fn send_json_command() {
+    let scene           = Scene::default();
+    let test_subprogram = SubProgramId::new();
+
+    // We can send a JSON command as a query, and it should make it to the default dispatcher. If we use a known invalid command it should return an error.
+    TestBuilder::new()
+        .run_query(ReadCommand::default(), JsonCommand::new((), "::not-a-command", serde_json::Value::Null), (), |output| {
+            // Should be an error response
+            assert!(output.len() == 1);
+            assert!(matches!(&output[0], CommandResponse::Error(_)));
+
+            // ... also we should stop here
+            assert!(false);
+
+            Ok(())
+        })
+        .run_in_scene_with_threads(&scene, test_subprogram, 5);
 }
