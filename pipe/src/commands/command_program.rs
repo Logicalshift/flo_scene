@@ -60,11 +60,20 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
 #[derive(Copy, Clone, PartialEq)]
 pub struct CommandProcessor;
 
+impl CommandProcessor {
+    ///
+    /// Runs a command, returning the response
+    ///
+    pub async fn run_command(&self, command: CommandName, parameter: serde_json::Value) -> CommandResponse {
+        CommandResponse::Error("Not implemented yet".into())
+    }
+}
+
 impl Command for CommandProcessor {
     type Input  = Result<CommandRequest, ()>;
     type Output = CommandResponse;
 
-    fn run(&self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'static + Send + Future<Output=()> {
+    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         async move {
             pin_mut!(input);
             let mut responses   = context.send::<CommandResponse>(()).unwrap();
@@ -73,7 +82,7 @@ impl Command for CommandProcessor {
                 use CommandRequest::*;
 
                 let response = match next_command {
-                    Ok(Command     { command, argument }) => { CommandResponse::Error("Not implemented yet".into()) }
+                    Ok(Command     { command, argument }) => { self.run_command(command, argument).await }
                     Ok(Pipe        { from, to })          => { CommandResponse::Error("Not implemented yet".into()) }
                     Ok(Assign      { variable, from })    => { CommandResponse::Error("Not implemented yet".into()) }
                     Ok(ForTarget   { target, request })   => { CommandResponse::Error("Not implemented yet".into()) }
