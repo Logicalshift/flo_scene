@@ -74,5 +74,5 @@ pub fn send_json_command() {
 
             Ok(())
         })
-        .run_in_scene_with_threads(&scene, test_subprogram, 5);
+        .run_in_scene(&scene, test_subprogram);
 }
