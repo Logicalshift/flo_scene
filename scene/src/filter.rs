@@ -161,8 +161,8 @@ impl FilterHandle {
     ///
     pub fn conversion_filter<TSourceMessage, TTargetMessage>() -> FilterHandle
     where
-        TSourceMessage: 'static + SceneMessage,
-        TTargetMessage: 'static + SceneMessage + From<TSourceMessage>
+        TSourceMessage: 'static + SceneMessage + Into<TTargetMessage>,
+        TTargetMessage: 'static + SceneMessage,
     {
         use std::mem;
         static EXISTING_FILTERS: Lazy<RwLock<HashMap<(TypeId, TypeId), FilterHandle>>> = Lazy::new(|| RwLock::new(HashMap::new()));
@@ -179,7 +179,7 @@ impl FilterHandle {
             mem::drop(existing_filters);
             let mut existing_filters = EXISTING_FILTERS.write().unwrap();
 
-            let new_filter = Self::for_filter(|input| input.map(|source_message: TSourceMessage| TTargetMessage::from(source_message)));
+            let new_filter = Self::for_filter(|input| input.map(|source_message: TSourceMessage| source_message.into()));
             existing_filters.insert(conversion_type, new_filter);
 
             new_filter
