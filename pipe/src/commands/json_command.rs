@@ -32,6 +32,14 @@ impl QueryRequest for JsonCommand {
     }
 }
 
+///
+/// Starts a dispatcher that will forward `RunCommand<serde_json::Value, CommandResponse>` requests to the
+/// program that can handle them.
+///
+pub fn start_json_command_dispatcher(scene: &Scene, program_id: SubProgramId) {
+    scene.add_subprogram(program_id, command_dispatcher_subprogram::<serde_json::Value, CommandResponse>, 1)
+}
+
 impl SceneMessage for JsonCommand {
 
 }
