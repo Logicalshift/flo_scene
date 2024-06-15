@@ -66,11 +66,8 @@ pub fn send_json_command() {
     TestBuilder::new()
         .run_query(ReadCommand::default(), JsonCommand::new((), "::not-a-command", serde_json::Value::Null), (), |output| {
             // Should be an error response
-            assert!(output.len() == 1);
-            assert!(matches!(&output[0], CommandResponse::Error(_)));
-
-            // ... also we should stop here
-            assert!(false);
+            if output.len() != 1 { return Err(format!("Output is {:?}", output)); }
+            if !matches!(&output[0], CommandResponse::Error(_)) { return Err(format!("Output is {:?}", output)); }
 
             Ok(())
         })
