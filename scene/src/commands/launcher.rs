@@ -103,7 +103,13 @@ where
                     }
                 } else {
                     // Send an error saying the command is not known
-                    todo!()
+                    let command_target  = run_request.target();
+                    let command_name    = run_request.name().to_string();
+                    let response        = context.send::<QueryResponse<TResponse>>(command_target);
+                    
+                    if let Ok(mut response) = response {
+                        response.send(QueryResponse::with_iterator([TResponse::from(CommandError::CommandNotFound(command_name))])).await.ok();
+                    }
                 }
             }
         }.boxed()
