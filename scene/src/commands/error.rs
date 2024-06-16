@@ -15,6 +15,9 @@ pub enum CommandError {
     /// The scene has no scene control program to query
     CannotQueryScene,
 
+    /// The parameter was not in the correct format
+    IncorrectParameterFormat,
+
     /// The response was in the wrong format
     CannotConvertResponse,
 }
