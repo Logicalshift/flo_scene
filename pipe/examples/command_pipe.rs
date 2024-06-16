@@ -26,7 +26,7 @@ async fn main() {
     scene.connect_programs(socket_program, command_program, StreamId::with_message_type::<CommandProgramSocketMessage>()).unwrap();
 
     // Run the scene
-    println!("Created UNIX-domain socket at 'example_unix_socket'.\nTry 'tmux -S ./example_unix_socket' to connect.");
+    println!("Created UNIX-domain socket at 'example_unix_socket'.\nTry 'socat - UNIX-CONNECT:./example_unix_socket' to connect.");
     println!();
     scene.run_scene().await;
 }
