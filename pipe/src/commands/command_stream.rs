@@ -64,6 +64,13 @@ pub enum CommandResponse {
 impl SceneMessage for CommandRequest { }
 impl SceneMessage for CommandResponse { }
 
+impl Into<String> for CommandName {
+    #[inline]
+    fn into(self) -> String {
+        self.0
+    }
+}
+
 impl From<CommandError> for CommandResponse {
     fn from(err: CommandError) -> Self {
         CommandResponse::Error(format!("{:?}", err))

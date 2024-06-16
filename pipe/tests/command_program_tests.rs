@@ -18,7 +18,7 @@ pub fn send_error_command() {
     // Create a basic command program
     let test_program    = SubProgramId::new();
     let command_program = SubProgramId::new();
-    scene.add_subprogram(command_program, command_connection_program, 0);
+    scene.add_subprogram(command_program, |input, context| command_connection_program(input, context, ()), 0);
 
     // Test that we can send some messages to it
     scene.add_subprogram(SubProgramId::called("Test"), |_: InputStream<()>, context| async move {

@@ -16,7 +16,7 @@ fn error_from_internal_socket() {
 
     // The command program accepts connections from the socket and interprets the commands
     let command_program = SubProgramId::new();
-    scene.add_subprogram(command_program, command_connection_program, 0);
+    scene.add_subprogram(command_program, |input, context| command_connection_program(input, context, ()), 0);
 
     // The internal socket program lets us stream commands and responses via a socket connection
     let socket_program = SubProgramId::new();

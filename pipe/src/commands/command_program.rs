@@ -1,4 +1,5 @@
 use super::command_stream::*;
+use super::json_command::*;
 use crate::socket::*;
 
 use flo_scene::*;
@@ -20,7 +21,16 @@ pub type CommandProgramSocketMessage = SocketMessage<Result<CommandRequest, ()>,
 ///
 /// The command program accepts connections from a socket and will generate command output messages
 ///
-pub async fn command_connection_program(input: InputStream<CommandProgramSocketMessage>, context: SceneContext) {
+/// Commands will be sent to the command target (as `JsonCommand` requests). JsonCommand will create a default
+/// dispatcher, which will send commands to whichever subprogram can respond: use `StreamTarget::Any` to target
+/// this dispatcher.
+///
+/// (JsonCommands are a bit inefficient due to the need for a filter, but sending them will ensure that the dispatcher
+/// is started)
+///
+pub async fn command_connection_program(input: InputStream<CommandProgramSocketMessage>, context: SceneContext, command_target: impl Into<StreamTarget>) {
+    let command_target = command_target.into();
+
     // Spawn processor tasks for each connection
     let mut input = input;
     while let Some(connection) = input.next().await {
@@ -33,7 +43,7 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
                 let command_input = connection.connect(recv_response);
 
                 // Spawn a reader for the command input
-                if let Ok(responses) = context.spawn_command(CommandProcessor, command_input) {
+                if let Ok(responses) = context.spawn_command(CommandProcessor::new(command_target.clone()), command_input) {
                     // ... and another task to relay the responses back to the socket
                     context.spawn_command(FnCommand::<_, ()>::new(move |responses, _context| { 
                         let mut send_response = send_response.clone(); 
@@ -57,15 +67,47 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
 ///
 /// This will generate one response per command
 ///
-#[derive(Copy, Clone, PartialEq)]
-pub struct CommandProcessor;
+#[derive(Clone, PartialEq)]
+pub struct CommandProcessor {
+    // Where the command requests should be sent
+    target: StreamTarget,
+}
 
 impl CommandProcessor {
     ///
+    /// Creates a new command processor that will send commands to the specified target
+    ///
+    pub fn new(target: impl Into<StreamTarget>) -> Self {
+        CommandProcessor {
+            target: target.into()
+        }
+    }
+
+    ///
     /// Runs a command, returning the response
     ///
-    pub async fn run_command(&self, command: CommandName, parameter: serde_json::Value) -> CommandResponse {
-        CommandResponse::Error("Not implemented yet".into())
+    pub async fn run_command(&self, command: CommandName, parameter: serde_json::Value, context: &SceneContext) -> CommandResponse {
+        // Retrieve the target for the commands
+        let target = self.target.clone();
+
+        // Create the command query
+        let command = JsonCommand::new((), command, parameter);
+
+        // Run the command and retrieve the first response if we can
+        let command_result = context.spawn_query(ReadCommand::default(), command, target);
+
+        match command_result {
+            Err(err) => CommandResponse::Error(format!("Could not send command: {:?}", err)),
+
+            Ok(mut result_stream) => {
+                // TODO: we could consider supporting multiple responses here
+                if let Some(response) = result_stream.next().await {
+                    response
+                } else {
+                    CommandResponse::Json(vec![serde_json::Value::Null])
+                }
+            }
+        }
     }
 }
 
@@ -82,7 +124,7 @@ impl Command for CommandProcessor {
                 use CommandRequest::*;
 
                 let response = match next_command {
-                    Ok(Command     { command, argument }) => { self.run_command(command, argument).await }
+                    Ok(Command     { command, argument }) => { self.run_command(command, argument, &context).await }
                     Ok(Pipe        { from, to })          => { CommandResponse::Error("Not implemented yet".into()) }
                     Ok(Assign      { variable, from })    => { CommandResponse::Error("Not implemented yet".into()) }
                     Ok(ForTarget   { target, request })   => { CommandResponse::Error("Not implemented yet".into()) }
