@@ -27,3 +27,6 @@ desync          = "0.8"
 flo_stream      = "0.7"
 regex-automata  = "0.4"
 itertools       = "0.13"
+
+[dev-dependencies]
+tokio           = { version = "1.37", features = [ "net", "io-util", "rt", "rt-multi-thread", "macros" ] }
