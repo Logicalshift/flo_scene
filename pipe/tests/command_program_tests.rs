@@ -58,7 +58,7 @@ pub fn send_error_command() {
 }
 
 #[test]
-pub fn send_json_command() {
+pub fn error_for_nonexistent_json_command() {
     let scene           = Scene::default();
     let test_subprogram = SubProgramId::new();
 
@@ -68,6 +68,42 @@ pub fn send_json_command() {
             // Should be an error response
             if output.len() != 1 { return Err(format!("Output is {:?}", output)); }
             if !matches!(&output[0], CommandResponse::Error(_)) { return Err(format!("Output is {:?}", output)); }
+
+            Ok(())
+        })
+        .run_in_scene(&scene, test_subprogram);
+}
+
+#[test]
+pub fn declare_and_run_json_command() {
+    let scene           = Scene::default();
+    let test_subprogram = SubProgramId::new();
+    let command_program = SubProgramId::new();
+
+    // Create a command launcher program that just parrots strings back to us
+    let json_launcher = CommandLauncher::json()
+        .with_json_command("::test", |param: String, _context| async move {
+            CommandResponse::Json(vec![serde_json::Value::String(param)])
+        });
+    scene.add_subprogram(command_program, json_launcher.to_subprogram(), 1);
+
+    // Try running this command (the dispatcher should start and find the subprogram for us).
+    TestBuilder::new()
+        .run_query(ReadCommand::default(), JsonCommand::new((), "::test", serde_json::Value::String("Hello".to_string())), (), |output| {
+            // Should just send the string back to us
+            if output.len() != 1 { return Err(format!("Output is {:?}", output)); }
+
+            match &output[0] {
+                CommandResponse::Json(values) => {
+                    if values != &vec![serde_json::Value::String("Hello".to_string())] {
+                        return Err(format!("Output is {:?}", output));
+                    }
+                }
+
+                _ => {
+                    return Err(format!("Output is {:?}", output));
+                }
+            }
 
             Ok(())
         })
