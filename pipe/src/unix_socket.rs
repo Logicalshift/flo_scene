@@ -7,9 +7,8 @@ use futures::stream::{BoxStream};
 
 use tokio::net::{UnixListener};
 
-use ::desync::*;
-
 use std::path::*;
+use std::sync::*;
 
 ///
 /// Starts a sub-program in a sceme that accepts connections on a unix domain socket that binds at a specified path
@@ -37,15 +36,23 @@ where
         // Create the listener for this program
         let listener = UnixListener::bind(path)
             .map_err(|tokio_err| ConnectionError::IoError(format!("{}", tokio_err)))?;
+        let listener = Arc::new(Mutex::new(Some(listener)));
 
         // Add a socket runner subprogram. We don't use the address for anything, ie we accept all connections here
-        let listener = Desync::new(listener);
-        scene.add_subprogram(program_id, move |_input: InputStream<()>, context| socket_listener_subprogram(context, move || 
-            listener.future_desync(|listener| async {
-                listener.accept().await
-                    .map(|(socket, _addr)| socket.into_split())
-                    .map_err(|tokio_err| tokio_err.into())
-            }).map_ok_or_else(|_cancelled| Err(ConnectionError::Cancelled), |ok| ok),
+        scene.add_subprogram(program_id, move |_input: InputStream<()>, context| socket_listener_subprogram(context, move || {
+                let listener        = Arc::clone(&listener);
+                let our_listener    = listener.lock().unwrap().take().unwrap();
+
+                async move {
+                    let connection = our_listener.accept().await
+                        .map(|(socket, _addr)| socket.into_split())
+                        .map_err(|tokio_err| tokio_err.into());
+
+                    *listener.lock().unwrap() = Some(our_listener);
+
+                    connection
+                }
+            },
             create_input_messages,
             create_output_messages), 0);
 
