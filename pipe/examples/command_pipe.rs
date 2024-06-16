@@ -22,6 +22,9 @@ async fn main() {
     let socket_program = SubProgramId::new();
     start_unix_socket_program(&scene, socket_program, "./example_unix_socket", parse_command_stream, display_command_responses).unwrap();
 
+    // Connect the programs together
+    scene.connect_programs(socket_program, command_program, StreamId::with_message_type::<CommandProgramSocketMessage>()).unwrap();
+
     // Run the scene
     println!("Created UNIX-domain socket at 'example_unix_socket'.\nTry 'tmux -S ./example_unix_socket' to connect.");
     println!();
