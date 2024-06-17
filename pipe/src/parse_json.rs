@@ -28,6 +28,7 @@ pub enum JsonToken {
 
 /// Matches a string against the JSON whitespace syntax
 pub (crate) fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
+    // "^(([ \t]*[\r\n])|([ \t]+))"
     let mut chrs = lookahead.chars();
 
     if let Some(chr) = chrs.next() {
@@ -124,9 +125,10 @@ fn match_number(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
 /// Matches a string against the JSON string syntax
 #[inline]
 fn match_string(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
-    // First character must be a '"'
+    // r#"^"([^"\\]|(\\["\\/bfnrtu]))*""#
     let mut chrs = lookahead.chars();
 
+    // First character must be a '"'
     if let Some(chr) = chrs.next() {
         if chr != '\"' { return TokenMatchResult::LookaheadCannotMatch; }
 
