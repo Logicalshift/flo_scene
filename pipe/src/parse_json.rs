@@ -60,7 +60,8 @@ pub (crate) fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<
             }
         }
     } else {
-        TokenMatchResult::LookaheadCannotMatch
+        // Zero length string is prefix of anything
+        TokenMatchResult::LookaheadIsPrefix
     }
 }
 
@@ -123,7 +124,43 @@ fn match_number(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
 /// Matches a string against the JSON string syntax
 #[inline]
 fn match_string(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
-    match_regex(&*STRING, lookahead, eof).with_token(JsonToken::String)
+    // First character must be a '"'
+    let mut chrs = lookahead.chars();
+
+    if let Some(chr) = chrs.next() {
+        if chr != '\"' { return TokenMatchResult::LookaheadCannotMatch; }
+
+        let mut len = 1;
+        while let Some(chr) = chrs.next() {
+            if chr == '\"' {
+                // Closing quote
+                return TokenMatchResult::Matches(JsonToken::String, len + 1);
+            }
+
+            if chr == '\\' {
+                // Quoted character
+                if let Some(_quoted) = chrs.next() {
+                    len += 1;
+                } else if !eof {
+                    return TokenMatchResult::LookaheadIsPrefix;
+                } else {
+                    return TokenMatchResult::LookaheadCannotMatch;
+                }
+            }
+
+            len += 1;
+        }
+
+        // Cannot be a string if we reach the end of file
+        if !eof {
+            TokenMatchResult::LookaheadIsPrefix
+        } else {
+            TokenMatchResult::LookaheadCannotMatch
+        }
+    } else {
+        // Zero length string is prefix of anything
+        TokenMatchResult::LookaheadIsPrefix
+    }
 }
 
 /// Matches a string against the 'true' keyword
