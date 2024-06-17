@@ -2,11 +2,11 @@ use super::command_stream::*;
 use crate::parser::*;
 
 use futures::prelude::*;
-use regex_automata::dfa::dense;
+use regex_automata::dfa::sparse;
 use once_cell::sync::{Lazy};
 
-static COMMAND: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r"^(\p{L}|[_:-])(\p{L}|\p{N}|[_:-])*").unwrap());
-static COMMENT: Lazy<dense::DFA<Vec<u32>>> = Lazy::new(|| dense::DFA::new(r"^(//[^\r\n]*)").unwrap());
+static COMMAND: Lazy<sparse::DFA<Vec<u8>>> = Lazy::new(|| sparse::DFA::new(r"^(\p{L}|[_:-])(\p{L}|\p{N}|[_:-])*").unwrap());
+static COMMENT: Lazy<sparse::DFA<Vec<u8>>> = Lazy::new(|| sparse::DFA::new(r"^(//[^\r\n]*)").unwrap());
 
 ///
 /// Tokens from the command stream
