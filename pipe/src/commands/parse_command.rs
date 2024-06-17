@@ -277,6 +277,12 @@ mod test {
     }
 
     #[test]
+    fn match_command_with_following_whitespace() {
+        let match_result = match_command("test \n", false);
+        assert!(match_result == TokenMatchResult::Matches(CommandToken::Command, "test".chars().count()), "{:?}", match_result);
+    }
+
+    #[test]
     fn tokenize_newline() {
         let whitespace      = "    \n    ";
         let mut tokenizer   = Tokenizer::new(stream::iter(whitespace.bytes()).ready_chunks(2));
