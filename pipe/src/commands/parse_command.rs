@@ -114,7 +114,35 @@ impl<TStream> Tokenizer<CommandToken, TStream> {
 /// Matches against the command syntax
 ///
 fn match_command(lookahead: &str, eof: bool) -> TokenMatchResult<CommandToken> {
-    match_regex(&*COMMAND, lookahead, eof).with_token(CommandToken::Command)
+    let mut characters = lookahead.chars();
+    let mut len = 0;
+
+    if let Some(first_chr) = characters.next() {
+        if first_chr.is_alphabetic() || first_chr == '_' || first_chr == ':' {
+            // Will match a command of some description
+            len += 1;
+
+            while let Some(next_chr) = characters.next() {
+                if next_chr.is_alphabetic() || next_chr.is_digit(10) || next_chr == '_' || next_chr == ':' {
+                } else {
+                    return TokenMatchResult::Matches(CommandToken::Command, len);
+                }
+
+                len += 1;
+            }
+
+            if eof {
+                TokenMatchResult::Matches(CommandToken::Command, len)
+            } else {
+                TokenMatchResult::LookaheadIsPrefix
+            }
+        } else {
+            // Not a command
+            TokenMatchResult::LookaheadCannotMatch
+        }
+    } else {
+        TokenMatchResult::LookaheadCannotMatch
+    }
 }
 
 ///
