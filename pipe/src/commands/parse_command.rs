@@ -254,7 +254,6 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tokenizer::*;
 
     use serde_json::*;
     use futures::executor;
@@ -269,6 +268,12 @@ mod test {
     fn match_simple_comment() {
         let match_result = match_command_comment("// comment", true);
         assert!(match_result == TokenMatchResult::Matches(CommandToken::Comment, "// comment".chars().count()));
+    }
+
+    #[test]
+    fn match_command_immediately_on_newline() {
+        let match_result = match_command("test\n", false);
+        assert!(match_result == TokenMatchResult::Matches(CommandToken::Command, "test".chars().count()), "{:?}", match_result);
     }
 
     #[test]
