@@ -2,11 +2,6 @@ use super::command_stream::*;
 use crate::parser::*;
 
 use futures::prelude::*;
-use regex_automata::dfa::sparse;
-use once_cell::sync::{Lazy};
-
-static COMMAND: Lazy<sparse::DFA<Vec<u8>>> = Lazy::new(|| sparse::DFA::new(r"^(\p{L}|[_:-])(\p{L}|\p{N}|[_:-])*").unwrap());
-static COMMENT: Lazy<sparse::DFA<Vec<u8>>> = Lazy::new(|| sparse::DFA::new(r"^(//[^\r\n]*)").unwrap());
 
 ///
 /// Tokens from the command stream
@@ -149,7 +144,39 @@ fn match_command(lookahead: &str, eof: bool) -> TokenMatchResult<CommandToken> {
 /// Matches against the comment syntax
 ///
 fn match_command_comment(lookahead: &str, eof: bool) -> TokenMatchResult<CommandToken> {
-    match_regex(&*COMMENT, lookahead, eof).with_token(CommandToken::Comment)
+    let mut chrs = lookahead.chars();
+
+    if let Some(chr) = chrs.next() {
+        // Starts with '//'
+        if chr != '/' { return TokenMatchResult::LookaheadCannotMatch; }
+
+        if let Some(chr) = chrs.next() {
+            if chr != '/' { return TokenMatchResult::LookaheadCannotMatch; }
+        } else if !eof {
+            return TokenMatchResult::LookaheadIsPrefix;
+        } else {
+            return TokenMatchResult::LookaheadCannotMatch;
+        }
+
+        // Everthing up to the next '\n' matches
+        let mut len = 2;
+        while let Some(chr) = chrs.next() {
+            if chr == '\n' || chr == '\r' {
+                return TokenMatchResult::Matches(CommandToken::Comment, len+1);
+            }
+
+            len += 1;
+        }
+
+        if !eof {
+            TokenMatchResult::LookaheadIsPrefix
+        } else {
+            return TokenMatchResult::Matches(CommandToken::Comment, len);
+        }
+    } else {
+        // Empty string can be a prefix of anything
+        TokenMatchResult::LookaheadIsPrefix
+    }
 }
 
 ///
