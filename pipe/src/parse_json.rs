@@ -43,7 +43,7 @@ pub (crate) fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<
             while let Some(chr) = chrs.next() {
                 if chr == '\n' || chr == '\r' {
                     // We end early on newlines to allow for interactive parsing
-                    return TokenMatchResult::Matches(JsonToken::Whitespace, len);
+                    return TokenMatchResult::Matches(JsonToken::Whitespace, len + 1);
                 }
 
                 if !chr.is_whitespace() {
