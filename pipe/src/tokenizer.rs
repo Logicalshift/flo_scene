@@ -3,6 +3,7 @@ use futures::prelude::*;
 use std::collections::{VecDeque};
 use std::pin::*;
 use std::sync::*;
+use std::fmt::{Debug};
 
 ///
 /// Results of matching some lookahead aganst a token
@@ -24,7 +25,7 @@ pub enum TokenMatchResult<TToken> {
 ///
 /// Trait implemented by matchers that can recognise a token
 ///
-pub trait TokenMatcher<TToken> : Send + Sync {
+pub trait TokenMatcher<TToken> : Debug + Send + Sync {
     ///
     /// Called after we've read one or more characters from the source to check if the start of the lookahead matches this token
     ///
