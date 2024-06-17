@@ -7,10 +7,6 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf, AsyncWriteExt};
 use futures::prelude::*;
 use futures::stream::{BoxStream, ReadyChunks};
 
-use once_cell::sync::{Lazy};
-
-use std::any::{TypeId};
-use std::collections::{HashMap};
 use std::io;
 use std::io::{Error};
 use std::pin::{Pin};
