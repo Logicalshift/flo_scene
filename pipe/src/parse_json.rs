@@ -28,7 +28,40 @@ pub enum JsonToken {
 
 /// Matches a string against the JSON whitespace syntax
 pub (crate) fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
-    match_regex(&*WHITESPACE, lookahead, eof).with_token(JsonToken::Whitespace)
+    let mut chrs = lookahead.chars();
+
+    if let Some(chr) = chrs.next() {
+        if !chr.is_whitespace() {
+            // First character must be a whitespace character
+            TokenMatchResult::LookaheadCannotMatch
+        } else if chr == '\n' || chr == '\r' {
+            // We end early on newlines to allow for interactive parsing
+            TokenMatchResult::Matches(JsonToken::Whitespace, 1)
+        } else {
+            let mut len = 1;
+
+            while let Some(chr) = chrs.next() {
+                if chr == '\n' || chr == '\r' {
+                    // We end early on newlines to allow for interactive parsing
+                    return TokenMatchResult::Matches(JsonToken::Whitespace, len);
+                }
+
+                if !chr.is_whitespace() {
+                    return TokenMatchResult::Matches(JsonToken::Whitespace, len);
+                }
+
+                len += 1;
+            }
+
+            if eof {
+                TokenMatchResult::Matches(JsonToken::Whitespace, len)
+            } else {
+                TokenMatchResult::LookaheadIsPrefix
+            }
+        }
+    } else {
+        TokenMatchResult::LookaheadCannotMatch
+    }
 }
 
 ///
