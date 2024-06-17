@@ -5,12 +5,7 @@ use futures::future::{BoxFuture};
 use regex_automata::{Input};
 use regex_automata::dfa::{Automaton};
 use regex_automata::dfa::sparse;
-use once_cell::sync::{Lazy};
 use itertools::*;
-
-static NUMBER: Lazy<sparse::DFA<Vec<u8>>> = Lazy::new(|| sparse::DFA::new("^(-)?[0-9]+(\\.[0-9]+)?([eE]([+-])?[0-9]+)?").unwrap());
-static STRING: Lazy<sparse::DFA<Vec<u8>>> = Lazy::new(|| sparse::DFA::new(r#"^"([^"\\]|(\\["\\/bfnrtu]))*""#).unwrap());
-static WHITESPACE: Lazy<sparse::DFA<Vec<u8>>> = Lazy::new(|| sparse::DFA::new(r#"^(([ \t]*[\r\n])|([ \t]+))"#).unwrap());
 
 ///
 /// The tokens that make up the JSON language
