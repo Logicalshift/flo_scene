@@ -119,7 +119,119 @@ pub fn match_regex(dfa: &sparse::DFA<Vec<u8>>, lookahead: &str, eof: bool) -> To
 /// Matches a string against the JSON number syntax
 #[inline]
 fn match_number(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
-    match_regex(&*NUMBER, lookahead, eof).with_token(JsonToken::Number)
+    // "^(-)?[0-9]+(\\.[0-9]+)?([eE]([+-])?[0-9]+)?"
+    let mut chrs = lookahead.chars();
+
+    // Start with a '-' or a digit
+    let mut maybe_chr = chrs.next();
+    if let Some(chr) = maybe_chr {
+        if chr != '-' && !chr.is_digit(10) { return TokenMatchResult::LookaheadCannotMatch };
+
+        // Here's where a goto instruction would be useful as this is really a state machine
+        let mut len = 1;
+        if chr == '-' {
+            maybe_chr = chrs.next();
+
+            if let Some(chr) = maybe_chr {
+                // Character after a '-' must be a digit
+                if !chr.is_digit(10) {
+                    return TokenMatchResult::LookaheadCannotMatch;
+                }
+
+                len += 1;
+            } else if !eof {
+                // '-' not folowed by anything
+                return TokenMatchResult::LookaheadIsPrefix;
+            } else {
+                return TokenMatchResult::LookaheadCannotMatch;
+            }
+        }
+
+        // Integer portion
+        loop {
+            maybe_chr = chrs.next();
+            if let Some(chr) = maybe_chr {
+                if chr.is_digit(10) {
+                    len += 1;
+                    continue;
+                } else {
+                    break;
+                }
+            } else if !eof {
+                return TokenMatchResult::LookaheadIsPrefix;
+            } else {
+                return TokenMatchResult::Matches(JsonToken::Number, len);
+            }
+        }
+
+        // Decimal portion
+        if maybe_chr == Some('.') {
+            len += 1;
+
+            loop {
+                maybe_chr = chrs.next();
+
+                if let Some(chr) = maybe_chr {
+                    if chr.is_digit(10) {
+                        len += 1;
+                        continue;
+                    } else {
+                        break;
+                    }
+                } else if !eof {
+                    return TokenMatchResult::LookaheadIsPrefix;
+                } else {
+                    return TokenMatchResult::Matches(JsonToken::Number, len);
+                }
+            }
+        }
+
+        // Exponent portion
+        if maybe_chr == Some('e') || maybe_chr == Some('E') {
+            // Followed by a '+' or a '-' or a digit
+            maybe_chr = chrs.next();
+
+            if let Some(chr) = maybe_chr {
+                // Is a number if it's 'e<notvalid>'
+                if chr != '+' && chr != '-' && !chr.is_digit(10) { return TokenMatchResult::Matches(JsonToken::Number, len); }
+
+                len += 2;
+
+                // Match digits
+                loop {
+                    maybe_chr = chrs.next();
+
+                    if let Some(chr) = maybe_chr {
+                        if chr.is_digit(10) {
+                            len += 1;
+                            continue;
+                        } else {
+                            break;
+                        }
+                    } else if !eof {
+                        return TokenMatchResult::LookaheadIsPrefix;
+                    } else {
+                        return TokenMatchResult::Matches(JsonToken::Number, len);
+                    }
+                }
+            } else if !eof {
+                return TokenMatchResult::LookaheadIsPrefix;
+            } else {
+                return TokenMatchResult::Matches(JsonToken::Number, len);
+            }
+        }
+
+        if maybe_chr.is_some() {
+            TokenMatchResult::Matches(JsonToken::Number, len)
+        } else if !eof {
+            TokenMatchResult::LookaheadIsPrefix
+        } else {
+            TokenMatchResult::Matches(JsonToken::Number, len)
+        }
+    } else {
+        // A 0 length string is a prefix for anything
+        TokenMatchResult::LookaheadIsPrefix
+    }
 }
 
 /// Matches a string against the JSON string syntax
