@@ -54,10 +54,13 @@ pub enum CommandRequest {
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CommandResponse {
-    /// A JSON value
+    /// A commentary message, written as '  <message>'
+    Message(String),
+
+    /// A JSON value, written out directly
     Json(serde_json::Value),
 
-    /// An error message
+    /// An error message, written as '!!! <error>'
     Error(String),    
 }
 
@@ -177,15 +180,25 @@ pub fn parse_command_stream(input: impl 'static + Send + Unpin + Stream<Item=Vec
 ///
 async fn display_response(yield_value: &(impl Send + Fn(String) -> BoxFuture<'static, ()>), response: CommandResponse) {
     match response {
+        CommandResponse::Message(msg) => {
+            let msg = msg.replace("\n", "\n  ");
+            yield_value(format!("  {}\n", msg)).await;
+        }
+
         CommandResponse::Json(json) => {
             // Format the JSON as a pretty-printed string (TODO: the to_writer_pretty version would be better for very long JSON)
             let json_string = serde_json::to_string_pretty(&json);
-            yield_value(format!("{:?}\n", json_string)).await;
+
+            if let Ok(json_string) = json_string {
+                yield_value(format!("{}\n", json_string)).await;
+            } else {
+                yield_value(format!("!!! {:?}\n", "Could not format JSON response")).await;
+            }
         },
 
         CommandResponse::Error(error_message) => {
             // '!!! <error>' if there's a problem
-            yield_value(format!("!!! {:?}\n", error_message)).await;
+            yield_value(format!("!!! {}\n", error_message)).await;
         }
     }
 }
