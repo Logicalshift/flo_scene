@@ -3,6 +3,7 @@ use crate::stream_target::*;
 use crate::programs::*;
 
 use std::marker::{PhantomData};
+use std::sync::*;
 
 ///
 /// The RunCommand is a query request that will run a named command with a parameter, returning the result as a stream of responses to a target
@@ -12,7 +13,7 @@ pub struct RunCommand<TParameter, TResponse> {
     target:     StreamTarget,
     name:       String,
     parameter:  TParameter,
-    response:   PhantomData<TResponse>,
+    response:   PhantomData<Mutex<TResponse>>,
 }
 
 impl<TParameter, TResponse> RunCommand<TParameter, TResponse>

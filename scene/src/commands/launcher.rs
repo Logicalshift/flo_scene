@@ -32,7 +32,7 @@ pub struct CommandLauncher<TParameter, TResponse> {
 impl<TParameter, TResponse> CommandLauncher<TParameter, TResponse>
 where
     TParameter: 'static + Unpin + Send + Sync,
-    TResponse:  'static + Unpin + Send + Sync + SceneMessage + From<ListCommandResponse> + From<CommandError>,
+    TResponse:  'static + Unpin + Send + SceneMessage + From<ListCommandResponse> + From<CommandError>,
 {
     ///
     /// Creates a new command launcher, with no built in commands

@@ -12,7 +12,7 @@ use std::sync::*;
 ///
 /// Basic type of a command that runs a function
 ///
-pub struct FnCommand<TInput, TOutput>(PhantomData<TOutput>, Arc<dyn 'static + Send + Sync + Fn(BoxStream<'static, TInput>, SceneContext) -> BoxFuture<'static, ()>>);
+pub struct FnCommand<TInput, TOutput>(PhantomData<Mutex<TOutput>>, Arc<dyn 'static + Send + Sync + Fn(BoxStream<'static, TInput>, SceneContext) -> BoxFuture<'static, ()>>);
 
 impl<TInput, TOutput> FnCommand<TInput, TOutput>
 where
