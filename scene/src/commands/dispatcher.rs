@@ -11,6 +11,7 @@ use crate::programs::*;
 use futures::prelude::*;
 
 use std::collections::{HashMap, HashSet};
+use std::iter;
 
 /// The name of the command sent to request the list command response
 pub const LIST_COMMANDS: &str = "::list_commands";
@@ -124,7 +125,12 @@ where
         if next_command.name() == LIST_COMMANDS {
             // Respond with a list of commands (parameter is always ignored)
             if let Ok(mut response_stream) = context.send::<QueryResponse<TResponse>>(next_command.target()) {
-                response_stream.send(QueryResponse::with_iterator(commands.iter().map(|(name, _)| ListCommandResponse(name.to_string()).into()).collect::<Vec<_>>())).await.ok();
+                let command_names = commands.iter()
+                    .map(|(name, _)| name.to_string())
+                    .chain(iter::once(LIST_COMMANDS.into()))
+                    .collect::<HashSet<_>>();
+
+                response_stream.send(QueryResponse::with_iterator(command_names.into_iter().map(|name| ListCommandResponse(name).into()).collect::<Vec<_>>())).await.ok();
             }
         } else if let Some(command_owner_stream) = command_owner_stream {
             // Forward the command to the target stream
