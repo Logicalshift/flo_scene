@@ -100,12 +100,24 @@ impl CommandProcessor {
             Err(err) => CommandResponse::Error(format!("Could not send command: {:?}", err)),
 
             Ok(mut result_stream) => {
-                // TODO: we could consider supporting multiple responses here
-                if let Some(response) = result_stream.next().await {
-                    response
-                } else {
-                    CommandResponse::Json(vec![serde_json::Value::Null])
+                // If the command returns more than one response, we combine all of the JSON into a single JSON response
+                let mut json = vec![];
+
+                while let Some(next_response) = result_stream.next().await {
+                    match next_response {
+                        CommandResponse::Json(response_json) => {
+                            // Combine all the JSON responses into a single one
+                            json.extend(response_json)
+                        }
+
+                        CommandResponse::Error(err) => {
+                            // For an error response, just return that as the only response
+                            return CommandResponse::Error(err);
+                        }
+                    }
                 }
+
+                CommandResponse::Json(json)
             }
         }
     }
