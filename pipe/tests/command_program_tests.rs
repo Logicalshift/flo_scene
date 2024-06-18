@@ -83,7 +83,7 @@ pub fn declare_and_run_json_command() {
     // Create a command launcher program that just parrots strings back to us
     let json_launcher = CommandLauncher::json()
         .with_json_command("::test", |param: String, _context| async move {
-            CommandResponse::Json(vec![serde_json::Value::String(param)])
+            CommandResponse::Json(serde_json::Value::String(param))
         });
     scene.add_subprogram(command_program, json_launcher.to_subprogram(), 1);
 
@@ -95,7 +95,7 @@ pub fn declare_and_run_json_command() {
 
             match &output[0] {
                 CommandResponse::Json(values) => {
-                    if values != &vec![serde_json::Value::String("Hello".to_string())] {
+                    if values != &serde_json::Value::String("Hello".to_string()) {
                         return Err(format!("Output is {:?}", output));
                     }
                 }

@@ -54,8 +54,8 @@ pub enum CommandRequest {
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CommandResponse {
-    /// A stream of JSON values
-    Json(Vec<serde_json::Value>),
+    /// A JSON value
+    Json(serde_json::Value),
 
     /// An error message
     Error(String),    
@@ -79,7 +79,7 @@ impl From<CommandError> for CommandResponse {
 
 impl From<ListCommandResponse> for CommandResponse {
     fn from(list_response: ListCommandResponse) -> Self {
-        CommandResponse::Json(vec![list_response.serialize(serde_json::value::Serializer).unwrap()])
+        CommandResponse::Json(list_response.serialize(serde_json::value::Serializer).unwrap())
     }
 }
 
@@ -89,17 +89,8 @@ impl TryInto<ListCommandResponse> for CommandResponse {
     fn try_into(self) -> Result<ListCommandResponse, CommandError> {
         match self {
             CommandResponse::Json(json) => {
-                if json.len() == 1 {
-                    // Should be only one JSON value in a ListCommandResponse result
-                    let mut json    = json;
-                    let json        = json.pop().unwrap();
-
-                    ListCommandResponse::deserialize(json)
-                        .map_err(|_| CommandError::CannotConvertResponse)
-                } else {
-                    // 0 or more than one response, not a list command response
-                    Err(CommandError::CannotConvertResponse)
-                }
+                ListCommandResponse::deserialize(json)
+                    .map_err(|_| CommandError::CannotConvertResponse)
             }
 
             // Other types of response cannot be JSON requests
