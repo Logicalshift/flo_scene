@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use flo_stream::{generator_stream};
 
+use std::fmt;
+use std::fmt::{Debug, Formatter};
 use std::task::{Poll};
 
 ///
@@ -52,7 +54,6 @@ pub enum CommandRequest {
 ///
 /// Possible responses from a command
 ///
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CommandResponse {
     /// A commentary message, written as '  <message>'
     Message(String),
@@ -98,6 +99,16 @@ impl TryInto<ListCommandResponse> for CommandResponse {
 
             // Other types of response cannot be JSON requests
             _ => Err(CommandError::CannotConvertResponse)
+        }
+    }
+}
+
+impl Debug for CommandResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            CommandResponse::Message(msg)   => write!(f, "Message({:?})", msg),
+            CommandResponse::Json(json)     => write!(f, "Json({:?})", json),
+            CommandResponse::Error(err)     => write!(f, "Error({:?})", err),
         }
     }
 }
