@@ -61,6 +61,12 @@ pub enum CommandResponse {
     /// A JSON value, written out directly
     Json(serde_json::Value),
 
+    /// A stream of values that can be outputted at any time, used for receiving monitored events
+    /// A new stream is given a number in the initial response using a message of format '<<< <n>' (eg, '<<< 8')
+    /// Events from that stream are displayed as '<<n> <json>', eg '<8 [ 1, 2, 3, 4 ]', note that the JSON can
+    /// spread across several lines
+    BackgroundStream(BoxStream<'static, serde_json::Value>),
+
     /// An error message, written as '!!! <error>'
     Error(String),    
 }
@@ -106,9 +112,10 @@ impl TryInto<ListCommandResponse> for CommandResponse {
 impl Debug for CommandResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            CommandResponse::Message(msg)   => write!(f, "Message({:?})", msg),
-            CommandResponse::Json(json)     => write!(f, "Json({:?})", json),
-            CommandResponse::Error(err)     => write!(f, "Error({:?})", err),
+            CommandResponse::Message(msg)           => write!(f, "Message({:?})", msg),
+            CommandResponse::Json(json)             => write!(f, "Json({:?})", json),
+            CommandResponse::BackgroundStream(_)    => write!(f, "BackgroundStream(...)"),
+            CommandResponse::Error(err)             => write!(f, "Error({:?})", err),
         }
     }
 }
@@ -205,6 +212,11 @@ async fn display_response(yield_value: &(impl Send + Fn(String) -> BoxFuture<'st
             } else {
                 yield_value(format!("!!! {:?}\n", "Could not format JSON response")).await;
             }
+        },
+
+        CommandResponse::BackgroundStream(stream) => {
+            // This requires moving the stream to the background
+            todo!()
         },
 
         CommandResponse::Error(error_message) => {
