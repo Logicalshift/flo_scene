@@ -11,6 +11,8 @@ use futures::prelude::*;
 use futures::stream::{BoxStream};
 use futures::channel::mpsc;
 
+use std::iter;
+
 ///
 /// A connection to a simple command program
 ///
@@ -86,7 +88,7 @@ impl CommandProcessor {
     ///
     /// Runs a command, returning the response
     ///
-    pub async fn run_command(&self, command: CommandName, parameter: serde_json::Value, context: &SceneContext) -> CommandResponse {
+    pub async fn run_command(&self, command: CommandName, parameter: serde_json::Value, context: &SceneContext) -> BoxStream<'static, CommandResponse> {
         // Retrieve the target for the commands
         let target = self.target.clone();
 
@@ -97,28 +99,8 @@ impl CommandProcessor {
         let command_result = context.spawn_query(ReadCommand::default(), command, target);
 
         match command_result {
-            Err(err) => CommandResponse::Error(format!("Could not send command: {:?}", err)),
-
-            Ok(mut result_stream) => {
-                // If the command returns more than one response, we combine all of the JSON into a single JSON response
-                let mut json = vec![];
-
-                while let Some(next_response) = result_stream.next().await {
-                    match next_response {
-                        CommandResponse::Json(response_json) => {
-                            // Combine all the JSON responses into a single one
-                            json.extend(response_json)
-                        }
-
-                        CommandResponse::Error(err) => {
-                            // For an error response, just return that as the only response
-                            return CommandResponse::Error(err);
-                        }
-                    }
-                }
-
-                CommandResponse::Json(json)
-            }
+            Err(err)            => stream::iter(iter::once(CommandResponse::Error(format!("Could not send command: {:?}", err)))).boxed(),
+            Ok(result_stream)   => result_stream.boxed()
         }
     }
 }
@@ -130,21 +112,23 @@ impl Command for CommandProcessor {
     fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         async move {
             pin_mut!(input);
-            let mut responses   = context.send::<CommandResponse>(()).unwrap();
+            let mut our_responses = context.send::<CommandResponse>(()).unwrap();
 
             while let Some(next_command) = input.next().await {
                 use CommandRequest::*;
 
-                let response = match next_command {
+                let mut command_responses = match next_command {
                     Ok(Command     { command, argument }) => { self.run_command(command, argument, &context).await }
-                    Ok(Pipe        { from, to })          => { CommandResponse::Error("Not implemented yet".into()) }
-                    Ok(Assign      { variable, from })    => { CommandResponse::Error("Not implemented yet".into()) }
-                    Ok(ForTarget   { target, request })   => { CommandResponse::Error("Not implemented yet".into()) }
-                    Err(_)                                => { CommandResponse::Error("Not implemented yet".into()) }
+                    Ok(Pipe        { from, to })          => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
+                    Ok(Assign      { variable, from })    => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
+                    Ok(ForTarget   { target, request })   => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
+                    Err(_)                                => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
                 };
 
-                if responses.send(response).await.is_err() {
-                    break;
+                while let Some(response) = command_responses.next().await {
+                    if our_responses.send(response).await.is_err() {
+                        break;
+                    }
                 }
             }
         }
