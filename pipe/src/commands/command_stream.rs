@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use flo_stream::{generator_stream};
 
+use std::collections::{VecDeque};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::task::{Poll};
@@ -249,9 +250,67 @@ enum DisplayRequest {
 ///
 fn background_command_streams() -> (impl 'static + Send + Unpin + Stream<Item=DisplayRequest>, impl 'static + Send + Unpin + Sink<BoxStream<'static, serde_json::Value>, Error=mpsc::SendError>) {
     // Create the channel where new background streams can be sent
-    let (send_new_streams, new_streams) = mpsc::channel(1);
+    let (send_new_streams, new_streams) = mpsc::channel::<BoxStream<'static, serde_json::Value>>(1);
 
-    (stream::empty(), send_new_streams)
+    // The stream we return reads from any stream passed in to the new streams list
+    // TODO: this isn't very efficient (fine for small numbers of streams but we should probably use a context that only polls the streams that are needed)
+    let mut monitored_streams   = VecDeque::new();
+    let mut maybe_new_streams   = Some(new_streams);
+    let mut next_stream_num     = 0;
+
+    let stream = stream::poll_fn(move |context| {
+        // Add any new streams from the new_streams stream
+        if let Some(new_streams) = &mut maybe_new_streams {
+            match new_streams.poll_next_unpin(context) {
+                Poll::Pending                   => { }
+                Poll::Ready(None)               => { maybe_new_streams = None;}
+                Poll::Ready(Some(new_stream))   => { 
+                    let stream_num = next_stream_num;
+                    next_stream_num += 1;
+
+                    monitored_streams.push_back((stream_num, new_stream));
+
+                    // Generates a 'new background stream' message
+                    return Poll::Ready(Some(DisplayRequest::NewBackgroundStream(stream_num)));
+                }
+            }
+        }
+
+        // Poll all of the monitored streams until we get a response, or we find they're all pending
+        // The VecDeque rotation we do here ensures that if there is one very active stream it can't drown out the others
+        let num_streams = monitored_streams.len();
+
+        for _ in 0..num_streams {
+            // Take the next stream from the rotation
+            if let Some((stream_num, mut next_stream)) = monitored_streams.pop_front() {
+                // Check for output
+                match next_stream.poll_next_unpin(context) {
+                    Poll::Ready(Some(value)) => {
+                        // Return the stream to the list
+                        monitored_streams.push_back((stream_num, next_stream));
+
+                        // Generate a result for this stream
+                        return Poll::Ready(Some(DisplayRequest::StreamMessage(stream_num, value)));
+                    }
+
+                    Poll::Ready(None) => {
+                        // Don't return this stream to the list and indicate that it's finished
+                        return Poll::Ready(Some(DisplayRequest::ClosedBackgroundStream(stream_num)));
+                    }
+
+                    Poll::Pending => {
+                        // Return the stream to the end of the list to poll next time around
+                        monitored_streams.push_back((stream_num, next_stream));
+                    }
+                }
+            }
+        }
+
+        // No new streams and everything else is pending
+        Poll::Pending
+    });
+
+    (stream, send_new_streams)
 }
 
 ///
