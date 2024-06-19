@@ -355,16 +355,16 @@ pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Ite
                             }
 
                             DisplayRequest::NewBackgroundStream(stream_num) => {
-                                yield_value(format!("<<< {}\n", stream_num)).await;
+                                yield_value(format!("\n<<< {}\n", stream_num)).await;
                             }
 
                             DisplayRequest::ClosedBackgroundStream(stream_num) => {
-                                yield_value(format!("<EOS {}\n", stream_num)).await;
+                                yield_value(format!("\n<EOS {}\n", stream_num)).await;
                             }
 
                             DisplayRequest::StreamMessage(stream_num, msg) => {
                                 if let Ok(json) = serde_json::to_string_pretty(&msg) {
-                                    yield_value(format!("<{} {}", stream_num, json)).await;
+                                    yield_value(format!("\n<{} {}\n", stream_num, json)).await;
                                 }
                             }
 
