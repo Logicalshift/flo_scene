@@ -208,11 +208,12 @@ fn read_from_background_stream() {
 
         // Read the interal buffer to get the final result
         let mut read_result = read_result;
+        let mut characters = String::new();
         while let Ok(msg) = read_result.read_u8().await {
+            characters.push(msg as char);
             println!("{:?}", msg as char);
 
-            // Read until the '!' indicating an error
-            if msg == b'!' {
+            if characters.contains("<<< 0") && characters.contains("<0 \"one\"") && characters.contains("<0 \"two\"") && characters.contains("<EOS 0") {
                 break;
             }
         }
