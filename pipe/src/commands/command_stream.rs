@@ -346,25 +346,26 @@ pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Ite
                 }
 
                 Some(mut response) => {
+                    yield_value("\n".into()).await;
+
                     'process_responses: loop {
                         // Display the response
                         match response {
                             DisplayRequest::CommandResponse(response) => {
-                                yield_value("\n".into()).await;
                                 display_response(&yield_value, &mut background_stream_sender, response).await;
                             }
 
                             DisplayRequest::NewBackgroundStream(stream_num) => {
-                                yield_value(format!("\n<<< {}\n", stream_num)).await;
+                                yield_value(format!("<<< {}\n", stream_num)).await;
                             }
 
                             DisplayRequest::ClosedBackgroundStream(stream_num) => {
-                                yield_value(format!("\n<EOS {}\n", stream_num)).await;
+                                yield_value(format!("<EOS {}\n", stream_num)).await;
                             }
 
                             DisplayRequest::StreamMessage(stream_num, msg) => {
                                 if let Ok(json) = serde_json::to_string_pretty(&msg) {
-                                    yield_value(format!("\n<{} {}\n", stream_num, json)).await;
+                                    yield_value(format!("<{} {}\n", stream_num, json)).await;
                                 }
                             }
 
