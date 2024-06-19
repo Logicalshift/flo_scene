@@ -17,6 +17,7 @@ use flo_stream::{generator_stream};
 use std::collections::{VecDeque};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
+use std::iter;
 use std::task::{Poll};
 
 ///
@@ -243,6 +244,9 @@ enum DisplayRequest {
 
     /// A message was received from one of the background streams
     StreamMessage(usize, serde_json::Value),
+
+    /// Finishes the display stream
+    Stop,
 }
 
 ///
@@ -323,7 +327,7 @@ pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Ite
     generator_stream::<String, _, _>(|yield_value| async move {
         let (background_messages, background_stream_sender) = background_command_streams();
 
-        let input = input.map(|response| DisplayRequest::CommandResponse(response));
+        let input = input.map(|response| DisplayRequest::CommandResponse(response)).chain(stream::iter(iter::once(DisplayRequest::Stop)));
         let input = stream::select(input, background_messages); // TODO: need to close the whole stream when input is closed, as background_messages will last indefinitely
 
         pin_mut!(input);
@@ -362,6 +366,10 @@ pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Ite
                                 if let Ok(json) = serde_json::to_string_pretty(&msg) {
                                     yield_value(format!("<{} {}", stream_num, json)).await;
                                 }
+                            }
+
+                            DisplayRequest::Stop => {
+                                break 'main_loop;
                             }
                         }
 
