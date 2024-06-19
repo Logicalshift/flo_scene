@@ -8,6 +8,7 @@ use futures::prelude::*;
 use futures::{pin_mut};
 use futures::future::{BoxFuture};
 use futures::stream::{BoxStream};
+use futures::channel::mpsc;
 
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -63,8 +64,8 @@ pub enum CommandResponse {
 
     /// A stream of values that can be outputted at any time, used for receiving monitored events
     /// A new stream is given a number in the initial response using a message of format '<<< <n>' (eg, '<<< 8')
-    /// Events from that stream are displayed as '<<n> <json>', eg '<8 [ 1, 2, 3, 4 ]', note that the JSON can
-    /// spread across several lines
+    /// Events from that stream are displayed as '<<n> <json>', eg '<8 [ 1, 2, 3, 4 ]' - note that the JSON can
+    /// spread across several lines. When the stream is closed, a '<EOS <n>' message is generated.
     BackgroundStream(BoxStream<'static, serde_json::Value>),
 
     /// An error message, written as '!!! <error>'
@@ -224,6 +225,33 @@ async fn display_response(yield_value: &(impl Send + Fn(String) -> BoxFuture<'st
             yield_value(format!("!!! {}\n", error_message)).await;
         }
     }
+}
+
+///
+/// A display request is used as the internal message type for receiving command responses or messages from background streams
+///
+enum DisplayRequest {
+    /// Standard command request
+    CommandRequest(CommandRequest),
+
+    /// A new background stream was created
+    NewBackgroundStream(usize),
+
+    /// A background stream was closed
+    ClosedBackgroundStream(usize),
+
+    /// A message was received from one of the background streams
+    StreamMessage(usize, serde_json::Value),
+}
+
+///
+/// Creates a stream that multiplexes background streams and writes to the output
+///
+fn background_command_streams() -> (impl 'static + Send + Stream<Item=DisplayRequest>, impl 'static + Send + Sink<BoxStream<'static, serde_json::Value>, Error=mpsc::SendError>) {
+    // Create the channel where new background streams can be sent
+    let (send_new_streams, new_streams) = mpsc::channel(1);
+
+    (stream::empty(), send_new_streams)
 }
 
 ///
