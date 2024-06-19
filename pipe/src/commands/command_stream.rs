@@ -231,8 +231,8 @@ async fn display_response(yield_value: &(impl Send + Fn(String) -> BoxFuture<'st
 /// A display request is used as the internal message type for receiving command responses or messages from background streams
 ///
 enum DisplayRequest {
-    /// Standard command request
-    CommandRequest(CommandRequest),
+    /// Standard command response
+    CommandResponse(CommandResponse),
 
     /// A new background stream was created
     NewBackgroundStream(usize),
@@ -262,6 +262,7 @@ fn background_command_streams() -> (impl 'static + Send + Stream<Item=DisplayReq
 pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Item=CommandResponse>) -> BoxStream<'static, Vec<u8>> {
     // The way we generate the responses and prompts is to generate strings and then convert them into bytes later on
     generator_stream::<String, _, _>(|yield_value| async move {
+        let input = input.map(|response| DisplayRequest::CommandResponse(response));
         pin_mut!(input);
 
         // We always start by showing a prompt for the next command
@@ -275,25 +276,42 @@ pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Ite
                     break; 
                 }
 
-                Some(response) => {
-                    // Display the response
-                    yield_value("\n".into()).await;
-                    display_response(&yield_value, response).await;
-
-                    // Poll the input future for more responses if there are any waiting immediately
-                    while let Ok(next_response) = future::poll_fn(|context| {
-                        match input.poll_next_unpin(context) {
-                            Poll::Ready(result) => Poll::Ready(Ok(result)),
-                            Poll::Pending       => Poll::Ready(Err(()))
-                        }
-                    }).await {
-                        match next_response {
-                            Some(response) => {
+                Some(mut response) => {
+                    'process_responses: loop {
+                        // Display the response
+                        match response {
+                            DisplayRequest::CommandResponse(response) => {
                                 yield_value("\n".into()).await;
                                 display_response(&yield_value, response).await;
                             }
 
-                            None => { break 'main_loop; }
+                            DisplayRequest::NewBackgroundStream(stream_num) => {
+                                yield_value(format!("<<< {}\n", stream_num)).await;
+                            }
+
+                            DisplayRequest::ClosedBackgroundStream(stream_num) => {
+                                yield_value(format!("<EOS {}\n", stream_num)).await;
+                            }
+
+                            DisplayRequest::StreamMessage(stream_num, msg) => {
+                                if let Ok(json) = serde_json::to_string_pretty(&msg) {
+                                    yield_value(format!("<{} {}", stream_num, json)).await;
+                                }
+                            }
+                        }
+
+                        // Read the next response immediately if one is waiting
+                        let next_response = future::poll_fn(|context| {
+                            match input.poll_next_unpin(context) {
+                                Poll::Ready(result) => Poll::Ready(Ok(result)),
+                                Poll::Pending       => Poll::Ready(Err(()))
+                            }
+                        }).await;
+
+                        response = match next_response {
+                            Ok(Some(response))  => response,
+                            Ok(None)            => { break 'main_loop; }
+                            Err(())             => { break 'process_responses; }
                         }
                     }
                 }
