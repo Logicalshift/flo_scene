@@ -197,7 +197,7 @@ pub fn parse_command_stream(input: impl 'static + Send + Unpin + Stream<Item=Vec
 ///
 /// Displays the result of a command
 ///
-async fn display_response(yield_value: &(impl Send + Fn(String) -> BoxFuture<'static, ()>), response: CommandResponse) {
+async fn display_response(yield_value: &(impl Send + Fn(String) -> BoxFuture<'static, ()>), put_stream_in_background: &mut (impl Send + Unpin + Sink<BoxStream<'static, serde_json::Value>>), response: CommandResponse) {
     match response {
         CommandResponse::Message(msg) => {
             let msg = msg.replace("\n", "\n  ");
@@ -217,7 +217,7 @@ async fn display_response(yield_value: &(impl Send + Fn(String) -> BoxFuture<'st
 
         CommandResponse::BackgroundStream(stream) => {
             // This requires moving the stream to the background
-            todo!()
+            put_stream_in_background.send(stream).await.ok();
         },
 
         CommandResponse::Error(error_message) => {
@@ -247,7 +247,7 @@ enum DisplayRequest {
 ///
 /// Creates a stream that multiplexes background streams and writes to the output
 ///
-fn background_command_streams() -> (impl 'static + Send + Stream<Item=DisplayRequest>, impl 'static + Send + Sink<BoxStream<'static, serde_json::Value>, Error=mpsc::SendError>) {
+fn background_command_streams() -> (impl 'static + Send + Unpin + Stream<Item=DisplayRequest>, impl 'static + Send + Unpin + Sink<BoxStream<'static, serde_json::Value>, Error=mpsc::SendError>) {
     // Create the channel where new background streams can be sent
     let (send_new_streams, new_streams) = mpsc::channel(1);
 
@@ -262,18 +262,24 @@ fn background_command_streams() -> (impl 'static + Send + Stream<Item=DisplayReq
 pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Item=CommandResponse>) -> BoxStream<'static, Vec<u8>> {
     // The way we generate the responses and prompts is to generate strings and then convert them into bytes later on
     generator_stream::<String, _, _>(|yield_value| async move {
+        let (background_messages, background_stream_sender) = background_command_streams();
+
         let input = input.map(|response| DisplayRequest::CommandResponse(response));
+        let input = stream::select(input, background_messages); // TODO: need to close the whole stream when input is closed, as background_messages will last indefinitely
+
         pin_mut!(input);
 
         // We always start by showing a prompt for the next command
         yield_value("\n\n> ".into()).await;
+
+        let mut background_stream_sender = background_stream_sender;
 
         'main_loop: loop {
             // Process until the input is exhuasted
             match input.next().await {
                 None => {
                     // No more input
-                    break; 
+                    break;
                 }
 
                 Some(mut response) => {
@@ -282,7 +288,7 @@ pub fn display_command_responses(input: impl 'static + Send + Unpin + Stream<Ite
                         match response {
                             DisplayRequest::CommandResponse(response) => {
                                 yield_value("\n".into()).await;
-                                display_response(&yield_value, response).await;
+                                display_response(&yield_value, &mut background_stream_sender, response).await;
                             }
 
                             DisplayRequest::NewBackgroundStream(stream_num) => {
