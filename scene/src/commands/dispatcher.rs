@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 use std::iter;
 
 /// The name of the command sent to request the list command response
-pub const LIST_COMMANDS: &str = "::list_commands";
+pub const LIST_COMMANDS: &str = "list_commands";
 
 ///
 /// Runs the command dispatcher subprogram for a particular type of command
