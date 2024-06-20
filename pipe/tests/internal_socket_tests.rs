@@ -159,6 +159,7 @@ fn error_from_command_with_object_parameter_without_closing_socket() {
 
 #[test]
 fn read_from_background_stream() {
+    // TODO: race condition between the launcher starting and the command being sent
     let test_commands   = "test\n".to_string();
 
     let scene           = Scene::default();
