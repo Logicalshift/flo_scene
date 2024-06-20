@@ -12,7 +12,7 @@ async fn main() {
     fs::remove_file("./example_unix_socket").ok();
 
     // Create a default scene
-    let scene = Scene::default();
+    let scene = Scene::default().with_standard_json_commands();
 
     // Create a unix socket that will run commands
     let command_program = SubProgramId::new();
