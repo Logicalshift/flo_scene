@@ -3,5 +3,7 @@
 //!
 
 mod echo;
+mod launcher_ext;
 
 pub use echo::*;
+pub use launcher_ext::*;
