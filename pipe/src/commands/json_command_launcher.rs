@@ -13,7 +13,7 @@ use std::sync::*;
 ///
 /// Extensions for the CommandLauncher which adds some convenience functions for creating JSON commands
 ///
-pub trait JsonCommandLauncher {
+pub trait JsonCommandLauncherExt {
     ///
     /// Creates a new, empty JSON command launcher
     ///
@@ -26,7 +26,7 @@ pub trait JsonCommandLauncher {
         TParameter:         'static + Send + for<'a> Deserialize<'a>;
 }
 
-impl JsonCommandLauncher for CommandLauncher<serde_json::Value, CommandResponse> {
+impl JsonCommandLauncherExt for CommandLauncher<serde_json::Value, CommandResponse> {
     fn json() -> Self {
         Self::empty()
     }
