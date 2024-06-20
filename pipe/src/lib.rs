@@ -15,3 +15,6 @@ pub use socket::*;
 pub use unix_socket::*;
 pub use internal_socket::*;
 pub use tcp_socket::*;
+
+pub use commands::{JsonCommandLauncherExt};
+pub use standard_json_commands::{StandardCommandsLauncherExt, StandardCommandsSceneExt};
