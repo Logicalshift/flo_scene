@@ -21,6 +21,7 @@ use std::sync::*;
 
 static SEND_SERIALIZED: Lazy<RwLock<HashMap<(TypeId, String), Arc<dyn Send + Sync + Fn(&SceneContext, StreamTarget) -> Result<Box<dyn Send + Any>, ConnectionError>>>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
+static CREATE_ANY_SERIALIZER: Lazy<RwLock<HashMap<TypeId, Arc<dyn Send + Sync + Fn() -> Box<dyn Send + Any>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 ///
 /// A message created by serializing another message
@@ -133,6 +134,25 @@ where
 
         map_stream(deserialized_stream)
     })
+}
+
+///
+/// Adds a constructor for a serializer to the types that flo_scene knows about
+///
+/// flo_scene can't use serializers that need setting up with state for the default way that messages are serialized,
+/// but this allows it to automatically fill in all of the serializers for a single type.
+///
+pub fn install_serializer<TSerializer>(create_serializer: impl 'static + Send + Sync + Fn() -> TSerializer) 
+where
+    TSerializer:        'static + Send + Serializer,
+    TSerializer::Ok:    'static + Send + Unpin,
+    TSerializer::Ok:    for<'a> Deserializer<'a>,
+{
+    let mut create_any_serializer = (*CREATE_ANY_SERIALIZER).write().unwrap();
+
+    // Add a function that creates a boxed Any that creates this serializer type
+    create_any_serializer.insert(TypeId::of::<TSerializer::Ok>(), 
+        Arc::new(move || Box::new(create_serializer())));
 }
 
 ///
