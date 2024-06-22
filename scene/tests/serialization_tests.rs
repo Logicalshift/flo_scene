@@ -74,13 +74,16 @@ mod with_serde_support {
     }
 
     #[test]
-    fn install_serializer() {
+    fn install_basic_serializer() {
         #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
         enum TestMessage {
             StringValue(String)
         }
 
         impl SceneMessage for TestMessage { }
+
+        install_serializer(|| serde_json::value::Serializer);
+        install_serializable_type::<TestMessage, serde_json::value::Serializer>("flo_scene::TestMessage").unwrap();
 
         // Create a scene that will serialize and deserialize the message
         let scene = Scene::default();
