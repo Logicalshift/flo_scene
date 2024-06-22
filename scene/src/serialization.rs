@@ -19,10 +19,8 @@ use std::marker::{PhantomData};
 use std::ops::{Deref};
 use std::sync::*;
 
+/// The known type names of serialized types
 static SERIALIZABLE_MESSAGE_TYPE_NAMES: Lazy<RwLock<HashMap<TypeId, String>>> = Lazy::new(|| RwLock::new(HashMap::new()));
-
-static SEND_SERIALIZED: Lazy<RwLock<HashMap<(TypeId, String), Arc<dyn Send + Sync + Fn(&SceneContext, StreamTarget) -> Result<Box<dyn Send + Any>, ConnectionError>>>>> =
-    Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Stores the functions for creating serializers of a particular type
 static CREATE_ANY_SERIALIZER: Lazy<RwLock<HashMap<TypeId, Arc<dyn Send + Sync + Fn() -> Arc<dyn Send + Sync + Any>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
@@ -197,32 +195,6 @@ where
 
         // Result is the new filter
         Ok(filter_handle)
-    }
-}
-
-impl SceneContext {
-    ///
-    /// Creates an output sink that receives messages serialized using a serde serializer, and sends them using the native type.
-    ///
-    /// The serializer needs to be installed using `install_serializers` with a matching `type_name`.
-    ///
-    pub fn send_serialized<TSerializedType>(&self, type_name: impl Into<String>, target: impl Into<StreamTarget>) -> Result<impl 'static + Unpin + Send + Sink<TSerializedType, Error=SceneSendError<TSerializedType>>, ConnectionError>
-    where
-        TSerializedType:    'static + Send + Unpin,
-    {
-        // Try to fetch the function that creates the sink for this type
-        let send_serialized = SEND_SERIALIZED.read().unwrap();
-
-        if let Some(create_sink) = send_serialized.get(&(TypeId::of::<TSerializedType>(), type_name.into())) {
-            // Create a sink for the type name
-            let any_sink    = (create_sink)(self, target.into())?;
-            let boxed_sink  = any_sink.downcast::<Box<dyn Unpin + Send + Sink<TSerializedType, Error=SceneSendError<TSerializedType>>>>().unwrap();
-
-            Ok(*boxed_sink)
-        } else {
-            // This type is not available
-            Err(ConnectionError::TargetNotAvailable)
-        }
     }
 }
 
