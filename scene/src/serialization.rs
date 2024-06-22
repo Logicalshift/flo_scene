@@ -263,7 +263,7 @@ impl StreamId {
     /// If this stream can be serialized, then this is the serialization type name that can be used to specify it
     ///
     pub fn serialization_type_name(&self) -> Option<String> {
-        None
+        (*SERIALIZABLE_MESSAGE_TYPE_NAMES).read().unwrap().get(&self.message_type()).cloned()
     }
 
     ///
