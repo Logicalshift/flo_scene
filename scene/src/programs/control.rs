@@ -102,8 +102,8 @@ pub enum SceneControl {
 ///
 #[derive(Clone, Debug, PartialEq)]
 pub enum SceneUpdate {
-    /// A subprogram has started
-    Started(SubProgramId),
+    /// A subprogram that receives a particular type of input stream has started
+    Started(SubProgramId, StreamId),
 
     /// The output specified by the stream ID for the first subprogram has been connected to the input for the second
     Connected(SubProgramId, SubProgramId, StreamId),
@@ -340,10 +340,17 @@ impl SceneControl {
                     update_subscribers.subscribe(&context, target.clone());
 
                     // Send the current state
-                    if let Ok(mut subscriber) = context.send(target) {
+                    if let (Ok(mut subscriber), Some(scene_core)) = (context.send(target), scene_core.upgrade()) {
                         // Indicate all the programs have started
                         for prog in started_subprograms.iter() {
-                            subscriber.send(SceneUpdate::Started(*prog)).await.ok();
+                            let prog            = *prog;
+                            let subprogram_core = scene_core.lock().unwrap().get_sub_program(prog);
+
+                            if let Some(subprogram_core) = subprogram_core {
+                                let input_stream_id = subprogram_core.lock().unwrap().input_stream_id.clone();
+
+                                subscriber.send(SceneUpdate::Started(prog, input_stream_id)).await.ok();
+                            }
                         }
 
                         // Send all of the connections
@@ -355,10 +362,11 @@ impl SceneControl {
 
                 Control(Query(target)) => {
                     // Send a query response to the target
-                    if let Ok(mut query_response) = context.send(target) {
+                    if let (Ok(mut query_response), Some(scene_core)) = (context.send(target), scene_core.upgrade()) {
                         // Build a response out of the current state of the scene
                         let response = started_subprograms.iter()
-                            .map(|prog| SceneUpdate::Started(*prog))
+                            .flat_map(|prog| scene_core.lock().unwrap().get_sub_program(*prog).map(|core| (prog, core)))
+                            .map(|(prog, core)| SceneUpdate::Started(*prog, core.lock().unwrap().input_stream_id.clone()))
                             .chain(active_connections.iter().map(|((source, stream), target)| SceneUpdate::Connected(*source, *target, stream.clone())))
                             .collect::<Vec<_>>();
 
@@ -370,7 +378,7 @@ impl SceneControl {
                 Update(update) => {
                     // Update our internal state
                     match &update {
-                        SceneUpdate::Started(program_id)                    => { started_subprograms.insert(*program_id); },
+                        SceneUpdate::Started(program_id, _input_stream_id)  => { started_subprograms.insert(*program_id); },
                         SceneUpdate::Connected(source, target, stream_id)   => { active_connections.insert((*source, stream_id.clone()), *target); },
                         SceneUpdate::Disconnected(source, stream_id)        => { active_connections.remove(&(*source, stream_id.clone())); },
                         SceneUpdate::Stopped(program_id)                    => { started_subprograms.remove(program_id); },

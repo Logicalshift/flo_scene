@@ -171,7 +171,7 @@ impl SceneCore {
                 // Notify that the program is starting
                 if let Some(core) = start_core.upgrade() {
                     // We use a background process to start because we might be blocking the program that reads the updates here
-                    SceneCore::send_scene_updates(&core, vec![SceneUpdate::Started(program_id)]);
+                    SceneCore::send_scene_updates(&core, vec![SceneUpdate::Started(program_id, StreamId::with_message_type::<TMessage>())]);
                 }
                 mem::drop(start_core);
 

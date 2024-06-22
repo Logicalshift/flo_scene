@@ -72,7 +72,7 @@ where
 
             // Figure out which subprograms have been removed or added
             let active_subprograms  = scene_status.iter().flat_map(|update| match update {
-                SceneUpdate::Started(program_id)    => Some(*program_id),
+                SceneUpdate::Started(program_id, _) => Some(*program_id),
                 _                                   => None,
             }).collect::<HashSet<SubProgramId>>();
             let removed_subprograms = subprograms.iter()

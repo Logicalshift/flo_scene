@@ -261,9 +261,9 @@ fn scene_update_messages() {
     let recv_updates = recv_updates.lock().unwrap().drain(..).collect::<Vec<_>>();
     assert!(has_finished, "Scene did not terminate properly");
 
-    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id) => *prog_id == program_1, _ => false }).count() == 1,
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id, _) => *prog_id == program_1, _ => false }).count() == 1,
         "Program 1 started more than once or didn't start");
-    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id) => *prog_id == program_2, _ => false }).count() == 1,
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id, _) => *prog_id == program_2, _ => false }).count() == 1,
         "Program 2 started more than once or didn't start");
     assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Stopped(prog_id) => *prog_id == program_1, _ => false }).count() == 1,
         "Program 1 stopped more than once or didn't start");
@@ -315,11 +315,14 @@ fn scene_update_messages_using_subscription() {
         },
         0);
 
+    // TODO: something better than these delays for figuring out when to stop the two extra programs (we can't get the input type for programs that are already stopped when the subscription starts)
+
     // program_1 reads from its input and sets it in sent_message
     scene.add_subprogram(program_1,
         move |mut input: InputStream<usize>, _| async move {
             // Read a single message and write it to the 'sent_message' structure
             input.next().await.unwrap();
+            Delay::new(Duration::from_millis(100)).await;
         },
         0);
 
@@ -328,6 +331,7 @@ fn scene_update_messages_using_subscription() {
         move |_: InputStream<()>, context| async move {
             let mut send_usize = context.send::<usize>(program_1).unwrap();
             send_usize.send(42).await.unwrap();
+            Delay::new(Duration::from_millis(100)).await;
         },
         0);
 
@@ -342,9 +346,9 @@ fn scene_update_messages_using_subscription() {
     let recv_updates = recv_updates.lock().unwrap().drain(..).collect::<Vec<_>>();
     assert!(has_finished, "Scene did not terminate properly");
 
-    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id) => *prog_id == program_1, _ => false }).count() == 1,
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id, _) => *prog_id == program_1, _ => false }).count() == 1,
         "Program 1 started more than once or didn't start");
-    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id) => *prog_id == program_2, _ => false }).count() == 1,
+    assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Started(prog_id, _) => *prog_id == program_2, _ => false }).count() == 1,
         "Program 2 started more than once or didn't start");
     assert!(recv_updates.iter().filter(|item| match item { SceneUpdate::Stopped(prog_id) => *prog_id == program_1, _ => false }).count() == 1,
         "Program 1 stopped more than once or didn't start");
@@ -373,8 +377,8 @@ fn query_control_program() {
         .run_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), *SCENE_CONTROL_PROGRAM, 
             move |response| {
                 if response.is_empty() { return Err("No updates in query response".to_string()); }
-                if !response.iter().any(|update| update == &SceneUpdate::Started(program_1)) { return Err(format!("Program 1 ({:?}) not in query response ({:?})", program_1, response)); }
-                if !response.iter().any(|update| update == &SceneUpdate::Started(*SCENE_CONTROL_PROGRAM)) { return Err(format!("Scene control program not in query response ({:?})", response)); }
+                if !response.iter().any(|update| update == &SceneUpdate::Started(program_1, StreamId::with_message_type::<()>())) { return Err(format!("Program 1 ({:?}) not in query response ({:?})", program_1, response)); }
+                if !response.iter().any(|update| update == &SceneUpdate::Started(*SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<SceneControl>())) { return Err(format!("Scene control program not in query response ({:?})", response)); }
 
                 Ok(()) 
             })
