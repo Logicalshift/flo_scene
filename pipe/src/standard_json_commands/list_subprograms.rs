@@ -23,8 +23,8 @@ pub struct ListSubprogramsResponse {
 ///
 /// The `list_subprograms` command, which lists the subprograms in the current scene
 ///
-pub fn command_list_subprograms(input: serde_json::Value, context: SceneContext) -> impl Future<Output=CommandResponse> {
+pub fn command_list_subprograms(input: serde_json::Value, context: SceneContext) -> impl Future<Output=CommandResponseData<Vec<ListSubprogramsResponse>>> {
     async move {
-        CommandResponse::Error("Not implemented".into())
+        CommandResponseData::Error("Not implemented".into())
     }
 }
