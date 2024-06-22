@@ -23,6 +23,9 @@ mod with_serde_support {
         let serialized_resender     = SubProgramId::new();
         let deserialized_receiver   = SubProgramId::new();
 
+        install_serializer(|| serde_json::value::Serializer);
+        install_serializable_type::<TestMessage, serde_json::value::Serializer>("flo_scene::TestMessage").unwrap();
+
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         scene.add_subprogram(serialized_resender, 
             move |input_stream, context| async move {
@@ -57,11 +60,11 @@ mod with_serde_support {
         }, 0);
 
         // Create a JSON serializer to allow test messages to be sent directly to the serialized_resender program
-        let json_serializer_filter = create_serializer_filter::<TestMessage, _, _>(|| serde_json::value::Serializer, |stream| stream);
+        let json_serializer_filter = serializer_filter::<TestMessage, SerializedMessage<serde_json::Value>>().unwrap();
         scene.connect_programs((), StreamTarget::Filtered(json_serializer_filter, serialized_resender), StreamId::with_message_type::<TestMessage>()).unwrap();
 
         // Create a deserializer to use with the test program
-        let json_deserializer_filter = deserializer_filter::<TestMessage, serde_json::value::Value, _>(|stream| stream);
+        let json_deserializer_filter = serializer_filter::<SerializedMessage<serde_json::Value>, TestMessage>().unwrap();
         scene.connect_programs((), StreamTarget::Filtered(json_deserializer_filter, deserialized_receiver), StreamId::with_message_type::<SerializedMessage<serde_json::value::Value>>()).unwrap();
 
         // Run some tests with a message that gets serialized and deserialized
