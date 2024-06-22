@@ -216,19 +216,19 @@ where
     let new_serializer = if let Ok(new_serializer) = new_serializer { new_serializer } else { return Err("Serializer was not installed correctly"); };
 
     // Create closures for creating a mapping between the input and the output type
-    let typed_serializer = move |input: TMessageType| -> Result<TSerializer::Ok, TMessageType> {
+    let typed_serializer = move |input: TMessageType| -> Result<SerializedMessage<TSerializer::Ok>, TMessageType> {
         if let Ok(val) = input.serialize(new_serializer()) {
-            Ok(val)
+            Ok(SerializedMessage(val, TypeId::of::<TMessageType>()))
         } else {
             Err(input)
         }
     };
 
     // Create another closure for deserializing
-    let typed_deserializer = move |input: TSerializer::Ok| -> Result<TMessageType, TSerializer::Ok> {
+    let typed_deserializer = move |input: SerializedMessage<TSerializer::Ok>| -> Result<TMessageType, SerializedMessage<TSerializer::Ok>> {
         use std::mem;
 
-        let val = TMessageType::deserialize(&input);
+        let val = TMessageType::deserialize(&input.0);
 
         match val {
             Ok(val) => Ok(val),
@@ -240,8 +240,8 @@ where
     };
 
     // Convert to boxed functions
-    let typed_serializer: Box<dyn Send + Sync + Fn(TMessageType) -> Result<TSerializer::Ok, TMessageType>>        = Box::new(typed_serializer);
-    let typed_deserializer: Box<dyn Send + Sync + Fn(TSerializer::Ok) -> Result<TMessageType, TSerializer::Ok>>   = Box::new(typed_deserializer);
+    let typed_serializer: Box<dyn Send + Sync + Fn(TMessageType) -> Result<SerializedMessage<TSerializer::Ok>, TMessageType>>                           = Box::new(typed_serializer);
+    let typed_deserializer: Box<dyn Send + Sync + Fn(SerializedMessage<TSerializer::Ok>) -> Result<TMessageType, SerializedMessage<TSerializer::Ok>>>   = Box::new(typed_deserializer);
 
     // Set as an 'any' type for storage
     let typed_serializer: Arc<dyn Send + Sync + Any>    = Arc::new(typed_serializer);
@@ -250,8 +250,8 @@ where
     // Store the serializer and deserializer in the typed serializers list
     let mut typed_serializers = (*TYPED_SERIALIZERS).write().unwrap();
 
-    typed_serializers.insert((TypeId::of::<TMessageType>(), TypeId::of::<TSerializer::Ok>()), typed_serializer);
-    typed_serializers.insert((TypeId::of::<TSerializer::Ok>(), TypeId::of::<TMessageType>()), typed_deserializer);
+    typed_serializers.insert((TypeId::of::<TMessageType>(), TypeId::of::<SerializedMessage<TSerializer::Ok>>()), typed_serializer);
+    typed_serializers.insert((TypeId::of::<SerializedMessage<TSerializer::Ok>>(), TypeId::of::<TMessageType>()), typed_deserializer);
 
     Ok(())
 }
