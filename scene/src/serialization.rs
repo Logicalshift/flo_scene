@@ -24,10 +24,14 @@ static SERIALIZABLE_MESSAGE_TYPE_NAMES: Lazy<RwLock<HashMap<TypeId, String>>> = 
 static SEND_SERIALIZED: Lazy<RwLock<HashMap<(TypeId, String), Arc<dyn Send + Sync + Fn(&SceneContext, StreamTarget) -> Result<Box<dyn Send + Any>, ConnectionError>>>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
+/// Stores the functions for creating serializers of a particular type
 static CREATE_ANY_SERIALIZER: Lazy<RwLock<HashMap<TypeId, Arc<dyn Send + Sync + Fn() -> Arc<dyn Send + Sync + Any>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
+/// Stores the functions for transforming a value to and from its serialized representation
 static TYPED_SERIALIZERS: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + Sync + Any>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
+/// Stores the filters we've already created so we don't create extr
+static FILTERS_FOR_TYPE: Lazy<Mutex<HashMap<(TypeId, TypeId), FilterHandle>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 ///
 /// A message created by serializing another message
@@ -65,7 +69,7 @@ where
 /// let serialize_filter = serializer_filter::<TestMessage, _, _>(|| serde_json::value::Serializer, |stream| stream);
 /// ```
 ///
-pub fn serializer_filter<TMessageType, TSerializer, TTargetStream>(serializer: impl 'static + Send + Sync + Fn() -> TSerializer, map_stream: impl 'static + Send + Sync + Fn(BoxStream<'static, SerializedMessage<TSerializer::Ok>>) -> TTargetStream) -> FilterHandle
+pub fn create_serializer_filter<TMessageType, TSerializer, TTargetStream>(serializer: impl 'static + Send + Sync + Fn() -> TSerializer, map_stream: impl 'static + Send + Sync + Fn(BoxStream<'static, SerializedMessage<TSerializer::Ok>>) -> TTargetStream) -> FilterHandle
 where
     TMessageType:           'static + SceneMessage + Serialize,
     TSerializer:            'static + Send + Serializer,
@@ -235,6 +239,10 @@ where
         }
     };
 
+    // Convert to boxed functions
+    let typed_serializer: Box<dyn Send + Sync + Fn(TMessageType) -> Result<TSerializer::Ok, TMessageType>>        = Box::new(typed_serializer);
+    let typed_deserializer: Box<dyn Send + Sync + Fn(TSerializer::Ok) -> Result<TMessageType, TSerializer::Ok>>   = Box::new(typed_deserializer);
+
     // Set as an 'any' type for storage
     let typed_serializer: Arc<dyn Send + Sync + Any>    = Arc::new(typed_serializer);
     let typed_deserializer: Arc<dyn Send + Sync + Any>  = Arc::new(typed_deserializer);
@@ -247,6 +255,50 @@ where
 
     Ok(())
 }
+
+///
+/// If installed, returns a filter to convert from a source type to a target type
+///
+/// This will create either a serializer or a deserializer depending on the direction that the conversion goes in
+///
+pub fn serializer_filter<TSourceType, TTargetType>() -> Result<FilterHandle, &'static str> 
+where
+    TSourceType: 'static + SceneMessage,
+    TTargetType: 'static + SceneMessage,
+{
+    let mut filters_for_type = (*FILTERS_FOR_TYPE).lock().unwrap();
+
+    // The message type is the key for retrieving this filter later on
+    let message_type = (TypeId::of::<TSourceType>(), TypeId::of::<TTargetType>());
+
+    if let Some(filter) = filters_for_type.get(&message_type) {
+        // Use the existing filter
+        Ok(*filter)
+    } else {
+        // Create a new filter
+        let typed_serializer = (*TYPED_SERIALIZERS).read().unwrap().get(&(TypeId::of::<TSourceType>(), TypeId::of::<TTargetType>())).cloned();
+        let typed_serializer = if let Some(typed_serializer) = typed_serializer { Ok(typed_serializer) } else { Err("The requested serializers are not installed") }?;
+        let typed_serializer = if let Ok(typed_serializer) = typed_serializer.downcast::<Box<dyn Send + Sync + Fn(TSourceType) -> Result<TTargetType, TSourceType>>>() { 
+            Ok(typed_serializer)
+        } else {
+            Err("Could not properly resolve the type of the requested serializer")
+        }?;
+
+        // Create a filter that uses the stored serializer
+        let filter_handle = FilterHandle::for_filter(move |input_messages| {
+            let typed_serializer = Arc::clone(&typed_serializer);
+
+            input_messages.flat_map(move |msg| stream::iter((*typed_serializer)(msg).ok()))
+        });
+
+        // Store for future use
+        filters_for_type.insert(message_type, filter_handle);
+
+        // Result is the new filter
+        Ok(filter_handle)
+    }
+}
+
 
 ///
 /// Install serializers and deserializers so that messages of a particular type can be filtered to and from `SerializedMessage<TSerializer::Ok>`
@@ -287,7 +339,7 @@ where
             *filters
         } else {
             // Create some new filters for this message type
-            let serialize_filter    = serializer_filter::<TMessageType, _, _>(move || create_serializer(), move |stream| stream);
+            let serialize_filter    = create_serializer_filter::<TMessageType, _, _>(move || create_serializer(), move |stream| stream);
             let deserialize_filter  = deserializer_filter::<TMessageType, TSerializer::Ok, _>(|stream| stream);
 
             // Cache them
