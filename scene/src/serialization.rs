@@ -26,8 +26,7 @@ static SEND_SERIALIZED: Lazy<RwLock<HashMap<(TypeId, String), Arc<dyn Send + Syn
 
 static CREATE_ANY_SERIALIZER: Lazy<RwLock<HashMap<TypeId, Arc<dyn Send + Sync + Fn() -> Arc<dyn Send + Sync + Any>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
-static CREATE_TYPED_SERIALIZER_ITERATOR:    Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + Sync + Any>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
-static CREATE_TYPED_SERIALIZER_STREAM:      Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + Sync + Any>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+static TYPED_SERIALIZERS: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + Sync + Any>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 
 ///
@@ -182,12 +181,12 @@ where
 ///
 pub fn install_serializable_type<TMessageType, TSerializer>(type_name: impl Into<String>) -> Result<(), &'static str>
 where
-    TMessageType:       'static + SceneMessage,
-    TMessageType:       for<'a> Deserialize<'a>,
-    TMessageType:       Serialize,
-    TSerializer:        'static + Send + Serializer,
-    TSerializer::Ok:    'static + Send + Unpin,
-    TSerializer::Ok:    for<'a> Deserializer<'a>,
+    TMessageType:                   'static + SceneMessage,
+    TMessageType:                   for<'a> Deserialize<'a>,
+    TMessageType:                   Serialize,
+    TSerializer:                    'static + Send + Serializer,
+    TSerializer::Ok:                'static + Send + Unpin,
+    for<'a> &'a TSerializer::Ok:    Deserializer<'a>,
 {
     // Store the name for this type (which must match the old name)
     let type_name = type_name.into();
@@ -212,23 +211,38 @@ where
     let new_serializer = if let Ok(new_serializer) = new_serializer { new_serializer } else { return Err("Serializer was not installed correctly"); };
 
     // Create closures for creating a mapping between the input and the output type
-    let new_serializer_2 = Arc::clone(&new_serializer);
-    let create_typed_serializer_iterator = move |input: Box<dyn Iterator<Item=TMessageType>>| -> Box<dyn Iterator<Item=Result<TSerializer::Ok, TSerializer::Error>>> {
-        Box::new(input.map(move |item| { item.serialize(new_serializer()) }))
+    let typed_serializer = move |input: TMessageType| -> Result<TSerializer::Ok, TMessageType> {
+        if let Ok(val) = input.serialize(new_serializer()) {
+            Ok(val)
+        } else {
+            Err(input)
+        }
     };
 
-    let new_serializer = new_serializer_2;
-    let create_typed_serializer_stream = move |input: BoxStream<'static, TMessageType>| -> BoxStream<'static, Result<TSerializer::Ok, TSerializer::Error>> {
-        input.map(move |item| { item.serialize(new_serializer()) }).boxed()
+    // Create another closure for deserializing
+    let typed_deserializer = move |input: TSerializer::Ok| -> Result<TMessageType, TSerializer::Ok> {
+        use std::mem;
+
+        let val = TMessageType::deserialize(&input);
+
+        match val {
+            Ok(val) => Ok(val),
+            Err(_)  => {
+                mem::drop(val);
+                Err(input)
+            },
+        }
     };
 
     // Set as an 'any' type for storage
-    let create_typed_serializer_iterator: Arc<dyn Send + Sync + Any> = Arc::new(create_typed_serializer_iterator);
-    let create_typed_serializer_stream: Arc<dyn Send + Sync + Any> = Arc::new(create_typed_serializer_stream);
+    let typed_serializer: Arc<dyn Send + Sync + Any>    = Arc::new(typed_serializer);
+    let typed_deserializer: Arc<dyn Send + Sync + Any>  = Arc::new(typed_deserializer);
 
     // Store this serializer
-    (*CREATE_TYPED_SERIALIZER_ITERATOR).write().unwrap().insert((TypeId::of::<TMessageType>(), TypeId::of::<TSerializer>()), create_typed_serializer_iterator);
-    (*CREATE_TYPED_SERIALIZER_STREAM).write().unwrap().insert((TypeId::of::<TMessageType>(), TypeId::of::<TSerializer>()), create_typed_serializer_stream);
+    let mut typed_serializers = (*TYPED_SERIALIZERS).write().unwrap();
+
+    typed_serializers.insert((TypeId::of::<TMessageType>(), TypeId::of::<TSerializer::Ok>()), typed_serializer);
+    typed_serializers.insert((TypeId::of::<TSerializer::Ok>(), TypeId::of::<TMessageType>()), typed_deserializer);
 
     Ok(())
 }
