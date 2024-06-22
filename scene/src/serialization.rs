@@ -168,6 +168,7 @@ where
 }
 
 // TODO: would be nice to not have to install the type for each type of serializable type we want to add but I'm currently not sure how to do this.
+// It's probably possible if we hard-code JSON as our serialization target
 
 ///
 /// Creates the data structures needed to serialize a particular type
@@ -238,7 +239,7 @@ where
     let typed_serializer: Arc<dyn Send + Sync + Any>    = Arc::new(typed_serializer);
     let typed_deserializer: Arc<dyn Send + Sync + Any>  = Arc::new(typed_deserializer);
 
-    // Store this serializer
+    // Store the serializer and deserializer in the typed serializers list
     let mut typed_serializers = (*TYPED_SERIALIZERS).write().unwrap();
 
     typed_serializers.insert((TypeId::of::<TMessageType>(), TypeId::of::<TSerializer::Ok>()), typed_serializer);
