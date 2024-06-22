@@ -163,7 +163,7 @@ where
     let create_serializer_fn: Arc<dyn Send + Sync + Any>                    = Arc::new(create_serializer_fn);
 
     // Add a function that creates a boxed Any that creates this serializer type
-    create_any_serializer.insert(TypeId::of::<TSerializer::Ok>(), 
+    create_any_serializer.insert(TypeId::of::<TSerializer>(), 
         Arc::new(move || Arc::clone(&create_serializer_fn)));
 }
 
