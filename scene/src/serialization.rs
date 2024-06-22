@@ -2,7 +2,6 @@ use crate::error::*;
 use crate::filter::*;
 use crate::input_stream::*;
 use crate::scene::*;
-use crate::output_sink::*;
 use crate::scene_context::*;
 use crate::scene_message::*;
 use crate::stream_source::*;
@@ -225,14 +224,14 @@ impl SceneContext {
     ///
     /// The serializer needs to be installed using `install_serializers` with a matching `type_name`.
     ///
-    pub fn send_serialized<TSerializedType>(&self, type_name: &str, target: impl Into<StreamTarget>) -> Result<impl 'static + Unpin + Send + Sink<TSerializedType, Error=SceneSendError<TSerializedType>>, ConnectionError>
+    pub fn send_serialized<TSerializedType>(&self, type_name: impl Into<String>, target: impl Into<StreamTarget>) -> Result<impl 'static + Unpin + Send + Sink<TSerializedType, Error=SceneSendError<TSerializedType>>, ConnectionError>
     where
         TSerializedType:    'static + Send + Unpin,
     {
         // Try to fetch the function that creates the sink for this type
         let send_serialized = SEND_SERIALIZED.read().unwrap();
 
-        if let Some(create_sink) = send_serialized.get(&(TypeId::of::<TSerializedType>(), type_name.to_string())) {
+        if let Some(create_sink) = send_serialized.get(&(TypeId::of::<TSerializedType>(), type_name.into())) {
             // Create a sink for the type name
             let any_sink    = (create_sink)(self, target.into())?;
             let boxed_sink  = any_sink.downcast::<Box<dyn Unpin + Send + Sink<TSerializedType, Error=SceneSendError<TSerializedType>>>>().unwrap();
@@ -242,5 +241,21 @@ impl SceneContext {
             // This type is not available
             Err(ConnectionError::TargetNotAvailable)
         }
+    }
+}
+
+impl StreamId {
+    ///
+    /// If this stream can be serialized, then this is the serialization type name that can be used to specify it
+    ///
+    pub fn serialization_type_name(&self) -> Option<String> {
+        None
+    }
+
+    ///
+    /// Changes a serialization name into a stream ID
+    ///
+    pub fn with_serialization_type(type_name: impl Into<String>) -> Option<Self> {
+        None
     }
 }
