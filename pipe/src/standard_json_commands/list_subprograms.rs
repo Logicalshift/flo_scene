@@ -42,7 +42,7 @@ pub fn command_list_subprograms(_input: serde_json::Value, context: SceneContext
                             responses.push(ListSubprogramsResponse { 
                                 id:                     program_id, 
                                 input_type_description: input_stream_id.message_type_name(), 
-                                serialized_type_name:   None 
+                                serialized_type_name:   input_stream_id.serialization_type_name(), 
                             })
                         }
 
