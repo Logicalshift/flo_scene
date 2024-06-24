@@ -16,11 +16,13 @@ pub struct ListSubprogramsResponse {
     pub id: SubProgramId,
 
     /// The type_name of the input stream for this subprogram (as a Rust type: note that this can vary and is informational only)
-    pub input_type_description: String,
+    pub rust_type_name: String,
 
     /// If the input stream can be serialized, this is the serialization name of the type (can be used with 'Send', say)
     pub serialized_type_name: Option<String>,
 }
+
+impl SceneMessage for ListSubprogramsResponse { }
 
 ///
 /// The `list_subprograms` command, which lists the subprograms in the current scene
@@ -41,7 +43,7 @@ pub fn command_list_subprograms(_input: serde_json::Value, context: SceneContext
                             // Create a response for every program that's running
                             responses.push(ListSubprogramsResponse { 
                                 id:                     program_id, 
-                                input_type_description: input_stream_id.message_type_name(), 
+                                rust_type_name:         input_stream_id.message_type_name(), 
                                 serialized_type_name:   input_stream_id.serialization_type_name(), 
                             })
                         }
