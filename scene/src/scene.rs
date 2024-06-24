@@ -1,3 +1,4 @@
+use crate::commands::ListCommandResponse;
 use crate::input_stream::*;
 use crate::output_sink::*;
 use crate::scene_context::*;
@@ -83,7 +84,8 @@ impl Scene {
                 .with_serializable_type::<TextInput>("flo_scene::TextInput")
                 .with_serializable_type::<TextOutput>("flo_scene::TextOutput")
                 .with_serializable_type::<TimerRequest>("flo_scene::TimerRequest")
-                .with_serializable_type::<IdleRequest>("flo_scene::IdleRequest");
+                .with_serializable_type::<IdleRequest>("flo_scene::IdleRequest")
+                .with_serializable_type::<ListCommandResponse>("flo_scene::ListCommandResponse");
         }
 
         scene
