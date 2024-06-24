@@ -37,7 +37,6 @@ pub fn command_list_subprograms(_input: serde_json::Value, context: SceneContext
 
                 // Read the responses from the updates
                 while let Some(update) = updates.next().await {
-                    // TODO: add the input type of this program, if available
                     match update {
                         SceneUpdate::Started(program_id, input_stream_id) => {
                             // Create a response for every program that's running
