@@ -10,7 +10,7 @@ use once_cell::sync::{Lazy};
 static      FILTER_CONVERT_JSON_COMMAND:    Lazy<FilterHandle>  = Lazy::new(|| FilterHandle::conversion_filter::<JsonCommand, RunCommand<serde_json::Value, CommandResponse>>());
 
 /// The default JSON command dispatcher subprogram (which is also started automatically on sending a `JsonCommand`)
-pub static  JSON_DISPATCHER_SUBPROGRAM:     StaticSubProgramId  = StaticSubProgramId::called("flo_scene_pipe::json_");
+pub static  JSON_DISPATCHER_SUBPROGRAM:     StaticSubProgramId  = StaticSubProgramId::called("flo_scene_pipe::json_dispatcher");
 
 ///
 /// A JSON command is a command that uses a JSON value as a request and returns a `CommandResponse` (which is usually a JSON value)
