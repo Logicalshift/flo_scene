@@ -12,7 +12,7 @@ use std::time::{Instant, Duration};
 
 #[cfg(feature="serde_support")] use serde::*;
 
-pub static TIMER_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("TIMER_PROGRAM");
+pub static TIMER_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::timer");
 
 ///
 /// The timer program can be used to sent one-off or recurring timer events

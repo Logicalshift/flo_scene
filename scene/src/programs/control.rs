@@ -28,7 +28,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::*;
 
 /// The identifier for the standard scene control program
-pub static SCENE_CONTROL_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("SCENE_CONTROL_PROGRAM");
+pub static SCENE_CONTROL_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::scene_control");
 
 /// Filter that maps the 'Subscribe' message to a SceneControl message
 static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe<SceneUpdate>>| stream.map(|msg| SceneControl::Subscribe(msg.target()))));

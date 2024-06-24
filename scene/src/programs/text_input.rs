@@ -12,7 +12,7 @@ use std::io::{BufRead};
 
 #[cfg(feature="serde_support")] use serde::*;
 
-pub static STDIN_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("STDIN_PROGRAM");
+pub static STDIN_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::stdin");
 
 ///
 /// Text input programs read from an input stream and sends `TextInputResult` messages to a target program

@@ -13,7 +13,7 @@ use std::collections::{HashMap};
 ///
 /// ID of the program that sends idle notifications by default
 ///
-pub static IDLE_NOTIFICATION_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("IDLE_REQUEST");
+pub static IDLE_NOTIFICATION_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::idle_request");
 
 ///
 /// Idle requests are a way to request a callback that is made when the scene is next idle

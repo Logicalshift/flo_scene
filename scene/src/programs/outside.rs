@@ -9,7 +9,7 @@ use futures::prelude::*;
 ///
 /// This program is used as the source when `Scene::send_to_scene()` is used to send messages to the scene from outside.
 ///
-pub static OUTSIDE_SCENE_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("OUTSIDE_SCENE_PROGRAM");
+pub static OUTSIDE_SCENE_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::the_outside");
 
 ///
 /// Runs the outside scene program
