@@ -6,11 +6,13 @@ use std::collections::*;
 use std::sync::*;
 
 #[cfg(feature="serde_support")] use serde::*;
+#[cfg(feature="serde_support")] use serde::ser::*;
+#[cfg(feature="serde_support")] use serde::de::*;
 
-static IDS_FOR_NAMES: Lazy<RwLock<HashMap<String, usize>>> = Lazy::new(|| RwLock::new(HashMap::new()));
-static NAMES_FOR_IDS: Lazy<RwLock<Vec<String>>>            = Lazy::new(|| RwLock::new(vec![]));
+static IDS_FOR_NAMES: Lazy<RwLock<HashMap<String, SubProgramNameId>>>   = Lazy::new(|| RwLock::new(HashMap::new()));
+static NAMES_FOR_IDS: Lazy<RwLock<Vec<String>>>                         = Lazy::new(|| RwLock::new(vec![]));
 
-fn id_for_name(name: &str) -> usize {
+fn id_for_name(name: &str) -> SubProgramNameId {
     let id = { IDS_FOR_NAMES.read().unwrap().get(name).copied() };
 
     if let Some(id) = id {
@@ -25,6 +27,7 @@ fn id_for_name(name: &str) -> usize {
 
             id
         };
+        let id = SubProgramNameId(id);
 
         // Store the mapping
         let mut ids_for_names = IDS_FOR_NAMES.write().unwrap();
@@ -34,6 +37,10 @@ fn id_for_name(name: &str) -> usize {
     }
 }
 
+fn name_for_id(id: SubProgramNameId) -> Option<String> {
+    (*NAMES_FOR_IDS).read().unwrap().get(id.0).cloned()
+}
+
 ///
 /// A unique identifier for a subprogram in a scene
 ///
@@ -41,11 +48,18 @@ fn id_for_name(name: &str) -> usize {
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct SubProgramId(SubProgramIdValue);
 
+///
+/// A subprogram name ID
+///
+#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+struct SubProgramNameId(usize);
+
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 enum SubProgramIdValue {
     /// A subprogram identified with a well-known name
-    Named(usize),
+    Named(SubProgramNameId),
 
     /// A subprogram identified with a GUID
     Guid(Uuid),
@@ -53,7 +67,7 @@ enum SubProgramIdValue {
     /// A task created by a named subprogram. The second 'usize' value is a unique serial number for this task
     ///
     /// Tasks differ from subprograms in that they have a limited lifespan and read an input stream specified at creation
-    NamedTask(usize, usize),
+    NamedTask(SubProgramNameId, usize),
 
     /// A task created by a GUID subprogram. The 'usize' value is a unique serial number for this task
     ///
