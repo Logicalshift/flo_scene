@@ -52,11 +52,11 @@ pub enum ConnectResponse {
 ///
 /// The `connect` command, which connects two subprograms in a scene
 ///
-pub fn command_connect(input: ConnectArguments, context: SceneContext) -> impl Future<Output=ConnectResponse> {
+pub fn command_connect(input: ConnectArguments, context: SceneContext) -> impl Future<Output=CommandResponseData<ConnectResponse>> {
     async move {
         // Parse the source and target
         let source = match &input.source_program {
-            Connection::None                => { return ConnectResponse::Ok; },
+            Connection::None                => { return CommandResponseData::Data(ConnectResponse::Ok); },
             Connection::Any                 => StreamSource::All,
             Connection::Program(prog_id)    => StreamSource::Program(*prog_id),
         };
@@ -69,14 +69,14 @@ pub fn command_connect(input: ConnectArguments, context: SceneContext) -> impl F
 
         // Stream ID must use a serialization  name
         let stream_id = StreamId::with_serialization_type(&input.stream_type_name);
-        let stream_id = if let Some(stream_id) = stream_id { stream_id } else { return ConnectResponse::Error(ConnectionError::StreamNotKnown); };
+        let stream_id = if let Some(stream_id) = stream_id { stream_id } else { return ConnectResponse::Error(ConnectionError::StreamNotKnown).into(); };
 
         // Send a scene control request
         if let Err(err) = context.send_message(SceneControl::connect(source, target, stream_id)).await {
-            return ConnectResponse::Error(err);
+            return ConnectResponse::Error(err).into();
         }
 
         // Seems OK
-        ConnectResponse::Ok
+        ConnectResponse::Ok.into()
     }
 }
