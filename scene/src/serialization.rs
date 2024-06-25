@@ -22,6 +22,9 @@ use std::sync::*;
 /// The known type names of serialized types
 static SERIALIZABLE_MESSAGE_TYPE_NAMES: Lazy<RwLock<HashMap<TypeId, String>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
+/// The stream ID for a known serializable type
+static STREAM_ID_FOR_SERIALIZABLE_TYPE: Lazy<RwLock<HashMap<String, StreamId>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
 /// Stores the functions for creating serializers of a particular type
 static CREATE_ANY_SERIALIZER: Lazy<RwLock<HashMap<TypeId, Arc<dyn Send + Sync + Fn() -> Arc<dyn Send + Sync + Any>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
@@ -102,7 +105,7 @@ where
                 return Err("Serialization type name has been used by another type");
             }
         } else {
-            type_names.insert(TypeId::of::<TMessageType>(), type_name);
+            type_names.insert(TypeId::of::<TMessageType>(), type_name.clone());
         }
     }
 
@@ -151,6 +154,8 @@ where
 
     typed_serializers.insert((TypeId::of::<TMessageType>(), TypeId::of::<SerializedMessage<TSerializer::Ok>>()), typed_serializer);
     typed_serializers.insert((TypeId::of::<SerializedMessage<TSerializer::Ok>>(), TypeId::of::<TMessageType>()), typed_deserializer);
+
+    (*STREAM_ID_FOR_SERIALIZABLE_TYPE).write().unwrap().insert(type_name.clone(), StreamId::with_message_type::<TMessageType>());
 
     Ok(())
 }
@@ -270,6 +275,6 @@ impl StreamId {
     /// Changes a serialization name into a stream ID
     ///
     pub fn with_serialization_type(type_name: impl Into<String>) -> Option<Self> {
-        None
+        (*STREAM_ID_FOR_SERIALIZABLE_TYPE).read().unwrap().get(&type_name.into()).cloned()
     }
 }
