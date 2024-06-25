@@ -110,6 +110,15 @@ where
 impl SceneMessage for CommandRequest { }
 impl SceneMessage for CommandResponse { }
 
+impl<TResponseData> From<TResponseData> for CommandResponseData<TResponseData>
+where
+    TResponseData: Serialize,
+{
+    fn from(data: TResponseData) -> Self {
+        CommandResponseData::Data(data)
+    }
+}
+
 impl Into<String> for CommandName {
     #[inline]
     fn into(self) -> String {
