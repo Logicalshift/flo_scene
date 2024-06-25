@@ -31,6 +31,9 @@ pub enum ConnectionError {
     /// The input type of the target of a connection does not match the source
     WrongInputType(SourceStreamMessageType, TargetInputMessageType),
 
+    /// The requested stream is not available
+    StreamNotKnown,
+
     /// The target subprogram of a connection is not in the scene (has not been started, or has finished)
     TargetNotInScene,
 
