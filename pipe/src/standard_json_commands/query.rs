@@ -10,7 +10,11 @@ use serde::*;
 ///
 #[derive(Clone, Serialize, Deserialize)]
 pub struct QueryArguments {
+    /// The serializable
+    response_type_name: String,
 
+    /// The target of the query
+    query_target: Option<SubProgramId>,
 }
 
 ///
