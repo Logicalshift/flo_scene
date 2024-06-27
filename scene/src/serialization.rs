@@ -154,6 +154,8 @@ where
 
     (*STREAM_ID_FOR_SERIALIZABLE_TYPE).write().unwrap().insert(type_name.clone(), StreamId::with_message_type::<TMessageType>());
 
+    // TODO: for any type where the type name does not begin with a known suffix (query:: or subscribe::), add the query and subscribe versios
+
     Ok(())
 }
 
