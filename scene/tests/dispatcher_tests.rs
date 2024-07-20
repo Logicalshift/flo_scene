@@ -58,6 +58,9 @@ pub fn call_dispatcher_command() {
 
     // Check that it responds as expected
     TestBuilder::new()
+        .send_message(IdleRequest::WhenIdle(test_program))
+        .expect_message(|IdleNotification| { Ok(()) })
+
         .run_query(ReadCommand::default(), RunCommand::<TestRequest, TestResponse>::new((), "test_command", TestRequest("test".into())), dispatcher_program, |response| {
             assert!(response == vec![TestResponse("test".into())]);
             Ok(())
