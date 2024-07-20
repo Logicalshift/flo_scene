@@ -87,17 +87,26 @@ fn wait_for_idle_program_errors_when_full() {
     scene.add_subprogram(SubProgramId::new(), move |_: InputStream<()>, context| async move {
         let mut idle_program = context.send(waiting_program).unwrap();
 
+        // The input stream is asleep so we can send one message to wake it up
+        let wakes_the_queue = idle_program.send(TrySend).await;
+        assert!(wakes_the_queue.is_ok(), "Should have woken the stream: {:?}", wakes_the_queue);
+
         // Try to send the message, and then send the result to the test program
         let should_be_error = idle_program.send(TrySend).await;
         context.send(test_program).unwrap().send(SendResult(should_be_error)).await.unwrap();
     }, 0);
 
     // Add a program that waits for idle but has a 0 length waiting queue
-    scene.add_subprogram(waiting_program, move |_input: InputStream<TrySend>, context| async move {
+    scene.add_subprogram(waiting_program, move |input: InputStream<TrySend>, context| async move {
+        use std::mem;
+
         context.wait_for_idle(0).await;
 
         context.send(test_program).unwrap()
             .send(IdleNotification).await.unwrap();
+
+        // If we drop the input early we'll just reject everything, so make sure that the input is dropped last
+        mem::drop(input);
     }, 0);
 
     TestBuilder::new()
