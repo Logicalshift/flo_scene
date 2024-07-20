@@ -64,7 +64,7 @@ where
     #[cfg(not(unix))]
     {
         // If we're not on Unix, this creates a program that ignores its messages (we can't create any UNIX sockets)
-        scene.add_subprogram(program_id, move |input: InputStream<Subscribe>, _context| async move {
+        scene.add_subprogram(program_id, move |input: InputStream<()>, _context| async move {
             let mut input = input;
             while let Some(_) = input.next().await {
             }
