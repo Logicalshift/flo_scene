@@ -41,6 +41,8 @@ where
     let mut commands    = HashMap::<String, SubProgramId>::new();
     let mut subprograms = HashSet::<SubProgramId>::new();
 
+    context.wait_for_idle(1_000).await;
+
     // Wait for requests to run commands
     let mut input = input;
     while let Some(next_command) = input.next().await {
