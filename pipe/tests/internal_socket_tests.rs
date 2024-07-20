@@ -157,8 +157,7 @@ fn error_from_command_with_object_parameter_without_closing_socket() {
     run_expected_error_command_without_closing("test { \"test\": 2 }\n");
 }
 
-#[test]
-fn read_from_background_stream() {
+fn read_from_background_stream_iteration() {
     // TODO: race condition between the launcher starting and the command being sent
     let test_commands   = "test\n".to_string();
 
@@ -233,3 +232,15 @@ fn read_from_background_stream() {
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
 
+#[test]
+fn read_from_background_stream() {
+    read_from_background_stream_iteration();
+}
+
+#[test]
+fn read_from_background_stream_repeat() {
+    // There was a race condition here so we re-run this test repeatedly
+    for _ in 0..100 {
+        read_from_background_stream_iteration();
+    }
+}
