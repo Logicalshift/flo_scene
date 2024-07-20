@@ -56,7 +56,7 @@ pub fn subscribe<TMessageType: SceneMessage>(target: impl Into<StreamTarget>) ->
 ///
 pub struct EventSubscribers<TEventMessage>
 where
-    TEventMessage: SceneMessage,
+    TEventMessage: 'static + SceneMessage,
 {
     /// The output sinks that will receive the events from this subprogram
     receivers: Vec<OutputSink<TEventMessage>>,

@@ -212,7 +212,7 @@ where
 
 impl<TMessage> InputStreamCore<TMessage> 
 where
-    TMessage: Send,
+    TMessage: 'static + Send,
 {
     ///
     /// Retrieves the scene core for this input stream if there is one
@@ -325,7 +325,7 @@ where
     /// Senders will receive an error instead of backpressure if `max_idle_queue_len` is exceeded, otherwise, this core will be able to queue
     /// up to max_idle_queue_len messages while it waits for the core to become idle.
     ///
-    pub (crate) fn waiting_for_idle<'a>(core: &'a Arc<Mutex<Self>>, max_idle_queue_len: usize) -> IdleInputStreamCore<'a> {
+    pub (crate) fn waiting_for_idle(core: &Arc<Mutex<Self>>, max_idle_queue_len: usize) -> IdleInputStreamCore {
         {
             // Mark the core are 
             let mut core = core.lock().unwrap();
@@ -351,9 +351,9 @@ where
 }
 
 /// Object that marks an input stream as no longer waiting for idle when it's dropped
-pub (crate) struct IdleInputStreamCore<'a>(Option<Box<dyn 'a + Send + FnOnce() -> ()>>);
+pub (crate) struct IdleInputStreamCore(Option<Box<dyn Send + FnOnce() -> ()>>);
 
-impl<'a> Drop for IdleInputStreamCore<'a> {
+impl<'a> Drop for IdleInputStreamCore {
     fn drop(&mut self) {
         if let Some(on_drop) = self.0.take() {
             on_drop();

@@ -21,6 +21,7 @@ type ConnectOutputToDiscardFn   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync 
 type DisconnectOutputFn         = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
 type CloseInputFn               = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
 type IsIdleFn                   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<bool, ConnectionError>>;
+type WaitingForIdleFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, usize) -> Result<IdleInputStreamCore, ConnectionError>>;
 type DefaultTargetFn            = Arc<dyn Send + Sync + Fn() -> StreamTarget>;
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
 
@@ -42,6 +43,9 @@ struct StreamTypeFunctions {
 
     /// Indicates if an input stream is idle or not (idle = has an empty input queue and is waiting for a new message to arrive)
     is_idle: IsIdleFn,
+
+    /// Indicates that the input stream is in a 'waiting for idle' state (where it will queue messages up to a limit until the scene is idle)
+    waiting_for_idle: WaitingForIdleFn,
 
     /// Returns the defualt target for this stream type
     default_target: DefaultTargetFn,
@@ -160,6 +164,13 @@ impl StreamTypeFunctions {
                 Ok(is_idle)
             }),
 
+            waiting_for_idle: Arc::new(|input_stream_any, max_idle_queue_len| {
+                let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let dropper         = InputStreamCore::<TMessageType>::waiting_for_idle(&input_stream, max_idle_queue_len);
+
+                Ok(dropper)
+            }),
+
             default_target: Arc::new(|| {
                 TMessageType::default_target()
             }),
@@ -221,6 +232,13 @@ impl StreamTypeFunctions {
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.is_idle))
+    }
+
+    pub fn waiting_for_idle(type_id: &TypeId) -> Option<WaitingForIdleFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.waiting_for_idle))
     }
 
     pub fn default_target(type_id: &TypeId) -> Option<DefaultTargetFn> {
@@ -403,6 +421,21 @@ impl StreamId {
         if let Some(is_idle) = StreamTypeFunctions::is_idle(&message_type) {
             // Determine if the stream is idle
             (is_idle)(input_stream)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Given an input stream, indicates that's in the 'waiting for idle' state with the specified length of allowed extra waiting messages
+    ///
+    pub (crate) fn waiting_for_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>, max_idle_queue_len: usize) -> Result<IdleInputStreamCore, ConnectionError> {
+        let message_type = self.message_type();
+
+        if let Some(waiting_for_idle) = StreamTypeFunctions::waiting_for_idle(&message_type) {
+            // Determine if the stream is idle
+            (waiting_for_idle)(input_stream, max_idle_queue_len)
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)
