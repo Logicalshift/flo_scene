@@ -37,8 +37,25 @@ fn notifies_if_subprogram_drops_input_stream() {
 }
 
 #[test]
-fn wait_for_idle_then_send_message() {
+fn wait_for_idle_then_send_message_empty_scene() {
     let scene           = Scene::empty();
+    let test_program    = SubProgramId::new();
+
+    scene.add_subprogram(SubProgramId::new(), move |_input: InputStream<()>, context| async move {
+        context.wait_for_idle(1000).await;
+
+        context.send(test_program).unwrap()
+            .send(IdleNotification).await.unwrap();
+    }, 1);
+
+    TestBuilder::new()
+        .expect_message(|IdleNotification| { Ok(()) })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
+fn wait_for_idle_then_send_message_default_scene() {
+    let scene           = Scene::default();
     let test_program    = SubProgramId::new();
 
     scene.add_subprogram(SubProgramId::new(), move |_input: InputStream<()>, context| async move {
