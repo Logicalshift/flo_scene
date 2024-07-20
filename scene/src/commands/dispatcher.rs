@@ -41,8 +41,6 @@ where
     let mut commands    = HashMap::<String, SubProgramId>::new();
     let mut subprograms = HashSet::<SubProgramId>::new();
 
-    // context.wait_for_idle(1_000).await; -- TODO: because commands are queries we need to handle them immediately, but there can be a race condition (see internal_socket_tests for an example)
-
     // Wait for requests to run commands
     let mut input = input;
     while let Some(next_command) = input.next().await {

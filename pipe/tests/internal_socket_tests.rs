@@ -192,9 +192,6 @@ fn read_from_background_stream_iteration() {
 
     // Add another program that talks to the command program via a socket connection
     scene.add_subprogram(SubProgramId::new(), move |_input: InputStream<()>, context| async move {
-        // TODO: should not need to wait for idle here, but it's needed to avoid a race condition where the commands are not registered
-        context.wait_for_idle(1000).await;
-
         // Also create an internal buffer to write to
         let (our_side, their_side)          = duplex(1024);
         let (command_input, command_output) = split(their_side);
