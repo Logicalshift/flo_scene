@@ -52,3 +52,39 @@ fn wait_for_idle_then_send_message() {
         .expect_message(|IdleNotification| { Ok(()) })
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
+
+#[test]
+fn wait_for_idle_program_errors_when_full() {
+    let scene           = Scene::empty();
+    let test_program    = SubProgramId::new();
+    let waiting_program = SubProgramId::new();
+
+    #[derive(PartialEq, Debug)]
+    struct TrySend;
+    impl SceneMessage for TrySend { }
+
+    #[derive(Debug)]
+    struct SendResult(Result<(), SceneSendError<TrySend>>);
+    impl SceneMessage for SendResult { }
+
+    scene.add_subprogram(SubProgramId::new(), move |_: InputStream<()>, context| async move {
+        let mut idle_program = context.send(waiting_program).unwrap();
+
+        // Try to send the message, and then send the result to the test program
+        let should_be_error = idle_program.send(TrySend).await;
+        context.send(test_program).unwrap().send(SendResult(should_be_error)).await.unwrap();
+    }, 0);
+
+    // Add a program that waits for idle but has a 0 length waiting queue
+    scene.add_subprogram(waiting_program, move |_input: InputStream<TrySend>, context| async move {
+        context.wait_for_idle(0).await;
+
+        context.send(test_program).unwrap()
+            .send(IdleNotification).await.unwrap();
+    }, 0);
+
+    TestBuilder::new()
+        .expect_message(|SendResult(msg)| { if msg != Err(SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(TrySend)) { Err(format!("Expected error, got {:?}", msg)) } else { Ok(()) } })
+        .expect_message(|IdleNotification| { Ok(()) })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
