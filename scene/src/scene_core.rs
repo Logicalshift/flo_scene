@@ -45,7 +45,7 @@ pub (crate) struct SceneCore {
     initialised_message_types: HashSet<TypeId>,
 
     /// The input stream cores for each sub-program, along with their stream type
-    sub_program_inputs: Vec<Option<(StreamId, Arc<dyn Send + Sync + Any>)>>,
+    sub_program_inputs: Vec<Option<(StreamId, Arc<dyn Send + Sync + Any>, SubProgramId)>>,
 
     /// The next free sub-program
     next_subprogram: usize,
@@ -229,7 +229,7 @@ impl SceneCore {
             // Store the program details
             let subprogram                  = Arc::new(Mutex::new(subprogram));
             core.sub_programs[handle]       = Some(Arc::clone(&subprogram));
-            core.sub_program_inputs[handle] = Some((StreamId::with_message_type::<TMessage>(), input_core));
+            core.sub_program_inputs[handle] = Some((StreamId::with_message_type::<TMessage>(), input_core, program_id));
             core.program_indexes.insert(program_id, handle);
 
             // Update the 'next_subprogram' value to an empty slot
@@ -1020,7 +1020,7 @@ impl SceneCore {
 
         // Check the inputs to see if they are idle
         let all_inputs_idle = sub_program_inputs.iter()
-            .all(|(stream_id, input_stream)| stream_id.is_idle(input_stream) == Ok(true));
+            .all(|(stream_id, input_stream, _program_id)| stream_id.is_idle(input_stream) == Ok(true));
 
         let all_processes_idle = if !all_inputs_idle {
             // If the inputs are not idle, then the core is not idle (we'll just assume that the processes are asleep)
