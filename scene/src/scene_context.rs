@@ -379,16 +379,23 @@ impl SceneContext {
     ///
     /// Waits for the scene to become idle
     ///
-    /// Subprograms that are waiting for the scene to become idle will produce errors if their input queue becomes full instead of blocking.
+    /// 'Idle' means that all active messages have finished processing and the scene is waiting for input from an external source. This is useful
+    /// for things like waiting for a message to finish processing before performing an update or 
+    ///
+    /// This is similar to sending the `IdleRequest::WhenIdle()` message except it will queue input for the current program instead of waiting for the
+    /// current program's input to be consumed before sending the message. This call can be more convenient, but senders will be sent 
+    /// `SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle()` errors if more than `max_idle_queue_len` messages are left waiting.
+    ///
+    /// This makes this 'easier' for the program that wants to wait but can cause issues for anything that's sending requests. You should try to use
+    /// the `IdleRequest` message wherever possible.
+    ///
+    /// Another thing to note is that this is a problematic call to make if the program handles queries or has similar feedback loops: if another
+    /// subprogram is waiting for a response from this one then the scene will not be idle. That response will never come if the target is waiting
+    /// for the scene to become idle, which does not happen with the IdleRequest message.
     ///
     /// The scene is idle if all the subprograms have 0 messages waiting and are ready to receive a new message, or are waiting for the scene to become
     /// idle. Idle notifications may be suppressed with the `IdleRequest::SuppressNotifications` request (in which case the scene is not considered
     /// idle until the corresponding `ResumeNotifications` request is made)
-    ///
-    /// When waiting for a scene to become idle, a subprogram may increase its maximum queue length. This is because messages waiting to be sent cannot
-    /// block any more in this state, so will error out. So a program that needs to wait for the scene to become idle will typically need to raise its
-    /// queue length high enough to accomodate any message that might be sent to it during this time (to avoid blocking the very condition it's waiting
-    /// for).
     ///
     pub async fn wait_for_idle(&self, max_idle_queue_len: usize) {
         use std::mem;
