@@ -158,7 +158,7 @@ fn wait_for_idle_program_closed_input_stream() {
     }, 0);
 
     TestBuilder::new()
-        .expect_message(|SendResult(msg)| { if msg != Err(SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(TrySend)) { Err(format!("Expected error, got {:?}", msg)) } else { Ok(()) } })
+        .expect_message(|SendResult(msg)| { if msg != Err(SceneSendError::StreamClosed(TrySend)) { Err(format!("Expected error, got {:?}", msg)) } else { Ok(()) } })
         .expect_message(|IdleNotification| { Ok(()) })
         .run_in_scene_with_threads(&scene, test_program, 5);
 }

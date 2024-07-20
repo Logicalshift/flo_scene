@@ -89,7 +89,10 @@ pub enum SceneSendError<TMessage> {
     /// The target program ended while waiting for it to become ready (or after sending the message but before it could be flushed)
     TargetProgramEndedBeforeReady,
 
-    /// The target for the stream stopped before the message could be sent
+    /// The target stream was closed when the message was sent (eg, because the target program is not listening for input)
+    StreamClosed(TMessage),
+
+    /// The target for the stream stopped before the message could be sent (can be treated as the same as StreamClosed)
     TargetProgramEnded(TMessage),
 
     /// The stream is disconnected, so messages cannot currently be sent to it
@@ -113,6 +116,7 @@ impl<TMessage> SceneSendError<TMessage> {
     pub fn message(&self) -> Option<&TMessage> {
         match self {
             SceneSendError::TargetProgramEndedBeforeReady               => None,
+            SceneSendError::StreamClosed(msg)                           => Some(msg),
             SceneSendError::TargetProgramEnded(msg)                     => Some(msg),
             SceneSendError::StreamDisconnected(msg)                     => Some(msg),
             SceneSendError::CannotReEnterTargetProgram                  => None,
@@ -131,6 +135,7 @@ impl<TMessage> SceneSendError<TMessage> {
     pub fn to_message(self) -> Option<TMessage> {
         match self {
             SceneSendError::TargetProgramEndedBeforeReady               => None,
+            SceneSendError::StreamClosed(msg)                           => Some(msg),
             SceneSendError::TargetProgramEnded(msg)                     => Some(msg),
             SceneSendError::StreamDisconnected(msg)                     => Some(msg),
             SceneSendError::CannotReEnterTargetProgram                  => None,
@@ -143,6 +148,7 @@ impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
     fn from(err: SceneSendError<TMessage>) -> ConnectionError {
         match err {
             SceneSendError::TargetProgramEndedBeforeReady               => ConnectionError::TargetNotInScene,
+            SceneSendError::StreamClosed(_)                             => ConnectionError::TargetNotAvailable,
             SceneSendError::TargetProgramEnded(_)                       => ConnectionError::TargetNotInScene,
             SceneSendError::StreamDisconnected(_)                       => ConnectionError::TargetNotAvailable,
             SceneSendError::CannotReEnterTargetProgram                  => ConnectionError::CannotStealThread,
