@@ -14,7 +14,7 @@ use std::sync::*;
 ///
 /// The target of an output sink
 ///
-pub (crate) enum OutputSinkTarget<TMessage> {
+pub (crate) enum OutputSinkTarget<TMessage: Send> {
     /// Indicates an output that has nowhere to send its data (will just block)
     Disconnected,
 
@@ -31,7 +31,7 @@ pub (crate) enum OutputSinkTarget<TMessage> {
 ///
 /// The shared core of an output sink
 ///
-pub (crate) struct OutputSinkCore<TMessage> {
+pub (crate) struct OutputSinkCore<TMessage: Send> {
     /// The target for the sink
     pub (crate) target: OutputSinkTarget<TMessage>,
 
@@ -42,7 +42,7 @@ pub (crate) struct OutputSinkCore<TMessage> {
 ///
 /// An output sink is a way for a subprogram to send messages to the input of another subprogram
 ///
-pub struct OutputSink<TMessage> {
+pub struct OutputSink<TMessage: Send> {
     /// The ID of the program that owns this output
     program_id: SubProgramId,
 
@@ -62,7 +62,10 @@ pub struct OutputSink<TMessage> {
     when_message_sent: Option<Waker>,
 }
 
-impl<TMessage> Clone for OutputSinkTarget<TMessage> {
+impl<TMessage> Clone for OutputSinkTarget<TMessage> 
+where
+    TMessage: Send
+{
     #[inline]
     fn clone(&self) -> Self {
         use OutputSinkTarget::*;
@@ -76,7 +79,10 @@ impl<TMessage> Clone for OutputSinkTarget<TMessage> {
     }
 }
 
-impl<TMessage> Drop for OutputSinkTarget<TMessage> {
+impl<TMessage> Drop for OutputSinkTarget<TMessage>
+where
+    TMessage: Send
+{
     #[allow(clippy::single_match)]      // May be more cases in the future, current singleton is not inherent
     fn drop(&mut self) {
         match self {
@@ -95,7 +101,10 @@ impl<TMessage> Drop for OutputSinkTarget<TMessage> {
     }
 }
 
-impl<TMessage> OutputSinkCore<TMessage> {
+impl<TMessage> OutputSinkCore<TMessage> 
+where
+    TMessage: Send
+{
     ///
     /// Creates a new output sink core
     ///
@@ -120,7 +129,10 @@ impl<TMessage> OutputSinkCore<TMessage> {
     }
 }
 
-impl<TMessage> OutputSink<TMessage> {
+impl<TMessage> OutputSink<TMessage> 
+where
+    TMessage: Send
+{
     ///
     /// Creates a new output sink that is attached to a known target
     ///
@@ -314,7 +326,7 @@ impl<TMessage> OutputSink<TMessage> {
 
 impl<TMessage> Sink<TMessage> for OutputSink<TMessage> 
 where
-    TMessage: Unpin,
+    TMessage: Send + Unpin,
 {
     type Error = SceneSendError<TMessage>;
 
@@ -537,7 +549,10 @@ mod test {
     use futures::executor;
     use futures::pin_mut;
 
-    impl<TMessage> OutputSink<TMessage> {
+    impl<TMessage> OutputSink<TMessage> 
+    where
+        TMessage: Send
+    {
         ///
         /// Creates a new output sink that belongs to the specified sub-program
         ///

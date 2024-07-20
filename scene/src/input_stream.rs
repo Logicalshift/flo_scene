@@ -42,6 +42,9 @@ pub (crate) struct InputStreamCore<TMessage> {
 
     /// True if this stream has been polled while empty, false if this stream has recently returned a value
     idle: bool,
+
+    /// The number of times the owner of this input stream is waiting for the scene to become idle
+    waiting_for_idle: usize,
 }
 
 /// A struct that unblocks an input stream when dropped
@@ -134,6 +137,7 @@ where
             allow_thread_stealing:  TMessage::allow_thread_stealing_by_default(),
             closed:                 false,
             idle:                   false,
+            waiting_for_idle:       0,
         };
 
         InputStream {
@@ -202,7 +206,10 @@ where
     }
 }
 
-impl<TMessage> InputStreamCore<TMessage> {
+impl<TMessage> InputStreamCore<TMessage> 
+where
+    TMessage: Send,
+{
     ///
     /// Retrieves the scene core for this input stream if there is one
     ///
@@ -305,7 +312,34 @@ impl<TMessage> InputStreamCore<TMessage> {
     ///
     #[inline]
     pub (crate) fn is_idle(&self) -> bool {
-        self.idle && self.waiting_messages.is_empty()
+        (self.idle && self.waiting_messages.is_empty()) || (self.waiting_for_idle > 0)
+    }
+
+    ///
+    /// Marks this input stream as 'waiting for idle', where it will accept messages but won't block other idle notifications from firing
+    ///
+    pub (crate) fn waiting_for_idle<'a>(core: &'a Arc<Mutex<Self>>) -> IdleInputStreamCore<'a> {
+        core.lock().unwrap().waiting_for_idle += 1;
+
+        let core = Arc::downgrade(core);
+        let idle_dropper = IdleInputStreamCore(Some(Box::new(move ||
+                if let Some(core) = core.upgrade() {
+                    core.lock().unwrap().waiting_for_idle -= 1;
+                }
+            )));
+
+        idle_dropper
+    }
+}
+
+/// Object that marks an input stream as no longer waiting for idle when it's dropped
+pub (crate) struct IdleInputStreamCore<'a>(Option<Box<dyn 'a + Send + FnOnce() -> ()>>);
+
+impl<'a> Drop for IdleInputStreamCore<'a> {
+    fn drop(&mut self) {
+        if let Some(on_drop) = self.0.take() {
+            on_drop();
+        }
     }
 }
 
