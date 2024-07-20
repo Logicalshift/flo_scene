@@ -2,8 +2,7 @@ use flo_scene::*;
 use flo_scene::programs::*;
 use flo_scene::commands::*;
 
-#[test]
-pub fn call_dispatcher_command() {
+pub fn call_dispatcher_command_iteration() {
     let test_program        = SubProgramId::new();
     let launcher_program    = SubProgramId::new();
     let dispatcher_program  = SubProgramId::new();
@@ -58,12 +57,21 @@ pub fn call_dispatcher_command() {
 
     // Check that it responds as expected
     TestBuilder::new()
-        .send_message(IdleRequest::WhenIdle(test_program))
-        .expect_message(|IdleNotification| { Ok(()) })
-
         .run_query(ReadCommand::default(), RunCommand::<TestRequest, TestResponse>::new((), "test_command", TestRequest("test".into())), dispatcher_program, |response| {
             assert!(response == vec![TestResponse("test".into())]);
             Ok(())
         })
         .run_in_scene(&scene, test_program);
+}
+
+#[test]
+pub fn call_dispatcher_command() {
+    call_dispatcher_command_iteration();
+}
+
+#[test]
+pub fn call_dispatcher_command_many_times() {
+    for _ in 0..100 {
+        call_dispatcher_command_iteration();
+    }
 }
