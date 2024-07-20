@@ -116,6 +116,54 @@ fn wait_for_idle_program_errors_when_full() {
 }
 
 #[test]
+fn wait_for_idle_program_closed_input_stream() {
+    let scene           = Scene::empty();
+    let test_program    = SubProgramId::new();
+    let waiting_program = SubProgramId::new();
+
+    #[derive(PartialEq, Debug)]
+    struct TrySend;
+    impl SceneMessage for TrySend { }
+
+    #[derive(Debug)]
+    struct SendResult(Result<(), SceneSendError<TrySend>>);
+    impl SceneMessage for SendResult { }
+
+    scene.add_subprogram(SubProgramId::new(), move |_: InputStream<()>, context| async move {
+        let mut idle_program = context.send(waiting_program).unwrap();
+
+        // Might wake the queue if the input stream is not closed here
+        let maybe_wakes_the_queue = idle_program.send(TrySend).await;
+
+        // A second message should always be an error (indicating the stream is closed)
+        let should_be_error = if maybe_wakes_the_queue.is_err() {
+            maybe_wakes_the_queue
+        } else {
+            idle_program.send(TrySend).await
+        };
+
+        context.send(test_program).unwrap().send(SendResult(should_be_error)).await.unwrap();
+    }, 0);
+
+    // Add a program that waits for idle but has a 0 length waiting queue
+    scene.add_subprogram(waiting_program, move |input: InputStream<TrySend>, context| async move {
+        // Drop the input stream immediately
+        use std::mem;
+        mem::drop(input);
+
+        context.wait_for_idle(0).await;
+
+        context.send(test_program).unwrap()
+            .send(IdleNotification).await.unwrap();
+    }, 0);
+
+    TestBuilder::new()
+        .expect_message(|SendResult(msg)| { if msg != Err(SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(TrySend)) { Err(format!("Expected error, got {:?}", msg)) } else { Ok(()) } })
+        .expect_message(|IdleNotification| { Ok(()) })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
 fn wait_for_idle_program_errors_after_filling_available_space() {
     let scene           = Scene::empty();
     let test_program    = SubProgramId::new();
