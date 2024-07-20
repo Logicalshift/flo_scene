@@ -431,10 +431,14 @@ where
 
                         Err(item) => {
                             // Need to wait for a slot in the stream
-                            self.waiting_message = Some(item);
-                            Ok(())
+                            if input_core.is_waiting_for_idle() {
+                                Err(SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(item))
+                            } else {
+                                self.waiting_message = Some(item);
+                                Ok(())
+                            }
                         }
-                    }
+                    } 
                 } else {
                     // Downgrade to a disconnected core so the sending can be retried
                     core.target = OutputSinkTarget::Disconnected;
@@ -511,12 +515,16 @@ where
 
                             Err(message) => {
                                 // Need to wait for a slot in the stream
-                                self.waiting_message        = Some(message);
-                                input_core.wake_when_slots_available(context);
+                                if input_core.is_waiting_for_idle() {
+                                    Poll::Ready(Err(SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(message)))
+                                } else {
+                                    self.waiting_message        = Some(message);
+                                    input_core.wake_when_slots_available(context);
 
-                                mem::drop(input_core);
-                                self.core.lock().unwrap().when_target_changed = Some(context.waker().clone());
-                                Poll::Pending
+                                    mem::drop(input_core);
+                                    self.core.lock().unwrap().when_target_changed = Some(context.waker().clone());
+                                    Poll::Pending
+                                }
                             }
                         }
                     } else {

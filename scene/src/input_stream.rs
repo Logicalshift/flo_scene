@@ -322,6 +322,14 @@ where
     }
 
     ///
+    /// True if this input stream is waiting for idle (should not block if the queue is full)
+    ///
+    #[inline]
+    pub (crate) fn is_waiting_for_idle(&self) -> bool {
+        self.waiting_for_idle > 0
+    }
+
+    ///
     /// Marks this input stream as 'waiting for idle', where it will accept messages but won't block other idle notifications from firing
     ///
     /// Senders will receive an error instead of backpressure if `max_idle_queue_len` is exceeded, otherwise, this core will be able to queue
