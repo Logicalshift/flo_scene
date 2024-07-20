@@ -322,7 +322,7 @@ where
     ///
     #[inline]
     pub (crate) fn is_idle(&self) -> bool {
-        (self.idle && self.waiting_messages.is_empty()) || (self.waiting_for_idle > 0)
+        (self.idle && self.waiting_messages.is_empty()) || (self.waiting_for_idle > 0) || (self.dropped)
     }
 
     ///
