@@ -366,7 +366,9 @@ impl SceneControl {
                     // Send a query response to the target
                     if let (Ok(mut query_response), Some(scene_core)) = (context.send(target), scene_core.upgrade()) {
                         // Build a response out of the current state of the scene
-                        let response = started_subprograms.iter()
+                        let running_subprograms = scene_core.lock().unwrap().get_running_subprograms();
+
+                        let response = running_subprograms.iter()
                             .flat_map(|prog| scene_core.lock().unwrap().get_sub_program(*prog).map(|core| (prog, core)))
                             .map(|(prog, core)| SceneUpdate::Started(*prog, core.lock().unwrap().input_stream_id.clone()))
                             .chain(active_connections.iter().map(|((source, stream), target)| SceneUpdate::Connected(*source, *target, stream.clone())))
