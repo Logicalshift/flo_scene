@@ -184,8 +184,8 @@ impl SceneCore {
                 }
 
                 // Close down the subprogram before finishing
-                if let Some(core) = process_core.upgrade() {
-                    let mut core = core.lock().unwrap();
+                if let Some(process_core) = process_core.upgrade() {
+                    let mut core = process_core.lock().unwrap();
 
                     // Take the subprogram and input core out of the scene
                     let old_sub_program     = core.sub_programs[handle].take();
@@ -201,6 +201,9 @@ impl SceneCore {
 
                     mem::drop(old_input_core);
                     mem::drop(old_sub_program);
+
+                    // Core might be idle now the program has finished
+                    SceneCore::check_if_idle(&process_core);
                 }
             });
 
