@@ -1068,7 +1068,7 @@ impl SceneCore {
                 if let Err(send_error) = is_sent {
                     if send_error.is_disconnected() {
                         // Don't try to send to this stream any more
-                        // TODO: if we ever need to create/dispose many of these, it'll make more sense to 
+                        // TODO: if we ever need to create/dispose many of these, it'll make more sense to have a function to remove them
                         *notifier = None;
                     } else if send_error.is_full() {
                         // Something is already processing a notification
