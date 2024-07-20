@@ -431,7 +431,9 @@ where
 
                         Err(item) => {
                             // Need to wait for a slot in the stream
-                            if input_core.is_waiting_for_idle() {
+                            if input_core.is_closed() {
+                                Err(SceneSendError::StreamClosed(item))
+                            } else if input_core.is_waiting_for_idle() {
                                 Err(SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(item))
                             } else {
                                 self.waiting_message = Some(item);
@@ -515,7 +517,9 @@ where
 
                             Err(message) => {
                                 // Need to wait for a slot in the stream
-                                if input_core.is_waiting_for_idle() {
+                                if input_core.is_closed() {
+                                    Poll::Ready(Err(SceneSendError::StreamClosed(message)))
+                                } else if input_core.is_waiting_for_idle() {
                                     Poll::Ready(Err(SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(message)))
                                 } else {
                                     self.waiting_message        = Some(message);
