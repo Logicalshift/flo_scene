@@ -105,3 +105,96 @@ fn wait_for_idle_program_errors_when_full() {
         .expect_message(|IdleNotification| { Ok(()) })
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
+
+#[test]
+fn wait_for_idle_program_errors_after_filling_available_space() {
+    let scene           = Scene::empty();
+    let test_program    = SubProgramId::new();
+    let waiting_program = SubProgramId::new();
+
+    #[derive(PartialEq, Debug)]
+    struct TrySend;
+    impl SceneMessage for TrySend { }
+
+    #[derive(Debug)]
+    struct SendResult(Result<(), SceneSendError<TrySend>>);
+    impl SceneMessage for SendResult { }
+
+    scene.add_subprogram(SubProgramId::new(), move |_: InputStream<()>, context| async move {
+        let mut idle_program = context.send(waiting_program).unwrap();
+
+        // Send some messages to fill up the queue (which is set to size 4 below: one extra message because the message that wakes the stream is not queued but blocked instead)
+        for i in 0..5 {
+            println!("Sending {}", i);
+            idle_program.send(TrySend).await.unwrap();
+            println!("  Sent {}", i);
+        }
+
+        // Try to send the message, and then send the result to the test program
+        let should_be_error = idle_program.send(TrySend).await;
+        context.send(test_program).unwrap().send(SendResult(should_be_error)).await.unwrap();
+    }, 0);
+
+    // Add a program that waits for idle but has a 0 length waiting queue
+    scene.add_subprogram(waiting_program, move |input: InputStream<TrySend>, context| async move {
+        use std::mem;
+
+        context.wait_for_idle(4).await;
+
+        context.send(test_program).unwrap()
+            .send(IdleNotification).await.unwrap();
+
+        // If we drop the input early we'll just reject everything
+        mem::drop(input);
+    }, 2);
+
+    TestBuilder::new()
+        .expect_message(|SendResult(msg)| { if msg != Err(SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(TrySend)) { Err(format!("Expected error, got {:?}", msg)) } else { Ok(()) } })
+        .expect_message(|IdleNotification| { Ok(()) })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
+fn wait_for_idle_program_queues_extra_requests() {
+    let scene           = Scene::empty();
+    let test_program    = SubProgramId::new();
+    let waiting_program = SubProgramId::new();
+
+    #[derive(PartialEq, Debug)]
+    struct TrySend;
+    impl SceneMessage for TrySend { }
+
+    scene.add_subprogram(SubProgramId::new(), move |_: InputStream<()>, context| async move {
+        let mut idle_program = context.send(waiting_program).unwrap();
+
+        // Send some messages to it (these get blocked while 'wait_for_idle' is waiting)
+        for _ in 0..5 {
+            idle_program.send(TrySend).await.unwrap();
+        }
+    }, 0);
+
+    // Add a program that waits for idle but has a 0 length waiting queue
+    scene.add_subprogram(waiting_program, move |input: InputStream<TrySend>, context| async move {
+        // Wait for idle, then tell the test program we're OK
+        context.wait_for_idle(1_000).await;
+
+        context.send(test_program).unwrap()
+            .send(IdleNotification).await.unwrap();
+
+        // Forward the 5 messages
+        let mut input = input;
+        for _ in 0..5 {
+            context.send(test_program).unwrap()
+                .send(input.next().await.unwrap()).await.unwrap();
+        }
+    }, 0);
+
+    TestBuilder::new()
+        .expect_message(|IdleNotification| { Ok(()) })
+        .expect_message(|TrySend| { Ok(()) })
+        .expect_message(|TrySend| { Ok(()) })
+        .expect_message(|TrySend| { Ok(()) })
+        .expect_message(|TrySend| { Ok(()) })
+        .expect_message(|TrySend| { Ok(()) })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
