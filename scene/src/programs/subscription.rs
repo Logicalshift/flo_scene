@@ -134,6 +134,7 @@ where
                     break Ok(());
                 }
 
+                Err(SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(returned_message)) |
                 Err(SceneSendError::TargetProgramEnded(returned_message)) |
                 Err(SceneSendError::StreamDisconnected(returned_message)) => {
                     // Remove this subscriber as it errored out

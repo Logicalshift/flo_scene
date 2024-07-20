@@ -40,6 +40,9 @@ pub enum ConnectionError {
     /// The target input stream is not available
     TargetNotAvailable,
 
+    /// The target cannot accept a message because it's not ready
+    TargetNotReady,
+
     /// The input to a filter does not match what was expected
     FilterInputDoesNotMatch,
 
@@ -94,6 +97,9 @@ pub enum SceneSendError<TMessage> {
 
     /// The target program supports thread stealing, but it is already running on the current thread's callstack and can't re-enter
     CannotReEnterTargetProgram,
+
+    /// The target program is waiting for the scene to become idle and its input queue is full
+    CannotAcceptMoreInputUntilSceneIsIdle(TMessage),
 }
 
 impl<TMessage> SceneSendError<TMessage> {
@@ -106,10 +112,11 @@ impl<TMessage> SceneSendError<TMessage> {
     ///
     pub fn message(&self) -> Option<&TMessage> {
         match self {
-            SceneSendError::TargetProgramEndedBeforeReady   => None,
-            SceneSendError::TargetProgramEnded(msg)         => Some(msg),
-            SceneSendError::StreamDisconnected(msg)         => Some(msg),
-            SceneSendError::CannotReEnterTargetProgram      => None,
+            SceneSendError::TargetProgramEndedBeforeReady               => None,
+            SceneSendError::TargetProgramEnded(msg)                     => Some(msg),
+            SceneSendError::StreamDisconnected(msg)                     => Some(msg),
+            SceneSendError::CannotReEnterTargetProgram                  => None,
+            SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(msg)  => Some(msg),
         }
     }
 
@@ -123,10 +130,11 @@ impl<TMessage> SceneSendError<TMessage> {
     ///
     pub fn to_message(self) -> Option<TMessage> {
         match self {
-            SceneSendError::TargetProgramEndedBeforeReady   => None,
-            SceneSendError::TargetProgramEnded(msg)         => Some(msg),
-            SceneSendError::StreamDisconnected(msg)         => Some(msg),
-            SceneSendError::CannotReEnterTargetProgram      => None,
+            SceneSendError::TargetProgramEndedBeforeReady               => None,
+            SceneSendError::TargetProgramEnded(msg)                     => Some(msg),
+            SceneSendError::StreamDisconnected(msg)                     => Some(msg),
+            SceneSendError::CannotReEnterTargetProgram                  => None,
+            SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(msg)  => Some(msg),
         }
     }
 }
@@ -134,10 +142,11 @@ impl<TMessage> SceneSendError<TMessage> {
 impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
     fn from(err: SceneSendError<TMessage>) -> ConnectionError {
         match err {
-            SceneSendError::TargetProgramEndedBeforeReady   => ConnectionError::TargetNotInScene,
-            SceneSendError::TargetProgramEnded(_)           => ConnectionError::TargetNotInScene,
-            SceneSendError::StreamDisconnected(_)           => ConnectionError::TargetNotAvailable,
-            SceneSendError::CannotReEnterTargetProgram      => ConnectionError::CannotStealThread,
+            SceneSendError::TargetProgramEndedBeforeReady               => ConnectionError::TargetNotInScene,
+            SceneSendError::TargetProgramEnded(_)                       => ConnectionError::TargetNotInScene,
+            SceneSendError::StreamDisconnected(_)                       => ConnectionError::TargetNotAvailable,
+            SceneSendError::CannotReEnterTargetProgram                  => ConnectionError::CannotStealThread,
+            SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(_)    => ConnectionError::TargetNotReady,
         }
     }
 }
