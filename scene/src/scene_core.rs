@@ -845,6 +845,15 @@ impl SceneCore {
     }
 
     ///
+    /// Retrieves a list of the currently running subprogram IDs
+    ///
+    pub (crate) fn get_running_subprograms(&self) -> Vec<SubProgramId> {
+        self.program_indexes.keys()
+            .copied()
+            .collect()
+    }
+
+    ///
     /// Retrieves the subprogram core for an ID if it exists
     ///
     pub (crate) fn get_sub_program(&self, sub_program_id: SubProgramId) -> Option<Arc<Mutex<SubProgramCore>>> {
