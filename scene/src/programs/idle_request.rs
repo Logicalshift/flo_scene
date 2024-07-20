@@ -18,7 +18,8 @@ pub static IDLE_NOTIFICATION_PROGRAM: StaticSubProgramId = StaticSubProgramId::c
 ///
 /// Idle requests are a way to request a callback that is made when the scene is next idle
 ///
-/// A scene is considered 'idle' when all input streams are waiting with 0 messages remaining. 
+/// A scene is considered 'idle' when all input streams are waiting with 0 messages remaining, or they 
+/// are waiting for the scene to become idle. 
 ///
 /// One use for this is for triggering UI rendering after waiting for a state update to process: this
 /// will trigger after all commands have finished processing, which could indicate that the UI is
