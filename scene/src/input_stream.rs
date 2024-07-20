@@ -326,14 +326,17 @@ where
     /// up to max_idle_queue_len messages while it waits for the core to become idle.
     ///
     pub (crate) fn waiting_for_idle(core: &Arc<Mutex<Self>>, max_idle_queue_len: usize) -> IdleInputStreamCore {
-        {
-            // Mark the core are 
+        let when_slots_available = {
+            // Mark the core as being in the 'waiting for idle' state
             let mut core = core.lock().unwrap();
 
             core.waiting_for_idle += 1;
             core.max_idle_queue_len = core.max_idle_queue_len.max(max_idle_queue_len);
-        }
 
+            core.when_slots_available.drain(..).collect::<Vec<_>>()
+        };
+
+        // Create the dropper that will put the core back into the normal state (when the idle notification is received)
         let core = Arc::downgrade(core);
         let idle_dropper = IdleInputStreamCore(Some(Box::new(move ||
                 if let Some(core) = core.upgrade() {
@@ -345,6 +348,9 @@ where
                     }
                 }
             )));
+
+        // Notify anything that's waiting that more slots might be available
+        when_slots_available.into_iter().for_each(|waker| waker.wake());
 
         idle_dropper
     }
