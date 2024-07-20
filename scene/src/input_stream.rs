@@ -46,6 +46,9 @@ pub (crate) struct InputStreamCore<TMessage> {
     /// True if this stream has been polled while empty, false if this stream has recently returned a value
     idle: bool,
 
+    /// True if the input stream has been dropped
+    dropped: bool,
+
     /// The number of times the owner of this input stream is waiting for the scene to become idle
     waiting_for_idle: usize,
 }
@@ -141,6 +144,7 @@ where
             allow_thread_stealing:  TMessage::allow_thread_stealing_by_default(),
             closed:                 false,
             idle:                   false,
+            dropped:                false,
             waiting_for_idle:       0,
         };
 
@@ -509,6 +513,12 @@ impl<TMessage> Drop for InputStream<TMessage> {
 
             // Stream is closed at this point, shouldn't handle any more messages
             core.closed = true;
+
+            // Core is dropped, so the messages won't be processed
+            core.dropped = true;
+
+            // Free any waiting messages from the core at this point
+            core.waiting_messages.drain(..);
         }
     }
 }
