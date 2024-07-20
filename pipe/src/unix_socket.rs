@@ -5,6 +5,7 @@ use flo_scene::*;
 use futures::prelude::*;
 use futures::stream::{BoxStream};
 
+#[cfg(unix)]
 use tokio::net::{UnixListener};
 
 use std::path::*;
