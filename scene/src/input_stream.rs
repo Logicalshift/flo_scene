@@ -19,6 +19,9 @@ pub (crate) struct InputStreamCore<TMessage> {
     /// The maximum number of waiting messages for this input stream
     max_waiting: usize,
 
+    /// The maximum number of wiating messages while this is waiting to become idle
+    max_idle_queue_len: usize,
+
     /// The scene that this input is a part of
     scene_core: Weak<Mutex<SceneCore>>,
 
@@ -129,6 +132,7 @@ where
         let core = InputStreamCore {
             program_id:             program_id,
             max_waiting:            max_waiting,
+            max_idle_queue_len:     max_waiting,
             scene_core:             Arc::downgrade(scene_core),
             waiting_messages:       VecDeque::new(),
             when_message_sent:      None,
@@ -318,13 +322,27 @@ where
     ///
     /// Marks this input stream as 'waiting for idle', where it will accept messages but won't block other idle notifications from firing
     ///
-    pub (crate) fn waiting_for_idle<'a>(core: &'a Arc<Mutex<Self>>) -> IdleInputStreamCore<'a> {
-        core.lock().unwrap().waiting_for_idle += 1;
+    /// Senders will receive an error instead of backpressure if `max_idle_queue_len` is exceeded, otherwise, this core will be able to queue
+    /// up to max_idle_queue_len messages while it waits for the core to become idle.
+    ///
+    pub (crate) fn waiting_for_idle<'a>(core: &'a Arc<Mutex<Self>>, max_idle_queue_len: usize) -> IdleInputStreamCore<'a> {
+        {
+            // Mark the core are 
+            let mut core = core.lock().unwrap();
+
+            core.waiting_for_idle += 1;
+            core.max_idle_queue_len = core.max_idle_queue_len.max(max_idle_queue_len);
+        }
 
         let core = Arc::downgrade(core);
         let idle_dropper = IdleInputStreamCore(Some(Box::new(move ||
                 if let Some(core) = core.upgrade() {
-                    core.lock().unwrap().waiting_for_idle -= 1;
+                    let mut core = core.lock().unwrap();
+
+                    core.waiting_for_idle -= 1;
+                    if core.waiting_for_idle == 0 {
+                        core.max_idle_queue_len = core.max_waiting;
+                    }
                 }
             )));
 
