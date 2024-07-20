@@ -1,5 +1,6 @@
 use crate::command_trait::*;
 use crate::error::*;
+use crate::input_stream;
 use crate::input_stream::*;
 use crate::output_sink::*;
 use crate::programs::*;
@@ -12,6 +13,7 @@ use crate::subprogram_id::*;
 
 use futures::prelude::*;
 use futures::channel::oneshot;
+use futures::channel::mpsc;
 
 use std::cell::*;
 use std::sync::*;
@@ -371,6 +373,52 @@ impl SceneContext {
         } else {
             // The core or the program is not running any more
             Err(ConnectionError::SubProgramNotRunning)
+        }
+    }
+
+    ///
+    /// Waits for the scene to become idle
+    ///
+    /// Subprograms that are waiting for the scene to become idle will produce errors if their input queue becomes full instead of blocking.
+    ///
+    /// The scene is idle if all the subprograms have 0 messages waiting and are ready to receive a new message, or are waiting for the scene to become
+    /// idle. Idle notifications may be suppressed with the `IdleRequest::SuppressNotifications` request (in which case the scene is not considered
+    /// idle until the corresponding `ResumeNotifications` request is made)
+    ///
+    /// When waiting for a scene to become idle, a subprogram may increase its maximum queue length. This is because messages waiting to be sent cannot
+    /// block any more in this state, so will error out. So a program that needs to wait for the scene to become idle will typically need to raise its
+    /// queue length high enough to accomodate any message that might be sent to it during this time (to avoid blocking the very condition it's waiting
+    /// for).
+    ///
+    pub async fn wait_for_idle(&self, max_idle_queue_len: usize) {
+        use std::mem;
+
+        if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
+            // Get the input stream ID from the program core
+            let (program_id, stream_id) = {
+                let program_core = program_core.lock().unwrap();
+
+                (*program_core.program_id(), program_core.input_stream_id())
+            };
+
+            // Fetch the input stream core for the current program
+            let input_stream_core = scene_core.lock().unwrap().get_input_stream_core(program_id);
+            let input_stream_core = if let Some(input_stream_core) = input_stream_core { input_stream_core } else { return; };
+
+            // Say we're waiting for idle (so input can accrue without blocking the idle message)
+            let we_are_waiting = stream_id.waiting_for_idle(&input_stream_core, max_idle_queue_len);
+
+            if let Ok(we_are_waiting) = we_are_waiting {
+                // Wait for the scene to become idle
+                let (send, recv) = mpsc::channel(1);
+                SceneCore::send_idle_notifications_to(&scene_core, send);
+
+                let mut when_idle = recv;
+                when_idle.next().await;
+
+                // No longer waiting
+                mem::drop(we_are_waiting);
+            }
         }
     }
 }
