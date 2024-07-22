@@ -27,13 +27,30 @@ pub enum JsonParseError {
     UnexpectedToken(Option<JsonToken>, String),
 
     /// The parser succeded in matching the input, but more was expected
-    ExpectedMoreInput,
+    ExpectedMoreInput(JsonInputType),
 
     /// Usually an error in the parser, we tried to 'reduce' a token when we hadn't previously accepted enough input 
     ParserStackTooSmall,
 
     /// A value that the parser thought was valid JSON was rejected by serde (usually indicating an error in this parser)
     SerdeJsonError,
+}
+
+///
+/// What type of 'more' input was expected
+///
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum JsonInputType {
+    LookaheadEmpty,
+    StartOfValue,
+    StartOfObject,
+    ObjectValues,
+    AfterObjectValue,
+    StartOfArray,
+    ArrayValues,
+    AfterArrayValue,
+    String,
+    Number,
 }
 
 impl<'a, TToken> From<&'a TokenMatch<TToken>> for JsonParseError 
@@ -52,7 +69,7 @@ where
 
 impl From<ParserLookaheadEmpty> for JsonParseError {
     fn from(_err: ParserLookaheadEmpty) -> JsonParseError {
-        JsonParseError::ExpectedMoreInput
+        JsonParseError::ExpectedMoreInput(JsonInputType::LookaheadEmpty)
     }
 }
 
@@ -411,7 +428,7 @@ where
             }
         } else {
             // Error if there's no symbol
-            Err(JsonParseError::ExpectedMoreInput)
+            Err(JsonParseError::ExpectedMoreInput(JsonInputType::StartOfValue))
         }
     }.boxed()
 }
@@ -427,7 +444,7 @@ where
     TToken::Error:  Send
 {
     let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
+    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::StartOfObject)) };
 
     if let Some(Ok(JsonToken::Character('{'))) = lookahead.token.clone().map(|token| token.try_into()) {
         // Accept the initial '{'
@@ -441,7 +458,7 @@ where
             
             // Look to the next value to decide what to do
             let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-            let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
+            let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::ObjectValues)) };
 
             match lookahead.token.clone().map(|token| token.try_into()) {
                 Some(Ok(JsonToken::Character('}'))) => {
@@ -472,7 +489,7 @@ where
 
                     // ',' or '}'
                     let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-                    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
+                    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::AfterObjectValue)) };
 
                     let json_token = lookahead.token.clone().map(|token| token.try_into());
                     match json_token {
@@ -538,7 +555,7 @@ where
     TToken::Error:  Send
 {
     let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
+    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::StartOfArray)) };
 
     if let Some(Ok(JsonToken::Character('['))) = lookahead.token.clone().map(|token| token.try_into()) {
         // Accept the initial '['
@@ -550,7 +567,7 @@ where
         loop {
             // Look ahead to the next value
             let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-            let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
+            let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::ArrayValues)) };
 
             // ']' to finish the array, or else a JSON value
             match lookahead.token.clone().map(|token| token.try_into()) {
@@ -570,7 +587,7 @@ where
 
                     // Next token should be a ',' for more array or ']' for the end of the array
                     let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-                    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
+                    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::AfterArrayValue)) };
 
                     match lookahead.token.clone().map(|token| token.try_into()) {
                         Some(Ok(JsonToken::Character(','))) => {
@@ -637,7 +654,7 @@ where
         }
     } else {
         // No lookahead
-        Err(JsonParseError::ExpectedMoreInput)
+        Err(JsonParseError::ExpectedMoreInput(JsonInputType::String))
     }
 }
 
@@ -666,7 +683,7 @@ where
         }
     } else {
         // No lookahead
-        Err(JsonParseError::ExpectedMoreInput)
+        Err(JsonParseError::ExpectedMoreInput(JsonInputType::Number))
     }
 }
 
