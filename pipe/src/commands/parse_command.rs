@@ -172,14 +172,19 @@ fn match_command(lookahead: &str, eof: bool) -> TokenMatchResult<CommandToken> {
     let mut len = 0;
 
     if let Some(first_chr) = characters.next() {
-        if first_chr.is_alphabetic() || first_chr == '_' {
+        if first_chr.is_alphabetic() || first_chr == '_' || first_chr == ':' {
             // Will match a command of some description
             len += 1;
 
             while let Some(next_chr) = characters.next() {
                 if next_chr.is_alphabetic() || next_chr.is_digit(10) || next_chr == '_' || next_chr == ':' {
+                    // Is a valid continuation
                 } else {
-                    return TokenMatchResult::Matches(CommandToken::Command, len);
+                    if first_chr != ':' || len > 1 {
+                        return TokenMatchResult::Matches(CommandToken::Command, len);
+                    } else {
+                        return TokenMatchResult::LookaheadCannotMatch;
+                    }
                 }
 
                 len += 1;
