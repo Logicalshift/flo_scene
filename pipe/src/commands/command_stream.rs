@@ -246,6 +246,7 @@ pub fn parse_command_stream(input: impl 'static + Send + Unpin + Stream<Item=Vec
                 }
 
                 Err(command_error) => {
+                    // Pass the error on so a message can be displayed
                     yield_value(Err(command_error.into())).await;
 
                     // Throw away the contents of the parser
