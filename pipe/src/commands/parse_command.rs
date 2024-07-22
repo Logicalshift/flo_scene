@@ -172,7 +172,7 @@ fn match_command(lookahead: &str, eof: bool) -> TokenMatchResult<CommandToken> {
     let mut len = 0;
 
     if let Some(first_chr) = characters.next() {
-        if first_chr.is_alphabetic() || first_chr == '_' || first_chr == ':' {
+        if first_chr.is_alphabetic() || first_chr == '_' {
             // Will match a command of some description
             len += 1;
 
