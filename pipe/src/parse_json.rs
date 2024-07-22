@@ -18,6 +18,56 @@ pub enum JsonToken {
     Character(char),
 }
 
+///
+/// Error when parsing some JSON
+///
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum JsonParseError {
+    /// The lookahead wasn't expected at this point
+    UnexpectedToken(Option<JsonToken>, String),
+
+    /// The parser succeded in matching the input, but more was expected
+    ExpectedMoreInput,
+
+    /// Usually an error in the parser, we tried to 'reduce' a token when we hadn't previously accepted enough input 
+    ParserStackTooSmall,
+
+    /// A value that the parser thought was valid JSON was rejected by serde (usually indicating an error in this parser)
+    SerdeJsonError,
+}
+
+impl<'a, TToken> From<&'a TokenMatch<TToken>> for JsonParseError 
+where
+    TToken: Clone + TryInto<JsonToken>,
+{
+    fn from(err_lookahead: &'a TokenMatch<TToken>) -> JsonParseError {
+        let json_token = err_lookahead.token.clone().map(|token| token.try_into());
+
+        match json_token {
+            Some(token) => JsonParseError::UnexpectedToken(token.ok(), err_lookahead.fragment.clone()),
+            None        => JsonParseError::UnexpectedToken(None, err_lookahead.fragment.clone()),
+        }
+    }
+}
+
+impl From<ParserLookaheadEmpty> for JsonParseError {
+    fn from(_err: ParserLookaheadEmpty) -> JsonParseError {
+        JsonParseError::ExpectedMoreInput
+    }
+}
+
+impl From<ParserStackTooSmall> for JsonParseError {
+    fn from(_err: ParserStackTooSmall) -> JsonParseError {
+        JsonParseError::ParserStackTooSmall
+    }
+}
+
+impl From<serde_json::Error> for JsonParseError {
+    fn from(_err: serde_json::Error) -> JsonParseError {
+        JsonParseError::SerdeJsonError
+    }
+}
+
 /// Matches a string against the JSON whitespace syntax
 pub (crate) fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<JsonToken> {
     // "^(([ \t]*[\r\n])|([ \t]+))"
@@ -336,7 +386,7 @@ where
 /// Attempts to parse a JSON value starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub fn json_parse_value<'a, TStream, TToken>(parser: &'a mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &'a mut Tokenizer<TToken, TStream>) -> BoxFuture<'a, Result<(), ()>>
+pub fn json_parse_value<'a, TStream, TToken>(parser: &'a mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &'a mut Tokenizer<TToken, TStream>) -> BoxFuture<'a, Result<(), JsonParseError>>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
@@ -347,19 +397,21 @@ where
 
         if let Some(lookahead) = lookahead {
             // Decide which matcher to use based on the lookahead
-            match lookahead.token.clone().map(|token| token.try_into()) {
+            let json_token = lookahead.token.clone().map(|token| token.try_into());
+
+            match json_token {
                 Some(Ok(JsonToken::String))         => json_parse_string(parser, tokenizer).await,
                 Some(Ok(JsonToken::Number))         => json_parse_number(parser, tokenizer).await,
                 Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer).await,
                 Some(Ok(JsonToken::Character('['))) => json_parse_array(parser, tokenizer).await,
-                Some(Ok(JsonToken::True))           => { parser.accept_token().map_err(|_| ())?.reduce(1, |_| serde_json::Value::Bool(true)).map_err(|_| ())?; Ok(()) },
-                Some(Ok(JsonToken::False))          => { parser.accept_token().map_err(|_| ())?.reduce(1, |_| serde_json::Value::Bool(false)).map_err(|_| ())?; Ok(()) },
-                Some(Ok(JsonToken::Null))           => { parser.accept_token().map_err(|_| ())?.reduce(1, |_| serde_json::Value::Null).map_err(|_| ())?; Ok(()) },
-                _                                   => Err(())
+                Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| serde_json::Value::Bool(true))?; Ok(()) },
+                Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| serde_json::Value::Bool(false))?; Ok(()) },
+                Some(Ok(JsonToken::Null))           => { parser.accept_token()?.reduce(1, |_| serde_json::Value::Null)?; Ok(()) },
+                _                                   => Err(lookahead.into())
             }
         } else {
             // Error if there's no symbol
-            Err(())
+            Err(JsonParseError::ExpectedMoreInput)
         }
     }.boxed()
 }
@@ -368,18 +420,18 @@ where
 /// Attempts to parse a JSON object starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_object<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), ()>
+pub async fn json_parse_object<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
     TToken::Error:  Send
 {
     let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
+    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
 
     if let Some(Ok(JsonToken::Character('{'))) = lookahead.token.clone().map(|token| token.try_into()) {
         // Accept the initial '{'
-        parser.accept_token().map_err(|_| ())?;
+        parser.accept_token()?;
 
         let mut num_tokens = 1;
 
@@ -389,20 +441,20 @@ where
             
             // Look to the next value to decide what to do
             let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-            let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
+            let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
 
             match lookahead.token.clone().map(|token| token.try_into()) {
                 Some(Ok(JsonToken::Character('}'))) => {
                     // '}' Finishes the object successfully
-                    parser.accept_token().map_err(|_| ())?;
+                    parser.accept_token()?;
                     num_tokens += 1;
                     break;
                 },
 
                 Some(Ok(JsonToken::String)) => {
                     // <String> : <Value>
-                    parser.accept_token().map_err(|_| ())?;
-                    parser.reduce(1, |string| serde_json::from_str(&string[0].token().unwrap().fragment).unwrap()).map_err(|_| ())?;
+                    parser.accept_token()?;
+                    parser.reduce(1, |string| serde_json::from_str(&string[0].token().unwrap().fragment).unwrap())?;
                     num_tokens += 1;
 
                     // ... ':'
@@ -412,7 +464,7 @@ where
                         } else {
                             false
                         }
-                    }).map_err(|_| ())?;
+                    })?;
                     num_tokens += 1;
 
                     json_parse_value(parser, tokenizer).await?;
@@ -420,32 +472,32 @@ where
 
                     // ',' or '}'
                     let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-                    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
+                    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
 
-                    match lookahead.token.clone().map(|token| token.try_into()) {
+                    let json_token = lookahead.token.clone().map(|token| token.try_into());
+                    match json_token {
                         Some(Ok(JsonToken::Character('}'))) => {
                             // Ends the object
-                            parser.accept_token().map_err(|_| ())?;
+                            parser.accept_token()?;
                             num_tokens += 1;
                             break;
                         }
 
                         Some(Ok(JsonToken::Character(','))) => {
                             // More fields
-                            parser.accept_token().map_err(|_| ())?;
+                            parser.accept_token()?;
                             num_tokens += 1;
                         }
 
                         _ => {
                             // Unexpected value
-                            return Err(());
+                            return Err(lookahead.into());
                         }
                     }
                 },
 
                 _ => {
-                    // Anything else is an error
-                    return Err(());
+                    return Err(lookahead.into());
                 }
             }
         }
@@ -466,12 +518,12 @@ where
                 });
 
             serde_json::Value::Object(values.collect())
-        }).map_err(|_| ())?;
+        })?;
 
         Ok(())
     } else {
         // Doesn't start with '{'
-        Err(())
+        Err(lookahead.into())
     }
 }
 
@@ -479,18 +531,18 @@ where
 /// Attempts to parse a JSON array starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_array<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), ()>
+pub async fn json_parse_array<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
     TToken::Error:  Send
 {
     let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
+    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
 
     if let Some(Ok(JsonToken::Character('['))) = lookahead.token.clone().map(|token| token.try_into()) {
         // Accept the initial '['
-        parser.accept_token().map_err(|_| ())?;
+        parser.accept_token()?;
 
         let mut num_tokens = 1;
 
@@ -498,13 +550,13 @@ where
         loop {
             // Look ahead to the next value
             let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-            let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
+            let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
 
             // ']' to finish the array, or else a JSON value
             match lookahead.token.clone().map(|token| token.try_into()) {
                 Some(Ok(JsonToken::Character(']'))) => {
                     // Accept the ']'
-                    parser.accept_token().map_err(|_| ())?;
+                    parser.accept_token()?;
                     num_tokens += 1;
 
                     // Successfully parsed the array
@@ -518,25 +570,25 @@ where
 
                     // Next token should be a ',' for more array or ']' for the end of the array
                     let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-                    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(()) };
+                    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput) };
 
                     match lookahead.token.clone().map(|token| token.try_into()) {
                         Some(Ok(JsonToken::Character(','))) => {
                             // Continues the array
-                            parser.accept_token().map_err(|_| ())?;
+                            parser.accept_token()?;
                             num_tokens += 1;
                         }
 
                         Some(Ok(JsonToken::Character(']'))) => {
                             // Finishes the array
-                            parser.accept_token().map_err(|_| ())?;
+                            parser.accept_token()?;
                             num_tokens += 1;
                             break;
                         }
 
                         _ => {
                             // Invalid value
-                            return Err(());
+                            return Err(lookahead.into());
                         }
                     }
                 }
@@ -551,12 +603,12 @@ where
                 .map(|(value, _comma_or_bracket)| value.to_node().unwrap());
 
             serde_json::Value::Array(values.collect())
-        }).map_err(|_| ())?;
+        })?;
 
         Ok(())
     } else {
         // Not an array
-        Err(())
+        Err(lookahead.into())
     }
 }
 
@@ -564,7 +616,7 @@ where
 /// Attempts to parse a JSON string starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_string<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), ()>
+pub async fn json_parse_string<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
@@ -575,17 +627,17 @@ where
     if let Some(lookahead) = lookahead {
         if let Some(Ok(JsonToken::String)) = lookahead.token.clone().map(|token| token.try_into()) {
             // Reduce as a string
-            let value = serde_json::from_str(&lookahead.fragment).map_err(|_| ())?;
+            let value = serde_json::from_str(&lookahead.fragment)?;
 
-            parser.accept_token().map_err(|_| ())?.reduce(1, |_| value).map_err(|_| ())?;
+            parser.accept_token()?.reduce(1, |_| value)?;
             Ok(())
         } else {
             // Not a string
-            Err(())
+            Err(lookahead.into())
         }
     } else {
         // No lookahead
-        Err(())
+        Err(JsonParseError::ExpectedMoreInput)
     }
 }
 
@@ -593,7 +645,7 @@ where
 /// Attempts to parse a JSON object starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_number<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), ()>
+pub async fn json_parse_number<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
@@ -604,17 +656,17 @@ where
     if let Some(lookahead) = lookahead {
         if let Some(Ok(JsonToken::Number)) = lookahead.token.clone().map(|token| token.try_into()) {
             // Reduce as a number
-            let value = serde_json::from_str(&lookahead.fragment).map_err(|_| ())?;
+            let value = serde_json::from_str(&lookahead.fragment)?;
 
-            parser.accept_token().map_err(|_| ())?.reduce(1, |_| value).map_err(|_| ())?;
+            parser.accept_token()?.reduce(1, |_| value)?;
             Ok(())
         } else {
             // Not a number
-            Err(())
+            Err(lookahead.into())
         }
     } else {
         // No lookahead
-        Err(())
+        Err(JsonParseError::ExpectedMoreInput)
     }
 }
 

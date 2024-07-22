@@ -292,7 +292,7 @@ where
 {
     // Create a JSON parser to read the following JSON value
     let mut json_parser = Parser::with_lookahead_from(parser);
-    json_parse_value(&mut json_parser, tokenizer).await?;
+    json_parse_value(&mut json_parser, tokenizer).await.map_err(|_| ())?;
 
     // Restore any lookahead to the original parser
     parser.take_lookahead_from(&mut json_parser);
