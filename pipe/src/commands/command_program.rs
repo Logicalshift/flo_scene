@@ -1,9 +1,9 @@
 use super::command_stream::*;
 use super::json_command::*;
+use super::parse_command::*;
 use crate::socket::*;
 
 use flo_scene::*;
-use flo_scene::programs::*;
 use flo_scene::commands::*;
 
 use futures::{pin_mut};
@@ -18,7 +18,7 @@ use std::iter;
 ///
 /// The simple command program can just read and write command responses, and cannot provide direct access to the terminal
 ///
-pub type CommandProgramSocketMessage = SocketMessage<Result<CommandRequest, ()>, CommandResponse>;
+pub type CommandProgramSocketMessage = SocketMessage<Result<CommandRequest, CommandParseError>, CommandResponse>;
 
 ///
 /// The command program accepts connections from a socket and will generate command output messages
@@ -106,7 +106,7 @@ impl CommandProcessor {
 }
 
 impl Command for CommandProcessor {
-    type Input  = Result<CommandRequest, ()>;
+    type Input  = Result<CommandRequest, CommandParseError>;
     type Output = CommandResponse;
 
     fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
