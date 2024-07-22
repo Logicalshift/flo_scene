@@ -122,7 +122,7 @@ impl Command for CommandProcessor {
                     Ok(Pipe        { from, to })          => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
                     Ok(Assign      { variable, from })    => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
                     Ok(ForTarget   { target, request })   => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
-                    Err(_)                                => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
+                    Err(err)                              => { stream::iter(iter::once(CommandResponse::Error(format!("Parse error: {:?}", err)))).boxed() }
                 };
 
                 while let Some(response) = command_responses.next().await {
