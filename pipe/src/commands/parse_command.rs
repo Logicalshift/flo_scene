@@ -477,6 +477,54 @@ mod test {
     }
 
     #[test]
+    fn parse_command_with_json_argument_1() {
+        let argument        = stream::iter("some::command { }\n".bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!({}) });
+        });
+    }
+
+    #[test]
+    fn parse_command_with_json_argument_2() {
+        let argument        = stream::iter("some::command { \"test\": \"test\" }\n".bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!( { "test": "test" }) });
+        });
+    }
+
+    #[test]
+    fn parse_command_with_json_argument_3() {
+        let argument        = stream::iter("some::command { \"test\": \"test\", \"number\": 4.5 }\n".bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!( { "test": "test", "number": 4.5 } ) });
+        });
+    }
+
+    #[test]
     fn parse_command_with_arguments_and_following_data() {
         let argument        = stream::iter("some::command [ 1, 2, 3, 4 ]\nfoo".bytes()).ready_chunks(2);
         let mut tokenizer   = Tokenizer::new(argument);
