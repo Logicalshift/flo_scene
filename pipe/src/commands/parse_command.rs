@@ -30,6 +30,65 @@ pub enum CommandToken {
     Json(JsonToken),
 }
 
+///
+/// The errors that can happen while parsing a command
+///
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum CommandParseError {
+    /// Error while parsing a JSON argument
+    JsonError(JsonParseError),
+
+    /// The lookahead wasn't expected at this point
+    UnexpectedToken(Option<CommandToken>, String),
+
+    /// Ran out of input while parsing the command
+    ExpectedMoreInput,
+
+    /// Usually an error in the parser, we tried to 'reduce' a token when we hadn't previously accepted enough input 
+    ParserStackTooSmall,
+
+    /// Usually indicates an error with the parser, we failed to 'converge' to a single value
+    ParserDidNotConverge,
+}
+
+impl<'a, TToken> From<&'a TokenMatch<TToken>> for CommandParseError 
+where
+    TToken: Clone + TryInto<CommandToken>,
+{
+    fn from(err_lookahead: &'a TokenMatch<TToken>) -> CommandParseError {
+        let json_token = err_lookahead.token.clone().map(|token| token.try_into());
+
+        match json_token {
+            Some(token) => CommandParseError::UnexpectedToken(token.ok(), err_lookahead.fragment.clone()),
+            None        => CommandParseError::UnexpectedToken(None, err_lookahead.fragment.clone()),
+        }
+    }
+}
+
+impl From<ParserLookaheadEmpty> for CommandParseError {
+    fn from(_err: ParserLookaheadEmpty) -> CommandParseError {
+        CommandParseError::ExpectedMoreInput
+    }
+}
+
+impl From<ParserStackTooSmall> for CommandParseError {
+    fn from(_err: ParserStackTooSmall) -> CommandParseError {
+        CommandParseError::ParserStackTooSmall
+    }
+}
+
+impl From<ParserDidNotConverge> for CommandParseError {
+    fn from(_err: ParserDidNotConverge) -> CommandParseError {
+        CommandParseError::ParserDidNotConverge
+    }
+}
+
+impl From<JsonParseError> for CommandParseError {
+    fn from(err: JsonParseError) -> CommandParseError {
+        CommandParseError::JsonError(err)
+    }
+}
+
 impl From<JsonToken> for CommandToken {
     #[inline]
     fn from(token: JsonToken) -> Self {
@@ -201,7 +260,7 @@ where
 ///
 /// Parses a command from an input stream
 ///
-pub async fn command_parse<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), ()> 
+pub async fn command_parse<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), CommandParseError> 
 where
     TStream: Send + Stream<Item=Vec<u8>>,
 {
@@ -213,11 +272,11 @@ where
                 Some(CommandToken::Newline) => { parser.skip_token(); }
                 Some(CommandToken::Command) => { command_parse_command(parser, tokenizer).await?; break Ok(()); }
 
-                _ => { break Err(()); }
+                _ => { break Err(lookahead.into()); }
             }
         } else {
             // No symbol
-            break Err(());
+            break Err(CommandParseError::ExpectedMoreInput);
         }
     }
 }
@@ -226,15 +285,15 @@ where
 /// Parses a command, at the point where the lookahead contains the 'Command' token
 ///
 ///
-async fn command_parse_command<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), ()>
+async fn command_parse_command<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), CommandParseError>
 where
     TStream: Send + Stream<Item=Vec<u8>>,
  {
     // Lookahead must be a 'Command'
-    let command_name = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await.ok_or(())?;
-    if command_name.token != Some(CommandToken::Command) { return Err(()); }
+    let command_name = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await.ok_or(CommandParseError::ExpectedMoreInput)?;
+    if command_name.token != Some(CommandToken::Command) { return Err(command_name.into()); }
 
-    parser.accept_token().map_err(|_| ())?;
+    parser.accept_token()?;
 
     // Next lookahead determines the type of command
     let maybe_argument = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
@@ -252,7 +311,7 @@ where
                         CommandRequest::Command { argument, .. }    => CommandRequest::Command { command: CommandName(name), argument: argument },
                         _                                           => { unreachable!() }
                     }
-                }).map_err(|_| ())?;
+                })?;
 
                 // TODO: command can use pipe or an equals here
             }
@@ -260,24 +319,24 @@ where
             Some(CommandToken::Newline)     |
             Some(CommandToken::SemiColon)   => {
                 // Command has no argument
-                parser.accept_token().map_err(|_| ())?;
+                parser.accept_token()?;
 
                 parser.reduce(2, |cmd| {
                     let name = cmd[0].token().unwrap().fragment.clone();
                     CommandRequest::Command { command: CommandName(name), argument: serde_json::Value::Null }
-                }).map_err(|_| ())?;
+                })?;
             }
 
             // TODO: command can have no arguments and be followed by a pipe or an equals
 
-            _ => { return Err(()); }
+            _ => { return Err(maybe_argument.into()); }
         }
     } else {
         // No argument, so just a command
         parser.reduce(1, |cmd| {
             let name = cmd[0].token().unwrap().fragment.clone();
             CommandRequest::Command { command: CommandName(name), argument: serde_json::Value::Null }
-        }).map_err(|_| ())?;
+        })?;
     }
 
     Ok(())
@@ -286,22 +345,22 @@ where
 ///
 /// Parses an argument to a command (resulting in a CommandRequest::Command with no name)
 ///
-async fn command_parse_argument<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), ()> 
+async fn command_parse_argument<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), CommandParseError> 
 where
     TStream: Send + Stream<Item=Vec<u8>>,
 {
     // Create a JSON parser to read the following JSON value
     let mut json_parser = Parser::with_lookahead_from(parser);
-    json_parse_value(&mut json_parser, tokenizer).await.map_err(|_| ())?;
+    json_parse_value(&mut json_parser, tokenizer).await?;
 
     // Restore any lookahead to the original parser
     parser.take_lookahead_from(&mut json_parser);
 
     // Fetch the JSON value for the argument
-    let json_value = json_parser.finish().map_err(|_| ())?;
+    let json_value = json_parser.finish()?;
 
     // Add as a node to the current parser
-    parser.reduce(0, |_| CommandRequest::Command { command: CommandName("".to_string()), argument: json_value }).map_err(|_| ())?;
+    parser.reduce(0, |_| CommandRequest::Command { command: CommandName("".to_string()), argument: json_value })?;
 
     Ok(())
 }

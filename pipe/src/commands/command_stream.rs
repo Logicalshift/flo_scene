@@ -206,7 +206,7 @@ impl CommandRequest {
     ///
     /// Creates a command by parsing a string
     ///
-    pub async fn parse(command: &str) -> Result<CommandRequest, ()> {
+    pub async fn parse(command: &str) -> Result<CommandRequest, CommandParseError> {
         let mut parser      = Parser::new();
         let mut tokenizer   = Tokenizer::new(stream::iter(command.bytes()).ready_chunks(256));
 
@@ -214,7 +214,7 @@ impl CommandRequest {
 
         command_parse(&mut parser, &mut tokenizer).await?;
 
-        Ok(parser.finish().map_err(|_| ())?)
+        Ok(parser.finish()?)
     }
 }
 
@@ -226,7 +226,7 @@ impl CommandRequest {
 /// Commands are relatively simple, they have the structure `<name> <parameters>` where the name is an identifier (containing alphanumeric characters, 
 /// alongside '_', '.' and ':'). Parameters are just JSON values, and commands are ended by a newline character that is outside of a JSON value.
 ///
-pub fn parse_command_stream(input: impl 'static + Send + Unpin + Stream<Item=Vec<u8>>) -> impl 'static + Send + Unpin + Stream<Item=Result<CommandRequest, ()>> {
+pub fn parse_command_stream(input: impl 'static + Send + Unpin + Stream<Item=Vec<u8>>) -> impl 'static + Send + Unpin + Stream<Item=Result<CommandRequest, CommandParseError>> {
     generator_stream(move |yield_value| async move {
         let mut tokenizer   = Tokenizer::new(input);
         let mut parser      = Parser::new();
@@ -241,11 +241,13 @@ pub fn parse_command_stream(input: impl 'static + Send + Unpin + Stream<Item=Vec
             match next_command {
                 Ok(()) => {
                     // Finish the parse and continue with the next command
-                    let command = parser.finish().map_err(|_| ());
+                    let command = parser.finish().map_err(|err| err.into());
                     yield_value(command).await;
                 }
 
-                Err(()) => {
+                Err(command_error) => {
+                    yield_value(Err(command_error.into())).await;
+
                     // Throw away the contents of the parser
                     parser.abort();
 

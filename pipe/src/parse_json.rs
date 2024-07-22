@@ -19,7 +19,7 @@ pub enum JsonToken {
 }
 
 ///
-/// Error when parsing some JSON
+/// Errors that can occur while parsing JSON
 ///
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum JsonParseError {
