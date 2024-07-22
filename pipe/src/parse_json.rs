@@ -26,6 +26,9 @@ pub enum JsonParseError {
     /// The lookahead wasn't expected at this point
     UnexpectedToken(Option<JsonToken>, String),
 
+    /// Expected a ':' character, but got something else
+    ExpectedColon(Option<JsonToken>, String),
+
     /// The parser succeded in matching the input, but more was expected
     ExpectedMoreInput(JsonInputType),
 
@@ -63,6 +66,25 @@ where
         match json_token {
             Some(token) => JsonParseError::UnexpectedToken(token.ok(), err_lookahead.fragment.clone()),
             None        => JsonParseError::UnexpectedToken(None, err_lookahead.fragment.clone()),
+        }
+    }
+}
+
+impl<'a, TToken> From<ExpectedTokenError<'a, TokenMatch<TToken>>> for JsonParseError 
+where
+    TToken: Clone + TryInto<JsonToken>,
+{
+    fn from(err_expected_token: ExpectedTokenError<'a, TokenMatch<TToken>>) -> JsonParseError {
+        match err_expected_token {
+            ExpectedTokenError::ParserLookaheadEmpty        => JsonParseError::ExpectedMoreInput(JsonInputType::LookaheadEmpty),
+            ExpectedTokenError::UnexpectedToken(lookahead)  => {
+                let json_token = lookahead.token.clone().map(|token| token.try_into());
+
+                match json_token {
+                    Some(token) => JsonParseError::UnexpectedToken(token.ok(), lookahead.fragment.clone()),
+                    None        => JsonParseError::UnexpectedToken(None, lookahead.fragment.clone()),
+                }
+            }
         }
     }
 }

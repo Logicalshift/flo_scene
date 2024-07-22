@@ -24,6 +24,14 @@ pub struct ParserStackTooSmall;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParserDidNotConverge;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ExpectedTokenError<'a, TToken> {
+    /// We were expecting a token, but the lookahead was empty
+    ParserLookaheadEmpty,
+
+    UnexpectedToken(&'a TToken),
+}
+
 ///
 /// An entry for the parser stack used by the ParserClass
 ///
@@ -193,17 +201,17 @@ impl<TToken, TTreeNode> Parser<TToken, TTreeNode> {
     /// As for 'accept_token' except we first check that the lookahead matches a specific token. This will return an error if the lookahead has not been loaded
     /// yet: call `ensure_lookahead` (or just `lookahead`) to expand the lookahead to at least one token before using this.
     ///
-    pub fn accept_expected_token(&mut self, matches: impl Fn(&TToken) -> bool) -> Result<&mut Self, ParserLookaheadEmpty> {
+    pub fn accept_expected_token(&mut self, matches: impl Fn(&TToken) -> bool) -> Result<&mut Self, ExpectedTokenError<'_, TToken>> {
         if let Some(lookahead) = self.lookahead.get(0) {
             if matches(lookahead) {
                 self.stack.push(ParserStackEntry::Token(self.lookahead.pop_front().unwrap()));
 
                 Ok(self)
             } else {
-                Err(ParserLookaheadEmpty)
+                Err(ExpectedTokenError::UnexpectedToken(self.lookahead.get(0).unwrap()))
             }
         } else {
-            Err(ParserLookaheadEmpty)
+            Err(ExpectedTokenError::ParserLookaheadEmpty)
         }
     }
 }
