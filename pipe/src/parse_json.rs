@@ -475,9 +475,6 @@ where
         let mut num_tokens = 1;
 
         loop {
-            // Read two tokens ahead
-            parser.ensure_lookahead(1, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-            
             // Look to the next value to decide what to do
             let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
             let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::ObjectValues)) };
@@ -497,6 +494,7 @@ where
                     num_tokens += 1;
 
                     // ... ':'
+                    parser.ensure_lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
                     parser.accept_expected_token(|token| {
                         if let Some(Ok(JsonToken::Character(':'))) = token.token.clone().map(|token| token.try_into()) {
                             true
