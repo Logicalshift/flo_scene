@@ -384,3 +384,84 @@ fn query_control_program() {
             })
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
+
+#[test]
+fn send_message_only_sends_one_connection_notification() {
+    let scene           = Scene::default();
+    let test_program_id = SubProgramId::new();
+    let monitor_program = SubProgramId::new();
+    let send_messages   = SubProgramId::new();
+    let recv_messages   = SubProgramId::new();
+
+    // The send program has finished sending, and waited for the scene to become idle
+    #[derive(Debug)]
+    struct SendFinish;
+    impl SceneMessage for SendFinish { }
+
+    #[derive(Debug)]
+    struct TestMessage(usize);
+    impl SceneMessage for TestMessage { }
+
+    #[derive(Debug)]
+    struct ReceivedUpdate(SceneUpdate);
+    impl SceneMessage for ReceivedUpdate { }
+
+    // The monitor program subscribes to scene updates and then forwards any connection messages for the recv_messages program to the test program
+    scene.add_subprogram(monitor_program, move |input: InputStream<SceneUpdate>, context| async move {
+        let mut test_program = context.send(test_program_id).unwrap();
+
+        // Request scene control messages
+        context.send_message(SceneControl::Subscribe(monitor_program.into())).await.unwrap();
+
+        let mut input = input;
+        while let Some(next_message) = input.next().await {
+            // Forward any connection messages for the TestMessage type to the test program
+            match &next_message {
+                SceneUpdate::Connected(source, _, target_stream) => {
+                    if *source == send_messages && target_stream.as_message_type() == StreamId::with_message_type::<TestMessage>() {
+                        println!("{:?}", next_message);
+
+                        test_program.send(ReceivedUpdate(next_message.clone())).await.unwrap();
+                    }
+                }
+
+                _ => {}
+            }
+        }
+    }, 0);
+
+    // The recv subprogram receives messages and is the default target for the test message
+    scene.add_subprogram(recv_messages, move |input: InputStream<TestMessage>, _context| async move {
+        let mut input = input;
+        while let Some(msg) = input.next().await {
+            // Nothing to do wtih the messages
+        }
+    }, 100);
+    scene.connect_programs((), recv_messages, StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    // The send subprogram sends a couple of messages then tells the test program when it's done
+    scene.add_subprogram(send_messages, move |_: InputStream<()>, context| async move {
+        context.wait_for_idle(100).await;
+
+        // First should generate a connection request, second should not
+        context.send_message(TestMessage(0)).await.unwrap();
+        context.send_message(TestMessage(1)).await.unwrap();
+
+        context.wait_for_idle(100).await;
+
+        context.send_message(TestMessage(3)).await.unwrap();
+        context.send_message(TestMessage(4)).await.unwrap();
+
+        // Wait for the messages to all finish processing
+        context.wait_for_idle(100).await;
+
+        // Tell the test program we're done
+        context.send(test_program_id).unwrap().send(SendFinish).await.unwrap();
+    }, 0);
+
+    // Should receive a single connection and a finish message
+    TestBuilder::new()
+        .expect_message(|_: ReceivedUpdate| Ok(()))
+        .expect_message(|_: SendFinish| Ok(()))
+        .run_in_scene_with_threads(&scene, test_program_id, 5);
+}
