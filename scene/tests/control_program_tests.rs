@@ -398,10 +398,12 @@ fn send_message_only_sends_one_connection_notification() {
     struct SendFinish;
     impl SceneMessage for SendFinish { }
 
+    #[allow(dead_code)]
     #[derive(Debug)]
     struct TestMessage(usize);
     impl SceneMessage for TestMessage { }
 
+    #[allow(dead_code)]
     #[derive(Debug)]
     struct ReceivedUpdate(SceneUpdate);
     impl SceneMessage for ReceivedUpdate { }
@@ -433,7 +435,7 @@ fn send_message_only_sends_one_connection_notification() {
     // The recv subprogram receives messages and is the default target for the test message
     scene.add_subprogram(recv_messages, move |input: InputStream<TestMessage>, _context| async move {
         let mut input = input;
-        while let Some(msg) = input.next().await {
+        while let Some(_msg) = input.next().await {
             // Nothing to do wtih the messages
         }
     }, 100);
