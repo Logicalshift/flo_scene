@@ -103,10 +103,10 @@ impl SubProgramCore {
     }
 
     ///
-    /// Retrieves the output streams for this subprogram
+    /// Retrieves the output streams and output sinks for this subprogram
     ///
-    pub (crate) fn output_streams<'a>(&'a self) -> impl 'a + Iterator<Item=&'a StreamId> {
-        self.outputs.keys()
+    pub (crate) fn output_streams<'a>(&'a self) -> impl 'a + Iterator<Item=(&'a StreamId, &'a Arc<dyn Send + Sync + Any>)> {
+        self.outputs.iter()
     }
 
     ///
