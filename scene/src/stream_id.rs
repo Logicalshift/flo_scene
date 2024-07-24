@@ -23,6 +23,7 @@ type CloseInputFn               = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync 
 type IsIdleFn                   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<bool, ConnectionError>>;
 type WaitingForIdleFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, usize) -> Result<IdleInputStreamCore, ConnectionError>>;
 type DefaultTargetFn            = Arc<dyn Send + Sync + Fn() -> StreamTarget>;
+type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>>;
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
 
 ///
@@ -47,8 +48,11 @@ struct StreamTypeFunctions {
     /// Indicates that the input stream is in a 'waiting for idle' state (where it will queue messages up to a limit until the scene is idle)
     waiting_for_idle: WaitingForIdleFn,
 
-    /// Returns the defualt target for this stream type
+    /// Returns the default target for this stream type
     default_target: DefaultTargetFn,
+
+    /// Returns the active target for an output sink
+    active_target: ActiveTargetFn,
 
     /// Initialises the message type inside a scene
     initialise: InitialiseFn,
@@ -175,6 +179,27 @@ impl StreamTypeFunctions {
                 TMessageType::default_target()
             }),
 
+            active_target: Arc::new(|output_sink_any| {
+                let output_sink         = output_sink_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let output_sink_target  = output_sink.lock().unwrap().target.clone();
+
+                match &output_sink_target {
+                    OutputSinkTarget::Disconnected                  => Ok(StreamTarget::Any),
+                    OutputSinkTarget::Discard                       => Ok(StreamTarget::None),
+                    OutputSinkTarget::Input(input_core)             |
+                    OutputSinkTarget::CloseWhenDropped(input_core)  => {
+                        if let Some(input_core) = input_core.upgrade() {
+                            // Target is the program being run by the input stream core
+                            // TODO: properly figure out filters (this will be the 'fake' input program for a filter if a filter is in use)
+                            Ok(StreamTarget::Program(input_core.lock().unwrap().target_program_id()))
+                        } else {
+                            // Input core has been lost (next message will generate an error, we'll indicate 'None' as the connection)
+                            Ok(StreamTarget::None)
+                        }
+                    }
+                }
+            }),
+
             initialise: Arc::new(|scene| {
                 TMessageType::initialise(scene)
             }),
@@ -246,6 +271,13 @@ impl StreamTypeFunctions {
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.default_target))
+    }
+
+    pub fn active_target(type_id: &TypeId) -> Option<ActiveTargetFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.active_target))
     }
 
     pub fn initialise(type_id: &TypeId) -> Option<InitialiseFn> {
@@ -454,6 +486,20 @@ impl StreamId {
             // Determine if the stream is idle
             (initialise)(scene);
             Ok(())
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Returns the stream target for an output sink
+    ///
+    pub (crate) fn active_target_for_output_sink(&self, output_sink: &Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError> {
+        let message_type = self.message_type();
+
+        if let Some(active_target) = StreamTypeFunctions::active_target(&message_type) {
+            (active_target)(output_sink)
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)
