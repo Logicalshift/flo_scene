@@ -103,6 +103,13 @@ impl SubProgramCore {
     }
 
     ///
+    /// Retrieves the output streams for this subprogram
+    ///
+    pub (crate) fn output_streams<'a>(&'a self) -> impl 'a + Iterator<Item=&'a StreamId> {
+        self.outputs.keys()
+    }
+
+    ///
     /// Returns true if this program has an output for a particular stream
     ///
     pub (crate) fn has_output_sink(&mut self, stream_id: &StreamId) -> bool {
