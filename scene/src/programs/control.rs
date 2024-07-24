@@ -368,10 +368,47 @@ impl SceneControl {
                         // Build a response out of the current state of the scene
                         let running_subprograms = scene_core.lock().unwrap().get_running_subprograms();
 
+                        // Fetching the full list of active connections is a little more involved than the list of programs
+                        let active_connections =
+                            running_subprograms.iter()
+                                .flat_map(|program_id| scene_core.lock().unwrap().get_sub_program(*program_id))
+                                .flat_map(|program_core| {
+                                    use std::mem;
+
+                                    // Fetch the list of output streams for this program
+                                    let program_core    = program_core.lock().unwrap();
+                                    let program_id      = *program_core.program_id();
+                                    let output_streams  = program_core.output_streams().map(|(stream, sink)| (stream.clone(), sink.clone())).collect::<Vec<_>>();
+
+                                    // Figure out their currently connected targets (unlock the core to avoid deadlocks)
+                                    mem::drop(program_core);
+
+                                    // Fetch the targets for each stream and map to subprogram IDs when known
+                                    let output_streams = output_streams.into_iter()
+                                        .map(|(stream_id, output_sink)| {
+                                            let target = stream_id.active_target_for_output_sink(&output_sink);
+
+                                            (stream_id, target)
+                                        })
+                                        .flat_map(|(stream_id, target)| {
+                                            match target {
+                                                Ok(StreamTarget::Program(program_id))       => Some((stream_id, program_id)),
+                                                Ok(StreamTarget::Filtered(_, program_id))   => Some((stream_id, program_id)),
+                                                _                                           => None,
+                                            }
+                                        });
+
+
+                                    output_streams.map(move |connection| {
+                                        (program_id, connection)
+                                    })
+                                })
+                                .collect::<Vec<_>>();
+
                         let response = running_subprograms.iter()
                             .flat_map(|prog| scene_core.lock().unwrap().get_sub_program(*prog).map(|core| (prog, core)))
                             .map(|(prog, core)| SceneUpdate::Started(*prog, core.lock().unwrap().input_stream_id.clone()))
-                            .chain(active_connections.iter().map(|((source, stream), target)| SceneUpdate::Connected(*source, *target, stream.clone())))
+                            .chain(active_connections.iter().map(|(source, (stream_id, target))| SceneUpdate::Connected(*source, *target, stream_id.clone())))
                             .collect::<Vec<_>>();
 
                         // Send as a query response
