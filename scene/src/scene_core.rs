@@ -480,7 +480,7 @@ impl SceneCore {
             // Update the streams of the subprogram
             let sub_program_id = sub_program.lock().unwrap().id;
 
-            if source.matches_subprogram(&sub_program_id) {
+            if source.matches_subprogram(&sub_program_id) && sub_program.lock().unwrap().has_output_sink(&stream_id) {
                 // Reconnect the program
                 let waker = reconnect_subprogram(sub_program);
 
