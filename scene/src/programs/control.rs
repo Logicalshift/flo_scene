@@ -94,6 +94,9 @@ pub enum SceneControl {
     ///
     /// Sends the updates as a QueryResponse<SceneUpdate> to the specified subprogram
     ///
+    /// Queries respond with the list of running programs and connections at the time of connections. Note that a query can
+    /// sometimes return programs that haven't yet sent their notifications to subscribers.
+    ///
     Query(StreamTarget),
 }
 
