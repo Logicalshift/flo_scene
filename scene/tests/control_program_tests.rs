@@ -512,11 +512,12 @@ fn subscription_events_match_query_messages() {
 
         // Send the updates to the query program
         println!("Updates done: {} updates", updates.len());
-        println!("{:?}", updates);
         context.send(query_program).unwrap()
             .send(QueryProgramMessage::Updates(updates))
             .await
             .unwrap();
+
+        println!("Finishing subscriber program");
     }, 0);
 
     scene.connect_programs((), StreamTarget::Filtered(update_filter, subscriber_program), StreamId::with_message_type::<SceneUpdate>()).unwrap();
@@ -577,15 +578,15 @@ fn subscription_events_match_query_messages() {
             match result {
                 TestResult::QueryDifferences { added_updates, removed_updates, same_updates } => {
                     println!();
-                    println!("Same: {:?}", same_updates);
+                    println!("Same: {}", same_updates.iter().map(|update| format!("{:?}", update)).collect::<Vec<_>>().join("\n    "));
                     println!();
-                    println!("Added: {:?}", added_updates);
-                    println!("Removed: {:?}", removed_updates);
+                    println!("Added: {}", added_updates.iter().map(|update| format!("{:?}", update)).collect::<Vec<_>>().join("\n    "));
+                    println!("Removed: {}", removed_updates.iter().map(|update| format!("{:?}", update)).collect::<Vec<_>>().join("\n    "));
 
                     if !added_updates.is_empty() {
-                        Err(format!("Query had extra updates: {:?}", added_updates))
+                        Err(format!("Query had extra updates: {}", added_updates.iter().map(|update| format!("{:?}", update)).collect::<Vec<_>>().join("\n    ")))
                     } else if !removed_updates.is_empty() {
-                        Err(format!("Subscription had extra updates: {:?}", removed_updates))
+                        Err(format!("Subscription had extra updates: {}", removed_updates.iter().map(|update| format!("{:?}", update)).collect::<Vec<_>>().join("\n    ")))
                     } else {
                         Ok(())
                     }
