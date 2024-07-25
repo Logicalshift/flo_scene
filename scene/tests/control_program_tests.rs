@@ -517,6 +517,10 @@ fn subscription_events_match_query_messages() {
             .await
             .unwrap();
 
+        // Keep running while the query test is run (so the connections from this program will appear in the results)
+        while let Some(_) = input.next().await {
+        }
+
         println!("Finishing subscriber program");
     }, 0);
 
@@ -578,10 +582,14 @@ fn subscription_events_match_query_messages() {
             match result {
                 TestResult::QueryDifferences { added_updates, removed_updates, same_updates } => {
                     println!();
+                    println!("======");
                     println!("Same: {}", same_updates.iter().map(|update| format!("{:?}", update)).collect::<Vec<_>>().join("\n    "));
                     println!();
                     println!("Added: {}", added_updates.iter().map(|update| format!("{:?}", update)).collect::<Vec<_>>().join("\n    "));
+                    println!();
                     println!("Removed: {}", removed_updates.iter().map(|update| format!("{:?}", update)).collect::<Vec<_>>().join("\n    "));
+                    println!("======");
+                    println!();
 
                     if !added_updates.is_empty() {
                         Err(format!("Query had extra updates: {}", added_updates.iter().map(|update| format!("{:?}", update)).collect::<Vec<_>>().join("\n    ")))
