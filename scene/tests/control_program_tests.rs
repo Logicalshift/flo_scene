@@ -470,6 +470,102 @@ fn send_message_only_sends_one_connection_notification() {
 }
 
 #[test]
+fn sending_scene_update_to_stopped_program_does_not_block() {
+    // When a program is stopped and is subscribed to the scene updates, the scene control program should not block waiting to tell it that
+    // it has closed down
+    let scene               = Scene::default();
+
+    let test_program_id     = SubProgramId::new();
+    let subscriber_program  = SubProgramId::called("test::subscriber_program");
+    let query_program       = SubProgramId::called("test::query_program");
+
+    // The subscriber program sends all of the 'subscribe' messages sent before the scene becomes idle (after subscribing)
+    #[derive(Debug)]
+    #[allow(dead_code)]
+    enum SubscriberProgramMessage {
+        SceneUpdate(SceneUpdate),
+        IdleNotification(IdleNotification),
+    }
+
+    impl SceneMessage for SubscriberProgramMessage { }
+
+    let update_filter   = FilterHandle::for_filter(|stream| stream.map(|msg| SubscriberProgramMessage::SceneUpdate(msg)));
+    let idle_filter     = FilterHandle::for_filter(|stream| stream.map(|msg| SubscriberProgramMessage::IdleNotification(msg)));
+
+    scene.add_subprogram(subscriber_program, move |input, context| async move {
+        // Before we do anything we wait for the scene to become idle
+        context.wait_for_idle(100).await;
+
+        // Subscribe to the scene update events, then wait for the scene to become idle
+        context.send_message(SceneControl::Subscribe(context.current_program_id().unwrap().into())).await.unwrap();
+        context.send_message(IdleRequest::WhenIdle(context.current_program_id().unwrap().into())).await.unwrap();
+
+        // Read the updates until the scene becomes idle
+        let mut input   = input;
+        while let Some(update) = input.next().await {
+            match update {
+                SubscriberProgramMessage::SceneUpdate(_)        => { },
+                SubscriberProgramMessage::IdleNotification(_)   => { break; }
+            }
+        }
+
+        // Send the updates to the query program
+        context.send(query_program).unwrap()
+            .send(QueryProgramMessage::Ready)
+            .await
+            .unwrap();
+
+        // Finish the subscriber program (control program should not get stuck sending requests to it)
+        println!("Finishing subscriber program");
+    }, 0);
+
+    scene.connect_programs((), StreamTarget::Filtered(update_filter, subscriber_program), StreamId::with_message_type::<SceneUpdate>()).unwrap();
+    scene.connect_programs((), StreamTarget::Filtered(idle_filter, subscriber_program), StreamId::with_message_type::<IdleNotification>()).unwrap();
+
+    // The query program receives the information from the subscription program, and then runs a query to see if the results match (with some known differences)
+    #[derive(Debug)]
+    enum QueryProgramMessage {
+        Ready
+    }
+
+    impl SceneMessage for QueryProgramMessage { }
+
+    scene.add_subprogram(query_program, move |input, context| async move {
+        // Wait for the query program to do its work
+        let mut input = input;
+        while let Some(msg) = input.next().await {
+            match msg {
+                QueryProgramMessage::Ready => { break; }
+            }
+        }
+
+        // Query the current state of the scene (this creates more 'connected' messages which can block the scene control program)
+        println!("Querying status...");
+        let query = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).unwrap();
+        let query = query.collect::<HashSet<_>>().await;
+        println!("Query done: {} updates", query.len());
+
+        context.send(test_program_id).unwrap()
+            .send(TestResult::Ready).await.unwrap();
+    }, 1);
+
+    // Test checks that there were only expected differences
+    #[derive(Debug)]
+    enum TestResult {
+        Ready
+    }
+
+    impl SceneMessage for TestResult { }
+
+    TestBuilder::new()
+        .expect_message(|_result: TestResult| { 
+            // The scene control program should not get blocked, so should respond to the query
+            Ok(())
+        })
+        .run_in_scene_with_threads(&scene, test_program_id, 5);
+}
+
+#[test]
 fn subscription_events_match_query_messages() {
     // When you subscribe to the control program it will list the active running programs and connections
     // When you query it, it does the same thing (except it will sometimes return programs and connections that haven't been sent to subscribers yet)
