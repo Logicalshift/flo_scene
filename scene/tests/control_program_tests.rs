@@ -14,6 +14,7 @@ use futures::future::{select};
 use futures::executor;
 use futures_timer::*;
 
+use std::collections::*;
 use std::time::{Duration};
 use std::sync::*;
 
@@ -465,5 +466,131 @@ fn send_message_only_sends_one_connection_notification() {
     TestBuilder::new()
         .expect_message(|_: ReceivedUpdate| Ok(()))
         .expect_message(|_: SendFinish| Ok(()))
+        .run_in_scene_with_threads(&scene, test_program_id, 5);
+}
+
+#[test]
+fn subscription_events_match_query_messages() {
+    // When you subscribe to the control program it will list the active running programs and connections
+    // When you query it, it does the same thing (except it will sometimes return programs and connections that haven't been sent to subscribers yet)
+    // These two sets should match (with the exception of the subtasks created by the query program)
+    let scene               = Scene::default();
+
+    let test_program_id     = SubProgramId::new();
+    let subscriber_program  = SubProgramId::called("test::subscriber_program");
+    let query_program       = SubProgramId::called("test::query_program");
+
+    // The subscriber program sends all of the 'subscribe' messages sent before the scene becomes idle (after subscribing)
+    #[derive(Debug)]
+    enum SubscriberProgramMessage {
+        SceneUpdate(SceneUpdate),
+        IdleNotification(IdleNotification),
+    }
+
+    impl SceneMessage for SubscriberProgramMessage { }
+
+    let update_filter   = FilterHandle::for_filter(|stream| stream.map(|msg| SubscriberProgramMessage::SceneUpdate(msg)));
+    let idle_filter     = FilterHandle::for_filter(|stream| stream.map(|msg| SubscriberProgramMessage::IdleNotification(msg)));
+
+    scene.add_subprogram(subscriber_program, move |input, context| async move {
+        // Before we do anything we wait for the scene to become idle
+        context.wait_for_idle(100).await;
+
+        // Subscribe to the scene update events, then wait for the scene to become idle
+        context.send_message(SceneControl::Subscribe(context.current_program_id().unwrap().into())).await.unwrap();
+        context.send_message(IdleRequest::WhenIdle(context.current_program_id().unwrap().into())).await.unwrap();
+
+        // Read the updates until the scene becomes idle
+        let mut input   = input;
+        let mut updates = vec![];
+        while let Some(update) = input.next().await {
+            match update {
+                SubscriberProgramMessage::SceneUpdate(update)   => { updates.push(update); },
+                SubscriberProgramMessage::IdleNotification(_)   => { break; }
+            }
+        }
+
+        // Send the updates to the query program
+        println!("Updates done: {} updates", updates.len());
+        println!("{:?}", updates);
+        context.send(query_program).unwrap()
+            .send(QueryProgramMessage::Updates(updates))
+            .await
+            .unwrap();
+    }, 0);
+
+    scene.connect_programs((), StreamTarget::Filtered(update_filter, subscriber_program), StreamId::with_message_type::<SceneUpdate>()).unwrap();
+    scene.connect_programs((), StreamTarget::Filtered(idle_filter, subscriber_program), StreamId::with_message_type::<IdleNotification>()).unwrap();
+
+    // The query program receives the information from the subscription program, and then runs a query to see if the results match (with some known differences)
+    #[derive(Debug)]
+    enum QueryProgramMessage {
+        Updates(Vec<SceneUpdate>),
+    }
+
+    impl SceneMessage for QueryProgramMessage { }
+
+    scene.add_subprogram(query_program, move |input, context| async move {
+        // Wait for the query program to do its work
+        let mut updates = HashSet::new();
+
+        let mut input = input;
+        while let Some(msg) = input.next().await {
+            match msg {
+                QueryProgramMessage::Updates(received_updates) => { 
+                    updates = received_updates.into_iter().collect::<HashSet<_>>(); 
+                    println!("\nReceived updates");
+                    break;
+                }
+            }
+        }
+
+        // Query the current state of the scene
+        println!("Querying status...");
+        let query = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).unwrap();
+        let query = query.collect::<HashSet<_>>().await;
+        println!("Query done: {} updates", query.len());
+
+        let added_updates   = query.iter().filter(|msg| !updates.contains(*msg)).cloned().collect::<Vec<_>>();
+        let removed_updates = updates.iter().filter(|msg| !query.contains(*msg)).cloned().collect::<Vec<_>>();
+        let same_updates    = query.iter().filter(|msg| updates.contains(msg)).cloned().collect::<Vec<_>>();
+
+        println!("Send test results ({} added, {} removed, {} same)", added_updates.len(), removed_updates.len(), same_updates.len());
+        context.send(test_program_id).unwrap()
+            .send(TestResult::QueryDifferences { added_updates, removed_updates, same_updates }).await.unwrap();
+    }, 1);
+
+    // Test checks that there were only expected differences
+    #[derive(Debug)]
+    enum TestResult {
+        QueryDifferences {
+            added_updates:      Vec<SceneUpdate>,
+            removed_updates:    Vec<SceneUpdate>,
+            same_updates:       Vec<SceneUpdate>,
+        }
+    }
+
+    impl SceneMessage for TestResult { }
+
+    TestBuilder::new()
+        .expect_message(|result| { 
+            match result {
+                TestResult::QueryDifferences { added_updates, removed_updates, same_updates } => {
+                    println!();
+                    println!("Same: {:?}", same_updates);
+                    println!();
+                    println!("Added: {:?}", added_updates);
+                    println!("Removed: {:?}", removed_updates);
+
+                    if !added_updates.is_empty() {
+                        Err(format!("Query had extra updates: {:?}", added_updates))
+                    } else if !removed_updates.is_empty() {
+                        Err(format!("Subscription had extra updates: {:?}", removed_updates))
+                    } else {
+                        Ok(())
+                    }
+                }
+            }
+        })
         .run_in_scene_with_threads(&scene, test_program_id, 5);
 }
