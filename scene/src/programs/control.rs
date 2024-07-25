@@ -408,6 +408,7 @@ impl SceneControl {
                         let response = running_subprograms.iter()
                             .flat_map(|prog| scene_core.lock().unwrap().get_sub_program(*prog).map(|core| (prog, core)))
                             .map(|(prog, core)| SceneUpdate::Started(*prog, core.lock().unwrap().input_stream_id.clone()))
+                            //.chain(active_connections.iter().map(|((source, stream_id), target)| SceneUpdate::Connected(*source, *target, stream_id.clone())))
                             .chain(active_connections.iter().map(|(source, (stream_id, target))| SceneUpdate::Connected(*source, *target, stream_id.clone())))
                             .collect::<Vec<_>>();
 
