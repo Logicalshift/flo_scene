@@ -3,6 +3,8 @@ use once_cell::sync::{OnceCell, Lazy};
 
 use std::ops::{Deref};
 use std::collections::*;
+use std::fmt;
+use std::fmt::{Debug};
 use std::sync::*;
 
 #[cfg(feature="serde_support")] use serde::*;
@@ -44,7 +46,7 @@ fn name_for_id(id: SubProgramNameId) -> Option<String> {
 ///
 /// A unique identifier for a subprogram in a scene
 ///
-#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct SubProgramId(SubProgramIdValue);
 
@@ -107,6 +109,17 @@ impl SubProgramId {
 
             SubProgramIdValue::Guid(guid)               |
             SubProgramIdValue::GuidTask(guid, _)        => SubProgramId(SubProgramIdValue::GuidTask(guid, command_sequence_number)),
+        }
+    }
+}
+
+impl Debug for SubProgramId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            SubProgramIdValue::Guid(guid)                   => write!(f, "SubProgramId({})", guid),
+            SubProgramIdValue::Named(name_idx)              => write!(f, "SubProgramId::called({:?})", name_for_id(*name_idx).unwrap()),
+            SubProgramIdValue::GuidTask(guid, task_idx)     => write!(f, "SubProgramId({}).task({})", guid, task_idx),
+            SubProgramIdValue::NamedTask(name_idx,task_idx) => write!(f, "SubProgramId::called({:?}).task({})", name_for_id(*name_idx), task_idx),
         }
     }
 }
