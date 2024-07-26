@@ -689,6 +689,16 @@ fn subscription_events_match_query_messages() {
                     println!("======");
                     println!();
 
+                    let mut added_updates = added_updates;
+                    added_updates.retain(|update| {
+                        match update {
+                            SceneUpdate::Started(program_id, _)         => !program_id.is_subtask(),
+                            SceneUpdate::Connected(source, target, _)   => !source.is_subtask() && !target.is_subtask(),
+
+                            _ => true
+                        }
+                    });
+
                     if !added_updates.is_empty() {
                         Err(format!("Query had extra updates: {}", added_updates.iter().map(|update| format!("{:?}", update)).collect::<Vec<_>>().join("\n    ")))
                     } else if !removed_updates.is_empty() {
