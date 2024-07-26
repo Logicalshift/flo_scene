@@ -89,7 +89,7 @@ impl FilterHandle {
                     // Write to the core
                     let mut item = Some(item);
 
-                    poll_fn(|context| {
+                    let poll_result = poll_fn(|context| {
                         // Send the item to the core
                         let (pending_item, waker) = {
                             if let Some(target_input_core) = target_input_core.upgrade() {
@@ -99,9 +99,14 @@ impl FilterHandle {
                                     match input_core.send(sending_program, item_to_send) {
                                         Ok(waker)   => (None, waker),
                                         Err(item)   => {
-                                            // Core has no slots, so wait until it does
-                                            input_core.wake_when_slots_available(context);
-                                            (Some(item), None)
+                                            if input_core.is_closed() {
+                                                // Cannot send any more data as the core is closed
+                                                return Poll::Ready(Err(()));
+                                            } else {
+                                                // Core has no slots, so wait until it does
+                                                input_core.wake_when_slots_available(context);
+                                                (Some(item), None)
+                                            }
                                         },
                                     }
                                 } else {
@@ -110,7 +115,7 @@ impl FilterHandle {
                                 }
                             } else {
                                 // Target core has been released, so we can no longer send any messages
-                                (None, None)
+                                return Poll::Ready(Err(()));
                             }
                         };
 
@@ -126,9 +131,14 @@ impl FilterHandle {
                         if item.is_some() {
                             Poll::Pending
                         } else {
-                            Poll::Ready(())
+                            Poll::Ready(Ok(()))
                         }
                     }).await;
+
+                    // Stop waiting for input if the target input stream errors out
+                    if poll_result.is_err() {
+                        break;
+                    }
                 }
             };
 
