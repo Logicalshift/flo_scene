@@ -4,7 +4,7 @@ use crate::scene_core::*;
 use crate::subprogram_id::*;
 
 use futures::prelude::*;
-use futures::task::{Waker, Poll, Context};
+use futures::task::{ArcWake, Waker, waker, Poll, Context};
 
 use std::collections::*;
 use std::sync::*;
@@ -279,7 +279,18 @@ where
     ///
     pub (crate) fn close(&mut self) -> Option<Waker> {
         self.closed = true;
-        self.when_message_sent.take()
+
+        // Wake everything waiting for a message to be sent or for slots to become available
+        let wakers = self.when_slots_available.drain(..)
+            .chain(self.when_message_sent.take())
+            .collect::<Vec<_>>();
+
+        // We combine all of the wakers into one for returning to the caller
+        if wakers.len() > 0 {
+            Some(waker(Arc::new(CloseWaker(Mutex::new(wakers)))))
+        } else {
+            None
+        }
     }
 
     ///
@@ -500,6 +511,20 @@ impl<TMessage> Stream for InputStreamWithSources<TMessage> {
 
             Poll::Pending
         }
+    }
+}
+
+///
+/// Wakes everything in an input stream core after a close event
+///
+struct CloseWaker(Mutex<Vec<Waker>>);
+
+impl ArcWake for CloseWaker {
+    fn wake_by_ref(arc_self: &Arc<Self>) {
+        let wakers = arc_self.0.lock().unwrap().drain(..).collect::<Vec<_>>();
+
+        wakers.into_iter()
+            .for_each(|waker| waker.wake());
     }
 }
 
