@@ -574,7 +574,7 @@ fn subscription_events_match_query_messages() {
     // These two sets should match (with the exception of the subtasks created by the query program)
     let scene               = Scene::default();
 
-    let test_program_id     = SubProgramId::new();
+    let test_program_id     = SubProgramId::called("test::test_program");
     let subscriber_program  = SubProgramId::called("test::subscriber_program");
     let query_program       = SubProgramId::called("test::query_program");
 
@@ -591,15 +591,28 @@ fn subscription_events_match_query_messages() {
     let idle_filter     = FilterHandle::for_filter(|stream| stream.map(|msg| SubscriberProgramMessage::IdleNotification(msg)));
 
     scene.add_subprogram(subscriber_program, move |input, context| async move {
+        let mut input   = input;
+
         // Before we do anything we wait for the scene to become idle
         context.wait_for_idle(100).await;
+
+        // Warm up by requesting an idle notification and waiting for it (otherwise there's a potential race where the idle program can connect to us after the 'subscribe' events have been sent, so we miss the extra event that is generated)
+        context.send_message(IdleRequest::WhenIdle(context.current_program_id().unwrap().into())).await.unwrap();
+        while let Some(update) = input.next().await {
+            match update {
+                SubscriberProgramMessage::IdleNotification(_) => { break; }
+                _ => { }
+            }
+        }
 
         // Subscribe to the scene update events, then wait for the scene to become idle
         context.send_message(SceneControl::Subscribe(context.current_program_id().unwrap().into())).await.unwrap();
         context.send_message(IdleRequest::WhenIdle(context.current_program_id().unwrap().into())).await.unwrap();
 
+        // We'll use this connection to send the results onwards later on (we do want it to be present in the results)
+        let mut send_to_query = context.send(query_program).unwrap();
+
         // Read the updates until the scene becomes idle
-        let mut input   = input;
         let mut updates = vec![];
         while let Some(update) = input.next().await {
             match update {
@@ -610,7 +623,7 @@ fn subscription_events_match_query_messages() {
 
         // Send the updates to the query program
         println!("Updates done: {} updates", updates.len());
-        context.send(query_program).unwrap()
+        send_to_query
             .send(QueryProgramMessage::Updates(updates))
             .await
             .unwrap();
@@ -682,7 +695,7 @@ fn subscription_events_match_query_messages() {
     impl SceneMessage for TestResult { }
 
     TestBuilder::new()
-        .expect_message(|result| { 
+        .expect_message(move |result| { 
             match result {
                 TestResult::QueryDifferences { added_updates, removed_updates, same_updates } => {
                     println!();
@@ -699,7 +712,7 @@ fn subscription_events_match_query_messages() {
                     added_updates.retain(|update| {
                         match update {
                             SceneUpdate::Started(program_id, _)         => !program_id.is_subtask(),
-                            SceneUpdate::Connected(source, target, _)   => !source.is_subtask() && !target.is_subtask(),
+                            SceneUpdate::Connected(source, target, _)   => !source.is_subtask() && !target.is_subtask() && !(source == &query_program && target == &*SCENE_CONTROL_PROGRAM),
 
                             _ => true
                         }
