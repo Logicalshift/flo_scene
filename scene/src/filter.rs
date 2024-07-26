@@ -206,8 +206,8 @@ impl FilterHandle {
     pub (crate) fn create_input_stream_core(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
         // Create a future that will run the filter
         let (send_future, filtering_input_core) = {
-            let create_input_stream  = CREATE_INPUT_STREAM.read().unwrap();
-            let create_future   = create_input_stream.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
+            let create_input_stream = CREATE_INPUT_STREAM.read().unwrap();
+            let create_future       = create_input_stream.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
 
             create_future(sending_program, target_input_core)
         }?;
