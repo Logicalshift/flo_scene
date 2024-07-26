@@ -616,9 +616,11 @@ fn subscription_events_match_query_messages() {
             .unwrap();
 
         // Keep running while the query test is run (so the connections from this program will appear in the results)
-        while let Some(_) = input.next().await {
+        while let Some(extra_input) = input.next().await {
+            println!("Extra input: {:?}", extra_input);
         }
 
+        println!();
         println!("Finishing subscriber program");
     }, 0);
 
@@ -657,6 +659,10 @@ fn subscription_events_match_query_messages() {
         let added_updates   = query.iter().filter(|msg| !updates.contains(*msg)).cloned().collect::<Vec<_>>();
         let removed_updates = updates.iter().filter(|msg| !query.contains(*msg)).cloned().collect::<Vec<_>>();
         let same_updates    = query.iter().filter(|msg| updates.contains(msg)).cloned().collect::<Vec<_>>();
+
+        println!("Waiting for things to settle down again");
+        context.wait_for_idle(100).await;
+        println!();
 
         println!("Send test results ({} added, {} removed, {} same)", added_updates.len(), removed_updates.len(), same_updates.len());
         context.send(test_program_id).unwrap()
