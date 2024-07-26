@@ -111,6 +111,27 @@ impl SubProgramId {
             SubProgramIdValue::GuidTask(guid, _)        => SubProgramId(SubProgramIdValue::GuidTask(guid, command_sequence_number)),
         }
     }
+
+    ///
+    /// Returns true if this program is a subtask of another program
+    ///
+    pub fn is_subtask(&self) -> bool {
+        match self.0 {
+            SubProgramIdValue::Named(_) | SubProgramIdValue::Guid(_)                => false,
+            SubProgramIdValue::NamedTask(_, _) | SubProgramIdValue::GuidTask(_, _)  => true,
+        }
+    }
+
+    ///
+    /// If this is a subtask, then return the ID of the program that laucnhed it
+    ///
+    pub fn parent_subprogram(&self) -> Option<SubProgramId> {
+        match &self.0 {
+            SubProgramIdValue::Named(_) | SubProgramIdValue::Guid(_)    => None,
+            SubProgramIdValue::NamedTask(parent, _)                     => Some(SubProgramId(SubProgramIdValue::Named(*parent))),
+            SubProgramIdValue::GuidTask(parent, _)                      => Some(SubProgramId(SubProgramIdValue::Guid(*parent))),
+        }
+    }
 }
 
 impl Debug for SubProgramId {
