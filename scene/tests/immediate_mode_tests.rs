@@ -226,6 +226,6 @@ fn park_while_thread_runs() {
     other_thread.join().unwrap();
 
     // Check it behaved as intended
-    assert!(*received_immediate.lock().unwrap() == 3, "Expected to have processed 4 messages immediated (processed: {:?})", *received_immediate.lock().unwrap());
+    assert!(*received_immediate.lock().unwrap() == 3, "Expected to have processed 4 messages immediately (processed: {:?})", *received_immediate.lock().unwrap());
     assert!(finished, "Scene did not finish");
 }
