@@ -547,16 +547,20 @@ impl<TMessage> Drop for InputStream<TMessage> {
             // Free any waiting messages from the core at this point
             core.waiting_messages.drain(..);
 
-            // Wake anything that's waiting for slots (so they can see the core is closed and stop)
-            let mut when_slots_available = core.when_slots_available.drain(..).collect::<Vec<_>>();
+            // Wake anything that's waiting for slots or for messages to be sent (so they can see the core is closed and stop)
+            let mut notify_wakers = core.when_slots_available.drain(..).collect::<Vec<_>>();
 
             if let Some(when_sent) = core.when_message_sent.take() {
-                when_slots_available.push(when_sent);
+                notify_wakers.push(when_sent);
+            }
+
+            if let Some(when_message_sent) = core.when_message_sent.take() {
+                notify_wakers.push(when_message_sent);
             }
 
             mem::drop(core);
 
-            when_slots_available.into_iter().for_each(|waker| waker.wake());
+            notify_wakers.into_iter().for_each(|waker| waker.wake());
         }
     }
 }
