@@ -471,7 +471,10 @@ fn send_message_only_sends_one_connection_notification() {
 
 #[test]
 fn sending_scene_update_to_stopped_program_does_not_block() {
-    for _ in 0..100 {
+    for pass_num in 0..100 {
+        println!();
+        println!("==== PASS {}", pass_num);
+
         // When a program is stopped and is subscribed to the scene updates, the scene control program should not block waiting to tell it that
         // it has closed down
         let scene               = Scene::default();
