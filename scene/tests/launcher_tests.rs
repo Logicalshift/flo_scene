@@ -13,7 +13,7 @@ pub fn call_launcher_command() {
 
     impl From<ListCommandResponse> for TestResponse {
         fn from(value: ListCommandResponse) -> Self {
-            Self(value.0)
+            Self(value.0.into_iter().next().unwrap().name)
         }
     }
 

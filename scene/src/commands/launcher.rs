@@ -67,14 +67,13 @@ where
             while let Some(run_request) = input.next().await {
                 if run_request.name() == LIST_COMMANDS {
                     // List the commands in the launcher
-                    let command_target = run_request.target();
-
-                    let list_commands_response = QueryResponse::with_iterator(
-                        self.commands.iter()
-                        .map(|(name, _)| ListCommandResponse(name.clone()))
-                        .chain([ListCommandResponse(LIST_COMMANDS.into())])
-                        .map(|response| TResponse::from(response))
+                    let command_target  = run_request.target();
+                    let response        = ListCommandResponse(self.commands.iter()
+                        .map(|(name, _)| CommandDescription { name: name.clone() })
+                        .chain([CommandDescription { name: LIST_COMMANDS.into() }])
                         .collect::<Vec<_>>());
+
+                    let list_commands_response = QueryResponse::with_data(response.into());
 
                     let response = context.send::<QueryResponse<TResponse>>(command_target);
                     

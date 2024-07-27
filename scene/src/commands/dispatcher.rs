@@ -38,7 +38,7 @@ where
     let our_program_id = context.current_program_id().unwrap();
 
     // Create a hashmap of the known commands for the dispatcher
-    let mut commands    = HashMap::<String, SubProgramId>::new();
+    let mut commands    = HashMap::<String, (CommandDescription, SubProgramId)>::new();
     let mut subprograms = HashSet::<SubProgramId>::new();
 
     // Wait for requests to run commands
@@ -46,7 +46,7 @@ where
     while let Some(next_command) = input.next().await {
         // Try to fetch the stream to send queries to the command owner
         let mut command_owner_stream = commands.get(next_command.name())
-            .and_then(|command_owner| {
+            .and_then(|(_, command_owner)| {
                 context.send::<RunCommand<TParameter, TResponse>>(*command_owner).ok()
             });
 
@@ -86,7 +86,7 @@ where
 
             // Remove any commands that belong to subprogram that are no longer in the list
             if !removed_subprograms.is_empty() {
-                commands.retain(|_, program_id| !removed_subprograms.contains(program_id));
+                commands.retain(|_, (_, program_id)| !removed_subprograms.contains(program_id));
             }
 
             // Try to send a list command to each missing program in the scene and fill in the commands (except ourselves if we find ourselves)
@@ -102,8 +102,11 @@ where
                         let cmd: ListCommandResponse = if let Ok(cmd) = cmd.try_into() { cmd } else { continue; };
 
                         // Add this command to the known list if it's not present
-                        if !commands.contains_key(&cmd.0) {
-                            commands.insert(cmd.0, *added_program_id);
+                        for description in cmd.0.into_iter() {
+                            if !commands.contains_key(&description.name) {
+                                let command_name = description.name.clone();
+                                commands.insert(command_name, (description, *added_program_id));
+                            }
                         }
 
                         // TODO: also give the command a name that specifies the subprogram
@@ -116,7 +119,7 @@ where
 
             // Retry fetching the command owner stream to determine the final command
             command_owner_stream = commands.get(next_command.name())
-                .and_then(|command_owner| {
+                .and_then(|(_, command_owner)| {
                     context.send::<RunCommand<TParameter, TResponse>>(*command_owner).ok()
                 });
         }
@@ -125,12 +128,13 @@ where
         if next_command.name() == LIST_COMMANDS {
             // Respond with a list of commands (parameter is always ignored)
             if let Ok(mut response_stream) = context.send::<QueryResponse<TResponse>>(next_command.target()) {
-                let command_names = commands.iter()
-                    .map(|(name, _)| name.to_string())
-                    .chain(iter::once(LIST_COMMANDS.into()))
-                    .collect::<HashSet<_>>();
+                let command_descriptions = commands.iter()
+                    .map(|(_, (description, _))| description.clone())
+                    .chain(iter::once(CommandDescription { name: (*LIST_COMMANDS).to_string() }))
+                    .collect::<Vec<_>>();
+                let list_commands_response = ListCommandResponse(command_descriptions);
 
-                response_stream.send(QueryResponse::with_iterator(command_names.into_iter().map(|name| ListCommandResponse(name).into()).collect::<Vec<_>>())).await.ok();
+                response_stream.send(QueryResponse::with_data(list_commands_response.into())).await.ok();
             }
         } else if let Some(command_owner_stream) = command_owner_stream {
             // Forward the command to the target stream

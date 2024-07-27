@@ -18,17 +18,17 @@ pub fn call_dispatcher_command_iteration() {
 
     // Create a response object for the test command
     #[derive(Debug, PartialEq)]
-    pub struct TestResponse(String);
+    pub struct TestResponse(Vec<String>);
 
     impl From<ListCommandResponse> for TestResponse {
         fn from(value: ListCommandResponse) -> Self {
-            Self(value.0)
+            Self(value.0.into_iter().map(|desc| desc.name).collect())
         }
     }
 
     impl Into<ListCommandResponse> for TestResponse {
         fn into(self) -> ListCommandResponse {
-            ListCommandResponse(self.0)
+            ListCommandResponse(self.0.into_iter().map(|name| CommandDescription { name }).collect())
         }
     }
 
@@ -36,7 +36,7 @@ pub fn call_dispatcher_command_iteration() {
 
     impl From<CommandError> for TestResponse {
         fn from(value: CommandError) -> Self {
-            Self(format!("{:?}", value))
+            Self(vec![format!("{:?}", value)])
         }
     }
 
@@ -47,7 +47,7 @@ pub fn call_dispatcher_command_iteration() {
             let parameter = parameter.clone();
 
             async move {
-                context.send_message(TestResponse(parameter.0)).await.unwrap();
+                context.send_message(TestResponse(vec![parameter.0])).await.unwrap();
             }
         });
     scene.add_subprogram(launcher_program, launcher.to_subprogram(), 0);
@@ -58,7 +58,7 @@ pub fn call_dispatcher_command_iteration() {
     // Check that it responds as expected
     TestBuilder::new()
         .run_query(ReadCommand::default(), RunCommand::<TestRequest, TestResponse>::new((), "test_command", TestRequest("test".into())), dispatcher_program, |response| {
-            assert!(response == vec![TestResponse("test".into())]);
+            assert!(response == vec![TestResponse(vec!["test".into()])]);
             Ok(())
         })
         .run_in_scene(&scene, test_program);
