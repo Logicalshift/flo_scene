@@ -160,9 +160,11 @@ impl SceneCore {
             let process_core    = Arc::downgrade(scene_core);
             let mut core        = scene_core.lock().unwrap();
 
+            // It's an error if something tries to start an extra copy of an existing program without stopping the original first
             if let Some(existing_index) = core.program_indexes.get(&program_id) {
                 if let Some(Some(_)) = core.sub_programs.get(*existing_index) {
-                    panic!("Tried to create an extra version of {:?}", program_id);
+                    // TODO: this should be a 'soft' error instead of a panic, or alternatively we can close the streams of the existing program and replace it with the new one
+                    panic!("Cannot start two copies of the same program in the same scene: not starting an extra copy of {:?}", program_id);
                 }
             }
 
