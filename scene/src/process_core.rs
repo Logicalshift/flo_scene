@@ -81,3 +81,11 @@ impl SceneProcessFuture {
         }
     }
 }
+
+impl Drop for SceneProcess {
+    fn drop(&mut self) {
+        // Wake anything that's waiting for this process when it's stopped
+        self.unpark_when_waiting.drain(..)
+            .for_each(|thread| thread.unpark());
+    }
+}
