@@ -160,6 +160,12 @@ impl SceneCore {
             let process_core    = Arc::downgrade(scene_core);
             let mut core        = scene_core.lock().unwrap();
 
+            if let Some(existing_index) = core.program_indexes.get(&program_id) {
+                if let Some(Some(_)) = core.sub_programs.get(*existing_index) {
+                    panic!("Tried to create an extra version of {:?}", program_id);
+                }
+            }
+
             // next_subprogram should always indicate the handle we'll use for the new program (it should be either a None entry in the list or sub_programs.len())
             let handle = core.next_subprogram;
 
