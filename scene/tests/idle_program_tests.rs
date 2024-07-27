@@ -238,6 +238,10 @@ fn wait_for_idle_program_queues_extra_requests() {
         context.send(test_program).unwrap()
             .send(IdleNotification).await.unwrap();
 
+        // Wait for idle so we know the earlier message has been delivered
+        // TODO: figure out a way to change filtering so that re-ordering can't happen
+        context.wait_for_idle(100).await;
+
         // Forward the 5 messages
         let mut input = input;
         for _ in 0..5 {
@@ -283,6 +287,10 @@ fn wait_for_idle_program_queues_extra_requests_1000_times() {
 
             context.send(test_program).unwrap()
                 .send(IdleNotification).await.unwrap();
+
+            // Wait for idle so we know the earlier message has been delivered
+            // TODO: figure out a way to change filtering so that re-ordering can't happen
+            context.wait_for_idle(100).await;
 
             // Forward the 5 messages
             let mut input = input;
