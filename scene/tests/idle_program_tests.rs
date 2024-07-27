@@ -255,3 +255,50 @@ fn wait_for_idle_program_queues_extra_requests() {
         .expect_message(|TrySend| { Ok(()) })
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
+
+#[test]
+fn wait_for_idle_program_queues_extra_requests_1000_times() {
+    for _ in 0..1000 {
+        let scene           = Scene::empty();
+        let test_program    = SubProgramId::new();
+        let waiting_program = SubProgramId::new();
+
+        #[derive(PartialEq, Debug)]
+        struct TrySend;
+        impl SceneMessage for TrySend { }
+
+        scene.add_subprogram(SubProgramId::new(), move |_: InputStream<()>, context| async move {
+            let mut idle_program = context.send(waiting_program).unwrap();
+
+            // Send some messages to it (these get blocked while 'wait_for_idle' is waiting)
+            for _ in 0..5 {
+                idle_program.send(TrySend).await.unwrap();
+            }
+        }, 0);
+
+        // Add a program that waits for idle but has a 0 length waiting queue
+        scene.add_subprogram(waiting_program, move |input: InputStream<TrySend>, context| async move {
+            // Wait for idle, then tell the test program we're OK
+            context.wait_for_idle(1_000).await;
+
+            context.send(test_program).unwrap()
+                .send(IdleNotification).await.unwrap();
+
+            // Forward the 5 messages
+            let mut input = input;
+            for _ in 0..5 {
+                context.send(test_program).unwrap()
+                    .send(input.next().await.unwrap()).await.unwrap();
+            }
+        }, 0);
+
+        TestBuilder::new()
+            .expect_message(|IdleNotification| { Ok(()) })
+            .expect_message(|TrySend| { Ok(()) })
+            .expect_message(|TrySend| { Ok(()) })
+            .expect_message(|TrySend| { Ok(()) })
+            .expect_message(|TrySend| { Ok(()) })
+            .expect_message(|TrySend| { Ok(()) })
+            .run_in_scene_with_threads(&scene, test_program, 5);
+    }
+}
