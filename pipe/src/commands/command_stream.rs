@@ -79,6 +79,24 @@ pub enum CommandResponse {
     /// spread across several lines. When the stream is closed, a '<EOS <n>' message is generated.
     BackgroundStream(BoxStream<'static, serde_json::Value>),
 
+    /// An IO stream of JSON data
+    ///
+    /// This takes over the data stream to allow JSON values to be sent directly to the command, and also allows for
+    /// piping data from one command to another. IO streams can be used to supply data in arbitrary amounts to a command,
+    /// and can also be used to repurpose a connection - for example, as an exclusive communication channel with another
+    /// subprogram.
+    ///
+    /// IO streams are particularly useful as a form of RPC, making it possible to run a 
+    IoStream(Box<dyn Send + FnOnce(BoxStream<'static, serde_json::Value>) -> BoxStream<'static, serde_json::Value>>),
+
+    /// An interactive stream function (callback to take over the raw command data stream)
+    ///
+    /// This allows a command to take over the output stream, say to provide a TUI as part of an interactive session,
+    /// or to provide binary data directly. Non-interactive command sessions may ignore this request and not allow
+    /// direct access to their underlying stream: the general expectation is that the command stream is a terminal
+    /// session that is being interacted with by a user.
+    InteractiveStream(Box<dyn Send + FnOnce(BoxStream<'static, Vec<u8>>) -> BoxStream<'static, Vec<u8>>>),
+
     /// An error message, written as '!!! <error>'
     Error(String),    
 }
@@ -181,6 +199,8 @@ impl Debug for CommandResponse {
             CommandResponse::Message(msg)           => write!(f, "Message({:?})", msg),
             CommandResponse::Json(json)             => write!(f, "Json({:?})", json),
             CommandResponse::BackgroundStream(_)    => write!(f, "BackgroundStream(...)"),
+            CommandResponse::IoStream(_)            => write!(f, "IoStream(...)"),
+            CommandResponse::InteractiveStream(_)   => write!(f, "InteractiveStream(...)"),
             CommandResponse::Error(err)             => write!(f, "Error({:?})", err),
         }
     }
@@ -287,6 +307,16 @@ async fn display_response(yield_value: &(impl Send + Fn(String) -> BoxFuture<'st
             // This requires moving the stream to the background
             put_stream_in_background.send(stream).await.ok();
         },
+
+        CommandResponse::IoStream(create_stream) => {
+            // Take over the command stream
+            todo!()
+        },
+
+        CommandResponse::InteractiveStream(create_stream) => {
+            // Take over the command stream
+            todo!()
+        }
 
         CommandResponse::Error(error_message) => {
             // '!!! <error>' if there's a problem
