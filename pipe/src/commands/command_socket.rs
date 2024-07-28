@@ -88,8 +88,8 @@ impl CommandSocket {
         let next_command = command_parse(&mut parser, &mut tokenizer).await;
 
         // Convert the tokenizer back to a buffer
-        // let buffer  = tokenizer.to_u8_lookahead();
-        // self.buffer = buffer;
+        let buffer  = tokenizer.to_u8_lookahead();
+        self.buffer = buffer;
 
         // Fetch the matched command from the parser
         match next_command {
