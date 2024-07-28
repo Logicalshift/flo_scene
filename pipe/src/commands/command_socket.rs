@@ -6,6 +6,9 @@ use crate::commands::parse_command::*;
 
 use futures::prelude::*;
 use futures::stream::{BoxStream};
+use futures::task::{Poll};
+use futures::channel::mpsc;
+use futures::{pin_mut};
 
 use serde_json;
 
@@ -32,7 +35,7 @@ pub struct CommandSocket {
     input_stream: BoxStream<'static, CommandData>,
 
     /// The output stream for the command
-    output_stream: BoxStream<'static, CommandData>,
+    output_stream: mpsc::Sender<CommandData>,
 }
 
 impl CommandSocket {
@@ -46,10 +49,19 @@ impl CommandSocket {
     ///
     /// Takes over the socket to send a stream of raw JSON data
     ///
-    /// The returned stream is the JSON data sent from the other side. We close it when a '.' is sent, but control is not returned until the `json_stream`
-    /// stream is returned.
+    /// JSON is read from the input stream until a '.' is encountered (at the top level), or an error is encountered (at any point).
     ///
-    pub async fn stream_json<'a>(&'a mut self, json_stream: impl 'a + Send + Stream<Item=serde_json::Value>) -> impl 'a + Send + Stream<Item=serde_json::Value> {
+    pub fn stream_json<'a>(&'a mut self, json_stream: impl 'a + Send + Stream<Item=serde_json::Value>) -> impl 'a + Send + Stream<Item=serde_json::Value> {
+        use std::mem;
+
+        // Fetch the streams for the JSON
+        // TODO: if the buffer is not emptied, then we need to preserve it in the input stream on return
+        let mut buffer      = vec![];
+        mem::swap(&mut buffer, &mut self.buffer);
+        let input_stream    = &mut self.input_stream;
+        let input_stream    = stream::iter(iter::once(buffer)).chain(input_stream.map(|CommandData(data)| data));
+        let output_stream   = &mut self.output_stream;
+
         todo!();
         stream::empty()
     }
@@ -58,11 +70,64 @@ impl CommandSocket {
     /// Takes over the socket to send raw u8 data
     ///
     /// This allows commands to perform an interactive session with a user, directly interacting with their connection. It's up to the command when
-    /// to close the streams: we will stop listening for raw data from the other side when 
+    /// to close the streams: we will stop listening for raw data from the other side when the returned input stream is closed
     ///
-    pub async fn stream_raw<'a>(&'a mut self, raw_stream: impl 'a + Send + Stream<Item=Vec<u8>>) -> impl 'a + Send + Stream<Item=Vec<u8>> {
-        todo!();
-        stream::empty()
+    pub fn stream_raw<'a>(&'a mut self, raw_output_stream: impl 'a + Send + Stream<Item=Vec<u8>>) -> impl 'a + Unpin + Send + Stream<Item=Vec<u8>> {
+        use std::mem;
+
+        // Fetch the input and output streams
+        // TODO: if the buffer is not emptied, then we need to preserve it in the input stream on return
+        let mut buffer      = vec![];
+        mem::swap(&mut buffer, &mut self.buffer);
+        let input_stream    = &mut self.input_stream;
+        let output_stream   = &mut self.output_stream;
+
+        // Create a future to send the data from the raw stream to the output
+        let send_output_future = async move {
+            pin_mut!(raw_output_stream);
+
+            // Read output...
+            while let Some(data) = raw_output_stream.next().await {
+                // ... send to the output stream
+                let send_result = output_stream.send(CommandData(data)).await;
+                if send_result.is_err() {
+                    // Stop early if there is no more output to send from the raw stream
+                    break;
+                }
+            }
+        };
+
+        // The returned stream reads from the input or the buffer
+        let mut send_output_future = Some(Box::pin(send_output_future));
+
+        let raw_stream = stream::poll_fn(move |context| {
+            // Poll the output future so any generated output is sent
+            // TODO: this might cause a blockage if the input is not polled when something is trying to send to the output stream
+            if let Some(future) = &mut send_output_future {
+                match future.poll_unpin(context) {
+                    Poll::Ready(()) => { send_output_future = None; }
+                    Poll::Pending   => { }
+                }
+            }
+
+            // Check for any activity on the input stream
+            if !buffer.is_empty() {
+                // If there are buffered bytes, then return those as the very first piece of input
+                let mut ready_buffer = vec![];
+                mem::swap(&mut buffer, &mut ready_buffer);
+
+                Poll::Ready(Some(ready_buffer))
+            } else if let Poll::Ready(data) = input_stream.poll_next_unpin(context) {
+                // Data is ready on the input stream
+                Poll::Ready(data.map(|CommandData(data)| data))
+            } else {
+                // No data is ready
+                Poll::Pending
+            }
+        });
+
+        // Result is the stream from the future
+        raw_stream
     }
 
     ///
@@ -102,5 +167,12 @@ impl CommandSocket {
                 Err(err)
             }
         }
+    }
+
+    ///
+    /// Sends responses from a command
+    ///
+    pub async fn send_responses(&mut self, responses: impl Stream<Item=CommandResponse>) -> Result<(), ()> {
+        todo!()
     }
 }
