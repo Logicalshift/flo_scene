@@ -1,5 +1,6 @@
 use crate::parser::*;
 use crate::socket::*;
+use crate::parse_json::*;
 use crate::commands::command_program::*;
 use crate::commands::command_stream::*;
 use crate::commands::parse_command::*;
@@ -52,19 +53,112 @@ impl CommandSocket {
     ///
     /// JSON is read from the input stream until a '.' is encountered (at the top level), or an error is encountered (at any point).
     ///
-    pub fn stream_json<'a>(&'a mut self, json_stream: impl 'a + Send + Stream<Item=serde_json::Value>) -> impl 'a + Send + Stream<Item=serde_json::Value> {
+    pub async fn stream_json<'a, TFuture>(&'a mut self, activity_fn: impl 'a + FnOnce(BoxStream<'a, serde_json::Value>, mpsc::Sender<serde_json::Value>) -> TFuture) -> TFuture::Output 
+    where
+        TFuture: 'a + Future,
+    {
         use std::mem;
 
         // Fetch the streams for the JSON
-        // TODO: if the buffer is not emptied, then we need to preserve it in the input stream on return
         let mut buffer      = vec![];
         mem::swap(&mut buffer, &mut self.buffer);
+        let buffer          = Arc::new(Mutex::new(buffer));
         let input_stream    = &mut self.input_stream;
-        let input_stream    = stream::iter(iter::once(buffer)).chain(input_stream.map(|CommandData(data)| data));
         let output_stream   = &mut self.output_stream;
 
-        todo!();
-        stream::empty()
+        // Read first from the internal buffer, then the main input stream
+        let input_stream_buffer = Arc::clone(&buffer);
+
+        let input_stream = stream::poll_fn(move |context| {
+            let mut buffer = input_stream_buffer.lock().unwrap();
+
+            if !buffer.is_empty() {
+                let mut ready_buffer = vec![];
+                mem::swap(&mut ready_buffer, &mut *buffer);
+
+                Poll::Ready(Some(ready_buffer))
+            } else if let Poll::Ready(data) = input_stream.poll_next_unpin(context) {
+                Poll::Ready(data.map(|CommandData(data)| data))
+            } else {
+                Poll::Pending
+            }
+        }).boxed();
+
+        // The input stream is read as tokenized JSON and ends on error
+        // TODO: need to return the input buffer from the tokenizer when dropped/finished
+        let mut tokenizer   = Tokenizer::<JsonToken, _>::new(input_stream);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_json_matchers();
+
+        let (send_input, recv_input) = mpsc::channel(0);
+        let parse_input = async move {
+            let mut send_input = send_input;
+
+            loop {
+                match json_parse_value(&mut parser, &mut tokenizer).await {
+                    Ok(()) => {
+                        // Finish on any JSON error ('.' is intended as the 'true' finish here)
+                        let value = parser.finish();
+
+                        match value {
+                            Err(_)    => { break; }
+                            Ok(value) => {
+                                if send_input.send(value).await.is_err() { break; } 
+                            }
+                        }
+                    },
+
+                    Err(_) => { break; }
+                }
+            }
+        };
+
+        // The output stream is formatted JSON
+        let (send_output, recv_output) = mpsc::channel(0);
+
+        let output_relay = async move {
+            let mut recv_output = recv_output;
+            while let Some(json) = recv_output.next().await {
+                let json: serde_json::Value = json;
+                let json_string = serde_json::to_string_pretty(&json);
+
+                if let Ok(json_string) = json_string {
+                    if output_stream.send(CommandData(json_string.into_bytes())).await.is_err() {
+                        break;
+                    }
+                    if output_stream.send(CommandData(vec![10])).await.is_err() {
+                        break;
+                    }
+                }
+            }
+        };
+
+        // Start the activity
+        let activity = activity_fn(recv_input.boxed(), send_output);
+
+        // Run all the futures together to wait for the activity to finish
+        let mut parse_input     = Some(Box::pin(parse_input));
+        let mut output_relay    = Some(Box::pin(output_relay));
+        let mut activity        = Box::pin(activity);
+
+        let result = future::poll_fn(|context| {
+            if let Some(parse_input_future) = &mut parse_input {
+                if parse_input_future.poll_unpin(context).is_ready() {
+                    parse_input = None;
+                }
+            }
+
+            if let Some(output_relay_future) = &mut output_relay {
+                if output_relay_future.poll_unpin(context).is_ready() {
+                    output_relay = None;
+                }
+            }
+
+            activity.poll_unpin(context)
+        }).await;
+
+        result
     }
 
     ///
@@ -79,7 +173,6 @@ impl CommandSocket {
         use std::mem;
 
         // Fetch the input and output streams
-        // TODO: if the buffer is not emptied, then we need to preserve it in the input stream on return
         let mut buffer      = vec![];
         mem::swap(&mut buffer, &mut self.buffer);
         let buffer          = Arc::new(Mutex::new(buffer));
