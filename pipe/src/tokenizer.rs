@@ -343,6 +343,16 @@ where
             }
         }
     }
+
+    ///
+    /// Consumes this tokenizer, and returns any characters that have not been consumed from the lookahead
+    ///
+    pub fn to_u8_lookahead(self) -> Vec<u8> {
+        self.lookahead_chars
+            .bytes()
+            .chain(self.lookahead_bytes.into_iter())
+            .collect()
+    }
 }
 
 #[cfg(test)]
