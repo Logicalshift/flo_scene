@@ -274,7 +274,7 @@ impl CommandSocket {
                 if let Ok(json_string) = json_string {
                     self.output_stream.send(format!("{}\n", json_string).into()).await?;
                 } else {
-                    self.output_stream.send(format!("!!! {:?}\n", "Could not format JSON response").into()).await?;
+                    self.output_stream.send(format!("\n!!! {:?}\n", "Could not format JSON response").into()).await?;
                 }
             },
 
@@ -284,7 +284,7 @@ impl CommandSocket {
             },
 
             Error(message)              => {
-                self.output_stream.send(format!("!!! {}\n", message).into()).await?;
+                self.output_stream.send(format!("\n!!! {}\n", message).into()).await?;
             },
 
             NewStream(stream_id)        => {
