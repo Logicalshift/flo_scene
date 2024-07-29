@@ -142,7 +142,7 @@ impl CommandSocket {
 
         // Wait for the result while monitoring background streams (via a fairly involved poll function)
         //  - if we're sending a notification to the output stream it must complete before we finish
-        //  - we must monitor for background streams and notify when they close
+        //  - we must monitor for background streams and notify when they close or produce messages
         //  - we must finish when the 'next_command' future completes
         let mut notify_background: Option<BoxFuture<'_, ()>> = None;
 
@@ -288,11 +288,11 @@ impl CommandSocket {
             },
 
             NewStream(stream_id)        => {
-                self.output_stream.send(format!("<<< {}\n", stream_id).into()).await?;
+                self.output_stream.send(format!("\n<<< {}\n", stream_id).into()).await?;
             },
 
             EndStream(stream_id)        => {
-                self.output_stream.send(format!("=== {}\n", stream_id).into()).await?;
+                self.output_stream.send(format!("\n=== {}\n", stream_id).into()).await?;
             },
 
             StreamJson(stream_id, json) => {
