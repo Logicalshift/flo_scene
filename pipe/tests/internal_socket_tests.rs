@@ -213,7 +213,7 @@ fn read_from_background_stream_iteration() {
             characters.push(msg as char);
             println!("{:?}", msg as char);
 
-            if characters.contains("<<< 0") && characters.contains("<0 \"one\"") && characters.contains("<0 \"two\"") && characters.contains("<EOS 0") {
+            if characters.contains("<<< 0") && characters.contains("<0 \"one\"") && characters.contains("<0 \"two\"") && characters.contains("=== 0") {
                 break;
             }
         }
