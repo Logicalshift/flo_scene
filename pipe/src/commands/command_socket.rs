@@ -191,11 +191,21 @@ impl CommandSocket {
                         break StreamActivity::None;
                     }
                 };
-                mem::drop(background_streams_iter);
 
                 match maybe_background_message {
                     StreamActivity::StreamFinished(stream_id) => {
                         // Remove inactive stream
+                        background_json_streams.remove(&stream_id);
+
+                        // Send a notification to the output that the stream has ended
+                        // The notification takes priority, so the output stream will be returned by the time it's done
+                        let in_use_output_stream    = output_stream.lock().unwrap().take().unwrap();
+                        let output_stream           = Arc::clone(&output_stream);
+
+                        notify_background = Some(async move {
+                            in_use_output_stream.send(format!("\n=== {}\n\n", stream_id).into()).await.ok();
+                            *output_stream.lock().unwrap() = Some(in_use_output_stream);
+                        }.boxed());
                     }
 
                     StreamActivity::Message(stream_id, json) => {
