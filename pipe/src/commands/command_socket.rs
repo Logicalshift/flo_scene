@@ -99,6 +99,166 @@ impl CommandSocket {
     }
 
     ///
+    /// Reads the next request from the input stream
+    ///
+    pub async fn next_request(&mut self) -> Result<CommandRequest, CommandParseError> {
+        use std::mem;
+
+        // The input is whatever we have in the buffer + what we can read from the input stream
+        let mut buffer      = vec![];
+        mem::swap(&mut buffer, &mut self.buffer);
+
+        let input           = &mut self.input_stream;
+        let input           = stream::iter(iter::once(buffer)).chain(input.map(|CommandData(data)| data));
+
+        // Set up a tokenizer and parser for the input
+        let mut tokenizer   = Tokenizer::new(input);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        // Read the next command using our parser/tokenizer
+        let next_command = command_parse(&mut parser, &mut tokenizer).await;
+
+        // Convert the tokenizer back to a buffer
+        let buffer  = tokenizer.to_u8_lookahead();
+        self.buffer = buffer;
+
+        // Fetch the matched command from the parser
+        match next_command {
+            Ok(()) => {
+                let command = parser.finish()?;
+                Ok(command)
+            }
+
+            Err(err) => {
+                Err(err)
+            }
+        }
+    }
+
+    ///
+    /// Sends a single response to the output of the command
+    ///
+    pub async fn send_response(&mut self, response: CommandResponse) -> Result<(), ()> {
+        match response {
+            CommandResponse::Message(msg) => {
+                let msg = msg.replace("\n", "\n  ");
+                self.output_stream.send(format!("  {}\n", msg).into()).await.map_err(|_| ())
+            }
+
+            CommandResponse::Json(json) => {
+                // Format the JSON as a pretty-printed string (TODO: the to_writer_pretty version would be better for very long JSON)
+                let json_string = serde_json::to_string_pretty(&json);
+
+                if let Ok(json_string) = json_string {
+                    self.output_stream.send(format!("{}\n", json_string).into()).await.map_err(|_| ())
+                } else {
+                    self.output_stream.send(format!("!!! {:?}\n", "Could not format JSON response").into()).await.map_err(|_| ())
+                }
+            },
+
+            CommandResponse::BackgroundStream(stream) => {
+                // This requires moving the stream to the background
+                //put_stream_in_background.send(stream).await.ok();
+                todo!()
+            },
+
+            CommandResponse::IoStream(create_stream) => {
+                self.output_stream.send("\n>> JSON >>\n".into()).await.map_err(|_| ())?;
+
+                // Take over the command stream
+                self.stream_json(move |input, output| async move {
+                    // We relay input via a channel as these streams can have a static lifetime
+                    let (send_input, recv_input) = mpsc::channel(0);
+
+                    // Create the output stream using the supplied functions
+                    let mut output_stream   = create_stream(recv_input.boxed());
+                    let mut output          = output;
+
+                    future::join(async move {
+                        // Copy output from the interactive stream to the main output
+                        while let Some(bytes) = output_stream.next().await {
+                            if output.send(bytes).await.is_err() {
+                                break;
+                            }
+                        }
+                    }, async move {
+                        // Copy input from the main stream to the interactive stream (should finish once the interactive stream stops waiting for input)
+                        let mut input = input;
+                        let mut send_input = send_input;
+
+                        while let Some(input) = input.next().await {
+                            if send_input.send(input).await.is_err() {
+                                break;
+                            }
+                        }
+                    }).await;
+                }).await;
+
+                self.output_stream.send("\n<< JSON <<\n".into()).await.map_err(|_| ())?;
+
+                Ok(())
+            },
+
+            CommandResponse::InteractiveStream(create_stream) => {
+                self.output_stream.send("\n>> RAW >>\n".into()).await.map_err(|_| ())?;
+
+                // Take over the command stream
+                self.stream_raw(move |input, output| async move {
+                    // We relay input via a channel as these streams can have a static lifetime
+                    let (send_input, recv_input) = mpsc::channel(0);
+
+                    // Create the output stream using the supplied functions
+                    let mut output_stream   = create_stream(recv_input.boxed());
+                    let mut output          = output;
+
+                    future::join(async move {
+                        // Copy output from the interactive stream to the main output
+                        while let Some(bytes) = output_stream.next().await {
+                            if output.send(bytes).await.is_err() {
+                                break;
+                            }
+                        }
+                    }, async move {
+                        // Copy input from the main stream to the interactive stream (should finish once the interactive stream stops waiting for input)
+                        let mut input = input;
+                        let mut send_input = send_input;
+
+                        while let Some(input) = input.next().await {
+                            if send_input.send(input).await.is_err() {
+                                break;
+                            }
+                        }
+                    }).await;
+                }).await;
+
+                self.output_stream.send("\n<< RAW <<\n".into()).await.map_err(|_| ())?;
+
+                Ok(())
+            }
+
+            CommandResponse::Error(error_message) => {
+                // '!!! <error>' if there's a problem
+                self.output_stream.send(format!("!!! {}\n", error_message).into()).await.map_err(|_| ())
+            }
+        }
+    }
+
+    ///
+    /// Sends responses from a command
+    ///
+    pub async fn send_responses(&mut self, responses: impl Send + Stream<Item=CommandResponse>) -> Result<(), ()> {
+        pin_mut!(responses);
+
+        while let Some(response) = responses.next().await {
+            self.send_response(response).await?;
+        }
+
+        Ok(())
+    }
+
+    ///
     /// Takes over the socket to send a stream of raw JSON data
     ///
     /// JSON is read from the input stream until a '.' is encountered (at the top level), or an error is encountered (at any point).
@@ -285,165 +445,5 @@ impl CommandSocket {
 
         // Return the value returned from the activity future
         result
-    }
-
-    ///
-    /// Reads the next request from the input stream
-    ///
-    pub async fn next_request(&mut self) -> Result<CommandRequest, CommandParseError> {
-        use std::mem;
-
-        // The input is whatever we have in the buffer + what we can read from the input stream
-        let mut buffer      = vec![];
-        mem::swap(&mut buffer, &mut self.buffer);
-
-        let input           = &mut self.input_stream;
-        let input           = stream::iter(iter::once(buffer)).chain(input.map(|CommandData(data)| data));
-
-        // Set up a tokenizer and parser for the input
-        let mut tokenizer   = Tokenizer::new(input);
-        let mut parser      = Parser::new();
-
-        tokenizer.with_command_matchers();
-
-        // Read the next command using our parser/tokenizer
-        let next_command = command_parse(&mut parser, &mut tokenizer).await;
-
-        // Convert the tokenizer back to a buffer
-        let buffer  = tokenizer.to_u8_lookahead();
-        self.buffer = buffer;
-
-        // Fetch the matched command from the parser
-        match next_command {
-            Ok(()) => {
-                let command = parser.finish()?;
-                Ok(command)
-            }
-
-            Err(err) => {
-                Err(err)
-            }
-        }
-    }
-
-    ///
-    /// Sends a single response to the output of the command
-    ///
-    pub async fn send_response(&mut self, response: CommandResponse) -> Result<(), ()> {
-        match response {
-            CommandResponse::Message(msg) => {
-                let msg = msg.replace("\n", "\n  ");
-                self.output_stream.send(format!("  {}\n", msg).into()).await.map_err(|_| ())
-            }
-
-            CommandResponse::Json(json) => {
-                // Format the JSON as a pretty-printed string (TODO: the to_writer_pretty version would be better for very long JSON)
-                let json_string = serde_json::to_string_pretty(&json);
-
-                if let Ok(json_string) = json_string {
-                    self.output_stream.send(format!("{}\n", json_string).into()).await.map_err(|_| ())
-                } else {
-                    self.output_stream.send(format!("!!! {:?}\n", "Could not format JSON response").into()).await.map_err(|_| ())
-                }
-            },
-
-            CommandResponse::BackgroundStream(stream) => {
-                // This requires moving the stream to the background
-                //put_stream_in_background.send(stream).await.ok();
-                todo!()
-            },
-
-            CommandResponse::IoStream(create_stream) => {
-                self.output_stream.send("\n>> JSON >>\n".into()).await.map_err(|_| ())?;
-
-                // Take over the command stream
-                self.stream_json(move |input, output| async move {
-                    // We relay input via a channel as these streams can have a static lifetime
-                    let (send_input, recv_input) = mpsc::channel(0);
-
-                    // Create the output stream using the supplied functions
-                    let mut output_stream   = create_stream(recv_input.boxed());
-                    let mut output          = output;
-
-                    future::join(async move {
-                        // Copy output from the interactive stream to the main output
-                        while let Some(bytes) = output_stream.next().await {
-                            if output.send(bytes).await.is_err() {
-                                break;
-                            }
-                        }
-                    }, async move {
-                        // Copy input from the main stream to the interactive stream (should finish once the interactive stream stops waiting for input)
-                        let mut input = input;
-                        let mut send_input = send_input;
-
-                        while let Some(input) = input.next().await {
-                            if send_input.send(input).await.is_err() {
-                                break;
-                            }
-                        }
-                    }).await;
-                }).await;
-
-                self.output_stream.send("\n<< JSON <<\n".into()).await.map_err(|_| ())?;
-
-                Ok(())
-            },
-
-            CommandResponse::InteractiveStream(create_stream) => {
-                self.output_stream.send("\n>> RAW >>\n".into()).await.map_err(|_| ())?;
-
-                // Take over the command stream
-                self.stream_raw(move |input, output| async move {
-                    // We relay input via a channel as these streams can have a static lifetime
-                    let (send_input, recv_input) = mpsc::channel(0);
-
-                    // Create the output stream using the supplied functions
-                    let mut output_stream   = create_stream(recv_input.boxed());
-                    let mut output          = output;
-
-                    future::join(async move {
-                        // Copy output from the interactive stream to the main output
-                        while let Some(bytes) = output_stream.next().await {
-                            if output.send(bytes).await.is_err() {
-                                break;
-                            }
-                        }
-                    }, async move {
-                        // Copy input from the main stream to the interactive stream (should finish once the interactive stream stops waiting for input)
-                        let mut input = input;
-                        let mut send_input = send_input;
-
-                        while let Some(input) = input.next().await {
-                            if send_input.send(input).await.is_err() {
-                                break;
-                            }
-                        }
-                    }).await;
-                }).await;
-
-                self.output_stream.send("\n<< RAW <<\n".into()).await.map_err(|_| ())?;
-
-                Ok(())
-            }
-
-            CommandResponse::Error(error_message) => {
-                // '!!! <error>' if there's a problem
-                self.output_stream.send(format!("!!! {}\n", error_message).into()).await.map_err(|_| ())
-            }
-        }
-    }
-
-    ///
-    /// Sends responses from a command
-    ///
-    pub async fn send_responses(&mut self, responses: impl Send + Stream<Item=CommandResponse>) -> Result<(), ()> {
-        pin_mut!(responses);
-
-        while let Some(response) = responses.next().await {
-            self.send_response(response).await?;
-        }
-
-        Ok(())
     }
 }
