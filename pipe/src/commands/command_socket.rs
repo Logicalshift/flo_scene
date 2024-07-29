@@ -137,7 +137,10 @@ impl CommandSocket {
         // Start reading the next command
         let next_command = command_parse(&mut parser, &mut tokenizer);
 
-        // Wait for the result while monitoring background streams
+        // Wait for the result while monitoring background streams (via a fairly involved poll function)
+        //  - if we're sending a notification to the output stream it must complete before we finish
+        //  - we must monitor for background streams and notify when they close
+        //  - we must finish when the 'next_command' future completes
         let mut notify_background: Option<BoxFuture<'_, ()>> = None;
 
         let output_stream       = Arc::new(Mutex::new(Some(output_stream)));
@@ -157,21 +160,26 @@ impl CommandSocket {
                 }
 
                 // Check background streams for activity
-                let mut background_streams_iter = background_json_streams.iter_mut();
-                let mut inactive_streams        = vec![];
+                enum StreamActivity {
+                    None,
+                    Message(usize, serde_json::Value),
+                    StreamFinished(usize),
+                }
 
-                let maybe_background_message: Option<(usize, serde_json::Value)> = loop {
+                let mut background_streams_iter = background_json_streams.iter_mut();
+
+                let maybe_background_message = loop {
                     if let Some((stream_id, stream)) = background_streams_iter.next() {
                         // Poll for the next message
                         match stream.poll_next_unpin(context) {
                             Poll::Ready(None) => {
                                 // Stream is no longer active (add to the inactive list so we can remove it after the loop finishes)
-                                inactive_streams.push(stream_id);
+                                break StreamActivity::StreamFinished(*stream_id);
                             },
 
                             Poll::Ready(Some(json)) => {
                                 // Stream generated a message: begin notifying
-                                break Some((*stream_id, json));
+                                break StreamActivity::Message(*stream_id, json);
                             }
 
                             Poll::Pending => { 
@@ -180,34 +188,37 @@ impl CommandSocket {
                         }
                     } else {
                         // No streams have any activity
-                        break None;
+                        break StreamActivity::None;
                     }
                 };
                 mem::drop(background_streams_iter);
 
-                // Clear out any inactive background streams
-                // TODO: background_json_streams shouldn't be borrowed here any more because the iterator is done but rust thinks it is
-                // TODO: send a notification when we find an inactive stream
-                //inactive_streams.into_iter().for_each(|stream_id| { background_json_streams.remove(&stream_id); });
-
-                if let Some((stream_id, json)) = maybe_background_message {
-                    // Format the JSON as a pretty-printed string (TODO: the to_writer_pretty version would be better for very long JSON)
-                    let json_string = serde_json::to_string_pretty(&json);
-
-                    if let Ok(json_string) = json_string {
-                        // Start notifying about the background stream activity (as stuff like the input is borrowed we can't call .notify() here)
-                        // The output stream belongs to the notifier while we're notifying, will be returned because the notifier always takes priority
-                        let in_use_output_stream    = output_stream.lock().unwrap().take().unwrap();
-                        let output_stream           = Arc::clone(&output_stream);
-
-                        notify_background = Some(async move {
-                            in_use_output_stream.send(format!("\n<{} {}\n\n", stream_id, json_string).into()).await.ok();
-                            *output_stream.lock().unwrap() = Some(in_use_output_stream);
-                        }.boxed());
+                match maybe_background_message {
+                    StreamActivity::StreamFinished(stream_id) => {
+                        // Remove inactive stream
                     }
-                } else {
-                    // Background streams are all idle
-                    break;
+
+                    StreamActivity::Message(stream_id, json) => {
+                        // Format the JSON as a pretty-printed string (TODO: the to_writer_pretty version would be better for very long JSON)
+                        let json_string = serde_json::to_string_pretty(&json);
+
+                        if let Ok(json_string) = json_string {
+                            // Start notifying about the background stream activity (as stuff like the input is borrowed we can't call .notify() here)
+                            // The output stream belongs to the notifier while we're notifying, will be returned because the notifier always takes priority
+                            let in_use_output_stream    = output_stream.lock().unwrap().take().unwrap();
+                            let output_stream           = Arc::clone(&output_stream);
+
+                            notify_background = Some(async move {
+                                in_use_output_stream.send(format!("\n<{} {}\n\n", stream_id, json_string).into()).await.ok();
+                                *output_stream.lock().unwrap() = Some(in_use_output_stream);
+                            }.boxed());
+                        }
+                    }
+
+                    StreamActivity::None => {
+                        // Stop polling the streams and move on to the input
+                        break;
+                    }
                 }
             }
 
