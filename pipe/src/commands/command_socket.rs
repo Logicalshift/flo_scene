@@ -34,6 +34,37 @@ impl From<String> for CommandData {
 }
 
 ///
+/// The notifications that can be sent to a command socket when it's in 'normal' mode
+///
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum CommandNotification {
+    /// Display the '> ' prompt, indicating that we're ready for new commands
+    Prompt,
+
+    /// JSON response from a command
+    JsonResponse(serde_json::Value),
+
+    /// Informational message
+    Message(String),
+
+    /// Error message
+    Error(String),
+
+    /// Indicates that a background stream has started
+    NewStream(usize),
+
+    /// Received a value from a background stream
+    StreamJson(usize, serde_json::Value),
+
+    /// Change the IO mode of the socket (eg, to RAW or JSON)
+    StartMode(String),
+
+    /// Restore the original mode of the socket
+    EndMode(String),
+}
+
+
+///
 /// A command socket manages the socket connection for a command
 ///
 /// Commands are usually streams of requests and responses, but the socket can also be taken over to send raw bytes or
@@ -323,7 +354,7 @@ impl CommandSocket {
             },
 
             CommandResponse::IoStream(create_stream) => {
-                self.output_stream.send("\n> JSON >\n".into()).await.map_err(|_| ())?;
+                self.output_stream.send("\n>> JSON >>\n".into()).await.map_err(|_| ())?;
 
                 // Take over the command stream
                 self.stream_json(move |input, output| async move {
@@ -354,13 +385,13 @@ impl CommandSocket {
                     }).await;
                 }).await;
 
-                self.output_stream.send("\n< JSON <\n".into()).await.map_err(|_| ())?;
+                self.output_stream.send("\n<< JSON <<\n".into()).await.map_err(|_| ())?;
 
                 Ok(())
             },
 
             CommandResponse::InteractiveStream(create_stream) => {
-                self.output_stream.send("\n> RAW >\n".into()).await.map_err(|_| ())?;
+                self.output_stream.send("\n>> RAW >>\n".into()).await.map_err(|_| ())?;
 
                 // Take over the command stream
                 self.stream_raw(move |input, output| async move {
@@ -391,7 +422,7 @@ impl CommandSocket {
                     }).await;
                 }).await;
 
-                self.output_stream.send("\n< RAW <\n".into()).await.map_err(|_| ())?;
+                self.output_stream.send("\n<< RAW <<\n".into()).await.map_err(|_| ())?;
 
                 Ok(())
             }
