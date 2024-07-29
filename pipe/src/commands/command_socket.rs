@@ -201,7 +201,7 @@ impl CommandSocket {
                         let output_stream           = Arc::clone(&output_stream);
 
                         notify_background = Some(async move {
-                            in_use_output_stream.send(format!("<{} {}", stream_id, json_string).into()).await.ok();
+                            in_use_output_stream.send(format!("\n<{} {}\n\n", stream_id, json_string).into()).await.ok();
                             *output_stream.lock().unwrap() = Some(in_use_output_stream);
                         }.boxed());
                     }
