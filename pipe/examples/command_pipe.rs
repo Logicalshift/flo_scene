@@ -20,7 +20,7 @@ async fn main() {
 
     // The internal socket program lets us stream commands and responses via a socket connection
     let socket_program = SubProgramId::new();
-    start_unix_socket_program(&scene, socket_program, "./example_unix_socket", parse_command_stream, display_command_responses).unwrap();
+    start_unix_socket_program(&scene, socket_program, "./example_unix_socket", read_command_data, write_command_data).unwrap();
 
     // Connect the programs together
     scene.connect_programs(socket_program, command_program, StreamId::with_message_type::<CommandProgramSocketMessage>()).unwrap();
