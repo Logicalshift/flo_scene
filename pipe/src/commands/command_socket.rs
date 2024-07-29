@@ -138,9 +138,11 @@ impl CommandSocket {
         let next_command = command_parse(&mut parser, &mut tokenizer);
 
         // Wait for the result while monitoring background streams
-        let mut notify_background: Option<BoxFuture<'static, ()>> = None;
+        let mut notify_background: Option<BoxFuture<'_, ()>> = None;
 
-        let mut next_command = Box::pin(next_command);
+        let output_stream       = Arc::new(Mutex::new(Some(output_stream)));
+        let mut next_command    = Box::pin(next_command);
+
         let next_command = future::poll_fn(move |context| {
             // Loop while there is activity on the background streams
             loop {
@@ -194,9 +196,14 @@ impl CommandSocket {
 
                     if let Ok(json_string) = json_string {
                         // Start notifying about the background stream activity (as stuff like the input is borrowed we can't call .notify() here)
-                        // TODO: borrowing nightmare, we do release the borrow because the background notification has priority but telling this to Rust is argh :-(
-                        //let send_notify = output_stream.send(format!("<{} {}", stream_id, json_string).into()).map(|_| ());
-                        //notify_background = Some(send_notify.boxed());
+                        // The output stream belongs to the notifier while we're notifying, will be returned because the notifier always takes priority
+                        let in_use_output_stream    = output_stream.lock().unwrap().take().unwrap();
+                        let output_stream           = Arc::clone(&output_stream);
+
+                        notify_background = Some(async move {
+                            in_use_output_stream.send(format!("<{} {}", stream_id, json_string).into()).await.ok();
+                            *output_stream.lock().unwrap() = Some(in_use_output_stream);
+                        }.boxed());
                     }
                 } else {
                     // Background streams are all idle
