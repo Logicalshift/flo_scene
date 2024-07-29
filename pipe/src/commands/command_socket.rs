@@ -10,6 +10,7 @@ use futures::{pin_mut};
 
 use serde_json;
 
+use std::collections::{HashMap};
 use std::iter;
 use std::sync::*;
 
@@ -83,6 +84,12 @@ pub struct CommandSocket {
 
     /// The output stream for the command
     output_stream: mpsc::Sender<CommandData>,
+
+    /// The background streams that have been started on this socket. Background streams are monitored while waiting for input.
+    background_json_streams: HashMap<usize, BoxStream<'static, serde_json::Value>>,
+
+    /// The next handle to apply to a background stream
+    next_background_stream_handle: usize,
 }
 
 impl CommandSocket {
@@ -95,9 +102,11 @@ impl CommandSocket {
         let input_stream = connection.connect(recv_output);
 
         Self {
-            buffer:         vec![],
-            input_stream:   input_stream,
-            output_stream:  send_output,
+            buffer:                         vec![],
+            input_stream:                   input_stream,
+            output_stream:                  send_output,
+            background_json_streams:        HashMap::new(),
+            next_background_stream_handle:  0,
         }
     }
 
