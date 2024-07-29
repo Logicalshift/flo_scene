@@ -22,6 +22,20 @@ use std::sync::*;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct CommandData(pub Vec<u8>);
 
+impl From<&str> for CommandData {
+    #[inline]
+    fn from(string: &str) -> Self {
+        Self(string.bytes().collect())
+    }
+}
+
+impl From<String> for CommandData {
+    #[inline]
+    fn from(string: String) -> Self {
+        Self(string.into_bytes())
+    }
+}
+
 ///
 /// A command socket manages the socket connection for a command
 ///
@@ -45,7 +59,15 @@ impl CommandSocket {
     /// Creates a command socket by activating a socket connection
     ///
     pub fn connect(connection: SocketConnection<CommandData, CommandData>) -> Self {
-        todo!()
+        // Finish the connection to create the CommandSocket structure
+        let (send_output, recv_output) = mpsc::channel(0);
+        let input_stream = connection.connect(recv_output);
+
+        Self {
+            buffer:         vec![],
+            input_stream:   input_stream,
+            output_stream:  send_output,
+        }
     }
 
     ///
@@ -124,7 +146,7 @@ impl CommandSocket {
                 let json_string = serde_json::to_string_pretty(&json);
 
                 if let Ok(json_string) = json_string {
-                    if output_stream.send(CommandData(json_string.into_bytes())).await.is_err() {
+                    if output_stream.send(json_string.into()).await.is_err() {
                         break;
                     }
                     if output_stream.send(CommandData(vec![10])).await.is_err() {
@@ -277,9 +299,59 @@ impl CommandSocket {
     }
 
     ///
+    /// Sends a single response to the output of the command
+    ///
+    pub async fn send_response(&mut self, response: CommandResponse) -> Result<(), ()> {
+        match response {
+            CommandResponse::Message(msg) => {
+                let msg = msg.replace("\n", "\n  ");
+                self.output_stream.send(format!("  {}\n", msg).into()).await.map_err(|_| ())
+            }
+
+            CommandResponse::Json(json) => {
+                // Format the JSON as a pretty-printed string (TODO: the to_writer_pretty version would be better for very long JSON)
+                let json_string = serde_json::to_string_pretty(&json);
+
+                if let Ok(json_string) = json_string {
+                    self.output_stream.send(format!("{}\n", json_string).into()).await.map_err(|_| ())
+                } else {
+                    self.output_stream.send(format!("!!! {:?}\n", "Could not format JSON response").into()).await.map_err(|_| ())
+                }
+            },
+
+            CommandResponse::BackgroundStream(stream) => {
+                // This requires moving the stream to the background
+                //put_stream_in_background.send(stream).await.ok();
+                todo!()
+            },
+
+            CommandResponse::IoStream(create_stream) => {
+                // Take over the command stream
+                todo!()
+            },
+
+            CommandResponse::InteractiveStream(create_stream) => {
+                // Take over the command stream
+                todo!()
+            }
+
+            CommandResponse::Error(error_message) => {
+                // '!!! <error>' if there's a problem
+                self.output_stream.send(format!("!!! {}\n", error_message).into()).await.map_err(|_| ())
+            }
+        }
+    }
+
+    ///
     /// Sends responses from a command
     ///
-    pub async fn send_responses(&mut self, responses: impl Stream<Item=CommandResponse>) -> Result<(), ()> {
-        todo!()
+    pub async fn send_responses(&mut self, responses: impl Send + Stream<Item=CommandResponse>) -> Result<(), ()> {
+        pin_mut!(responses);
+
+        while let Some(response) = responses.next().await {
+            self.send_response(response).await?;
+        }
+
+        Ok(())
     }
 }
