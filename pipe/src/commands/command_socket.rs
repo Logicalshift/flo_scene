@@ -149,7 +149,7 @@ impl CommandSocket {
                     if output_stream.send(json_string.into()).await.is_err() {
                         break;
                     }
-                    if output_stream.send(CommandData(vec![10])).await.is_err() {
+                    if output_stream.send(CommandData("\n\n".into())).await.is_err() {
                         break;
                     }
                 }
@@ -326,13 +326,77 @@ impl CommandSocket {
             },
 
             CommandResponse::IoStream(create_stream) => {
+                self.output_stream.send("\n> JSON >\n".into()).await.map_err(|_| ())?;
+
                 // Take over the command stream
-                todo!()
+                self.stream_json(move |input, output| async move {
+                    // We relay input via a channel as these streams can have a static lifetime
+                    let (send_input, recv_input) = mpsc::channel(0);
+
+                    // Create the output stream using the supplied functions
+                    let mut output_stream   = create_stream(recv_input.boxed());
+                    let mut output          = output;
+
+                    future::join(async move {
+                        // Copy output from the interactive stream to the main output
+                        while let Some(bytes) = output_stream.next().await {
+                            if output.send(bytes).await.is_err() {
+                                break;
+                            }
+                        }
+                    }, async move {
+                        // Copy input from the main stream to the interactive stream (should finish once the interactive stream stops waiting for input)
+                        let mut input = input;
+                        let mut send_input = send_input;
+
+                        while let Some(input) = input.next().await {
+                            if send_input.send(input).await.is_err() {
+                                break;
+                            }
+                        }
+                    }).await;
+                }).await;
+
+                self.output_stream.send("\n< JSON <\n".into()).await.map_err(|_| ())?;
+
+                Ok(())
             },
 
             CommandResponse::InteractiveStream(create_stream) => {
+                self.output_stream.send("\n> RAW >\n".into()).await.map_err(|_| ())?;
+
                 // Take over the command stream
-                todo!()
+                self.stream_raw(move |input, output| async move {
+                    // We relay input via a channel as these streams can have a static lifetime
+                    let (send_input, recv_input) = mpsc::channel(0);
+
+                    // Create the output stream using the supplied functions
+                    let mut output_stream   = create_stream(recv_input.boxed());
+                    let mut output          = output;
+
+                    future::join(async move {
+                        // Copy output from the interactive stream to the main output
+                        while let Some(bytes) = output_stream.next().await {
+                            if output.send(bytes).await.is_err() {
+                                break;
+                            }
+                        }
+                    }, async move {
+                        // Copy input from the main stream to the interactive stream (should finish once the interactive stream stops waiting for input)
+                        let mut input = input;
+                        let mut send_input = send_input;
+
+                        while let Some(input) = input.next().await {
+                            if send_input.send(input).await.is_err() {
+                                break;
+                            }
+                        }
+                    }).await;
+                }).await;
+
+                self.output_stream.send("\n< RAW <\n".into()).await.map_err(|_| ())?;
+
+                Ok(())
             }
 
             CommandResponse::Error(error_message) => {
