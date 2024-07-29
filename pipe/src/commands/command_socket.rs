@@ -117,6 +117,9 @@ impl CommandSocket {
     pub async fn next_request(&mut self) -> Result<CommandRequest, CommandParseError> {
         use std::mem;
 
+        // Before a request is made, we always generate a prompt
+        self.notify(CommandNotification::Prompt).await.ok();
+
         // Borrow the background streams so we can monitor them
         let background_json_streams = &mut self.background_json_streams;
         let output_stream           = &mut self.output_stream;
