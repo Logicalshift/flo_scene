@@ -388,27 +388,47 @@ impl CommandSocket {
                     let mut output_stream   = create_stream(recv_input.boxed());
                     let mut output          = output;
 
-                    future::join(async move {
+                    // Create two futures that will read/write the output
+                    let write_output = async move {
                         // Copy output from the interactive stream to the main output
                         while let Some(bytes) = output_stream.next().await {
                             if output.send(bytes).await.is_err() {
                                 break;
                             }
                         }
-                    }, async move {
+                    };
+
+                    let read_input = async move {
                         // Copy input from the main stream to the interactive stream (should finish once the interactive stream stops waiting for input)
-                        let mut input = input;
-                        let mut send_input = send_input;
+                        let mut input       = input;
+                        let mut send_input  = send_input;
 
                         while let Some(input) = input.next().await {
                             if send_input.send(input).await.is_err() {
                                 break;
                             }
                         }
+                    };
+
+                    // We leave RAW mode when the output stream is closed (the input stream is interrupted)
+                    // We don't care if the input stream is closed early
+                    pin_mut!(write_output);
+                    pin_mut!(read_input);
+
+                    let mut read_input = Some(read_input);
+
+                    future::poll_fn(move |context| {
+                        if let Some(read_input_future) = &mut read_input {
+                            if read_input_future.poll_unpin(context).is_ready() {
+                                read_input = None;
+                            }
+                        }
+
+                        write_output.poll_unpin(context)
                     }).await;
                 }).await;
 
-                self.notify(CommandNotification::EndMode("JSON".into())).await.map_err(|_| ())?;
+                self.notify(CommandNotification::EndMode("RAW".into())).await.map_err(|_| ())?;
 
                 Ok(())
             }

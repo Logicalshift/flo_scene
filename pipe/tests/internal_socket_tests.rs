@@ -287,7 +287,7 @@ fn send_raw_data_to_command_connection() {
             characters.push(msg as char);
             println!("{:?}", msg as char);
 
-            if characters.contains("\nRAW OUTPUT\n") && characters.contains("\n<< RAW <<\n") /* && characters.contains("\n== RAW ==\n") */ {
+            if characters.contains("\nRAW OUTPUT\n") && characters.contains("\n<< RAW <<\n") && characters.contains("\n== RAW ==\n") {
                 break;
             }
         }
