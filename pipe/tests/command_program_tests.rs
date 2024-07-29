@@ -37,14 +37,17 @@ pub fn send_error_command() {
 
         // Send an error command
         println!("Send command...");
-        let command = CommandRequest::parse("example::doesnotexist").await;
-        send_commands.send(command).await.unwrap();
+        send_commands.send("example::doesnotexist\n".into()).await.unwrap();
 
         // Retrieve the response
-        println!("Receive...");
-        let error_response = response_stream.next().await.unwrap();
-        println!("  ...{:?}", error_response);
-        assert!(matches!(&error_response, CommandResponse::Error(_)), "{:?}", error_response);
+        println!("Receive until error...");
+        while let Some(error_response) = response_stream.next().await {
+            let error_response = String::from_utf8_lossy(&error_response.0);
+            println!("  ...{:?}", error_response);
+            if error_response.contains("\n!!! ") {
+                break;
+            }
+        }
 
         // Send the 'succeded' message
         context.send_message(TestSucceeded).await.unwrap();
