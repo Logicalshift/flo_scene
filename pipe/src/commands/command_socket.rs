@@ -224,8 +224,12 @@ impl CommandSocket {
 
             CommandResponse::BackgroundStream(stream) => {
                 // This requires moving the stream to the background
-                //put_stream_in_background.send(stream).await.ok();
-                todo!()
+                let stream_id = self.next_background_stream_handle;
+                self.next_background_stream_handle += 1;
+
+                self.background_json_streams.insert(stream_id, stream);
+
+                self.notify(CommandNotification::NewStream(stream_id)).await.map_err(|_| ())
             },
 
             CommandResponse::IoStream(create_stream) => {
