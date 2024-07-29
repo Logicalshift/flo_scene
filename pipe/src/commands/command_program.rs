@@ -1,24 +1,23 @@
 use super::command_stream::*;
+use super::command_socket::*;
 use super::json_command::*;
-use super::parse_command::*;
 use crate::socket::*;
 
 use flo_scene::*;
 use flo_scene::commands::*;
 
-use futures::{pin_mut};
 use futures::prelude::*;
 use futures::stream::{BoxStream};
-use futures::channel::mpsc;
 
 use std::iter;
+use std::sync::*;
 
 ///
 /// A connection to a simple command program
 ///
 /// The simple command program can just read and write command responses, and cannot provide direct access to the terminal
 ///
-pub type CommandProgramSocketMessage = SocketMessage<Result<CommandRequest, CommandParseError>, CommandResponse>;
+pub type CommandProgramSocketMessage = SocketMessage<CommandData, CommandData>;
 
 ///
 /// The command program accepts connections from a socket and will generate command output messages
@@ -41,24 +40,10 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
                 // Create a channel to receive the responses on
                 // TODO: ideally we'd send the result of the 'spawn_command' routine to the connection here instead of relaying via another command
                 // (but that requires a two-stage connection)
-                let (send_response, recv_response) = mpsc::channel(0);
-                let command_input = connection.connect(recv_response);
+                let socket = CommandSocket::connect(connection);
 
                 // Spawn a reader for the command input
-                if let Ok(responses) = context.spawn_command(CommandProcessor::new(command_target.clone()), command_input) {
-                    // ... and another task to relay the responses back to the socket
-                    context.spawn_command(FnCommand::<_, ()>::new(move |responses, _context| { 
-                        let mut send_response = send_response.clone(); 
-                        async move {
-                            let mut responses = responses;
-                            while let Some(response) = responses.next().await {
-                                if send_response.send(response).await.is_err() {
-                                    break;
-                                }
-                            }
-                        }
-                    }), responses).ok();
-                }
+                context.spawn_command(CommandProcessor::new(socket, command_target.clone()), stream::empty()).ok();
             }
         }
     }
@@ -69,9 +54,12 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
 ///
 /// This will generate one response per command
 ///
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct CommandProcessor {
-    // Where the command requests should be sent
+    // The command socket connection (or none if the command is running)
+    socket: Arc<Mutex<Option<CommandSocket>>>,
+
+    // The target where the commands should be run
     target: StreamTarget,
 }
 
@@ -79,10 +67,9 @@ impl CommandProcessor {
     ///
     /// Creates a new command processor that will send commands to the specified target
     ///
-    pub fn new(target: impl Into<StreamTarget>) -> Self {
-        CommandProcessor {
-            target: target.into()
-        }
+    pub fn new(socket: CommandSocket, target: StreamTarget) -> Self {
+        let socket = Arc::new(Mutex::new(Some(socket)));
+        CommandProcessor { socket, target }
     }
 
     ///
@@ -106,29 +93,28 @@ impl CommandProcessor {
 }
 
 impl Command for CommandProcessor {
-    type Input  = Result<CommandRequest, CommandParseError>;
-    type Output = CommandResponse;
+    type Input  = ();
+    type Output = ();
 
-    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
+    fn run<'a>(&'a self, _input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
+        // Take the socket from inside the object
+        let mut socket = self.socket.lock().unwrap().take().unwrap();
+
         async move {
-            pin_mut!(input);
-            let mut our_responses = context.send::<CommandResponse>(()).unwrap();
-
-            while let Some(next_command) = input.next().await {
+            while let Ok(next_command) = socket.next_request().await {
                 use CommandRequest::*;
 
-                let mut command_responses = match next_command {
-                    Ok(Command     { command, argument }) => { self.run_command(command, argument, &context).await }
-                    Ok(Pipe        { from, to })          => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
-                    Ok(Assign      { variable, from })    => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
-                    Ok(ForTarget   { target, request })   => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
-                    Err(err)                              => { stream::iter(iter::once(CommandResponse::Error(format!("Parse error: {:?}", err)))).boxed() }
+                // Read the next command and decide on the response
+                let command_responses = match next_command {
+                    Command     { command, argument } => { self.run_command(command, argument, &context).await }
+                    Pipe        { from, to }          => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
+                    Assign      { variable, from }    => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
+                    ForTarget   { target, request }   => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
                 };
 
-                while let Some(response) = command_responses.next().await {
-                    if our_responses.send(response).await.is_err() {
-                        break;
-                    }
+                // Send the responses to the socket
+                if socket.send_responses(command_responses).await.is_err() {
+                    break;
                 }
             }
         }
