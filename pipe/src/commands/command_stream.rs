@@ -1,3 +1,4 @@
+use super::command_socket::*;
 use crate::parser::*;
 
 use flo_scene::*;
@@ -236,6 +237,24 @@ impl CommandRequest {
 
         Ok(parser.finish()?)
     }
+}
+
+///
+/// Reads data for the command program socket from an input stream
+///
+/// Often used with a socket, for example `start_internal_socket_program(&scene, socket_program, read_command_data, write_command_data)`
+///
+pub fn read_command_data(input: impl 'static + Send + Unpin + Stream<Item=Vec<u8>>) -> impl 'static + Send + Unpin + Stream<Item=CommandData> {
+    input.map(|data| CommandData(data))
+}
+
+///
+/// Converts command data to bytes ready to be sent to a socket stream
+///
+/// Often used with a socket, for example `start_internal_socket_program(&scene, socket_program, read_command_data, write_command_data)`
+///
+pub fn write_command_data(input: impl 'static + Send + Unpin + Stream<Item=CommandData>) -> BoxStream<'static, Vec<u8>> {
+    input.map(|CommandData(data)| data).boxed()
 }
 
 ///

@@ -21,7 +21,7 @@ fn error_from_internal_socket() {
 
     // The internal socket program lets us stream commands and responses via a socket connection
     let socket_program = SubProgramId::new();
-    start_internal_socket_program(&scene, socket_program, parse_command_stream, display_command_responses).unwrap();
+    start_internal_socket_program(&scene, socket_program, read_command_data, write_command_data).unwrap();
 
     // Socket program is connected to the command program using the command program socket message (which generates connections)
     scene.connect_programs(socket_program, command_program, StreamId::with_message_type::<CommandProgramSocketMessage>()).unwrap();
@@ -80,7 +80,7 @@ fn run_expected_error_command_without_closing(command: impl Into<String>) {
 
     // The internal socket program lets us stream commands and responses via a socket connection
     let socket_program = SubProgramId::new();
-    start_internal_socket_program(&scene, socket_program, parse_command_stream, display_command_responses).unwrap();
+    start_internal_socket_program(&scene, socket_program, read_command_data, write_command_data).unwrap();
 
     // Socket program is connected to the command program using the command program socket message (which generates connections)
     scene.connect_programs(socket_program, command_program, StreamId::with_message_type::<CommandProgramSocketMessage>()).unwrap();
@@ -173,7 +173,7 @@ fn read_from_background_stream_iteration() {
 
     // The internal socket program lets us stream commands and responses via a socket connection
     let socket_program = SubProgramId::new();
-    start_internal_socket_program(&scene, socket_program, parse_command_stream, display_command_responses).unwrap();
+    start_internal_socket_program(&scene, socket_program, read_command_data, write_command_data).unwrap();
 
     // Create a test command that sends some data via an internal stream
     scene.add_subprogram(SubProgramId::new(), 
