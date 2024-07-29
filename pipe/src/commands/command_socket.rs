@@ -53,6 +53,9 @@ pub enum CommandNotification {
     /// Indicates that a background stream has started
     NewStream(usize),
 
+    /// Indicates that a background stream has finished
+    EndStream(usize),
+
     /// Received a value from a background stream
     StreamJson(usize, serde_json::Value),
 
@@ -138,24 +141,76 @@ impl CommandSocket {
     }
 
     ///
+    /// Sends a notification to the output stream
+    ///
+    pub async fn notify(&mut self, notification: CommandNotification) -> Result<(), mpsc::SendError> {
+        use CommandNotification::*;
+
+        match notification {
+            Prompt                      => {
+                self.output_stream.send("\n\n> ".into()).await?;
+            },
+
+            JsonResponse(json)          => {
+                // Format the JSON as a pretty-printed string (TODO: the to_writer_pretty version would be better for very long JSON)
+                let json_string = serde_json::to_string_pretty(&json);
+
+                if let Ok(json_string) = json_string {
+                    self.output_stream.send(format!("{}\n", json_string).into()).await?;
+                } else {
+                    self.output_stream.send(format!("!!! {:?}\n", "Could not format JSON response").into()).await?;
+                }
+            },
+
+            Message(message)            => {
+                let msg = message.replace("\n", "\n   ");
+                self.output_stream.send(format!("   {}\n", msg).into()).await?;
+            },
+
+            Error(message)              => {
+                self.output_stream.send(format!("!!! {}\n", message).into()).await?;
+            },
+
+            NewStream(stream_id)        => {
+                self.output_stream.send(format!("<<< {}\n", stream_id).into()).await?;
+            },
+
+            EndStream(stream_id)        => {
+                self.output_stream.send(format!("=== {}\n", stream_id).into()).await?;
+            },
+
+            StreamJson(stream_id, json) => {
+                // Format the JSON as a pretty-printed string (TODO: the to_writer_pretty version would be better for very long JSON)
+                let json_string = serde_json::to_string_pretty(&json);
+
+                if let Ok(json_string) = json_string {
+                    self.output_stream.send(format!("\n<{} {}\n", stream_id, json_string).into()).await?;
+                }
+            },
+
+            StartMode(mode)             => {
+                self.output_stream.send(format!("\n<< {} <<\n\n", mode).into()).await?;
+            },
+
+            EndMode(mode)               => {
+                self.output_stream.send(format!("\n== {} ==\n\n", mode).into()).await?;
+            },
+        }
+
+        Ok(())
+    }
+
+    ///
     /// Sends a single response to the output of the command
     ///
     pub async fn send_response(&mut self, response: CommandResponse) -> Result<(), ()> {
         match response {
             CommandResponse::Message(msg) => {
-                let msg = msg.replace("\n", "\n  ");
-                self.output_stream.send(format!("  {}\n", msg).into()).await.map_err(|_| ())
+                self.notify(CommandNotification::Message(msg)).await.map_err(|_| ())
             }
 
             CommandResponse::Json(json) => {
-                // Format the JSON as a pretty-printed string (TODO: the to_writer_pretty version would be better for very long JSON)
-                let json_string = serde_json::to_string_pretty(&json);
-
-                if let Ok(json_string) = json_string {
-                    self.output_stream.send(format!("{}\n", json_string).into()).await.map_err(|_| ())
-                } else {
-                    self.output_stream.send(format!("!!! {:?}\n", "Could not format JSON response").into()).await.map_err(|_| ())
-                }
+                self.notify(CommandNotification::JsonResponse(json)).await.map_err(|_| ())
             },
 
             CommandResponse::BackgroundStream(stream) => {
@@ -165,7 +220,7 @@ impl CommandSocket {
             },
 
             CommandResponse::IoStream(create_stream) => {
-                self.output_stream.send("\n>> JSON >>\n".into()).await.map_err(|_| ())?;
+                self.notify(CommandNotification::StartMode("JSON".into())).await.map_err(|_| ())?;
 
                 // Take over the command stream
                 self.stream_json(move |input, output| async move {
@@ -196,13 +251,13 @@ impl CommandSocket {
                     }).await;
                 }).await;
 
-                self.output_stream.send("\n<< JSON <<\n".into()).await.map_err(|_| ())?;
+                self.notify(CommandNotification::EndMode("JSON".into())).await.map_err(|_| ())?;
 
                 Ok(())
             },
 
             CommandResponse::InteractiveStream(create_stream) => {
-                self.output_stream.send("\n>> RAW >>\n".into()).await.map_err(|_| ())?;
+                self.notify(CommandNotification::StartMode("RAW".into())).await.map_err(|_| ())?;
 
                 // Take over the command stream
                 self.stream_raw(move |input, output| async move {
@@ -233,14 +288,13 @@ impl CommandSocket {
                     }).await;
                 }).await;
 
-                self.output_stream.send("\n<< RAW <<\n".into()).await.map_err(|_| ())?;
+                self.notify(CommandNotification::EndMode("JSON".into())).await.map_err(|_| ())?;
 
                 Ok(())
             }
 
             CommandResponse::Error(error_message) => {
-                // '!!! <error>' if there's a problem
-                self.output_stream.send(format!("!!! {}\n", error_message).into()).await.map_err(|_| ())
+                self.notify(CommandNotification::Error(error_message)).await.map_err(|_| ())
             }
         }
     }
