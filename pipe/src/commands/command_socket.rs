@@ -3,6 +3,7 @@ use crate::socket::*;
 use crate::commands::command_stream::*;
 
 use futures::prelude::*;
+use futures::future::{BoxFuture};
 use futures::stream::{BoxStream};
 use futures::task::{Poll};
 use futures::channel::mpsc;
@@ -116,6 +117,10 @@ impl CommandSocket {
     pub async fn next_request(&mut self) -> Result<CommandRequest, CommandParseError> {
         use std::mem;
 
+        // Borrow the background streams so we can monitor them
+        let background_json_streams = &mut self.background_json_streams;
+        let output_stream           = &mut self.output_stream;
+
         // The input is whatever we have in the buffer + what we can read from the input stream
         let mut buffer      = vec![];
         mem::swap(&mut buffer, &mut self.buffer);
@@ -129,8 +134,79 @@ impl CommandSocket {
 
         tokenizer.with_command_matchers();
 
-        // Read the next command using our parser/tokenizer
-        let next_command = command_parse(&mut parser, &mut tokenizer).await;
+        // Start reading the next command
+        let next_command = command_parse(&mut parser, &mut tokenizer);
+
+        // Wait for the result while monitoring background streams
+        let mut notify_background: Option<BoxFuture<'static, ()>> = None;
+
+        let mut next_command = Box::pin(next_command);
+        let next_command = future::poll_fn(move |context| {
+            // Loop while there is activity on the background streams
+            loop {
+                // If we're sending a background stream notification, that has priority
+                if let Some(notify_background_future) = &mut notify_background {
+                    if notify_background_future.poll_unpin(context).is_pending() {
+                        // We must allow the notification to complete, so this takes priority over reading the input
+                        return Poll::Pending;
+                    } else {
+                        notify_background = None;
+                    }
+                }
+
+                // Check background streams for activity
+                let mut background_streams_iter = background_json_streams.iter_mut();
+                let mut inactive_streams        = vec![];
+
+                let maybe_background_message: Option<(usize, serde_json::Value)> = loop {
+                    if let Some((stream_id, stream)) = background_streams_iter.next() {
+                        // Poll for the next message
+                        match stream.poll_next_unpin(context) {
+                            Poll::Ready(None) => {
+                                // Stream is no longer active (add to the inactive list so we can remove it after the loop finishes)
+                                inactive_streams.push(stream_id);
+                            },
+
+                            Poll::Ready(Some(json)) => {
+                                // Stream generated a message: begin notifying
+                                break Some((*stream_id, json));
+                            }
+
+                            Poll::Pending => { 
+                                // Stream is not doing anything, ignore it
+                            }
+                        }
+                    } else {
+                        // No streams have any activity
+                        break None;
+                    }
+                };
+                mem::drop(background_streams_iter);
+
+                // Clear out any inactive background streams
+                // TODO: background_json_streams shouldn't be borrowed here any more because the iterator is done but rust thinks it is
+                // TODO: send a notification when we find an inactive stream
+                //inactive_streams.into_iter().for_each(|stream_id| { background_json_streams.remove(&stream_id); });
+
+                if let Some((stream_id, json)) = maybe_background_message {
+                    // Format the JSON as a pretty-printed string (TODO: the to_writer_pretty version would be better for very long JSON)
+                    let json_string = serde_json::to_string_pretty(&json);
+
+                    if let Ok(json_string) = json_string {
+                        // Start notifying about the background stream activity (as stuff like the input is borrowed we can't call .notify() here)
+                        // TODO: borrowing nightmare, we do release the borrow because the background notification has priority but telling this to Rust is argh :-(
+                        //let send_notify = output_stream.send(format!("<{} {}", stream_id, json_string).into()).map(|_| ());
+                        //notify_background = Some(send_notify.boxed());
+                    }
+                } else {
+                    // Background streams are all idle
+                    break;
+                }
+            }
+
+            // Poll the next command
+            next_command.poll_unpin(context)
+        }).await;
 
         // Convert the tokenizer back to a buffer
         let buffer  = tokenizer.to_u8_lookahead();
