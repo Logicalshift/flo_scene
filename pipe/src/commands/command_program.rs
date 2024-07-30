@@ -5,6 +5,7 @@ use crate::socket::*;
 
 use flo_scene::*;
 use flo_scene::commands::*;
+use flo_scene::programs::*;
 
 use futures::prelude::*;
 use futures::stream::{BoxStream};
@@ -37,22 +38,26 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
     while let Some(connection) = input.next().await {
         match connection {
             SocketMessage::Connection(connection) => {
-                // Create a channel to receive the responses on
-                // TODO: ideally we'd send the result of the 'spawn_command' routine to the connection here instead of relaying via another command
-                // (but that requires a two-stage connection)
-                let socket = CommandSocket::connect(connection);
+                // Connect the command socket
+                let socket          = CommandSocket::connect(connection);
+                let command_target  = command_target.clone();
 
-                // Spawn a reader for the command input
-                context.spawn_command(CommandProcessor::new(socket, command_target.clone()), stream::empty()).ok();
+                // Spawn a subprogram to handle running the commands using the CommandProcessor
+                let command_processor = SubProgramId::new();
+                context.send_message(SceneControl::start_program(
+                    command_processor,
+                    move |input, context| async move {
+                        let command_processor = CommandProcessor::new(socket, command_target);
+                        command_processor.run(input, context).await;
+                    },
+                    0)).await.ok();
             }
         }
     }
 }
 
 ///
-/// The command processor command, which takes an input of parsed commands, and generates the corresponding responses
-///
-/// This will generate one response per command
+/// The command processor reads commands from a socket and evaluates them
 ///
 #[derive(Clone)]
 pub struct CommandProcessor {
@@ -90,13 +95,11 @@ impl CommandProcessor {
             Ok(result_stream)   => result_stream.boxed()
         }
     }
-}
 
-impl Command for CommandProcessor {
-    type Input  = ();
-    type Output = ();
-
-    fn run<'a>(&'a self, _input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
+    ///
+    /// Runs the command processor program
+    ///
+    pub fn run<'a>(&'a self, _input: impl 'static + Send + Stream<Item=()>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         // Take the socket from inside the object
         let mut socket = self.socket.lock().unwrap().take().unwrap();
 
