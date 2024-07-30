@@ -9,9 +9,13 @@ use flo_scene::programs::*;
 
 use futures::prelude::*;
 use futures::stream::{BoxStream};
+use once_cell::sync::{Lazy};
 
 use std::iter;
 use std::sync::*;
+
+/// Filter that maps the 'Query' message to a CommandProcessRequest message
+static COMMAND_PROCESS_VARIABLE_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Query<CommandVariable>>| stream.map(|msg| CommandProcessRequest::QueryAllVariables(msg.target()))));
 
 ///
 /// A connection to a simple command program
@@ -19,6 +23,37 @@ use std::sync::*;
 /// The simple command program can just read and write command responses, and cannot provide direct access to the terminal
 ///
 pub type CommandProgramSocketMessage = SocketMessage<CommandData, CommandData>;
+
+///
+/// Requests that can be made to an active command processor
+///
+/// This is the message type accepted by the subprograms started by the `command_connection_program` subprogram
+///
+#[derive(Clone, Debug, PartialEq)]
+pub enum CommandProcessRequest {
+    /// Changes a variable in this process
+    SetVariable(String, serde_json::Value),
+
+    /// Queries a variable, sending a `QueryResponse<CommandVariable>` response to the specified target
+    QueryVariable(String, StreamTarget),
+
+    /// As for QueryVariable, except sends the values of all of the variables to the specified target as `QueryResponse<CommandVariable>` messages
+    QueryAllVariables(StreamTarget),
+}
+
+///
+/// Query response indicating the value of a variable in a command process
+///
+#[derive(Clone, Debug, PartialEq)]
+pub struct CommandVariable(pub String, pub serde_json::Value);
+
+impl SceneMessage for CommandProcessRequest {
+    fn initialise(scene: &Scene) {
+        scene.connect_programs(StreamSource::Filtered(*COMMAND_PROCESS_VARIABLE_QUERY_FILTER), (), StreamId::with_message_type::<Query<CommandVariable>>()).unwrap();
+    }
+}
+
+impl SceneMessage for CommandVariable { }
 
 ///
 /// The command program accepts connections from a socket and will generate command output messages
