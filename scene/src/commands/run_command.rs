@@ -10,9 +10,16 @@ use std::sync::*;
 ///
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct RunCommand<TParameter, TResponse> {
+    /// Where the responses to the command should be sent
     target:     StreamTarget,
+
+    /// The name of the command to run
     name:       String,
+
+    /// Data to send to the command
     parameter:  TParameter,
+
+    /// Phantom data for the response type
     response:   PhantomData<Mutex<TResponse>>,
 }
 
