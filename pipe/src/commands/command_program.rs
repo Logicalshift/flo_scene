@@ -134,7 +134,7 @@ impl CommandProcessor {
     ///
     /// Runs the command processor program
     ///
-    pub fn run<'a>(&'a self, _input: impl 'static + Send + Stream<Item=()>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
+    pub fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=CommandProcessRequest>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         // Take the socket from inside the object
         let mut socket = self.socket.lock().unwrap().take().unwrap();
 
