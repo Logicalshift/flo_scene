@@ -7,26 +7,49 @@ use flo_scene::programs::*;
 use once_cell::sync::{Lazy};
 
 /// The filter converts from JsonCommand to RunCommands so we can use the standard dispatcher without any other interposer
-static      FILTER_CONVERT_JSON_COMMAND:    Lazy<FilterHandle>  = Lazy::new(|| FilterHandle::conversion_filter::<JsonCommand, RunCommand<serde_json::Value, CommandResponse>>());
+static      FILTER_CONVERT_JSON_COMMAND:    Lazy<FilterHandle>  = Lazy::new(|| FilterHandle::conversion_filter::<JsonCommand, RunCommand<JsonParameter, CommandResponse>>());
 
 /// The default JSON command dispatcher subprogram (which is also started automatically on sending a `JsonCommand`)
 pub static  JSON_DISPATCHER_SUBPROGRAM:     StaticSubProgramId  = StaticSubProgramId::called("flo_scene_pipe::json_dispatcher");
 
 ///
+/// Parameter to a JSON command
+///
+#[derive(Clone, PartialEq, Debug)]
+pub struct JsonParameter {
+    /// The value of the parameter
+    pub value: serde_json::Value,
+
+    /// The command processor that launched this command (should accept the `CommandProcessRequest` message). Can be None if the command was not launched by a 
+    /// command processor
+    pub processor: Option<SubProgramId>,
+}
+
+///
 /// A JSON command is a command that uses a JSON value as a request and returns a `CommandResponse` (which is usually a JSON value)
 ///
-pub struct JsonCommand(RunCommand<serde_json::Value, CommandResponse>);
+pub struct JsonCommand(RunCommand<JsonParameter, CommandResponse>);
 
-impl From<RunCommand<serde_json::Value, CommandResponse>> for JsonCommand {
+impl From<()> for JsonParameter {
     #[inline]
-    fn from(cmd: RunCommand<serde_json::Value, CommandResponse>) -> Self {
+    fn from(_: ()) -> Self {
+        JsonParameter {
+            value:      serde_json::Value::Null,
+            processor:  None
+        }
+    }
+}
+
+impl From<RunCommand<JsonParameter, CommandResponse>> for JsonCommand {
+    #[inline]
+    fn from(cmd: RunCommand<JsonParameter, CommandResponse>) -> Self {
         JsonCommand(cmd)
     }
 }
 
-impl Into<RunCommand<serde_json::Value, CommandResponse>> for JsonCommand {
+impl Into<RunCommand<JsonParameter, CommandResponse>> for JsonCommand {
     #[inline]
-    fn into(self) -> RunCommand<serde_json::Value, CommandResponse> {
+    fn into(self) -> RunCommand<JsonParameter, CommandResponse> {
         self.0
     }
 }
@@ -44,8 +67,10 @@ impl JsonCommand {
     ///
     /// Creates a new 'run command' request. The command with the specified name will be run, and will send its response to the target.
     ///
-    pub fn new(target: impl Into<StreamTarget>, name: impl Into<String>, parameter: impl Into<serde_json::Value>) -> Self {
-        Self(RunCommand::new(target, name, parameter))
+    /// If supplied, the `command_processor` can be used to query the environment the command is launched in using the `CommandProcessRequest` message.
+    ///
+    pub fn new(target: impl Into<StreamTarget>, name: impl Into<String>, parameter: impl Into<serde_json::Value>, command_processor: Option<SubProgramId>) -> Self {
+        Self(RunCommand::new(target, name, JsonParameter { value: parameter.into(), processor: command_processor }))
     }
 }
 
@@ -54,7 +79,7 @@ impl JsonCommand {
 /// program that can handle them.
 ///
 pub fn start_json_command_dispatcher(scene: &Scene, program_id: SubProgramId) {
-    scene.add_subprogram(program_id, command_dispatcher_subprogram::<serde_json::Value, CommandResponse>, 1)
+    scene.add_subprogram(program_id, command_dispatcher_subprogram::<JsonParameter, CommandResponse>, 1)
 }
 
 impl SceneMessage for JsonCommand {

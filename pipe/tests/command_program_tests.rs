@@ -67,7 +67,7 @@ pub fn error_for_nonexistent_json_command() {
 
     // We can send a JSON command as a query, and it should make it to the default dispatcher. If we use a known invalid command it should return an error.
     TestBuilder::new()
-        .run_query(ReadCommand::default(), JsonCommand::new((), "::not-a-command", serde_json::Value::Null), (), |output| {
+        .run_query(ReadCommand::default(), JsonCommand::new((), "::not-a-command", serde_json::Value::Null, None), (), |output| {
             // Should be an error response
             if output.len() != 1 { return Err(format!("Output is {:?}", output)); }
             if !matches!(&output[0], CommandResponse::Error(_)) { return Err(format!("Output is {:?}", output)); }
@@ -92,7 +92,7 @@ pub fn declare_and_run_json_command() {
 
     // Try running this command (the dispatcher should start and find the subprogram for us).
     TestBuilder::new()
-        .run_query(ReadCommand::default(), JsonCommand::new((), "::test", serde_json::Value::String("Hello".to_string())), (), |output| {
+        .run_query(ReadCommand::default(), JsonCommand::new((), "::test", serde_json::Value::String("Hello".to_string()), None), (), |output| {
             // Should just send the string back to us
             if output.len() != 1 { return Err(format!("Output is {:?}", output)); }
 

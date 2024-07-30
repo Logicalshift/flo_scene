@@ -120,7 +120,7 @@ impl CommandProcessor {
         let target = self.target.clone();
 
         // Create the command query
-        let command = JsonCommand::new((), command, parameter);
+        let command = JsonCommand::new((), command, parameter, context.current_program_id());
 
         // Run the command and retrieve the first response if we can
         let command_result = context.spawn_query(ReadCommand::default(), command, target);

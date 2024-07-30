@@ -20,7 +20,7 @@ pub trait StandardCommandsLauncherExt {
     fn with_standard_commands(self) -> Self;
 }
 
-impl StandardCommandsLauncherExt for CommandLauncher<serde_json::Value, CommandResponse> {
+impl StandardCommandsLauncherExt for CommandLauncher<JsonParameter, CommandResponse> {
     fn with_standard_commands(self) -> Self {
         self
             .with_command("echo", command_echo)

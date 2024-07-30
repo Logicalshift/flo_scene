@@ -1,4 +1,5 @@
 use super::command_stream::*;
+use super::json_command::*;
 
 use flo_scene::*;
 use flo_scene::commands::*;
@@ -26,7 +27,7 @@ pub trait JsonCommandLauncherExt {
         TParameter:         'static + Send + for<'a> Deserialize<'a>;
 }
 
-impl JsonCommandLauncherExt for CommandLauncher<serde_json::Value, CommandResponse> {
+impl JsonCommandLauncherExt for CommandLauncher<JsonParameter, CommandResponse> {
     fn json() -> Self {
         Self::empty()
     }
@@ -42,7 +43,7 @@ impl JsonCommandLauncherExt for CommandLauncher<serde_json::Value, CommandRespon
         self.with_command(command_name, move |json, context|
             {
                 let command     = Arc::clone(&command);
-                let parameter   = TParameter::deserialize(json);
+                let parameter   = TParameter::deserialize(&json.value);
 
                 async move {
                     // Connect to the output stream to generate the response

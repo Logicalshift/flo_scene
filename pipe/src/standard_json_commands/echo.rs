@@ -8,7 +8,7 @@ use serde_json;
 ///
 /// Function that implements the 'echo' command, which displays its input as a message
 ///
-pub fn command_echo(input: &serde_json::Value, context: SceneContext) -> impl Future<Output=()> {
+pub fn command_echo(input: &JsonParameter, context: SceneContext) -> impl Future<Output=()> {
     let input = input.clone();
 
     async move {
@@ -17,10 +17,10 @@ pub fn command_echo(input: &serde_json::Value, context: SceneContext) -> impl Fu
         let mut responses   = if let Ok(responses) = responses { responses } else { return; };
 
         // Arrays have their values output as individual messages
-        let messages = if let serde_json::Value::Array(messages) = input {
+        let messages = if let serde_json::Value::Array(messages) = input.value {
             messages
         } else {
-            vec![input]
+            vec![input.value]
         };
 
         for input in messages {
