@@ -125,4 +125,11 @@ impl<TResponseData: 'static + Send + Unpin> QueryResponse<TResponseData> {
         use std::iter;
         QueryResponse(stream::iter(iter::once(item)).boxed())
     }
+
+    ///
+    /// A response with no values in it
+    ///
+    pub fn empty() -> Self {
+        QueryResponse(stream::empty().boxed())
+    }
 }
