@@ -8,9 +8,11 @@ use flo_scene::commands::*;
 use flo_scene::programs::*;
 
 use futures::prelude::*;
+use futures::{pin_mut};
 use futures::stream::{BoxStream};
 use once_cell::sync::{Lazy};
 
+use std::collections::{HashMap};
 use std::iter;
 use std::sync::*;
 
@@ -96,11 +98,14 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
 ///
 #[derive(Clone)]
 pub struct CommandProcessor {
-    // The command socket connection (or none if the command is running)
+    /// The command socket connection (or none if the command is running)
     socket: Arc<Mutex<Option<CommandSocket>>>,
 
-    // The target where the commands should be run
+    /// The target where the commands should be run
     target: StreamTarget,
+
+    /// The variables for this command session
+    variables: Arc<Mutex<HashMap<String, serde_json::Value>>>,
 }
 
 impl CommandProcessor {
@@ -109,7 +114,8 @@ impl CommandProcessor {
     ///
     pub fn new(socket: CommandSocket, target: StreamTarget) -> Self {
         let socket = Arc::new(Mutex::new(Some(socket)));
-        CommandProcessor { socket, target }
+        let variables = Arc::new(Mutex::new(HashMap::new()));
+        CommandProcessor { socket, target, variables }
     }
 
     ///
@@ -135,10 +141,20 @@ impl CommandProcessor {
     /// Runs the command processor program
     ///
     pub fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=CommandProcessRequest>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
+        // Set up the processor state
+        let run_variables   = Arc::clone(&self.variables);
+        let input_variables = Arc::clone(&self.variables);
+        let run_context     = context;
+        let input_context   = run_context.clone();
+
         // Take the socket from inside the object
         let mut socket = self.socket.lock().unwrap().take().unwrap();
 
-        async move {
+        // Create a future that runs the commands received from the socket
+        let run_commands = async move {
+            let context     = run_context;
+            let variables   = run_variables;
+
             while let Ok(next_command) = socket.next_request().await {
                 use CommandRequest::*;
 
@@ -155,6 +171,49 @@ impl CommandProcessor {
                     break;
                 }
             }
-        }
+        };
+
+        // Create another future that processes command requests
+        let process_input = async move {
+            let variables   = input_variables;
+            let context     = input_context;
+
+            pin_mut!(input);
+            while let Some(request) = input.next().await {
+                match request {
+                    CommandProcessRequest::SetVariable(name, value) => {
+                        // Just set the variable immediately
+                        variables.lock().unwrap().insert(name, value);
+                    }
+
+                    CommandProcessRequest::QueryVariable(name, target) => {
+                        // Read the variable value; we'll use null if the variable is not set
+                        let value = variables.lock().unwrap().get(&name).cloned();
+                        let value = value.unwrap_or(serde_json::Value::Null);
+
+                        // Send the value as a query response
+                        if let Ok(mut target) = context.send(target) {
+                            target.send(QueryResponse::with_data(CommandVariable(name, value))).await.ok();
+                        }
+                    }
+
+                    CommandProcessRequest::QueryAllVariables(target) => {
+                        // Read all the variable values
+                        let values = variables.lock().unwrap().iter()
+                            .map(|(name, value)| CommandVariable(name.clone(), value.clone()))
+                            .collect::<Vec<_>>();
+
+                        // Send the list as a query response
+                        if let Ok(mut target) = context.send(target) {
+                            target.send(QueryResponse::with_iterator(values)).await.ok();
+                        }
+                    }
+                }
+            }
+        };
+
+        // The session runs until either of the two futures terminates
+        future::select(Box::pin(run_commands), Box::pin(process_input))
+            .map(|_| ())
     }
 }
