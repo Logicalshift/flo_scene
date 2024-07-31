@@ -16,8 +16,8 @@ use std::collections::{HashMap};
 use std::iter;
 use std::sync::*;
 
-/// Filter that maps the 'Query' message to a CommandProcessRequest message
-static COMMAND_PROCESS_VARIABLE_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Query<CommandVariable>>| stream.map(|msg| CommandProcessRequest::QueryAllVariables(msg.target()))));
+/// Filter that maps the 'Query' message to a CommandSessionRequest message
+static COMMAND_SESSION_VARIABLE_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Query<CommandVariable>>| stream.map(|msg| CommandSessionRequest::QueryAllVariables(msg.target()))));
 
 ///
 /// A connection to a simple command program
@@ -27,13 +27,13 @@ static COMMAND_PROCESS_VARIABLE_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| 
 pub type CommandProgramSocketMessage = SocketMessage<CommandData, CommandData>;
 
 ///
-/// Requests that can be made to an active command processor
+/// Requests that can be made to an active command session
 ///
 /// This is the message type accepted by the subprograms started by the `command_connection_program` subprogram
 ///
 #[derive(Clone, Debug, PartialEq)]
-pub enum CommandProcessRequest {
-    /// Changes a variable in this process
+pub enum CommandSessionRequest {
+    /// Changes a variable in this session
     SetVariable(String, serde_json::Value),
 
     /// Queries a variable, sending a `QueryResponse<CommandVariable>` response to the specified target
@@ -44,14 +44,14 @@ pub enum CommandProcessRequest {
 }
 
 ///
-/// Query response indicating the value of a variable in a command process
+/// Query response indicating the value of a variable in a command session
 ///
 #[derive(Clone, Debug, PartialEq)]
 pub struct CommandVariable(pub String, pub serde_json::Value);
 
-impl SceneMessage for CommandProcessRequest {
+impl SceneMessage for CommandSessionRequest {
     fn initialise(scene: &Scene) {
-        scene.connect_programs(StreamSource::Filtered(*COMMAND_PROCESS_VARIABLE_QUERY_FILTER), (), StreamId::with_message_type::<Query<CommandVariable>>()).unwrap();
+        scene.connect_programs(StreamSource::Filtered(*COMMAND_SESSION_VARIABLE_QUERY_FILTER), (), StreamId::with_message_type::<Query<CommandVariable>>()).unwrap();
     }
 }
 
@@ -70,7 +70,7 @@ impl SceneMessage for CommandVariable { }
 pub async fn command_connection_program(input: InputStream<CommandProgramSocketMessage>, context: SceneContext, command_target: impl Into<StreamTarget>) {
     let command_target = command_target.into();
 
-    // Spawn processor tasks for each connection
+    // Spawn session tasks for each connection
     let mut input = input;
     while let Some(connection) = input.next().await {
         match connection {
@@ -79,13 +79,13 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
                 let socket          = CommandSocket::connect(connection);
                 let command_target  = command_target.clone();
 
-                // Spawn a subprogram to handle running the commands using the CommandProcessor
-                let command_processor = SubProgramId::new();
+                // Spawn a subprogram to handle running the commands using the CommandSession
+                let command_session_id = SubProgramId::new();
                 context.send_message(SceneControl::start_program(
-                    command_processor,
+                    command_session_id,
                     move |input, context| async move {
-                        let command_processor = CommandProcessor::new(socket, command_target);
-                        command_processor.run(input, context).await;
+                        let command_session = CommandSession::new(socket, command_target);
+                        command_session.run(input, context).await;
                     },
                     0)).await.ok();
             }
@@ -94,10 +94,10 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
 }
 
 ///
-/// The command processor reads commands from a socket and evaluates them
+/// The command session reads commands from a socket and evaluates them
 ///
 #[derive(Clone)]
-pub struct CommandProcessor {
+pub struct CommandSession {
     /// The command socket connection (or none if the command is running)
     socket: Arc<Mutex<Option<CommandSocket>>>,
 
@@ -108,14 +108,14 @@ pub struct CommandProcessor {
     variables: Arc<Mutex<HashMap<String, serde_json::Value>>>,
 }
 
-impl CommandProcessor {
+impl CommandSession {
     ///
     /// Creates a new command processor that will send commands to the specified target
     ///
     pub fn new(socket: CommandSocket, target: StreamTarget) -> Self {
         let socket = Arc::new(Mutex::new(Some(socket)));
         let variables = Arc::new(Mutex::new(HashMap::new()));
-        CommandProcessor { socket, target, variables }
+        CommandSession { socket, target, variables }
     }
 
     ///
@@ -138,10 +138,10 @@ impl CommandProcessor {
     }
 
     ///
-    /// Runs the command processor program
+    /// Runs the command session program
     ///
-    pub fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=CommandProcessRequest>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
-        // Set up the processor state
+    pub fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=CommandSessionRequest>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
+        // Set up the session state
         let run_variables   = Arc::clone(&self.variables);
         let input_variables = Arc::clone(&self.variables);
         let run_context     = context;
@@ -181,12 +181,12 @@ impl CommandProcessor {
             pin_mut!(input);
             while let Some(request) = input.next().await {
                 match request {
-                    CommandProcessRequest::SetVariable(name, value) => {
+                    CommandSessionRequest::SetVariable(name, value) => {
                         // Just set the variable immediately
                         variables.lock().unwrap().insert(name, value);
                     }
 
-                    CommandProcessRequest::QueryVariable(name, target) => {
+                    CommandSessionRequest::QueryVariable(name, target) => {
                         // Read the variable value; we'll use null if the variable is not set
                         let value = variables.lock().unwrap().get(&name).cloned();
                         let value = value.unwrap_or(serde_json::Value::Null);
@@ -197,7 +197,7 @@ impl CommandProcessor {
                         }
                     }
 
-                    CommandProcessRequest::QueryAllVariables(target) => {
+                    CommandSessionRequest::QueryAllVariables(target) => {
                         // Read all the variable values
                         let values = variables.lock().unwrap().iter()
                             .map(|(name, value)| CommandVariable(name.clone(), value.clone()))
