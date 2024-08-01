@@ -27,10 +27,13 @@ pub fn command_send(destination: SendArguments, context: SceneContext) -> impl F
         let connection = match destination {
             SendArguments::SubProgram(subprogram_id) => {
                 // Send to the subprogram using a serialized JSON stream
+                context.send_message(CommandResponse::Message(format!("Sending to '{:?}'", subprogram_id))).await.ok();
                 todo!()
             },
 
             SendArguments::Type(type_name) => {
+                context.send_message(CommandResponse::Message(format!("Sending to default receiver for type '{}'", type_name))).await.ok();
+
                 if let Some(stream_id) = StreamId::with_serialization_type(type_name) {
                     // Send serialized to a generic stream
                     //todo!()
@@ -59,7 +62,7 @@ pub fn command_send(destination: SendArguments, context: SceneContext) -> impl F
         // TODO: actually serialize the data to send: for the moment we just echo it back again
         let mut input_stream    = input_stream;
         let mut send_responses  = send_responses;
-        
+
         while let Some(msg) = input_stream.next().await {
             send_responses.send(msg).await.ok();
         }
