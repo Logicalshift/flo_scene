@@ -28,7 +28,8 @@ pub fn command_send(destination: SendArguments, context: SceneContext) -> impl F
             SendArguments::SubProgram(subprogram_id) => {
                 // Send to the subprogram using a serialized JSON stream
                 context.send_message(CommandResponse::Message(format!("Sending to '{:?}'", subprogram_id))).await.ok();
-                todo!()
+
+                context.send_serialized::<serde_json::Value>(subprogram_id)
             },
 
             SendArguments::Type(type_name) => {
@@ -36,13 +37,14 @@ pub fn command_send(destination: SendArguments, context: SceneContext) -> impl F
 
                 if let Some(stream_id) = StreamId::with_serialization_type(type_name) {
                     // Send serialized to a generic stream
-                    //todo!()
+                    context.send_serialized::<serde_json::Value>(stream_id)
                 } else {
-                    // Err(ConnectionError::TargetNotAvailable)
-                    // todo!()
+                    Err(ConnectionError::TargetNotAvailable)
                 }
             }
         };
+
+        let connection = if let Ok(connection) = connection { connection } else { return CommandResponse::Error("".into()); };
 
         let (send_responses, recv_responses)    = mpsc::channel(16);
         let (send_input, recv_input)            = oneshot::channel();
@@ -64,7 +66,9 @@ pub fn command_send(destination: SendArguments, context: SceneContext) -> impl F
         let mut send_responses  = send_responses;
 
         while let Some(msg) = input_stream.next().await {
-            send_responses.send(msg).await.ok();
+            if let Err(err) = connection.send(msg).await {
+                return CommandResponse::Error(format!("Failed to send message: {:?}", err));
+            }
         }
 
         // Finished
