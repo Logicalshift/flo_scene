@@ -63,8 +63,9 @@ pub fn command_send(destination: SendArguments, context: SceneContext) -> impl F
 
         // TODO: actually serialize the data to send: for the moment we just echo it back again
         let mut input_stream    = input_stream;
-        let mut send_responses  = send_responses;
+        let mut _send_responses = send_responses;
 
+        let mut connection = connection;
         while let Some(msg) = input_stream.next().await {
             if let Err(err) = connection.send(msg).await {
                 return CommandResponse::Error(format!("Failed to send message: {:?}", err));
