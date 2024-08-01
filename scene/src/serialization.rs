@@ -1,8 +1,12 @@
+use crate::error::*;
 use crate::filter::*;
+use crate::output_sink::*;
 use crate::scene::*;
+use crate::scene_context::*;
 use crate::scene_message::*;
 use crate::stream_source::*;
 use crate::stream_id::*;
+use crate::subprogram_id::*;
 
 use futures::prelude::*;
 use futures::stream;
@@ -203,7 +207,7 @@ where
 }
 
 ///
-/// Like a scene but 
+/// A scene being initialised with a serializer
 ///
 pub struct SceneWithSerializer<'a, TSerializer>(&'a Scene, PhantomData<TSerializer>);
 
@@ -220,6 +224,38 @@ impl Scene {
         install_serializer(create_serializer);
 
         SceneWithSerializer(self, PhantomData)
+    }
+}
+
+///
+/// Targets for a serialized stream
+///
+pub enum SerializedStreamTarget {
+    /// Send by deserializing to the input stream of the specified subprogram
+    SubProgram(SubProgramId),
+
+    /// Send to the default target of the specified stream
+    Stream(StreamId)
+}
+
+impl From<StreamId> for SerializedStreamTarget {
+    fn from(stream: StreamId) -> Self {
+        SerializedStreamTarget::Stream(stream)
+    }
+}
+
+impl From<SubProgramId> for SerializedStreamTarget {
+    fn from(program: SubProgramId) -> Self {
+        SerializedStreamTarget::SubProgram(program)
+    }
+}
+
+impl SceneContext {
+    pub fn send_serialized<TMessageType>(&self, target: impl Into<SerializedStreamTarget>) -> Result<OutputSink<TMessageType>, ConnectionError>
+    where
+        TMessageType: 'static + Send + Serialize,
+    {
+        todo!()
     }
 }
 
