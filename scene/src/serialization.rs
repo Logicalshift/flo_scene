@@ -292,7 +292,7 @@ impl SceneContext {
             SerializedStreamTarget::Stream(stream_id) => {
                 // Get the function for converting the 'normal' message stream into a serialized one
                 let send_deserialized = (*SEND_DESERIALIZED).read().unwrap()
-                    .get(&(TypeId::of::<TMessageType>(), stream_id.type_id())).cloned();
+                    .get(&(TypeId::of::<TMessageType>(), stream_id.message_type())).cloned();
                 let send_deserialized = if let Some(send_deserialized) = send_deserialized { Ok(send_deserialized) } else { Err(ConnectionError::TargetCannotDeserialize) }?;
 
                 // Send to the default target for this message type
