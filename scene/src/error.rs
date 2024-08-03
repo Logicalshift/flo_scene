@@ -76,6 +76,9 @@ pub enum ConnectionError {
     /// The target refused the connection
     TargetConnectionRefused,
 
+    /// The target doesn't support receiving serialized messages
+    TargetCannotDeserialize,
+
     /// An operation could not be completed because of an I/O problem
     IoError(String),
 }
