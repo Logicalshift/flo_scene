@@ -29,7 +29,7 @@ pub fn command_send(destination: SendArguments, context: SceneContext) -> impl F
                 // Send to the subprogram using a serialized JSON stream
                 context.send_message(CommandResponse::Message(format!("Sending to '{:?}'", subprogram_id))).await.ok();
 
-                context.send_serialized::<serde_json::Value>(subprogram_id)
+                context.send_serialized::<serde_json::Value>(SerializedStreamTarget::from(subprogram_id))
             },
 
             SendArguments::Type(type_name) => {
@@ -37,7 +37,7 @@ pub fn command_send(destination: SendArguments, context: SceneContext) -> impl F
 
                 if let Some(stream_id) = StreamId::with_serialization_type(type_name) {
                     // Send serialized to a generic stream
-                    context.send_serialized::<serde_json::Value>(stream_id)
+                    context.send_serialized::<serde_json::Value>(SerializedStreamTarget::from(stream_id))
                 } else {
                     Err(ConnectionError::TargetNotAvailable)
                 }
