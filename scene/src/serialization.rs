@@ -150,13 +150,17 @@ where
     let send_deserialized_stream = move |target: StreamTarget, context: &SceneContext| -> Result<Box<dyn Send + Any>, ConnectionError> {
         let target              = context.send::<TMessageType>(target)?;
         let deserialized_target = target
-            .sink_map_err(|_| SceneSendError::<TMessageType>::ErrorAfterDeserialization)            // The error doesn't preserve the input value, so we can't return it
+            .sink_map_err(|_| SceneSendError::<TSerializer::Ok>::ErrorAfterDeserialization)            // The error doesn't preserve the input value, so we can't return it
             .with(|msg| future::ready(match TMessageType::deserialize(&msg) {
                 Ok(result)  => Ok(result),
                 Err(_)      => Err(SceneSendError::ErrorAfterDeserialization)
             }));
 
-        Ok(Box::new(deserialized_target))
+        // Box up the sink so we can use a generic type
+        let boxed_target: Box<dyn Send + Sink<TSerializer::Ok, Error=SceneSendError::<TSerializer::Ok>>> = Box::new(deserialized_target);
+
+        // Box it again to make it 'Any'
+        Ok(Box::new(boxed_target))
     };
 
     // Convert to boxed functions
@@ -308,7 +312,7 @@ impl SceneContext {
                 let target = self.send::<SerializedMessage<TMessageType>>(subprogram_id)?;
                 let target = target.with(move |msg| 
                     future::ready(Ok(SerializedMessage(msg, stream_id.message_type()))));
-
+                let target = Box::new(target);
 
                 Ok(target)
             }
