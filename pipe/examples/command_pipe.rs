@@ -16,6 +16,8 @@ async fn main() {
     let scene = Scene::default()
         .with_standard_json_commands();
 
+    // TODO: need a way to automatically register the serializable types when the serializer is added
+    // TODO: probably also makes sense to make the JSON serializer set up by default
     scene
         .with_serializer(|| serde_json::value::Serializer)
         .with_serializable_type::<TextOutput>("flo_scene::TextOutput");
