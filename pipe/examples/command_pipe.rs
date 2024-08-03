@@ -1,5 +1,4 @@
 use flo_scene::*;
-use flo_scene::programs::*;
 use flo_scene_pipe::*;
 use flo_scene_pipe::commands::*;
 
@@ -15,12 +14,6 @@ async fn main() {
     // Create a default scene
     let scene = Scene::default()
         .with_standard_json_commands();
-
-    // TODO: need a way to automatically register the serializable types when the serializer is added
-    // TODO: probably also makes sense to make the JSON serializer set up by default
-    scene
-        .with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<TextOutput>("flo_scene::TextOutput");
 
     // Create a unix socket that will run commands
     let command_program = SubProgramId::new();
