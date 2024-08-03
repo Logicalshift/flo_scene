@@ -5,6 +5,7 @@ use crate::scene::*;
 use crate::scene_context::*;
 use crate::scene_message::*;
 use crate::stream_source::*;
+use crate::stream_target::*;
 use crate::stream_id::*;
 use crate::subprogram_id::*;
 
@@ -28,6 +29,9 @@ static STREAM_ID_FOR_SERIALIZABLE_TYPE: Lazy<RwLock<HashMap<String, StreamId>>> 
 
 /// Stores the functions for creating serializers of a particular type
 static CREATE_ANY_SERIALIZER: Lazy<RwLock<HashMap<TypeId, Arc<dyn Send + Sync + Fn() -> Arc<dyn Send + Sync + Any>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
+/// Calls the 'send()' call and then deserializes the result
+static SEND_DESERIALIZED: Lazy<RwLock<HashMap<TypeId, Arc<dyn Send + Sync + Fn(StreamTarget) -> Arc<dyn Send + Any>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Stores the functions for transforming a value to and from its serialized representation
 static TYPED_SERIALIZERS: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + Sync + Any>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
@@ -251,11 +255,42 @@ impl From<SubProgramId> for SerializedStreamTarget {
 }
 
 impl SceneContext {
-    pub fn send_serialized<TMessageType>(&self, target: impl Into<SerializedStreamTarget>) -> Result<OutputSink<TMessageType>, ConnectionError>
+    ///
+    /// Creates a stream to send messages using a known serialized type
+    ///
+    pub fn send_serialized<TMessageType>(&self, target: impl Into<SerializedStreamTarget>) -> Result<impl Sink<TMessageType, Error=SceneSendError<SerializedMessage<TMessageType>>>, ConnectionError>
     where
-        TMessageType: 'static + Send + Serialize,
+        TMessageType: 'static + Send + Unpin + Serialize,
     {
-        todo!()
+        match target.into() {
+            SerializedStreamTarget::Stream(stream_id) => {
+                //let mut target = self.send::<SerializedMessage<TMessageType>>(stream_id)?;
+
+                todo!()
+            }
+
+            SerializedStreamTarget::SubProgram(subprogram_id) => {
+                // Fetch the input type of the subprogram
+                let stream_id = if let Some(core) = self.scene_core().upgrade() {
+                    let program     = core.lock().unwrap().get_sub_program(subprogram_id);
+                    let program     = program.ok_or_else(|| ConnectionError::SubProgramNotRunning)?;
+                    let stream_id   = program.lock().unwrap().input_stream_id.clone();
+
+                    Ok(stream_id)
+                } else {
+                    // Nothing is running if the core is not running
+                    Err(ConnectionError::SubProgramNotRunning)
+                }?;
+
+                // Send serialized data to this subprogram using this stream ID
+                let target = self.send::<SerializedMessage<TMessageType>>(subprogram_id)?;
+                let target = target.with(move |msg| 
+                    future::ready(Ok(SerializedMessage(msg, stream_id.message_type()))));
+
+
+                Ok(target)
+            }
+        }
     }
 }
 
