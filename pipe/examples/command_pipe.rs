@@ -1,4 +1,5 @@
 use flo_scene::*;
+use flo_scene::programs::*;
 use flo_scene_pipe::*;
 use flo_scene_pipe::commands::*;
 
@@ -12,7 +13,12 @@ async fn main() {
     fs::remove_file("./example_unix_socket").ok();
 
     // Create a default scene
-    let scene = Scene::default().with_standard_json_commands();
+    let scene = Scene::default()
+        .with_standard_json_commands();
+
+    scene
+        .with_serializer(|| serde_json::value::Serializer)
+        .with_serializable_type::<TextOutput>("flo_scene::TextOutput");
 
     // Create a unix socket that will run commands
     let command_program = SubProgramId::new();
