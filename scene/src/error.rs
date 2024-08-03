@@ -106,6 +106,12 @@ pub enum SceneSendError<TMessage> {
 
     /// The target program is waiting for the scene to become idle and its input queue is full
     CannotAcceptMoreInputUntilSceneIsIdle(TMessage),
+
+    /// The target cannot deserialize this message
+    CannotDeserialize(TMessage),
+
+    /// An error occurred after deserialization (and the original message was lost)
+    ErrorAfterDeserialization,
 }
 
 impl<TMessage> SceneSendError<TMessage> {
@@ -124,6 +130,8 @@ impl<TMessage> SceneSendError<TMessage> {
             SceneSendError::StreamDisconnected(msg)                     => Some(msg),
             SceneSendError::CannotReEnterTargetProgram                  => None,
             SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(msg)  => Some(msg),
+            SceneSendError::CannotDeserialize(msg)                      => Some(msg),
+            SceneSendError::ErrorAfterDeserialization                   => None,
         }
     }
 
@@ -143,6 +151,8 @@ impl<TMessage> SceneSendError<TMessage> {
             SceneSendError::StreamDisconnected(msg)                     => Some(msg),
             SceneSendError::CannotReEnterTargetProgram                  => None,
             SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(msg)  => Some(msg),
+            SceneSendError::CannotDeserialize(msg)                      => Some(msg),
+            SceneSendError::ErrorAfterDeserialization                   => None,
         }
     }
 }
@@ -156,6 +166,8 @@ impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
             SceneSendError::StreamDisconnected(_)                       => ConnectionError::TargetNotAvailable,
             SceneSendError::CannotReEnterTargetProgram                  => ConnectionError::CannotStealThread,
             SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(_)    => ConnectionError::TargetNotReady,
+            SceneSendError::CannotDeserialize(_)                        => ConnectionError::TargetCannotDeserialize,
+            SceneSendError::ErrorAfterDeserialization                   => ConnectionError::TargetCannotDeserialize,
         }
     }
 }
