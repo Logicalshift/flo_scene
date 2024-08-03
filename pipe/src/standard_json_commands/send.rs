@@ -35,16 +35,19 @@ pub fn command_send(destination: SendArguments, context: SceneContext) -> impl F
             SendArguments::Type(type_name) => {
                 context.send_message(CommandResponse::Message(format!("Sending to default receiver for type '{}'", type_name))).await.ok();
 
-                if let Some(stream_id) = StreamId::with_serialization_type(type_name) {
+                if let Some(stream_id) = StreamId::with_serialization_type(type_name.clone()) {
                     // Send serialized to a generic stream
                     context.send_serialized::<serde_json::Value>(SerializedStreamTarget::from(stream_id))
                 } else {
-                    Err(ConnectionError::TargetNotAvailable)
+                    return CommandResponse::Error(format!("Could not find stream ID for type '{}'", type_name));
                 }
             }
         };
 
-        let connection = if let Ok(connection) = connection { connection } else { return CommandResponse::Error("".into()); };
+        let connection = match connection {
+            Ok(connection)  => connection,
+            Err(err)        => return CommandResponse::Error(format!("Could not connect: {:?}", err))
+        };
 
         let (send_responses, recv_responses)    = mpsc::channel(16);
         let (send_input, recv_input)            = oneshot::channel();
