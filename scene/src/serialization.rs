@@ -31,7 +31,7 @@ static STREAM_ID_FOR_SERIALIZABLE_TYPE: Lazy<RwLock<HashMap<String, StreamId>>> 
 static CREATE_ANY_SERIALIZER: Lazy<RwLock<HashMap<TypeId, Arc<dyn Send + Sync + Fn() -> Arc<dyn Send + Sync + Any>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Calls the 'send()' call and then deserializes the result
-static SEND_DESERIALIZED: Lazy<RwLock<HashMap<TypeId, Arc<dyn Send + Sync + Fn(StreamTarget) -> Arc<dyn Send + Any>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+static SEND_DESERIALIZED: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + Sync + Fn(StreamTarget, &SceneContext) -> Result<Box<dyn Send + Any>, ConnectionError>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Stores the functions for transforming a value to and from its serialized representation
 static TYPED_SERIALIZERS: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + Sync + Any>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
@@ -146,6 +146,19 @@ where
         }
     };
 
+    // Create a closure for calling 'send()' and deserializing the results
+    let send_deserialized_stream = move |target: StreamTarget, context: &SceneContext| -> Result<Box<dyn Send + Any>, ConnectionError> {
+        let target              = context.send::<TMessageType>(target)?;
+        let deserialized_target = target
+            .sink_map_err(|_| SceneSendError::<TMessageType>::ErrorAfterDeserialization)            // The error doesn't preserve the input value, so we can't return it
+            .with(|msg| future::ready(match TMessageType::deserialize(&msg) {
+                Ok(result)  => Ok(result),
+                Err(_)      => Err(SceneSendError::ErrorAfterDeserialization)
+            }));
+
+        Ok(Box::new(deserialized_target))
+    };
+
     // Convert to boxed functions
     let typed_serializer: Box<dyn Send + Sync + Fn(TMessageType) -> Result<SerializedMessage<TSerializer::Ok>, TMessageType>>                           = Box::new(typed_serializer);
     let typed_deserializer: Box<dyn Send + Sync + Fn(SerializedMessage<TSerializer::Ok>) -> Result<TMessageType, SerializedMessage<TSerializer::Ok>>>   = Box::new(typed_deserializer);
@@ -155,12 +168,21 @@ where
     let typed_deserializer: Arc<dyn Send + Sync + Any>  = Arc::new(typed_deserializer);
 
     // Store the serializer and deserializer in the typed serializers list
-    let mut typed_serializers = (*TYPED_SERIALIZERS).write().unwrap();
+    {
+        let mut typed_serializers = (*TYPED_SERIALIZERS).write().unwrap();
 
-    typed_serializers.insert((TypeId::of::<TMessageType>(), TypeId::of::<SerializedMessage<TSerializer::Ok>>()), typed_serializer);
-    typed_serializers.insert((TypeId::of::<SerializedMessage<TSerializer::Ok>>(), TypeId::of::<TMessageType>()), typed_deserializer);
+        typed_serializers.insert((TypeId::of::<TMessageType>(), TypeId::of::<SerializedMessage<TSerializer::Ok>>()), typed_serializer);
+        typed_serializers.insert((TypeId::of::<SerializedMessage<TSerializer::Ok>>(), TypeId::of::<TMessageType>()), typed_deserializer);
+    }
 
-    (*STREAM_ID_FOR_SERIALIZABLE_TYPE).write().unwrap().insert(type_name.clone(), StreamId::with_message_type::<TMessageType>());
+    {
+        (*STREAM_ID_FOR_SERIALIZABLE_TYPE).write().unwrap().insert(type_name.clone(), StreamId::with_message_type::<TMessageType>());
+    }
+
+    {
+        let mut send_deserialized = (*SEND_DESERIALIZED).write().unwrap();
+        send_deserialized.insert((TypeId::of::<TMessageType>(), TypeId::of::<SerializedMessage<TSerializer::Ok>>()), Arc::new(send_deserialized_stream));
+    }
 
     // TODO: for any type where the type name does not begin with a known suffix (query:: or subscribe::), add the query and subscribe versios
 
