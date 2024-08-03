@@ -146,7 +146,7 @@ where
         }
     };
 
-    // Create a closure for calling 'send()' and deserializing the results
+    // Create a closure for calling 'send()' and converting it to a sink that deserializes its input
     let send_deserialized_stream = move |target: StreamTarget, context: &SceneContext| -> Result<Box<dyn Send + Any>, ConnectionError> {
         let target              = context.send::<TMessageType>(target)?;
         let deserialized_target = target
@@ -157,7 +157,7 @@ where
             }));
 
         // Box up the sink so we can use a generic type
-        let boxed_target: Box<dyn Send + Sink<TSerializer::Ok, Error=SceneSendError::<TSerializer::Ok>>> = Box::new(deserialized_target);
+        let boxed_target: Box<dyn Send + Unpin + Sink<TSerializer::Ok, Error=SceneSendError::<TSerializer::Ok>>> = Box::new(deserialized_target);
 
         // Box it again to make it 'Any'
         Ok(Box::new(boxed_target))
@@ -185,7 +185,7 @@ where
 
     {
         let mut send_deserialized = (*SEND_DESERIALIZED).write().unwrap();
-        send_deserialized.insert((TypeId::of::<TMessageType>(), TypeId::of::<SerializedMessage<TSerializer::Ok>>()), Arc::new(send_deserialized_stream));
+        send_deserialized.insert((TypeId::of::<TSerializer::Ok>(), TypeId::of::<TMessageType>()), Arc::new(send_deserialized_stream));
     }
 
     // TODO: for any type where the type name does not begin with a known suffix (query:: or subscribe::), add the query and subscribe versios
@@ -284,15 +284,24 @@ impl SceneContext {
     ///
     /// Creates a stream to send messages using a known serialized type
     ///
-    pub fn send_serialized<TMessageType>(&self, target: impl Into<SerializedStreamTarget>) -> Result<impl Sink<TMessageType, Error=SceneSendError<SerializedMessage<TMessageType>>>, ConnectionError>
+    pub fn send_serialized<TMessageType>(&self, target: impl Into<SerializedStreamTarget>) -> Result<impl Sink<TMessageType, Error=SceneSendError<TMessageType>>, ConnectionError>
     where
         TMessageType: 'static + Send + Unpin + Serialize,
     {
         match target.into() {
             SerializedStreamTarget::Stream(stream_id) => {
-                //let mut target = self.send::<SerializedMessage<TMessageType>>(stream_id)?;
+                // Get the function for converting the 'normal' message stream into a serialized one
+                let send_deserialized = (*SEND_DESERIALIZED).read().unwrap()
+                    .get(&(TypeId::of::<TMessageType>(), stream_id.type_id())).cloned();
+                let send_deserialized = if let Some(send_deserialized) = send_deserialized { Ok(send_deserialized) } else { Err(ConnectionError::TargetCannotDeserialize) }?;
 
-                todo!()
+                // Send to the default target for this message type
+                let deserializer_sink = send_deserialized(StreamTarget::Any, self)?;
+
+                // Convert to a boxed sink
+                let deserializer_sink = deserializer_sink.downcast::<Box<dyn Send + Unpin + Sink<TMessageType, Error=SceneSendError::<TMessageType>>>>();
+
+                deserializer_sink.map(|val| *val).or_else(|_| Err(ConnectionError::TargetCannotDeserialize))
             }
 
             SerializedStreamTarget::SubProgram(subprogram_id) => {
@@ -310,9 +319,11 @@ impl SceneContext {
 
                 // Send serialized data to this subprogram using this stream ID
                 let target = self.send::<SerializedMessage<TMessageType>>(subprogram_id)?;
-                let target = target.with(move |msg| 
-                    future::ready(Ok(SerializedMessage(msg, stream_id.message_type()))));
-                let target = Box::new(target);
+                let target = target
+                    .sink_map_err(|_| SceneSendError::<TMessageType>::ErrorAfterDeserialization)            // The error doesn't preserve the input value, so we can't return it
+                    .with(move |msg| 
+                        future::ready(Ok(SerializedMessage(msg, stream_id.message_type()))));
+                let target: Box<dyn Send + Unpin + Sink<TMessageType, Error=SceneSendError::<TMessageType>>> = Box::new(target);
 
                 Ok(target)
             }
