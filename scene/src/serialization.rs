@@ -301,7 +301,7 @@ impl SceneContext {
                 // Convert to a boxed sink
                 let deserializer_sink = deserializer_sink.downcast::<Box<dyn Send + Unpin + Sink<TMessageType, Error=SceneSendError::<TMessageType>>>>();
 
-                deserializer_sink.map(|val| *val).or_else(|_| Err(ConnectionError::TargetCannotDeserialize))
+                deserializer_sink.map(|val| *val).or_else(|_| Err(ConnectionError::UnexpectedConnectionType))
             }
 
             SerializedStreamTarget::SubProgram(subprogram_id) => {
