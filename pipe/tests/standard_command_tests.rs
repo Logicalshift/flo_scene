@@ -52,7 +52,13 @@ where
             let mut write_command = write_command;
 
             write_command.write_all(&commands.bytes().collect::<Vec<u8>>()).await.unwrap();
+
+            println!("Sent all");
+
+            write_command.flush().await.unwrap();
             write_command.shutdown().await.unwrap();
+
+            println!("Finished sending");
         };
 
         // Future that reads the results and processes them
