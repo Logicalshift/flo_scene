@@ -60,8 +60,15 @@ where
             let mut bytes = vec![];
 
             let mut read_result = read_result;
-            while let Ok(msg) = read_result.read_u8().await {
-                bytes.push(msg);
+            let mut buf = vec![];
+            while let Ok(len) = read_result.read_buf(&mut buf).await {
+                println!("{:?}", String::from_utf8_lossy(&buf));
+                bytes.extend(&buf);
+                buf.drain(..);
+
+                if len == 0 {
+                    break;
+                }
             }
 
             let string_result = String::from_utf8_lossy(&bytes);
