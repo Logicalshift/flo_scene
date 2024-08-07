@@ -89,13 +89,16 @@ fn send_test_message() {
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
         r#"send { "Type": "test::TestSucceeded" }
-        { "message": "test" }
+        { "message": "test 1" }
+        { "message": "test 2" }
         "#, 
         |_| { });
 
     // Create a test program that receives the TestSucceeded message
+    // TODO: panics, apparently because we don't have a '.' to end the JSON stream
     TestBuilder::new()
         .redirect_input(StreamId::with_message_type::<TestSucceeded>())
         .expect_message(|_: TestSucceeded| Ok(()))
-        .run_in_scene_with_threads(&scene, test_program, 5);
+        .expect_message(|_: TestSucceeded| Ok(()))
+        .run_in_scene(&scene, test_program);
 }
