@@ -25,12 +25,17 @@ fn create_internal_command_socket(scene: &Scene, internal_socket_id: SubProgramI
 ///
 /// Adds a subprogram that runs some commands using the internal socket program
 ///
-fn add_command_runner(scene: &Scene, internal_socket_id: SubProgramId, commands: impl Into<String>, process_results: impl 'static + Send + Fn(String) -> ()) {
+fn add_command_runner<TFuture>(scene: &Scene, internal_socket_id: SubProgramId, commands: impl Into<String>, process_results: impl 'static + Send + Fn(String, SceneContext) -> TFuture) 
+where
+    TFuture: 'static + Send + Future<Output=()>
+{
     // Create an arbitrary program ID
     let program_id  = SubProgramId::new();
     let commands    = commands.into();
 
     scene.add_subprogram(program_id, move |_: InputStream<()>, context| async move {
+        context.wait_for_idle(100).await;
+
         // Create a connection via the internal socket
         let (our_side, their_side)          = duplex(1024);
         let (command_input, command_output) = split(their_side);
@@ -61,7 +66,7 @@ fn add_command_runner(scene: &Scene, internal_socket_id: SubProgramId, commands:
 
             let string_result = String::from_utf8_lossy(&bytes);
             println!("\nOut: {}", string_result);
-            process_results(string_result.into());
+            process_results(string_result.into(), context.clone()).await;
         };
 
         // Wait for both futures together to run the socket
@@ -90,7 +95,7 @@ fn send_command() {
         { "message": "test 1" }
         { "message": "test 2" }
         "#, 
-        |_| { });
+        |_, _| async { });
 
     // Create a test program that receives the TestSucceeded message
     TestBuilder::new()
@@ -107,7 +112,7 @@ fn echo_command() {
     let test_program    = SubProgramId::new();
  
     // Create a message we can send to the test program to indicate success
-    #[derive(Serialize, Deserialize)]
+    #[derive(Serialize, Deserialize, Debug)]
     struct TestSucceeded { message: String }
     impl SceneMessage for TestSucceeded { }
 
@@ -119,11 +124,13 @@ fn echo_command() {
     add_command_runner(&scene, internal_socket, 
         r#"echo "Hello"
         "#, 
-        |msg| {
+        move |msg, context| async move {
             assert!(msg.contains("   Hello\n"), "{}", msg);
+            context.send(test_program).unwrap().send(TestSucceeded { message: "Ok".into() }).await.unwrap();
         });
 
     // Create a test program that receives the TestSucceeded message
     TestBuilder::new()
+        .expect_message(|_: TestSucceeded| Ok(()))
         .run_in_scene(&scene, test_program);
 }
