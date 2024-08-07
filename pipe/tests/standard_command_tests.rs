@@ -70,7 +70,7 @@ fn add_command_runner(scene: &Scene, internal_socket_id: SubProgramId, commands:
 }
 
 #[test]
-fn send_test_message() {
+fn send_command() {
     let scene           = Scene::default().with_standard_json_commands();
     let internal_socket = SubProgramId::new();
     let test_program    = SubProgramId::new();
@@ -97,5 +97,33 @@ fn send_test_message() {
         .redirect_input(StreamId::with_message_type::<TestSucceeded>())
         .expect_message(|_: TestSucceeded| Ok(()))
         .expect_message(|_: TestSucceeded| Ok(()))
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+fn echo_command() {
+    let scene           = Scene::default().with_standard_json_commands();
+    let internal_socket = SubProgramId::new();
+    let test_program    = SubProgramId::new();
+ 
+    // Create a message we can send to the test program to indicate success
+    #[derive(Serialize, Deserialize)]
+    struct TestSucceeded { message: String }
+    impl SceneMessage for TestSucceeded { }
+
+    scene.with_serializer(|| serde_json::value::Serializer)
+        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+
+    // Set up the internal socket and the test case
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#"echo "Hello"
+        "#, 
+        |msg| {
+            assert!(msg.contains("   Hello\n"), "{}", msg);
+        });
+
+    // Create a test program that receives the TestSucceeded message
+    TestBuilder::new()
         .run_in_scene(&scene, test_program);
 }
