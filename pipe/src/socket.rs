@@ -56,7 +56,7 @@ where
     pub fn new(context: &SceneContext, input: impl 'static + Send + Stream<Item=TInputMessage>, send_output: impl 'static + Send + FnOnce(&SceneContext, BoxStream<'static, TOutputMessage>) -> ()) -> Self {
         SocketConnection {
             context:                context.clone(),
-            input_stream:           Some(input.boxed()),
+            input_stream:           Some(input.fuse().boxed()),
             create_output_stream:   Some(Box::new(send_output)),
         }
     }

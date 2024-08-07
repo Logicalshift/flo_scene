@@ -1,11 +1,9 @@
 use flo_scene::*;
-use flo_scene::commands::*;
 use flo_scene::programs::*;
 use flo_scene_pipe::*;
 use flo_scene_pipe::commands::*;
 
 use futures::prelude::*;
-use serde::*;
 use serde::*;
 use tokio::io::*;
 
@@ -95,7 +93,6 @@ fn send_test_message() {
         |_| { });
 
     // Create a test program that receives the TestSucceeded message
-    // TODO: panics, apparently because we don't have a '.' to end the JSON stream
     TestBuilder::new()
         .redirect_input(StreamId::with_message_type::<TestSucceeded>())
         .expect_message(|_: TestSucceeded| Ok(()))
