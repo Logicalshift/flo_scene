@@ -2,7 +2,7 @@
 /// The possible outcomes of a successful connection request
 ///
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub enum ConnectResult {
+pub enum ConnectionResult {
     /// The connection was made and the target was ready to receive inputs
     Ready,
 

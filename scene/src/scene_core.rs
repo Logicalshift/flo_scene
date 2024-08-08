@@ -329,7 +329,7 @@ impl SceneCore {
     ///
     /// Adds or updates a program connection in this core
     ///
-    pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectResult, ConnectionError> {
+    pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectionResult, ConnectionError> {
         // Make sure the target stream ID type  is initialised
         Self::initialise_message_type(core, stream_id.clone());
 
@@ -402,7 +402,7 @@ impl SceneCore {
     /// Finishes a program connection, sending updates if successful
     ///
     #[allow(clippy::type_complexity)]   // Creating a type for reconnect_subprogram just looks super goofy and is a lifetime nightmare
-    fn finish_connecting_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectResult, ConnectionError> {
+    fn finish_connecting_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectionResult, ConnectionError> {
         // Create a function to reconnect a subprogram
         let reconnect_subprogram: Box<dyn Fn(&Arc<Mutex<SubProgramCore>>) -> Option<Waker>> = match &target {
             StreamTarget::None                  => Box::new(|sub_program| sub_program.lock().unwrap().discard_output_from(&stream_id)),
@@ -509,7 +509,7 @@ impl SceneCore {
         // Send the updates on how the connections have changed
         SceneCore::send_scene_updates(core, scene_updates);
 
-        Ok(ConnectResult::Ready)
+        Ok(ConnectionResult::Ready)
     }
 
     ///
