@@ -309,7 +309,7 @@ pub fn connect_default_after_creating_stream_using_filter_target() {
     scene.add_subprogram(program_1, |_: InputStream<()>, context| {
         async move {
             // Create a stream to send TestMessages to program_2 (but it accepts strings)
-            let mut send_strings = context.send(program_2).unwrap();
+            let mut send_strings = context.send(()).unwrap();
 
             // Tell the control program to filter the connection to program_2
             context.send_message(SceneControl::connect((), StreamTarget::Filtered(test_string_filter, program_2), StreamId::with_message_type::<TestMessage>())).await.unwrap();
