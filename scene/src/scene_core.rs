@@ -1,3 +1,4 @@
+use crate::connect_result::*;
 use crate::error::*;
 use crate::filter::*;
 use crate::output_sink::*;
@@ -328,7 +329,7 @@ impl SceneCore {
     ///
     /// Adds or updates a program connection in this core
     ///
-    pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
+    pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectResult, ConnectionError> {
         // Make sure the target stream ID type  is initialised
         Self::initialise_message_type(core, stream_id.clone());
 
@@ -390,7 +391,7 @@ impl SceneCore {
 
         // Send an update if there's an error
         if let Err(err) = &result {
-            let update      = SceneUpdate::FailedConnection(err.clone(), source, target, stream_id);
+            let update = SceneUpdate::FailedConnection(err.clone(), source, target, stream_id);
             SceneCore::send_scene_updates(core, vec![update]);
         }
 
@@ -401,7 +402,7 @@ impl SceneCore {
     /// Finishes a program connection, sending updates if successful
     ///
     #[allow(clippy::type_complexity)]   // Creating a type for reconnect_subprogram just looks super goofy and is a lifetime nightmare
-    fn finish_connecting_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<(), ConnectionError> {
+    fn finish_connecting_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectResult, ConnectionError> {
         // Create a function to reconnect a subprogram
         let reconnect_subprogram: Box<dyn Fn(&Arc<Mutex<SubProgramCore>>) -> Option<Waker>> = match &target {
             StreamTarget::None                  => Box::new(|sub_program| sub_program.lock().unwrap().discard_output_from(&stream_id)),
@@ -508,7 +509,7 @@ impl SceneCore {
         // Send the updates on how the connections have changed
         SceneCore::send_scene_updates(core, scene_updates);
 
-        Ok(())
+        Ok(ConnectResult::Ready)
     }
 
     ///

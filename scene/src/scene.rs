@@ -1,4 +1,5 @@
-use crate::commands::ListCommandResponse;
+use crate::commands::*;
+use crate::connect_result::*;
 use crate::input_stream::*;
 use crate::output_sink::*;
 use crate::scene_context::*;
@@ -203,7 +204,7 @@ impl Scene {
     /// scene.connect_programs(StreamSource::Filtered(example_filter), (), StreamId::with_message_type::<FilteredMessage>().for_target(&subprogram));
     /// ```
     ///
-    pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<(), ConnectionError> {
+    pub fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<ConnectResult, ConnectionError> {
         // Convert the source & target, then pass the request on to the core
         let source = source.into();
         let target = target.into();

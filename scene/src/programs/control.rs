@@ -273,7 +273,7 @@ impl SceneControl {
                     if let Some(scene_core) = scene_core.upgrade() {
                         // Try to connect the program and send an update if the sending failed
                         match SceneCore::connect_programs(&scene_core, source.clone(), target.clone(), stream.clone()) {
-                            Ok(())      => { }
+                            Ok(_)       => { }
                             Err(error)  => {
                                 update_subscribers.send(SceneUpdate::FailedConnection(error, source, target, stream)).await;
                             }
