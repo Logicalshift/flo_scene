@@ -92,6 +92,150 @@ pub fn connect_two_subprograms_using_filter() {
 }
 
 #[test]
+pub fn connect_two_subprograms_using_source_filter() {
+    // Scene with two programs that we'll connect together
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+    let program_1       = SubProgramId::new();
+    let program_2       = SubProgramId::new();
+
+    // TestMessage can be filtered into a string, but we don't set the filter up
+    #[derive(Debug)]
+    struct TestMessage;
+    impl SceneMessage for TestMessage { }
+
+    let test_string_filter = FilterHandle::for_filter(|messages| messages.map(|_: TestMessage| "Test".to_string()));
+
+    // Program_1 sends a TestMessage
+    scene.add_subprogram(program_1, |_: InputStream<()>, context| {
+        async move {
+            // Create a stream to TestMessages to the default target (will be created disconnected)
+            let mut send_strings = context.send(()).unwrap();
+
+            // Send the string to the control programs (sometimes the control program will make the connection first, sometimes it'll happen after we start to send)
+            send_strings.send("Test".to_string()).await.unwrap();
+        }
+    }, 0);
+
+    // Program 2 receives the message and sends it to the test program
+    scene.add_subprogram(program_2, move |input: InputStream<String>, context| {
+        async move {
+            let mut test_program = context.send(test_program).unwrap();
+
+            let mut input = input;
+            while let Some(input) = input.next().await {
+                test_program.send(input).await.unwrap();
+            }
+        }
+    }, 0);
+
+    // Connect program 1 and 2, but first set up a source filter so that TestMessages are translated
+    scene.connect_programs(StreamSource::Filtered(test_string_filter), (), StreamId::with_message_type::<TestMessage>()).unwrap();
+    scene.connect_programs(program_1, program_2, StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    // Check that we receive the test message
+    TestBuilder::new()
+        .expect_message(|_msg: String| { Ok(()) })
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+pub fn connect_two_subprograms_using_source_filter_later() {
+    // Scene with two programs that we'll connect together
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+    let program_1       = SubProgramId::new();
+    let program_2       = SubProgramId::new();
+
+    // TestMessage can be filtered into a string, but we don't set the filter up
+    #[derive(Debug)]
+    struct TestMessage;
+    impl SceneMessage for TestMessage { }
+
+    let test_string_filter = FilterHandle::for_filter(|messages| messages.map(|_: TestMessage| "Test".to_string()));
+
+    // Program_1 sends a TestMessage
+    scene.add_subprogram(program_1, |_: InputStream<()>, context| {
+        async move {
+            // Create a stream to TestMessages to the default target (will be created disconnected)
+            let mut send_strings = context.send(()).unwrap();
+
+            // Send the string to the control programs (sometimes the control program will make the connection first, sometimes it'll happen after we start to send)
+            send_strings.send("Test".to_string()).await.unwrap();
+        }
+    }, 0);
+
+    // Program 2 receives the message and sends it to the test program
+    scene.add_subprogram(program_2, move |input: InputStream<String>, context| {
+        async move {
+            let mut test_program = context.send(test_program).unwrap();
+
+            let mut input = input;
+            while let Some(input) = input.next().await {
+                test_program.send(input).await.unwrap();
+            }
+        }
+    }, 0);
+
+    // Connect program 1 to program 2, then say that we can filter TestMessages
+    scene.connect_programs(program_1, program_2, StreamId::with_message_type::<TestMessage>()).unwrap();
+    scene.connect_programs(StreamSource::Filtered(test_string_filter), (), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    // Check that we receive the test message
+    TestBuilder::new()
+        .expect_message(|_msg: String| { Ok(()) })
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+pub fn connect_two_subprograms_using_string_type_then_source_filter() {
+    // Scene with two programs that we'll connect together
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+    let program_1       = SubProgramId::new();
+    let program_2       = SubProgramId::new();
+
+    // TestMessage can be filtered into a string, but we don't set the filter up
+    #[derive(Debug)]
+    struct TestMessage;
+    impl SceneMessage for TestMessage { }
+
+    let test_string_filter = FilterHandle::for_filter(|messages| messages.map(|_: TestMessage| "Test".to_string()));
+
+    // Program_1 sends a TestMessage
+    scene.add_subprogram(program_1, |_: InputStream<()>, context| {
+        async move {
+            // Create a stream to TestMessages to the default target (will be created disconnected)
+            let mut send_strings = context.send(()).unwrap();
+
+            // Send the string to the control programs (sometimes the control program will make the connection first, sometimes it'll happen after we start to send)
+            send_strings.send("Test".to_string()).await.unwrap();
+        }
+    }, 0);
+
+    // Program 2 receives the message and sends it to the test program
+    scene.add_subprogram(program_2, move |input: InputStream<String>, context| {
+        async move {
+            let mut test_program = context.send(test_program).unwrap();
+
+            let mut input = input;
+            while let Some(input) = input.next().await {
+                test_program.send(input).await.unwrap();
+            }
+        }
+    }, 0);
+
+    // Connect program 1 and 2 as strings, then set up a source filter so that string messages can be converted from TestMessages (so our message can be sent)
+    scene.connect_programs(program_1, program_2, StreamId::with_message_type::<String>()).unwrap();
+    scene.connect_programs(StreamSource::Filtered(test_string_filter), (), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    // Check that we receive the test message
+    TestBuilder::new()
+        .expect_message(|_msg: String| { Ok(()) })
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
 pub fn connect_two_subprograms_after_creating_stream() {
     // Scene with two programs that we'll connect together
     let scene           = Scene::default();
