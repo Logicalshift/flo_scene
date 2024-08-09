@@ -226,6 +226,7 @@ pub fn connect_two_subprograms_using_string_type_then_source_filter() {
     }, 0);
 
     // Connect program 1 and 2 as strings, then set up a source filter so that string messages can be converted from TestMessages (so our message can be sent)
+    // This is the same as in `connect_two_subprograms_using_source_filter_later` except we use the input type of the target to make the connection instead of the output type
     scene.connect_programs(program_1, program_2, StreamId::with_message_type::<String>()).unwrap();
     scene.connect_programs(StreamSource::Filtered(test_string_filter), (), StreamId::with_message_type::<TestMessage>()).unwrap();
 
