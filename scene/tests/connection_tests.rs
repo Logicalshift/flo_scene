@@ -3,6 +3,11 @@ use flo_scene::programs::*;
 
 use futures::prelude::*;
 
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct TestResult(String);
+impl SceneMessage for TestResult { }
+
 #[test]
 pub fn connect_two_subprograms() {
     // Scene with two programs that we'll connect together
@@ -29,7 +34,7 @@ pub fn connect_two_subprograms() {
 
             let mut input = input;
             while let Some(input) = input.next().await {
-                test_program.send(input).await.unwrap();
+                test_program.send(TestResult(input)).await.unwrap();
             }
         }
     }, 0);
@@ -39,7 +44,7 @@ pub fn connect_two_subprograms() {
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
 
@@ -76,7 +81,7 @@ pub fn connect_two_subprograms_using_filter() {
 
             let mut input = input;
             while let Some(input) = input.next().await {
-                test_program.send(input).await.unwrap();
+                test_program.send(TestResult(input)).await.unwrap();
             }
         }
     }, 0);
@@ -87,7 +92,7 @@ pub fn connect_two_subprograms_using_filter() {
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
 
@@ -124,7 +129,7 @@ pub fn connect_two_subprograms_using_source_filter() {
 
             let mut input = input;
             while let Some(input) = input.next().await {
-                test_program.send(input).await.unwrap();
+                test_program.send(TestResult(input)).await.unwrap();
             }
         }
     }, 0);
@@ -135,7 +140,7 @@ pub fn connect_two_subprograms_using_source_filter() {
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
 
@@ -172,7 +177,7 @@ pub fn connect_two_subprograms_using_source_filter_later() {
 
             let mut input = input;
             while let Some(input) = input.next().await {
-                test_program.send(input).await.unwrap();
+                test_program.send(TestResult(input)).await.unwrap();
             }
         }
     }, 0);
@@ -183,7 +188,7 @@ pub fn connect_two_subprograms_using_source_filter_later() {
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
 
@@ -220,7 +225,7 @@ pub fn connect_two_subprograms_using_string_type_then_source_filter() {
 
             let mut input = input;
             while let Some(input) = input.next().await {
-                test_program.send(input).await.unwrap();
+                test_program.send(TestResult(input)).await.unwrap();
             }
         }
     }, 0);
@@ -232,7 +237,7 @@ pub fn connect_two_subprograms_using_string_type_then_source_filter() {
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
 
@@ -265,14 +270,14 @@ pub fn connect_two_subprograms_after_creating_stream() {
 
             let mut input = input;
             while let Some(input) = input.next().await {
-                test_program.send(input).await.unwrap();
+                test_program.send(TestResult(input)).await.unwrap();
             }
         }
     }, 0);
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
 
@@ -305,14 +310,14 @@ pub fn connect_default_subprogram_after_creating_stream() {
 
             let mut input = input;
             while let Some(input) = input.next().await {
-                test_program.send(input).await.unwrap();
+                test_program.send(TestResult(input)).await.unwrap();
             }
         }
     }, 0);
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
 
@@ -341,14 +346,14 @@ pub fn connect_two_subprograms_before_creating() {
 
             let mut input = input;
             while let Some(input) = input.next().await {
-                test_program.send(input).await.unwrap();
+                test_program.send(TestResult(input)).await.unwrap();
             }
         }
     }, 0);
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
 
@@ -377,14 +382,14 @@ pub fn connect_default_subprograms_before_creating() {
 
             let mut input = input;
             while let Some(input) = input.next().await {
-                test_program.send(input).await.unwrap();
+                test_program.send(TestResult(input)).await.unwrap();
             }
         }
     }, 0);
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
 
@@ -414,8 +419,7 @@ pub fn connect_default_subprograms_before_launching() {
 
                     let mut input = input;
                     while let Some(input) = input.next().await {
-                        panic!("{:?}", input);
-                        test_program.send(input).await.unwrap();
+                        test_program.send(TestResult(input)).await.unwrap();
                     }
                 }
             }, 0)).await.unwrap();
@@ -426,7 +430,7 @@ pub fn connect_default_subprograms_before_launching() {
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
 
@@ -466,14 +470,14 @@ pub fn connect_two_subprograms_after_creating_stream_using_filter_target() {
 
             let mut input = input;
             while let Some(input) = input.next().await {
-                test_program.send(input).await.unwrap();
+                test_program.send(TestResult(input)).await.unwrap();
             }
         }
     }, 0);
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
 
@@ -513,13 +517,13 @@ pub fn connect_default_after_creating_stream_using_filter_target() {
 
             let mut input = input;
             while let Some(input) = input.next().await {
-                test_program.send(input).await.unwrap();
+                test_program.send(TestResult(input)).await.unwrap();
             }
         }
     }, 0);
 
     // Check that we receive the test message
     TestBuilder::new()
-        .expect_message(|_msg: String| { Ok(()) })
+        .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
