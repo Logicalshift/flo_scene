@@ -779,15 +779,23 @@ impl SceneCore {
 
             (None, StreamTarget::Program(target_program_id)) => {
                 // Fetch the input for the target program
-                let target_program_handle   = core.program_indexes.get(&target_program_id).ok_or(ConnectionError::TargetNotInScene)?;
+                let target_program_handle   = core.program_indexes.get(&target_program_id);
+                let target_program_handle   = if let Some(target_program_handle) = target_program_handle { target_program_handle } else { return Ok(OutputSinkTarget::Disconnected); };
                 let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
                 mem::drop(core);
 
                 // Connect directly to the output if it matches the source stream type, otherwise apply an input filter to convert the type
-                let target_program_input    = target_program_input.1.downcast::<Mutex<InputStreamCore<TMessageType>>>()
-                    .or_else(|_| Self::filter_source_for_program::<TMessageType>(scene_core, *source, &StreamId::with_message_type::<TMessageType>(), &target_program_input.0, target_program_id))?;
+                let target_program_input = target_program_input.1.downcast::<Mutex<InputStreamCore<TMessageType>>>()
+                    .or_else(|_| Self::filter_source_for_program::<TMessageType>(scene_core, *source, &StreamId::with_message_type::<TMessageType>(), &target_program_input.0, target_program_id));
 
-                OutputSinkTarget::Input(Arc::downgrade(&target_program_input))
+                // If the target program is running but doesn't support 
+                match target_program_input {
+                    Ok(target_program_input)                    => OutputSinkTarget::Input(Arc::downgrade(&target_program_input)),
+                    Err(ConnectionError::WrongInputType(_, _))  => OutputSinkTarget::Disconnected,      // The filter can be added later, so using a currently invalid type is allowed, creates a disconnected stream
+                    Err(ConnectionError::TargetNotInScene)      => OutputSinkTarget::Disconnected,      // The target can be started later on, so we start disconnected
+                    Err(err)                                    => { return Err(err); }
+                }
+                
             }
 
             (None, StreamTarget::Filtered(input_filter, target_program_id)) => {
