@@ -801,25 +801,34 @@ impl SceneCore {
             (None, StreamTarget::Filtered(input_filter, target_program_id)) => {
                 // Connect the core using the input filter
                 mem::drop(core);
-                let filtered_input_core = Self::filtered_input_for_program(scene_core, *source, input_filter, target_program_id)?;
-
-                OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core))
+                match Self::filtered_input_for_program(scene_core, *source, input_filter, target_program_id) {
+                    Ok(filtered_input_core)                         => OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core)),
+                    Err(ConnectionError::WrongInputType(_, _))      => OutputSinkTarget::Disconnected,
+                    Err(ConnectionError::TargetNotInScene)          => OutputSinkTarget::Disconnected,
+                    Err(err)                                        => { return Err(err); }
+                }
             }
 
             (Some(output_filter), StreamTarget::Program(target_program_id)) => {
                 // Filter the output
                 mem::drop(core);
-                let filtered_output_core = Self::filtered_input_for_program(scene_core, *source, output_filter, target_program_id)?;
-
-                OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_output_core))
+                match Self::filtered_input_for_program(scene_core, *source, output_filter, target_program_id) {
+                    Ok(filtered_output_core)                        => OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_output_core)),
+                    Err(ConnectionError::WrongInputType(_, _))      => OutputSinkTarget::Disconnected,
+                    Err(ConnectionError::TargetNotInScene)          => OutputSinkTarget::Disconnected,
+                    Err(err)                                        => { return Err(err); }
+                }
             }
 
             (Some(output_filter), StreamTarget::Filtered(input_filter, target_program_id)) => {
                 // Source filters can't be used when both sides are filtered as we need to chain the source and the target
                 mem::drop(core);
-                let filtered_core = Self::filtered_chain_input_for_program(scene_core, *source, output_filter, input_filter, target_program_id)?;
-
-                OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_core))
+                match Self::filtered_chain_input_for_program(scene_core, *source, output_filter, input_filter, target_program_id) {
+                    Ok(filtered_core)                               => OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_core)),
+                    Err(ConnectionError::WrongInputType(_, _))      => OutputSinkTarget::Disconnected,
+                    Err(ConnectionError::TargetNotInScene)          => OutputSinkTarget::Disconnected,
+                    Err(err)                                        => { return Err(err); }
+                }
             }
         };
 
