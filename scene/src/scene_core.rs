@@ -414,9 +414,10 @@ impl SceneCore {
                 let target_input    = core.get_target_input(subprogid, stream_id);
 
                 match target_input {
-                    Ok(target_input)                        => Box::new(move |sub_program| sub_program.lock().unwrap().reconnect_output_sinks(&target_input, stream_id, false)),
-                    Err(ConnectionError::TargetNotInScene)  => Box::new(move |sub_program| sub_program.lock().unwrap().disconnect_output_sink(&stream_id)),
-                    Err(err)                                => { return Err(err); },
+                    Ok(target_input)                            => Box::new(move |sub_program| sub_program.lock().unwrap().reconnect_output_sinks(&target_input, stream_id, false)),
+                    Err(ConnectionError::TargetNotInScene)      => Box::new(move |sub_program| sub_program.lock().unwrap().disconnect_output_sink(&stream_id)),
+                    Err(ConnectionError::WrongInputType(_, _))  => Box::new(move |sub_program| sub_program.lock().unwrap().disconnect_output_sink(&stream_id)),
+                    Err(err)                                    => { return Err(err); },
                 }
             },
 
