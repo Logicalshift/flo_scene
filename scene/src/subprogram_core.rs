@@ -29,7 +29,7 @@ pub (crate) struct SubProgramCore {
     /// The handle of the process that this subprogram is running on (or None if the program has finished)
     pub (super) process_id: Option<ProcessHandle>,
 
-    /// The output sink targets for this sub-program
+    /// The output sink cores for the outputs of this sub-program
     pub (super) outputs: HashMap<StreamId, Arc<dyn Send + Sync + Any>>,
 
     /// The number of outputs left after the last time that the list was purged
