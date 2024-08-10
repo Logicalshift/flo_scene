@@ -254,6 +254,10 @@ impl SceneContext {
             // Connect to the target
             let mut target_connection = self.send(query_target)?;
 
+            if !target_connection.is_attached() {
+                return Err(ConnectionError::TargetNotAvailable);
+            }
+
             // The task has an input stream that is immediately closed (can't receive any input from elsewhere in the program)
             let response_input_stream = InputStream::<QueryResponse<TCommand::Input>>::new(task_program_id, &scene_core, 0);
             let response_input_core   = response_input_stream.core();
