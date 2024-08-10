@@ -165,10 +165,11 @@ where
     /// Returns true if this output sink is still attached to a target program
     ///
     pub fn is_attached(&self) -> bool {
-        // Retrieve the input core. If it's 'discard' or 'disconnected' this counts as attached (both cases can deliver a message)
+        // Retrieve the input core. If it's 'discard' this counts as attached as the message will be 'delivered' (to oblivion)
+        // Disconnected streams will generally block - nothing is processing their messages - so we report them as unattached
         let maybe_input_core = match &self.core.lock().unwrap().target {
             OutputSinkTarget::Discard                   => { return true; },
-            OutputSinkTarget::Disconnected              => { return true; },
+            OutputSinkTarget::Disconnected              => { return false; },
             OutputSinkTarget::Input(input)              |
             OutputSinkTarget::CloseWhenDropped(input)   => input.upgrade()
         };
