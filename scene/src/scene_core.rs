@@ -406,6 +406,35 @@ impl SceneCore {
     ///
     #[allow(clippy::type_complexity)]   // Creating a type for reconnect_subprogram just looks super goofy and is a lifetime nightmare
     fn finish_connecting_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectionResult, ConnectionError> {
+        // If the source is a filter source, then add to the list of available filter programs
+        if let StreamSource::Filtered(source_filter) = &source {
+            // Get the source and target streams IDs, with no target
+            let source_stream = source_filter.source_stream_id_any()?;
+            let target_stream = source_filter.target_stream_id_any()?;
+
+            // Store this filter handle as a possible conversion for a mismatched input
+            let mut core = core.lock().unwrap();
+            core.filter_conversions.insert((source_stream.clone(), target_stream.clone()), *source_filter);
+
+            match target {
+                StreamTarget::None | StreamTarget::Program(_) | StreamTarget::Filtered(_, _) => { 
+                    // Nothing to do
+                }
+
+                StreamTarget::Any => { 
+                    // Add this as a possible target for an output stream of the specified type. This stream becomes the lowest priority stream if there are several choices
+                    // for making a connection
+                    let possible_targets = core.filtered_targets.entry(source_stream.clone())
+                        .or_insert_with(|| vec![]);
+                    possible_targets.retain(|old_target| old_target != &target_stream);
+                    possible_targets.push(target_stream);
+
+                    // This replaces the 'all' connection for this stream type, if there is one
+                    core.connections.remove(&(StreamSource::All, source_stream));
+                }
+            }
+        }
+
         // Create a function to reconnect a subprogram
         let reconnect_subprogram: Box<dyn Fn(&Arc<Mutex<SubProgramCore>>) -> Option<Waker>> = match &target {
             StreamTarget::None                  => Box::new(|sub_program| sub_program.lock().unwrap().discard_output_from(&stream_id)),
@@ -446,35 +475,6 @@ impl SceneCore {
                 })
             },
         };
-
-        // If the source is a filter source, then add to the list of available filter programs
-        if let StreamSource::Filtered(source_filter) = &source {
-            // Get the source and target streams IDs, with no target
-            let source_stream = source_filter.source_stream_id_any()?;
-            let target_stream = source_filter.target_stream_id_any()?;
-
-            // Store this filter handle as a possible conversion for a mismatched input
-            let mut core = core.lock().unwrap();
-            core.filter_conversions.insert((source_stream.clone(), target_stream.clone()), *source_filter);
-
-            match target {
-                StreamTarget::None | StreamTarget::Program(_) | StreamTarget::Filtered(_, _) => { 
-                    // Nothing to do
-                }
-
-                StreamTarget::Any => { 
-                    // Add this as a possible target for an output stream of the specified type. This stream becomes the lowest priority stream if there are several choices
-                    // for making a connection
-                    let possible_targets = core.filtered_targets.entry(source_stream.clone())
-                        .or_insert_with(|| vec![]);
-                    possible_targets.retain(|old_target| old_target != &target_stream);
-                    possible_targets.push(target_stream);
-
-                    // This replaces the 'all' connection for this stream type, if there is one
-                    core.connections.remove(&(StreamSource::All, source_stream));
-                }
-            }
-        }
 
         // TODO: pause the inputs of all the sub-programs matching the source, so the update is atomic?
         // TODO: if there's a filtered connection we really should wait for the filter program to stop before starting new input to avoid situations where some values can arrive out-of-order
