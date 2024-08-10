@@ -5,7 +5,7 @@ use crate::scene_message::*;
 use crate::stream_id::*;
 use crate::subprogram_id::*;
 
-use futures::task::{Waker};
+use futures::task::{ArcWake, Waker, waker};
 
 use std::any::*;
 use std::collections::*;
@@ -149,6 +149,8 @@ impl SubProgramCore {
             (output_sink_cores, program_id)
         };
 
+        // Reconnect the outputs to their existing targets
+        let mut wakers = vec![];
         for core in output_sink_cores {
             // Get the active target for this sink
             let target = reconnect_stream_id.active_target_for_output_sink(&core);
@@ -156,12 +158,27 @@ impl SubProgramCore {
             // Try to reconnect it
             if let Ok(target) = target {
                 let waker = reconnect_stream_id.reconnect_output_sink(scene_core, &core, program_id, target);
-                if let Ok(Some(waker)) = waker { waker.wake() } // TODO: not safe
+                if let Ok(Some(waker)) = waker { wakers.push(waker) }
             }
         }
 
-        // TODO: can be multiple wakers
-        None
+        if wakers.len() <= 1 {
+            // Just the one waker
+            wakers.pop()
+        } else {
+            // Create a waker that wakes up all of the items
+            struct WakeAll(Mutex<Vec<Waker>>);
+
+            impl ArcWake for WakeAll {
+                fn wake_by_ref(arc_self: &Arc<Self>) {
+                    for waker in arc_self.0.lock().unwrap().drain(..) {
+                        waker.wake()
+                    }
+                }
+            }
+
+            Some(waker(Arc::new(WakeAll(Mutex::new(wakers)))))
+        }
     }
 
     ///
