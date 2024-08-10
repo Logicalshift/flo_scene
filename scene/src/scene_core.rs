@@ -254,6 +254,9 @@ impl SceneCore {
             waker.wake();
         }
 
+        // If there are any pending connections that can be connected to this subprogram, reconnect them here
+        Self::reconnect_subprogram(scene_core, program_id);
+
         // Result is the subprogram
         subprogram
     }
@@ -1129,6 +1132,82 @@ impl SceneCore {
             true
         } else {
             false
+        }
+    }
+
+    ///
+    /// After a program has started, finds any connections that are targetting it and remakes them
+    ///
+    pub fn reconnect_subprogram(scene_core: &Arc<Mutex<SceneCore>>, subprogram_id: SubProgramId) {
+        // Get the subprograms and active connections from the core
+        let (subprograms, connections) = {
+            let core = scene_core.lock().unwrap();
+
+            let subprograms = core.sub_programs.iter()
+                .flatten()
+                .cloned()
+                .collect::<Vec<_>>();
+            let connections = core.connections.clone();
+
+            (subprograms, connections)
+        };
+
+        // For each subprogram, find any outputs that might connect to our target, and reconnect them
+        for subprogram in subprograms {
+            let core = subprogram.lock().unwrap();
+
+            let source_id = core.id;
+            if source_id == subprogram_id {
+                // Don't connect the target program
+                continue;
+            }
+
+            let mut targets_to_reconnect = vec![];
+            for (stream_id, output_sink_core) in core.outputs.iter() {
+                // Skip this connection if it does not target us
+                if let Some(target) = stream_id.target_program() {
+                    // Souce stream is targeting a specific program
+                    let connection = connections.get(&(target.into(), stream_id.clone()));
+                    if let Some(connection) = connection {
+                        if connection.target_sub_program() == Some(subprogram_id) {
+                            // This connection matches our subprogram (may be redirected from a different target)
+                        } else {
+                            // This connection does not match our stream
+                            continue;
+                        }
+                    } else if target == subprogram_id {
+                        // Direct connection to this subprogram
+                    } else {
+                        // Connection to somewhere else
+                        continue;
+                    }
+                } else {
+                    let any_connection = connections.get(&(StreamSource::All, stream_id.clone()));
+
+                    if let Some(connection) = any_connection {
+                        if connection.target_sub_program() == Some(subprogram_id) {
+                            // This is an 'any' connection that targets this program
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        // This stream has no target
+                        continue;
+                    }
+                }
+
+                // This target is needs reconnecting as it targets our program, we'll do this once we've released the lock
+                targets_to_reconnect.push((stream_id.clone(), output_sink_core.clone()));
+            }
+
+            // Reconnect any targets
+            for (stream_id, output_sink_core) in targets_to_reconnect.into_iter() {
+                let existing_target = stream_id.active_target_for_output_sink(&output_sink_core);
+                let existing_target = if let Ok(existing_target) = existing_target { existing_target } else { continue; };
+                // let new_output_sink = Self::sink_for_target(scene_core, &source_id, existing_target); (oops, need scene message so this is a new stream ID function)
+
+                panic!("need new streamID function to finish the reconnect");
+            }
         }
     }
 }
