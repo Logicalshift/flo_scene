@@ -60,7 +60,6 @@ fn prompt_for_input() {
     // Read from the stream with a prompt
     let test_subprogram = SubProgramId::called("test_subprogram");
     TestBuilder::new()
-        .redirect_input(StreamId::with_message_type::<TextOutput>())
         .send_message(TextInput::PromptRequestLine(vec![TextOutput::Line(format!("PROMPT> "))], test_subprogram))
         .expect_message(|output: TextOutput| if output == TextOutput::Line(format!("PROMPT> ")) { Ok(()) } else { Err(format!("'PROMPT> ' != {:?}", output))})
         .expect_message(|input: TextInputResult| if input == TextInputResult::Characters(format!("42")) { Ok(()) } else { Err(format!("42 != {:?}", input)) })

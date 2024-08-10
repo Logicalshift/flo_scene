@@ -215,15 +215,30 @@ impl TestBuilder {
     }
 
     ///
-    /// Creates a test action that redirects the input for a particular message type to the test program
+    /// Creates a test action that redirects the input for a particular message type to the test program (optionally for a specific target subprogram)
     ///
-    pub fn redirect_input(mut self, stream_id: StreamId) -> Self {
+    /// Note that `expect_message` will redirect the default target of a message to the test program already, so this is generally used to redirect
+    /// a direct connection.
+    ///
+    pub fn redirect_input<TMessage>(mut self, target: SubProgramId) -> Self 
+    where
+        TMessage: 'static + SceneMessage,
+    {
+        let stream_id = StreamId::with_message_type::<TMessage>().for_target(target);
+
+        // Create a filter for the message type
+        let filter_handle = *self.filters.entry(StreamId::with_message_type::<TMessage>())
+            .or_insert_with(|| {
+                FilterHandle::for_filter(|source_stream: InputStream<TMessage>| source_stream.map(|msg| TestRequest::AnyMessage(Box::new(msg))))
+            });
+
         self.actions.push(Box::new(move |input_stream, context, failed_assertions| { 
             let program_id  = context.current_program_id().unwrap();
             let context     = context.clone();
 
+            // Retrieve the filter for this message type
             async move {
-                context.send_message(SceneControl::Connect(().into(), program_id.into(), stream_id)).await.unwrap();
+                context.send_message(SceneControl::Connect(().into(), StreamTarget::Filtered(filter_handle, program_id.into()), stream_id)).await.unwrap();
 
                 (input_stream, failed_assertions)
             }.boxed()

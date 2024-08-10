@@ -55,7 +55,6 @@ pub fn send_error_command() {
 
     // Run a test that just waits for the 'succeeded' message
     TestBuilder::new()
-        .redirect_input(StreamId::with_message_type::<TestSucceeded>())
         .expect_message(|_: TestSucceeded| Ok(()))
         .run_in_scene_with_threads(&scene, test_program, 5);
 }

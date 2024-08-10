@@ -117,7 +117,6 @@ fn send_command() {
 
     // Create a test program that receives the TestSucceeded message
     TestBuilder::new()
-        .redirect_input(StreamId::with_message_type::<TestSucceeded>())
         .expect_message(|_: TestSucceeded| Ok(()))
         .expect_message(|_: TestSucceeded| Ok(()))
         .run_in_scene(&scene, test_program);

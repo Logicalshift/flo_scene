@@ -60,7 +60,6 @@ fn error_from_internal_socket() {
 
     // Wait for the test program to indicate that it succeeded
     TestBuilder::new()
-        .redirect_input(StreamId::with_message_type::<TestSucceeded>())
         .expect_message(|_: TestSucceeded| Ok(()))
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
@@ -121,7 +120,6 @@ fn run_expected_error_command_without_closing(command: impl Into<String>) {
 
     // Wait for the test program to indicate that it succeeded
     TestBuilder::new()
-        .redirect_input(StreamId::with_message_type::<TestSucceeded>())
         .expect_message(|_: TestSucceeded| Ok(()))
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
@@ -227,7 +225,6 @@ fn read_from_background_stream_iteration() {
 
     // Wait for the test program to indicate that it succeeded
     TestBuilder::new()
-        .redirect_input(StreamId::with_message_type::<TestSucceeded>())
         .expect_message(|_: TestSucceeded| Ok(()))
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
@@ -301,7 +298,6 @@ fn send_raw_data_to_command_connection() {
 
     // Wait for the test program to indicate that it succeeded
     TestBuilder::new()
-        .redirect_input(StreamId::with_message_type::<TestSucceeded>())
         .expect_message(|_: TestSucceeded| Ok(()))
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
