@@ -70,7 +70,7 @@ pub fn connect_two_subprograms_using_filter() {
             let mut send_strings = context.send(()).unwrap();
 
             // Send the string to the control programs (sometimes the control program will make the connection first, sometimes it'll happen after we start to send)
-            send_strings.send("Test".to_string()).await.unwrap();
+            send_strings.send(TestMessage).await.unwrap();
         }
     }, 0);
 
