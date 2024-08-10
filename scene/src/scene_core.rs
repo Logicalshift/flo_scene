@@ -440,7 +440,9 @@ impl SceneCore {
             StreamTarget::None                  => Box::new(|sub_program| sub_program.lock().unwrap().discard_output_from(&stream_id)),
             StreamTarget::Any                   => {
                 if let StreamSource::Filtered(source_filter) = &source {
-                    Box::new(|sub_program| panic!())
+                    let source_stream = source_filter.source_stream_id_any()?;
+
+                    Box::new(move |sub_program| SubProgramCore::reconnect_disconnected_outputs(sub_program, core, &source_stream))
                 } else {
                     Box::new(|sub_program| sub_program.lock().unwrap().disconnect_output_sink(&stream_id))
                 }

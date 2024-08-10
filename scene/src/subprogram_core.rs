@@ -1,5 +1,6 @@
 use crate::output_sink::*;
 use crate::process_core::*;
+use crate::scene_core::*;
 use crate::scene_message::*;
 use crate::stream_id::*;
 use crate::subprogram_id::*;
@@ -126,6 +127,41 @@ impl SubProgramCore {
         } else {
             None
         }
+    }
+
+    ///
+    /// Attempts to reconnect any output sinks that are 
+    ///
+    pub (crate) fn reconnect_disconnected_outputs(program_core: &Arc<Mutex<SubProgramCore>>, scene_core: &Arc<Mutex<SceneCore>>, reconnect_stream_id: &StreamId) -> Option<Waker> {
+        // Get the disconnected output sinks that match this
+        let (output_sink_cores, program_id) = {
+            let core = program_core.lock().unwrap();
+
+            // TODO: filter out output sinks that are already attached, we only want disconnected ones here
+            let output_sink_cores = core.outputs
+                .iter()
+                .filter(|(output_stream_id, _)| reconnect_stream_id.message_type() == output_stream_id.message_type())
+                .map(|(_, output_sink_core)| output_sink_core.clone())
+                .collect::<Vec<_>>();
+
+            let program_id = core.id;
+
+            (output_sink_cores, program_id)
+        };
+
+        for core in output_sink_cores {
+            // Get the active target for this sink
+            let target = reconnect_stream_id.active_target_for_output_sink(&core);
+
+            // Try to reconnect it
+            if let Ok(target) = target {
+                let waker = reconnect_stream_id.reconnect_output_sink(scene_core, &core, program_id, target);
+                if let Ok(Some(waker)) = waker { waker.wake() } // TODO: not safe
+            }
+        }
+
+        // TODO: can be multiple wakers
+        None
     }
 
     ///
