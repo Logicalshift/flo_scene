@@ -13,6 +13,7 @@ use once_cell::sync::{Lazy};
 
 use std::any::*;
 use std::collections::{HashMap};
+use std::fmt;
 use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -38,9 +39,22 @@ static SOURCE_STREAM_ID:        Lazy<RwLock<HashMap<FilterHandle, StreamId>>>   
 /// A filter is a way to convert from a stream of one message type to another, and a filter
 /// handle references a predefined filter.
 ///
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature="serde_support", derive(Serialize, Deserialize))]
 pub struct FilterHandle(usize);
+
+impl fmt::Debug for FilterHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let source_stream_id = (*SOURCE_STREAM_ID).read().unwrap().get(self).cloned();
+        let target_stream_id = (*STREAM_ID_FOR_TARGET).read().unwrap().get(self).map(|stream_id_fn| stream_id_fn(None));
+
+        if let (Some(source_stream_id), Some(target_stream_id)) = (source_stream_id, target_stream_id) {
+            write!(f, "FilterHandle({}: {} -> {})", self.0, source_stream_id.message_type_name(), target_stream_id.message_type_name())
+        } else {
+            write!(f, "FilterHandle({})", self.0)
+        }
+    }
+}
 
 impl FilterHandle {
     ///
