@@ -438,7 +438,13 @@ impl SceneCore {
         // Create a function to reconnect a subprogram
         let reconnect_subprogram: Box<dyn Fn(&Arc<Mutex<SubProgramCore>>) -> Option<Waker>> = match &target {
             StreamTarget::None                  => Box::new(|sub_program| sub_program.lock().unwrap().discard_output_from(&stream_id)),
-            StreamTarget::Any                   => Box::new(|sub_program| sub_program.lock().unwrap().disconnect_output_sink(&stream_id)),
+            StreamTarget::Any                   => {
+                if let StreamSource::Filtered(source_filter) = &source {
+                    Box::new(|sub_program| panic!())
+                } else {
+                    Box::new(|sub_program| sub_program.lock().unwrap().disconnect_output_sink(&stream_id))
+                }
+            },
 
             StreamTarget::Program(subprogid)    => {
                 let mut core        = core.lock().unwrap();
