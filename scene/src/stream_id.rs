@@ -2,6 +2,7 @@ use crate::error::*;
 use crate::input_stream::*;
 use crate::output_sink::*;
 use crate::scene::*;
+use crate::scene_core::*;
 use crate::scene_message::*;
 use crate::stream_target::*;
 use crate::subprogram_id::*;
@@ -24,6 +25,7 @@ type IsIdleFn                   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync 
 type WaitingForIdleFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, usize) -> Result<IdleInputStreamCore, ConnectionError>>;
 type DefaultTargetFn            = Arc<dyn Send + Sync + Fn() -> StreamTarget>;
 type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>>;
+type ReconnectSinkFn            = Arc<dyn Send + Sync + Fn(&Arc<Mutex<SceneCore>>, &Arc<dyn Send + Sync + Any>, SubProgramId, StreamTarget) -> Result<Option<Waker>, ConnectionError>>;
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
 
 ///
@@ -53,6 +55,9 @@ struct StreamTypeFunctions {
 
     /// Returns the active target for an output sink
     active_target: ActiveTargetFn,
+
+    /// Reconnects an output sink core to an input stream
+    reconnect_sink: ReconnectSinkFn,
 
     /// Initialises the message type inside a scene
     initialise: InitialiseFn,
@@ -179,8 +184,8 @@ impl StreamTypeFunctions {
                 TMessageType::default_target()
             }),
 
-            active_target: Arc::new(|output_sink_any| {
-                let output_sink         = output_sink_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+            active_target: Arc::new(|output_sink_core_any| {
+                let output_sink         = output_sink_core_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
                 let output_sink_target  = output_sink.lock().unwrap().target.clone();
 
                 match &output_sink_target {
@@ -198,6 +203,24 @@ impl StreamTypeFunctions {
                         }
                     }
                 }
+            }),
+
+            reconnect_sink: Arc::new(|scene_core, output_sink_core_any, source_program, stream_target| {
+                // Try to create an output sink target for this message type
+                let new_target = SceneCore::sink_for_target::<TMessageType>(scene_core, &source_program, stream_target)?;
+
+                // Update the output sink
+                let output_sink = output_sink_core_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+
+                let waker = {
+                    let mut output_sink = output_sink.lock().unwrap();
+
+                    output_sink.target = new_target;
+
+                    output_sink.when_target_changed.take()
+                };
+
+                Ok(waker)
             }),
 
             initialise: Arc::new(|scene| {
@@ -278,6 +301,13 @@ impl StreamTypeFunctions {
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.active_target))
+    }
+
+    pub fn reconnect_output_sink(type_id: &TypeId) -> Option<ReconnectSinkFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.reconnect_sink))
     }
 
     pub fn initialise(type_id: &TypeId) -> Option<InitialiseFn> {
@@ -495,11 +525,25 @@ impl StreamId {
     ///
     /// Returns the stream target for an output sink
     ///
-    pub (crate) fn active_target_for_output_sink(&self, output_sink: &Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError> {
+    pub (crate) fn active_target_for_output_sink(&self, output_sink_core: &Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError> {
         let message_type = self.message_type();
 
         if let Some(active_target) = StreamTypeFunctions::active_target(&message_type) {
-            (active_target)(output_sink)
+            (active_target)(output_sink_core)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Attempts to reconnect an output sink core to a new target within a scene (returning a waker if successful)
+    ///
+    pub (crate) fn reconnect_output_sink(&self, scene_core: &Arc<Mutex<SceneCore>>, output_sink_core: &Arc<dyn Send + Sync + Any>, source_program: SubProgramId, new_target: StreamTarget) -> Result<Option<Waker>, ConnectionError> {
+        let message_type = self.message_type();
+
+        if let Some(reconnect_output_sink) = StreamTypeFunctions::reconnect_output_sink(&message_type) {
+            (reconnect_output_sink)(scene_core, output_sink_core, source_program, new_target)
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)
