@@ -1,3 +1,38 @@
+//!
+//! This tests the various ways that connections can be established
+//!
+//! The current design produces a lot of ways this can happen. It's difficult to simplify this without reducing
+//! the functionality of the system, though a possible avenue of attack is to combine the source and target filters
+//! in a way that supports the existing functionality somehow.
+//!
+//! There are three types of source ('Any', a subprogram ID and a filtered stream)
+//! There are four types of target ('None', 'All', a subprogram ID, and a subprogram ID with a filter attached)
+//!
+//! The type of stream is specified with a stream ID. Stream IDs are generally untargeted, but subprograms can 
+//! request connections to specific subprogram IDs, which uses a stream ID annotated with that target.
+//!
+//! Here are the general rules:
+//!
+//! * Connections can be set up before the target subprogram has started (this makes initialization easier, 
+//!     especially when talking to the scene control program) 
+//! * Connections can be set up after the output sink has been opened (which allows dynamic configuration and can 
+//!     also arise out of race conditions)
+//! * Source filters can be used to define ways that connections can be rewritten to attach to new targets
+//!     (this is useful for messages like 'query' or 'subscribe' where they always need to go through a filter
+//!     to be useful)
+//! * Target filters can be used to enable a subprogram to accept input types other than its defaults
+//!     (this is the more usual type of filtering where we want to be able to adapt the output of one
+//!     program to the input of another without the two needing to know about each other)
+//! * Filters usually don't combine, but source filters do need to chain with target filters sometimes
+//!     (otherwise you have to re-declare the source filters when using a target filter to adapt something)
+//! * Connections can use 'Any' as the source to create a default connection without needing to connect every subprogram
+//!     (which is just generally useful, but a pain when rewriting existing connections)
+//! * Subprograms can create connections to specific subprogram targets, these can be identified and overridden by a 
+//!     stream ID with a target if needed
+//!     (very uncommon to actually need to do this, except in tests where it's very useful indeed, in the future this
+//!     is probably quite useful for 'live patching' software that's running too)
+//!
+
 use flo_scene::*;
 use flo_scene::programs::*;
 
