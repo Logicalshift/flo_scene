@@ -385,9 +385,37 @@ impl SceneCore {
 
         // If successful and the target is a filter, connect the specific stream for the target as well as the 'all' stream
         if result.is_ok() {
+            // Reconnect any streams that specifically target the filter as well
             if let StreamTarget::Filtered(_, target_program_id) = target {
                 if stream_id.target_program().is_none() {
                     SceneCore::finish_connecting_programs(core, source.clone(), target.clone(), stream_id.for_target(target_program_id)).ok();
+                }
+            }
+
+            // Reconnect any streams that are affected by an 'any' source filter: that is, anything in filter_conversions that targets the affected stream
+            let filter_conversions = core.lock().unwrap().filter_conversions
+                .keys()
+                .filter(|(_, target)| target.message_type() == stream_id.message_type())
+                .cloned()
+                .collect::<Vec<_>>();
+            let subprograms = if filter_conversions.is_empty() { 
+                vec![] 
+            } else {
+                core.lock().unwrap().sub_programs.iter().flatten().cloned().collect()
+            };
+
+            // filter_conversions is the list of every stream that uses this message type and might be affected by the source filter
+            for (convert_from, _) in filter_conversions {
+                // Check for subprograms that write the to the stream affected by this connection
+                for subprogram in subprograms.iter() {
+                    // If the subprogram sends a message that can be converted by this filter, reconnect it
+                    if subprogram.lock().unwrap().has_output_sink(&convert_from) {
+                        let waker = SubProgramCore::reconnect_disconnected_outputs(subprogram, core, &convert_from);
+
+                        if let Some(waker) = waker {
+                            waker.wake();
+                        }
+                    }
                 }
             }
         }

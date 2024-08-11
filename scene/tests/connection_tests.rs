@@ -32,6 +32,10 @@
 //!     (very uncommon to actually need to do this, except in tests where it's very useful indeed, in the future this
 //!     is probably quite useful for 'live patching' software that's running too)
 //!
+//! (Internally, a connection is either made when sink_for_target() is called in scene_core, or when finish_connecting_programs()
+//! is called. The former is for when the connections are made ahead of time, and the latter has to deal with reconnecting
+//! existing programs, which is the harder case)
+//!
 
 use flo_scene::*;
 use flo_scene::programs::*;
