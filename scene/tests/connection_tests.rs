@@ -288,10 +288,122 @@ pub fn connect_default_using_chained_filter() {
         }
     }, 0);
 
-    // Connect a filtered input for TestMessage2 to program_2, then add a source filter for TestMessage1
+    // Connect a filtered input for TestMessage2 to program_2, then add a source filter for TestMessage1 so there are two filters in effect
     scene.connect_programs((), StreamTarget::Filtered(test_string_filter, program_2), StreamId::with_message_type::<TestMessage2>()).unwrap();
     scene.connect_programs((), program_2, StreamId::with_message_type::<String>()).unwrap();
     scene.connect_programs(StreamSource::Filtered(test_message_filter), (), StreamId::with_message_type::<TestMessage1>()).unwrap();
+
+    // Check that we receive the test message
+    TestBuilder::new()
+        .expect_message(|_msg: TestResult| { Ok(()) })
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+pub fn connect_default_using_chained_filter_later_1() {
+    // Scene with two programs that we'll connect together
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::called("test_program");
+    let program_1       = SubProgramId::called("program_1");
+    let program_2       = SubProgramId::called("program_2");
+
+    // TestMessage can be filtered into a string, but we don't set the filter up
+    #[derive(Debug)]
+    struct TestMessage1;
+    impl SceneMessage for TestMessage1 { }
+
+    #[derive(Debug)]
+    struct TestMessage2;
+    impl SceneMessage for TestMessage2 { }
+
+    let test_message_filter = FilterHandle::for_filter(|messages| messages.map(|_: TestMessage1| TestMessage2));
+    let test_string_filter = FilterHandle::for_filter(|messages| messages.map(|_: TestMessage2| "Test".to_string()));
+
+    // Program_1 sends a TestMessage
+    scene.add_subprogram(program_1, |_: InputStream<()>, context| {
+        async move {
+            // Create a stream to TestMessages to the default target (will be created disconnected)
+            let mut send_strings = context.send(()).unwrap();
+
+            // Add the target filter later on (this should be able to connect the source filter version of this stream)
+            context.send_message(SceneControl::connect((), StreamTarget::Filtered(test_string_filter, program_2), StreamId::with_message_type::<TestMessage2>())).await.unwrap();
+
+            // Send the string to the control programs (sometimes the control program will make the connection first, sometimes it'll happen after we start to send)
+            send_strings.send(TestMessage1).await.unwrap();
+        }
+    }, 0);
+
+    // Program 2 receives the message and sends it to the test program
+    scene.add_subprogram(program_2, move |input: InputStream<String>, context| {
+        async move {
+            let mut test_program = context.send(test_program).unwrap();
+
+            let mut input = input;
+            while let Some(input) = input.next().await {
+                test_program.send(TestResult(input)).await.unwrap();
+            }
+        }
+    }, 0);
+
+    // Connect a filtered input for TestMessage2 to program_2, then add a source filter for TestMessage1
+    scene.connect_programs((), program_2, StreamId::with_message_type::<String>()).unwrap();
+    scene.connect_programs(StreamSource::Filtered(test_message_filter), (), StreamId::with_message_type::<TestMessage1>()).unwrap();
+
+    // Check that we receive the test message
+    TestBuilder::new()
+        .expect_message(|_msg: TestResult| { Ok(()) })
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+pub fn connect_default_using_chained_filter_later_2() {
+    // Scene with two programs that we'll connect together
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::called("test_program");
+    let program_1       = SubProgramId::called("program_1");
+    let program_2       = SubProgramId::called("program_2");
+
+    // TestMessage can be filtered into a string, but we don't set the filter up
+    #[derive(Debug)]
+    struct TestMessage1;
+    impl SceneMessage for TestMessage1 { }
+
+    #[derive(Debug)]
+    struct TestMessage2;
+    impl SceneMessage for TestMessage2 { }
+
+    let test_message_filter = FilterHandle::for_filter(|messages| messages.map(|_: TestMessage1| TestMessage2));
+    let test_string_filter = FilterHandle::for_filter(|messages| messages.map(|_: TestMessage2| "Test".to_string()));
+
+    // Program_1 sends a TestMessage
+    scene.add_subprogram(program_1, |_: InputStream<()>, context| {
+        async move {
+            // Create a stream to TestMessages to the default target (will be created disconnected)
+            let mut send_strings = context.send(()).unwrap();
+
+            // Add the source filter later on (which should connect via the target filter we added earlier)
+            context.send_message(SceneControl::connect(StreamSource::Filtered(test_message_filter), (), StreamId::with_message_type::<TestMessage1>())).await.unwrap();
+
+            // Send the string to the control programs (sometimes the control program will make the connection first, sometimes it'll happen after we start to send)
+            send_strings.send(TestMessage1).await.unwrap();
+        }
+    }, 0);
+
+    // Program 2 receives the message and sends it to the test program
+    scene.add_subprogram(program_2, move |input: InputStream<String>, context| {
+        async move {
+            let mut test_program = context.send(test_program).unwrap();
+
+            let mut input = input;
+            while let Some(input) = input.next().await {
+                test_program.send(TestResult(input)).await.unwrap();
+            }
+        }
+    }, 0);
+
+    // Connect a filtered input for TestMessage2 to program_2, then add a source filter for TestMessage1
+    scene.connect_programs((), StreamTarget::Filtered(test_string_filter, program_2), StreamId::with_message_type::<TestMessage2>()).unwrap();
+    scene.connect_programs((), program_2, StreamId::with_message_type::<String>()).unwrap();
 
     // Check that we receive the test message
     TestBuilder::new()
