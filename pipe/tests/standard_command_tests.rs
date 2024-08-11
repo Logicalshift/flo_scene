@@ -30,7 +30,7 @@ where
     TFuture: 'static + Send + Future<Output=()>
 {
     // Create an arbitrary program ID
-    let program_id  = SubProgramId::new();
+    let program_id  = SubProgramId::called("command_runner");
     let commands    = commands.into();
 
     scene.add_subprogram(program_id, move |_: InputStream<()>, context| async move {
@@ -95,8 +95,8 @@ fn send_command() {
     // for this purpose. There's no feedback from a control request either so an error like this just blocks things (so ideally we want connections to
     // succeed rather than fail)
     let scene           = Scene::default().with_standard_json_commands();
-    let internal_socket = SubProgramId::new();
-    let test_program    = SubProgramId::new();
+    let internal_socket = SubProgramId::called("internal_socket");
+    let test_program    = SubProgramId::called("test_program");
  
     // Create a message we can send to the test program to indicate success
     #[derive(Serialize, Deserialize)]
