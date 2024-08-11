@@ -380,7 +380,7 @@ impl SceneCore {
             (source, target) => (source, target),
         };
 
-        // Call finish_connecting_programs to generate the result
+        // Call finish_connecting_programs to determine the result of the connection
         let result = SceneCore::finish_connecting_programs(core, source.clone(), target.clone(), stream_id.clone());
 
         // If successful and the target is a filter, connect the specific stream for the target as well as the 'all' stream
@@ -525,7 +525,12 @@ impl SceneCore {
         // Send the updates on how the connections have changed
         SceneCore::send_scene_updates(core, scene_updates);
 
-        Ok(ConnectionResult::Ready)
+        if target_program_id.is_some() {
+            // TODO: determine if the target program can accept connections of this type
+            Ok(ConnectionResult::Ready)
+        } else {
+            Ok(ConnectionResult::TargetNotReady)
+        }
     }
 
     ///
