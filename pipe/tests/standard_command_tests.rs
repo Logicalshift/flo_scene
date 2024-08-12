@@ -7,6 +7,11 @@ use futures::prelude::*;
 use serde::*;
 use tokio::io::*;
 
+/// TestSucceeded message is used to indicate when a test has passed
+#[derive(Serialize, Deserialize, Debug)]
+struct TestSucceeded { message: String }
+impl SceneMessage for TestSucceeded { }
+
 ///
 /// Creates an internal socket program in a scene that can be used to send commands
 ///
@@ -89,16 +94,10 @@ where
 
 #[test]
 fn send_command() {
-    // TODO: this is currently unreliable because you can declare the same serialization name twice (they are app-global and not scene-global right now)
     let scene           = Scene::default().with_standard_json_commands();
     let internal_socket = SubProgramId::called("send_internal_socket");
     let test_program    = SubProgramId::called("send_test_program");
  
-    // Create a message we can send to the test program to indicate success
-    #[derive(Serialize, Deserialize)]
-    struct TestSucceeded { message: String }
-    impl SceneMessage for TestSucceeded { }
-
     scene.with_serializer(|| serde_json::value::Serializer)
         .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
 
@@ -124,11 +123,6 @@ fn echo_command() {
     let internal_socket = SubProgramId::called("echo_internal_socket");
     let test_program    = SubProgramId::called("echo_test_program");
  
-    // Create a message we can send to the test program to indicate success
-    #[derive(Serialize, Deserialize, Debug)]
-    struct TestSucceeded { message: String }
-    impl SceneMessage for TestSucceeded { }
-
     scene.with_serializer(|| serde_json::value::Serializer)
         .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
 
