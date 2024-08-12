@@ -8,15 +8,15 @@ mod with_serde_support {
     use serde::*;
     use serde_json;
 
+    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+    enum TestMessage {
+        StringValue(String)
+    }
+
+    impl SceneMessage for TestMessage { }
+
     #[test]
     fn serialize_deserialize() {
-        #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-        enum TestMessage {
-            StringValue(String)
-        }
-
-        impl SceneMessage for TestMessage { }
-
         let scene = Scene::default();
 
         let test_program            = SubProgramId::new();
@@ -78,13 +78,6 @@ mod with_serde_support {
 
     #[test]
     fn install_basic_serializer() {
-        #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-        enum TestMessage {
-            StringValue(String)
-        }
-
-        impl SceneMessage for TestMessage { }
-
         // Create a scene that will serialize and deserialize the message
         let scene = Scene::default();
         scene.with_serializer(|| serde_json::value::Serializer)
