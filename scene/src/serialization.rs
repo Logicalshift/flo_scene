@@ -24,6 +24,9 @@ use std::sync::*;
 /// The known type names of serialized types
 static SERIALIZABLE_MESSAGE_TYPE_NAMES: Lazy<RwLock<HashMap<TypeId, String>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
+/// The type ID assigned to a particular name (once a name is assigned to a type, it cannot be reassigned)
+static TYPE_ID_FOR_NAME: Lazy<RwLock<HashMap<String, TypeId>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
 /// The stream ID for a known serializable type
 static STREAM_ID_FOR_SERIALIZABLE_TYPE: Lazy<RwLock<HashMap<String, StreamId>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
@@ -103,11 +106,23 @@ where
     // Store the name for this type (which must match the old name)
     let type_name = type_name.into();
     {
+        let mut type_for_name = (*TYPE_ID_FOR_NAME).write().unwrap();
+
+        if let Some(existing_type_id) = type_for_name.get(&type_name) {
+            if existing_type_id != &TypeId::of::<TMessageType>() {
+                return Err("Serialization type name has been used by another type");
+            }
+        } else {
+            type_for_name.insert(type_name.clone(), TypeId::of::<TMessageType>());
+        }
+    }
+
+    {
         let mut type_names = (*SERIALIZABLE_MESSAGE_TYPE_NAMES).write().unwrap();
 
         if let Some(existing_type_name) = type_names.get(&TypeId::of::<TMessageType>()) {
             if existing_type_name != &type_name {
-                return Err("Serialization type name has been used by another type");
+                return Err("Serialization type has already been assigned a different name");
             }
         } else {
             type_names.insert(TypeId::of::<TMessageType>(), type_name.clone());
