@@ -89,7 +89,7 @@ where
 
 #[test]
 fn send_command() {
-    // TODO: this is currently unreliable because sometimes a general target is set up for the 'TestSucceeded' message and sometimes it is not
+    // TODO: this is currently unreliable because you can declare the same serialization name twice (they are app-global and not scene-global right now)
     let scene           = Scene::default().with_standard_json_commands();
     let internal_socket = SubProgramId::called("send_internal_socket");
     let test_program    = SubProgramId::called("send_test_program");
