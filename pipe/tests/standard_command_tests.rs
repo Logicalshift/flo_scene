@@ -95,8 +95,8 @@ fn send_command() {
     // for this purpose. There's no feedback from a control request either so an error like this just blocks things (so ideally we want connections to
     // succeed rather than fail)
     let scene           = Scene::default().with_standard_json_commands();
-    let internal_socket = SubProgramId::called("internal_socket");
-    let test_program    = SubProgramId::called("test_program");
+    let internal_socket = SubProgramId::called("send_internal_socket");
+    let test_program    = SubProgramId::called("send_test_program");
  
     // Create a message we can send to the test program to indicate success
     #[derive(Serialize, Deserialize)]
@@ -125,8 +125,8 @@ fn send_command() {
 #[test]
 fn echo_command() {
     let scene           = Scene::default().with_standard_json_commands();
-    let internal_socket = SubProgramId::new();
-    let test_program    = SubProgramId::new();
+    let internal_socket = SubProgramId::called("echo_internal_socket");
+    let test_program    = SubProgramId::called("echo_test_program");
  
     // Create a message we can send to the test program to indicate success
     #[derive(Serialize, Deserialize, Debug)]
