@@ -89,11 +89,7 @@ where
 
 #[test]
 fn send_command() {
-    // TODO: this is currently unreliable because the 'redirect input' step is sometimes executed before the filter is installed for that message type
-    // This is a design flaw, I think: you should be able to describe the connections before the programs are started, we shouldn't generate errors, just
-    // leave them hanging and connect them later on. This is happening even though we aren't using threads; the order that the async blocks run in matters
-    // for this purpose. There's no feedback from a control request either so an error like this just blocks things (so ideally we want connections to
-    // succeed rather than fail)
+    // TODO: this is currently unreliable because sometimes a general target is set up for the 'TestSucceeded' message and sometimes it is not
     let scene           = Scene::default().with_standard_json_commands();
     let internal_socket = SubProgramId::called("send_internal_socket");
     let test_program    = SubProgramId::called("send_test_program");
