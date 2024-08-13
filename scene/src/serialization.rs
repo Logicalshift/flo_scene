@@ -114,6 +114,7 @@ where
 
     install_single_serializable_type::<TMessageType, TSerializer>(type_name.clone())?;
     install_single_serializable_type::<Subscribe<TMessageType>, TSerializer>(format!("subscribe::{}", type_name))?;
+    install_single_serializable_type::<Query<TMessageType>, TSerializer>(format!("query::{}", type_name))?;
 
     Ok(())
 }
