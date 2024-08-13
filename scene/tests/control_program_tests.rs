@@ -498,20 +498,25 @@ fn sending_scene_update_to_stopped_program_does_not_block() {
 
         scene.add_subprogram(subscriber_program, move |input, context| async move {
             // Before we do anything we wait for the scene to become idle
+            println!("Initial wait for idle");
             context.wait_for_idle(100).await;
 
             // Subscribe to the scene update events, then wait for the scene to become idle
+            println!("Subscribe");
             context.send_message(SceneControl::Subscribe(context.current_program_id().unwrap().into())).await.unwrap();
+            println!("Wait for idle");
             context.send_message(IdleRequest::WhenIdle(context.current_program_id().unwrap().into())).await.unwrap();
 
             // Read the updates until the scene becomes idle
             let mut input   = input;
             while let Some(update) = input.next().await {
+                println!("Received update");
                 match update {
                     SubscriberProgramMessage::SceneUpdate(_)        => { },
                     SubscriberProgramMessage::IdleNotification(_)   => { break; }
                 }
             }
+            println!("Now idle");
 
             // Send the updates to the query program
             context.send(query_program).unwrap()
