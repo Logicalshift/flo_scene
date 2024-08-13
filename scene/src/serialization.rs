@@ -8,6 +8,7 @@ use crate::stream_source::*;
 use crate::stream_target::*;
 use crate::stream_id::*;
 use crate::subprogram_id::*;
+use crate::programs::*;
 
 use futures::prelude::*;
 use futures::stream;
@@ -87,6 +88,12 @@ where
 ///
 /// Creates the data structures needed to serialize a particular type
 ///
+/// The type name supplied here must be unique inside the process. Using `crate_name::type_name` for this value
+/// is a reasonable way to guarantee uniqueness. This will return an error if a non-unique type name is used.
+///
+/// As well as the main type, this will generate `query::{type_name}` and `subscribe::{type_name}` to allow
+/// querying or subscribing to messages of this type.
+///
 /// The serializer must have previously been installed with `install_serializer` so that `flo_scene` knows how to
 /// create an instance of it. The type name must be unique and is associated with the serialized type: it's used
 /// when deciding how to deserialize a value.
@@ -95,6 +102,26 @@ where
 /// identify a single message type and cannot be used for a different `TMessageType` 
 ///
 pub fn install_serializable_type<TMessageType, TSerializer>(type_name: impl Into<String>) -> Result<(), &'static str>
+where
+    TMessageType:                   'static + SceneMessage,
+    TMessageType:                   for<'a> Deserialize<'a>,
+    TMessageType:                   Serialize,
+    TSerializer:                    'static + Send + Serializer,
+    TSerializer::Ok:                'static + Send + Unpin,
+    for<'a> &'a TSerializer::Ok:    Deserializer<'a>,
+{
+    let type_name = type_name.into();
+
+    install_single_serializable_type::<TMessageType, TSerializer>(type_name.clone())?;
+    install_single_serializable_type::<Subscribe<TMessageType>, TSerializer>(format!("subscribe::{}", type_name))?;
+
+    Ok(())
+}
+
+///
+/// Like install_serializable_type but doesn't install the query/subscribe messages
+///
+fn install_single_serializable_type<TMessageType, TSerializer>(type_name: impl Into<String>) -> Result<(), &'static str>
 where
     TMessageType:                   'static + SceneMessage,
     TMessageType:                   for<'a> Deserialize<'a>,
@@ -202,8 +229,6 @@ where
         let mut send_deserialized = (*SEND_DESERIALIZED).write().unwrap();
         send_deserialized.insert((TypeId::of::<TSerializer::Ok>(), TypeId::of::<TMessageType>()), Arc::new(send_deserialized_stream));
     }
-
-    // TODO: for any type where the type name does not begin with a known suffix (query:: or subscribe::), add the query and subscribe versios
 
     Ok(())
 }
