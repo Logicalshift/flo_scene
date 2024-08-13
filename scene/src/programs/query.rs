@@ -9,6 +9,8 @@ use std::marker::{PhantomData};
 use std::pin::*;
 use std::task::{Context, Poll};
 
+#[cfg(feature="serde_support")] use serde::*;
+
 ///
 /// A query request is a type of message representing a request for a query response of a particular type
 ///
@@ -28,6 +30,7 @@ pub trait QueryRequest : SceneMessage {
 /// representing the state at the time that the query was received.
 ///
 #[derive(Clone)]
+#[cfg_attr(feature="serde_support", derive(Serialize, Deserialize))]
 pub struct Query<TResponseData: Send + Unpin>(StreamTarget, PhantomData<TResponseData>);
 
 impl<TResponseData: Send + Unpin> QueryRequest for Query<TResponseData> {
