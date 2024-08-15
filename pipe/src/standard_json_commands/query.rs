@@ -62,15 +62,7 @@ pub fn command_query(input: QueryArguments, context: SceneContext) -> impl Futur
             }
         }, 20)).await.ok();
 
-        // Wait for the message receiver to arrive
-        let query_response = recv_result_stream.await;
-        let query_response = if let Ok(query_response) = query_response {
-            query_response
-        } else {
-            return CommandResponse::Error("Did not receive a query response".into())
-        };
-
-        // Request a query for the program we just created (serialized form of the Query message)
+        // Send a query request to the target for this program (with the response going to the subprogram we just started)
         let query_request = json!(vec![json![{ 
             "Program": results_program
         }], serde_json::Value::Null]);
@@ -89,6 +81,14 @@ pub fn command_query(input: QueryArguments, context: SceneContext) -> impl Futur
         if let Err(err) = query_stream.send(query_request).await {
             return CommandResponse::Error(format!("Could not send query request: {:?}", err));
         }
+
+        // Wait for the query response to arrive
+        let query_response = recv_result_stream.await;
+        let query_response = if let Ok(query_response) = query_response {
+            query_response
+        } else {
+            return CommandResponse::Error("Did not receive a query response".into())
+        };
 
         // Read the response into a vec
         let mut query_response  = query_response;
