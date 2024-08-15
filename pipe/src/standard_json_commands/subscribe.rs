@@ -77,9 +77,9 @@ pub fn command_subscribe(input: SubscribeArguments, context: SceneContext) -> im
         };
 
         // Request a subscription for the program we just created (serialized form of the Subscribe message)
-        let subscription_request = json![{ 
+        let subscription_request = json!(vec![json![{ 
             "Program": subscriber_id
-        }];
+        }], serde_json::Value::Null]);
 
         let subscribe_target = match input {
             SubscribeArguments::Type(_)                     => SerializedStreamTarget::Stream(request_stream),
