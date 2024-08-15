@@ -46,12 +46,14 @@ pub fn command_query(input: QueryArguments, context: SceneContext) -> impl Futur
 
         // Create a oneshot channel to generate the result stream
         let (send_result_stream, recv_result_stream) = oneshot::channel();
+        let (send_ready, recv_ready)                  = oneshot::channel();
 
         // Create a subprogram that will receive the query result mesasges and relay as part of the results
         let results_program = SubProgramId::new();
 
         context.send_message(SceneControl::start_program(results_program, move |input, _context| async move {
             // TODO: if we go idle before this starts, then the query has no response
+            send_ready.send(()).ok();
 
             // Read a query response and send it to the parent command
             let mut input = input;
@@ -61,6 +63,9 @@ pub fn command_query(input: QueryArguments, context: SceneContext) -> impl Futur
                 send_result_stream.send(response).ok();
             }
         }, 20)).await.ok();
+
+        // Wait for the program to start (this is so the program is running when we send the query request later on)
+        recv_ready.await.ok();
 
         // Send a query request to the target for this program (with the response going to the subprogram we just started)
         let query_request = json!(vec![json![{ 
