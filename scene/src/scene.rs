@@ -86,7 +86,8 @@ impl Scene {
                 .with_serializable_type::<TextOutput>("flo_scene::TextOutput")
                 .with_serializable_type::<TimerRequest>("flo_scene::TimerRequest")
                 .with_serializable_type::<IdleRequest>("flo_scene::IdleRequest")
-                .with_serializable_type::<ListCommandResponse>("flo_scene::ListCommandResponse");
+                .with_serializable_type::<ListCommandResponse>("flo_scene::ListCommandResponse")
+                .with_serializable_type::<SceneUpdate>("flo_scene::SceneUpdate");
         }
 
         scene
