@@ -61,11 +61,15 @@ mod with_serde_support {
 
         // Create a JSON serializer to allow test messages to be sent directly to the serialized_resender program
         let json_serializer_filter = serializer_filter::<TestMessage, SerializedMessage<serde_json::Value>>().unwrap();
-        scene.connect_programs((), StreamTarget::Filtered(json_serializer_filter, serialized_resender), StreamId::with_message_type::<TestMessage>()).unwrap();
+        json_serializer_filter.into_iter()
+            .for_each(|filter|
+                { scene.connect_programs((), StreamTarget::Filtered(filter, serialized_resender), StreamId::with_message_type::<TestMessage>()).unwrap(); });
 
         // Create a deserializer to use with the test program
         let json_deserializer_filter = serializer_filter::<SerializedMessage<serde_json::Value>, TestMessage>().unwrap();
-        scene.connect_programs((), StreamTarget::Filtered(json_deserializer_filter, deserialized_receiver), StreamId::with_message_type::<SerializedMessage<serde_json::value::Value>>()).unwrap();
+        json_deserializer_filter.into_iter()
+            .for_each(|filter|
+                { scene.connect_programs((), StreamTarget::Filtered(filter, deserialized_receiver), StreamId::with_message_type::<SerializedMessage<serde_json::value::Value>>()).unwrap(); });
 
         // Run some tests with a message that gets serialized and deserialized
         TestBuilder::new()

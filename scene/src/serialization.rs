@@ -40,7 +40,7 @@ static SEND_DESERIALIZED: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + S
 static TYPED_SERIALIZERS: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + Sync + Any>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Stores the filters we've already created so we don't create extr
-static FILTERS_FOR_TYPE: Lazy<Mutex<HashMap<(TypeId, TypeId), FilterHandle>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static FILTERS_FOR_TYPE: Lazy<Mutex<HashMap<(TypeId, TypeId), Vec<FilterHandle>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 ///
 /// A message created by serializing another message
@@ -234,11 +234,11 @@ where
 }
 
 ///
-/// If installed, returns a filter to convert from a source type to a target type
+/// If installed, returns the filters to use to convert from a source type to a target type
 ///
 /// This will create either a serializer or a deserializer depending on the direction that the conversion goes in
 ///
-pub fn serializer_filter<TSourceType, TTargetType>() -> Result<FilterHandle, &'static str> 
+pub fn serializer_filter<TSourceType, TTargetType>() -> Result<Vec<FilterHandle>, &'static str> 
 where
     TSourceType: 'static + SceneMessage,
     TTargetType: 'static + SceneMessage,
@@ -250,7 +250,7 @@ where
 
     if let Some(filter) = filters_for_type.get(&message_type) {
         // Use the existing filter
-        Ok(*filter)
+        Ok(filter.clone())
     } else {
         // Create a new filter
         let typed_serializer = (*TYPED_SERIALIZERS).read().unwrap().get(&(TypeId::of::<TSourceType>(), TypeId::of::<TTargetType>())).cloned();
@@ -269,10 +269,10 @@ where
         });
 
         // Store for future use
-        filters_for_type.insert(message_type, filter_handle);
+        filters_for_type.insert(message_type, vec![filter_handle]);
 
         // Result is the new filter
-        Ok(filter_handle)
+        Ok(vec![filter_handle])
     }
 }
 
@@ -395,8 +395,12 @@ where
         let serialize_filter    = serializer_filter::<TMessageType, SerializedMessage<TSerializer::Ok>>().unwrap();
         let deserialize_filter  = serializer_filter::<SerializedMessage<TSerializer::Ok>, TMessageType>().unwrap();
 
-        self.0.connect_programs(StreamSource::Filtered(serialize_filter), (), StreamId::with_message_type::<TMessageType>()).ok();
-        self.0.connect_programs(StreamSource::Filtered(deserialize_filter), (), StreamId::with_message_type::<SerializedMessage<TSerializer::Ok>>()).ok();
+        for filter in serialize_filter {
+            self.0.connect_programs(StreamSource::Filtered(filter), (), StreamId::with_message_type::<TMessageType>()).ok();
+        }
+        for filter in deserialize_filter {
+            self.0.connect_programs(StreamSource::Filtered(filter), (), StreamId::with_message_type::<SerializedMessage<TSerializer::Ok>>()).ok();
+        }
 
         self
     }
