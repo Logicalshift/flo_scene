@@ -1,6 +1,5 @@
 use crate::error::*;
 use crate::filter::*;
-use crate::output_sink::*;
 use crate::scene::*;
 use crate::scene_context::*;
 use crate::scene_message::*;
