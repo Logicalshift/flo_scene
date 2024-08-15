@@ -550,3 +550,63 @@ impl StreamId {
         }
     }
 }
+
+#[cfg(feature="serde_support")]
+mod serialization {
+    use super::*;
+
+    use serde::*;
+
+    #[derive(Serialize, Deserialize)]
+    enum SerializedStreamId {
+        /// A known serializable type
+        Serializable { type_name: String, target: Option<SubProgramId> },
+
+        /// A Rust type, with the specified type name (note that this name may not be consistent between applications)
+        RustType { type_name: String, target: Option<SubProgramId> },
+    }
+
+    impl Serialize for StreamId {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let serialized = if let Some(serializable_name) = self.serialization_type_name() {
+                SerializedStreamId::Serializable { type_name: serializable_name, target: self.target_program() }
+            } else {
+                SerializedStreamId::RustType { type_name: self.message_type_name(), target: self.target_program() }
+            };
+
+            serialized.serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for StreamId {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let stream_id = SerializedStreamId::deserialize(deserializer)?;
+
+            match stream_id {
+                SerializedStreamId::Serializable { type_name, target } => {
+                    if let Some(stream_id) = StreamId::with_serialization_type(type_name) {
+                        if let Some(target) = target {
+                            Ok(stream_id.for_target(target))
+                        } else {
+                            Ok(stream_id)
+                        }
+                    } else {
+                        // TODO: generate an error
+                        todo!()
+                    }
+                }
+
+                SerializedStreamId::RustType { type_name, target } => {
+                    // TODO: store, look up this type
+                    todo!()
+                }
+            }
+        }
+    }
+}
