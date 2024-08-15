@@ -63,13 +63,13 @@ mod with_serde_support {
         let json_serializer_filter = serializer_filter::<TestMessage, SerializedMessage<serde_json::Value>>().unwrap();
         json_serializer_filter.into_iter()
             .for_each(|filter|
-                { scene.connect_programs((), StreamTarget::Filtered(filter, serialized_resender), StreamId::with_message_type::<TestMessage>()).unwrap(); });
+                { scene.connect_programs((), StreamTarget::Filtered(filter, serialized_resender), filter.source_stream_id_any().unwrap()).ok(); });
 
         // Create a deserializer to use with the test program
         let json_deserializer_filter = serializer_filter::<SerializedMessage<serde_json::Value>, TestMessage>().unwrap();
         json_deserializer_filter.into_iter()
             .for_each(|filter|
-                { scene.connect_programs((), StreamTarget::Filtered(filter, deserialized_receiver), StreamId::with_message_type::<SerializedMessage<serde_json::value::Value>>()).unwrap(); });
+                { scene.connect_programs((), StreamTarget::Filtered(filter, deserialized_receiver), filter.source_stream_id_any().unwrap()).ok(); });
 
         // Run some tests with a message that gets serialized and deserialized
         TestBuilder::new()
