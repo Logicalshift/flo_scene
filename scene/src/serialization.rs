@@ -252,7 +252,7 @@ where
         // Use the existing filter
         Ok(filter.clone())
     } else {
-        // Create a new filter
+        // Create a filter for converting directly between the types
         let typed_serializer = (*TYPED_SERIALIZERS).read().unwrap().get(&(TypeId::of::<TSourceType>(), TypeId::of::<TTargetType>())).cloned();
         let typed_serializer = if let Some(typed_serializer) = typed_serializer { Ok(typed_serializer) } else { Err("The requested serializers are not installed") }?;
         let typed_serializer = if let Ok(typed_serializer) = typed_serializer.downcast::<Box<dyn Send + Sync + Fn(TSourceType) -> Result<TTargetType, TSourceType>>>() { 
@@ -261,18 +261,31 @@ where
             Err("Could not properly resolve the type of the requested serializer")
         }?;
 
-        // Create a filter that uses the stored serializer
-        let filter_handle = FilterHandle::for_filter(move |input_messages| {
-            let typed_serializer = Arc::clone(&typed_serializer);
+        // Create a filter that uses the stored serializer to serialize messages of this type
+        let raw_type_serializer = typed_serializer.clone();
+        let filter_raw_type = FilterHandle::for_filter(move |input_messages| {
+            let raw_type_serializer = Arc::clone(&raw_type_serializer);
 
-            input_messages.flat_map(move |msg| stream::iter((*typed_serializer)(msg).ok()))
+            input_messages.flat_map(move |msg| stream::iter((*raw_type_serializer)(msg).ok()))
+        });
+
+        // Create a filter that uses the stored serializer to modify query responses of this type
+        let query_type_serializer = typed_serializer.clone();
+        let filter_query_responses = FilterHandle::for_filter(move |input_messages| {
+            let query_type_serializer = Arc::clone(&query_type_serializer);
+
+            input_messages.map(move |response: QueryResponse<TSourceType>| {
+                let query_type_serializer = Arc::clone(&query_type_serializer);
+                let responses = response.flat_map(move |msg| stream::iter((*query_type_serializer)(msg).ok()));
+                QueryResponse::with_stream(responses.boxed())
+            })
         });
 
         // Store for future use
-        filters_for_type.insert(message_type, vec![filter_handle]);
+        filters_for_type.insert(message_type, vec![filter_raw_type, filter_query_responses]);
 
         // Result is the new filter
-        Ok(vec![filter_handle])
+        Ok(vec![filter_raw_type, filter_query_responses])
     }
 }
 
