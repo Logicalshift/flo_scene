@@ -29,7 +29,7 @@ pub enum SubscribeArguments {
 ///
 pub fn command_subscribe(input: SubscribeArguments, context: SceneContext) -> impl Future<Output=CommandResponse> {
     async move {
-        // Get the stream ID for the message and the query type
+        // Get the stream ID for the message and the subscription type
         let type_name = match &input {
             SubscribeArguments::Type(type_name)                 => type_name.clone(),
             SubscribeArguments::SubProgram { type_name, .. }    => type_name.clone(),
