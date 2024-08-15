@@ -259,7 +259,7 @@ impl FilterHandle {
     ///
     /// Returns the stream ID for the source of this filter
     ///
-    pub (crate) fn source_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
+    pub fn source_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
         let source_stream_id = SOURCE_STREAM_ID.read().unwrap();
         let source_stream_id = source_stream_id.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
 
@@ -269,7 +269,7 @@ impl FilterHandle {
     ///
     /// Returns the stream ID for the target of this filter
     ///
-    pub (crate) fn target_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
+    pub fn target_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
         let stream_id_for_target    = STREAM_ID_FOR_TARGET.read().unwrap();
         let create_stream_id        = stream_id_for_target.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
 
