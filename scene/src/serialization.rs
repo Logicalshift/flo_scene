@@ -409,10 +409,10 @@ where
         let deserialize_filter  = serializer_filter::<SerializedMessage<TSerializer::Ok>, TMessageType>().unwrap();
 
         for filter in serialize_filter {
-            self.0.connect_programs(StreamSource::Filtered(filter), (), StreamId::with_message_type::<TMessageType>()).ok();
+            self.0.connect_programs(StreamSource::Filtered(filter), (), filter.source_stream_id_any().unwrap()).ok();
         }
         for filter in deserialize_filter {
-            self.0.connect_programs(StreamSource::Filtered(filter), (), StreamId::with_message_type::<SerializedMessage<TSerializer::Ok>>()).ok();
+            self.0.connect_programs(StreamSource::Filtered(filter), (), filter.source_stream_id_any().unwrap()).ok();
         }
 
         self
