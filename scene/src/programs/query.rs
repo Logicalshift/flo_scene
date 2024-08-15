@@ -68,6 +68,15 @@ impl<TResponseData: Send> Stream for QueryResponse<TResponseData> {
     }
 }
 
+impl<TResponseData: 'static + Send> QueryResponse<TResponseData> {
+    ///
+    /// Maps this response to a new type
+    ///
+    pub fn map_response<TMapTarget: Send>(self, map_fn: impl 'static + Send + Fn(TResponseData) -> TMapTarget) -> QueryResponse<TMapTarget> {
+        QueryResponse(self.0.map(map_fn).boxed())
+    }
+}
+
 impl<TResponseData: 'static + Send + Unpin> Query<TResponseData> {
     ///
     /// Creates a query message that will send its response to the specified target
