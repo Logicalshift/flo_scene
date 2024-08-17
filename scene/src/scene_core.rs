@@ -82,6 +82,9 @@ pub (crate) struct SceneCore {
     /// True if the next time the scene becomes entirely idle, we should notify one of the waiting streams
     notify_when_idle: bool,
 
+    /// The current idle count (idle notifications include this)
+    idle_count: usize,
+
     /// Streams to send on when the input streams and core all become idle (borrowed when we're waiting for them to send)
     when_idle: Vec<Option<mpsc::Sender<()>>>,
 
@@ -109,6 +112,7 @@ impl SceneCore {
             thread_wakers:              vec![],
             stopped:                    false,
             notify_when_idle:           false,
+            idle_count:                 0,
             when_idle:                  vec![],
             updates:                    None,
         }
@@ -1069,10 +1073,14 @@ impl SceneCore {
     ///
     /// The core will send a notification next time it's idle
     ///
-    pub (crate) fn notify_on_next_idle(core: &Arc<Mutex<SceneCore>>) {
-        let mut core = core.lock().unwrap();
+    /// The returned value is the idle count: notifications should be sent with this set to a higher value
+    ///
+    pub (crate) fn notify_on_next_idle(core: &Arc<Mutex<SceneCore>>) -> usize {
+        let mut core        = core.lock().unwrap();
+        let mut idle_count  = core.idle_count;
 
         core.notify_when_idle = true;
+        idle_count
     }
 
     ///
@@ -1120,12 +1128,15 @@ impl SceneCore {
         if all_inputs_idle && all_processes_idle {
             let mut locked_core = core.lock().unwrap();
 
+            locked_core.idle_count += 1;
+
             if !locked_core.notify_when_idle {
                 // Some other thread has presumably notified
                 return false;
             }
 
-            // We're going to notify, so prevent other threads from reaching this point
+            // Claim the notification, and also note the idle count that we'll send to the listeners
+            let idle_count = locked_core.idle_count;
             locked_core.notify_when_idle = false;
 
             // Get the notifiers from the core
