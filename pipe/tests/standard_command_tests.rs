@@ -49,6 +49,8 @@ where
         let mut socket_program = context.send(internal_socket_id).unwrap();
         socket_program.send(InternalSocketMessage::CreateInternalSocket(Box::new(command_input), Box::new(command_output))).await.ok().unwrap();
 
+        let context = &context;
+
         // Future that writes the commands
         let write_side = async move {
             println!("In: {}", commands);
@@ -59,6 +61,8 @@ where
             write_command.write_all(&commands.bytes().collect::<Vec<u8>>()).await.unwrap();
 
             println!("Sent all");
+
+            context.wait_for_idle(100).await;
 
             write_command.flush().await.unwrap();
             write_command.shutdown().await.unwrap();
@@ -139,5 +143,55 @@ fn echo_command() {
     // Create a test program that receives the TestSucceeded message
     TestBuilder::new()
         .expect_message(|_: TestSucceeded| Ok(()))
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+fn subscribe_command() {
+    let scene               = Scene::default().with_standard_json_commands();
+    let internal_socket     = SubProgramId::called("send_internal_socket");
+    let subscribe_program   = SubProgramId::called("subscribe_program");
+    let test_program        = SubProgramId::called("send_test_program");
+
+    // The message we send for the subscription
+    #[derive(Serialize, Deserialize, Debug)]
+    struct SubscribeCommandTestMessage {
+        text: String,
+    }
+
+    impl SceneMessage for SubscribeCommandTestMessage { }
+ 
+    scene.with_serializer(|| serde_json::value::Serializer)
+        .with_serializable_type::<SubscribeCommandTestMessage>("test::SubscribeCommandTestMessage")
+        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+
+    // Create a program that we can subscribe to
+    scene.add_subprogram(subscribe_program, |input, context| async move {
+        let mut input           = input;
+        let mut subscription    = EventSubscribers::<SubscribeCommandTestMessage>::new();
+
+        while let Some(req) = input.next().await {
+            let req: Subscribe<SubscribeCommandTestMessage> = req;
+
+            subscription.subscribe(&context, req.target());
+            subscription.send_round_robin(SubscribeCommandTestMessage { text: "Test".into() }).await.ok();
+        }
+    }, 0);
+
+    scene.connect_programs((), subscribe_program, StreamId::with_message_type::<Subscribe<SubscribeCommandTestMessage>>()).unwrap();
+
+    // Test case is to ask to subscribe to the program we just created, and check for the results arriving back again
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#"subscribe { "Type": "test::SubscribeCommandTestMessage" }
+        "#, 
+        |msg, _| async move {
+            // We're hard-coding the JSON formatting here which might not always be consistent (many formats can communicate the same message)
+            assert!(msg.contains("\n<<< 0\n"));
+            assert!(msg.contains("\n<0 {\n  \"text\": \"Test\"\n}\n"));
+        });
+
+    // Create a test program that receives the TestSucceeded message
+    TestBuilder::new()
         .run_in_scene(&scene, test_program);
 }
