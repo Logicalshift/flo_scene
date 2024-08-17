@@ -369,13 +369,17 @@ impl SceneContext {
                 // Wait for the scene to become idle
                 let (send, recv) = mpsc::channel(1);
                 SceneCore::send_idle_notifications_to(&scene_core, send);
-                SceneCore::notify_on_next_idle(&scene_core);
+                let idle_count = SceneCore::notify_on_next_idle(&scene_core);
 
                 // Trigger a check immediately
                 SceneCore::check_if_idle(&scene_core);
 
                 let mut when_idle = recv;
-                when_idle.next().await;
+                while let Some(current_count) = when_idle.next().await {
+                    if current_count >= idle_count {
+                        break;
+                    }
+                }
 
                 // No longer waiting
                 mem::drop(we_are_waiting);
