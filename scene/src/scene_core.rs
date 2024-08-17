@@ -1079,7 +1079,10 @@ impl SceneCore {
         let mut core        = core.lock().unwrap();
         let idle_count      = core.idle_count;
 
-        core.notify_when_idle = true;
+        // Specify that we should notify when idle, and increase the idle count to avoid a potential race where an 'old' idle notification might interfere with this one
+        core.notify_when_idle   = true;
+        core.idle_count         += 1;
+
         idle_count
     }
 
@@ -1090,13 +1093,18 @@ impl SceneCore {
         use std::mem;
 
         // Fetch the active input streams from the core (or stop, if we're not notifying)
+        let idle_count;
         let sub_program_inputs = {
-            let core = core.lock().unwrap();
+            let mut core = core.lock().unwrap();
 
             if !core.notify_when_idle {
                 // Give up quickly if the core is not waiting for a notification
                 return false;
             }
+
+            // Increase the idle count so that future 
+            core.idle_count += 1;
+            idle_count = core.idle_count;
 
             core.sub_program_inputs
                 .iter()
@@ -1128,7 +1136,14 @@ impl SceneCore {
         if all_inputs_idle && all_processes_idle {
             let mut locked_core = core.lock().unwrap();
 
-            locked_core.idle_count += 1;
+            if locked_core.idle_count != idle_count {
+                // Something else has notified or requested an idle notification, so this thread is no longer checking for a 'live' idle message
+                //
+                // Guards against a couple of races:
+                //  * inputs might have become populated again since the check above as the core is not locked
+                //  * the idle notification might have triggered a new notification requests before all the threads have finished checking for idleness so we get a 'stale' notification
+                return false;
+            }
 
             if !locked_core.notify_when_idle {
                 // Some other thread has presumably notified
@@ -1136,7 +1151,6 @@ impl SceneCore {
             }
 
             // Claim the notification, and also note the idle count that we'll send to the listeners
-            let idle_count = locked_core.idle_count;
             locked_core.notify_when_idle = false;
 
             // Get the notifiers from the core
