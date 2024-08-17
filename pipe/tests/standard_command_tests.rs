@@ -195,3 +195,59 @@ fn subscribe_command() {
     TestBuilder::new()
         .run_in_scene(&scene, test_program);
 }
+
+#[test]
+fn query_command() {
+    let scene               = Scene::default().with_standard_json_commands();
+    let internal_socket     = SubProgramId::called("send_internal_socket");
+    let query_program       = SubProgramId::called("query_program");
+    let test_program        = SubProgramId::called("send_test_program");
+
+    // The message we send for the query
+    #[derive(Serialize, Deserialize, Debug)]
+    struct QueryCommandTestMessage {
+        text: String,
+    }
+
+    impl SceneMessage for QueryCommandTestMessage { }
+ 
+    scene.with_serializer(|| serde_json::value::Serializer)
+        .with_serializable_type::<QueryCommandTestMessage>("test::QueryCommandTestMessage")
+        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+
+    // Create a program that we can query
+    scene.add_subprogram(query_program, |input, context| async move {
+        let mut input           = input;
+
+        while let Some(req) = input.next().await {
+            let req: Query<QueryCommandTestMessage> = req;
+
+            let response    = QueryResponse::with_iterator(vec![QueryCommandTestMessage { text: "a".into() }, QueryCommandTestMessage { text: "b".into() }]);
+            let mut sender  = context.send(req.target()).unwrap();
+            sender.send(response).await.ok();
+        }
+    }, 0);
+
+    scene.connect_programs((), query_program, StreamId::with_message_type::<Query<QueryCommandTestMessage>>()).unwrap();
+
+    // Test case is to query the program we created
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#"query { "Type": "test::QueryCommandTestMessage" }
+        "#, 
+        |msg, _| async move {
+            // We're hard-coding the JSON formatting here which might not always be consistent (many formats can communicate the same message)
+            assert!(msg.contains(r#"[
+  {
+    "text": "a"
+  },
+  {
+    "text": "b"
+  }
+]"#));
+        });
+
+    // Create a test program that receives the TestSucceeded message
+    TestBuilder::new()
+        .run_in_scene(&scene, test_program);
+}
