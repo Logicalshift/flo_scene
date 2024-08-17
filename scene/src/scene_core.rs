@@ -86,7 +86,7 @@ pub (crate) struct SceneCore {
     idle_count: usize,
 
     /// Streams to send on when the input streams and core all become idle (borrowed when we're waiting for them to send)
-    when_idle: Vec<Option<mpsc::Sender<()>>>,
+    when_idle: Vec<Option<mpsc::Sender<usize>>>,
 
     /// An output core where status updates are sent
     updates: Option<(SubProgramId, Arc<Mutex<OutputSinkCore<SceneUpdate>>>)>,
@@ -1064,7 +1064,7 @@ impl SceneCore {
     ///
     /// Adds a sender to be notified whenever the core is idle
     ///
-    pub (crate) fn send_idle_notifications_to(core: &Arc<Mutex<SceneCore>>, notifier: mpsc::Sender<()>) {
+    pub (crate) fn send_idle_notifications_to(core: &Arc<Mutex<SceneCore>>, notifier: mpsc::Sender<usize>) {
         let mut core = core.lock().unwrap();
 
         core.when_idle.push(Some(notifier));
@@ -1077,7 +1077,7 @@ impl SceneCore {
     ///
     pub (crate) fn notify_on_next_idle(core: &Arc<Mutex<SceneCore>>) -> usize {
         let mut core        = core.lock().unwrap();
-        let mut idle_count  = core.idle_count;
+        let idle_count      = core.idle_count;
 
         core.notify_when_idle = true;
         idle_count
@@ -1152,7 +1152,7 @@ impl SceneCore {
             for (_idx, notifier) in notifiers.iter_mut() {
                 let is_sent = if let Some(notifier) = notifier {
                     // Try to send to this notifier immediately
-                    notifier.try_send(())
+                    notifier.try_send(idle_count)
                 } else {
                     // Notifier is disconnected, or a notification is being sent on another thread
                     Ok(())
