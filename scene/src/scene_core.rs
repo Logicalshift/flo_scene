@@ -1131,7 +1131,7 @@ impl SceneCore {
             // Get the notifiers from the core
             let mut notifiers = locked_core.when_idle.iter_mut()
                 .enumerate()
-                .map(|(idx, notifier)| (idx, notifier.take()))
+                .map(|(idx, notifier)| (idx, notifier.clone()))
                 .collect::<Vec<_>>();
 
             // Unlock the core (sending to the notifiers might call a waker, which might in turn re-lock the core)
@@ -1164,8 +1164,9 @@ impl SceneCore {
             let mut locked_core = core.lock().unwrap();
 
             for (idx, notifier) in notifiers.drain(..) {
-                if let Some(notifier) = notifier {
-                    locked_core.when_idle[idx] = Some(notifier);
+                if notifier.is_none() {
+                    // This notifier was disconnected (or is still disconnected)
+                    locked_core.when_idle[idx] = None;
                 }
             }
 
