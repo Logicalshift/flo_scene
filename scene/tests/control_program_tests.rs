@@ -532,8 +532,8 @@ fn sending_scene_update_to_stopped_program_does_not_block() {
             println!("Finishing subscriber program");
         }, 0);
 
-        scene.connect_programs((), StreamTarget::Filtered(update_filter, subscriber_program), StreamId::with_message_type::<SceneUpdate>()).unwrap();
-        scene.connect_programs((), StreamTarget::Filtered(idle_filter, subscriber_program), StreamId::with_message_type::<IdleNotification>()).unwrap();
+        scene.connect_programs(StreamSource::Filtered(update_filter), (), StreamId::with_message_type::<SceneUpdate>()).unwrap();
+        scene.connect_programs(StreamSource::Filtered(idle_filter), (), StreamId::with_message_type::<IdleNotification>()).unwrap();
 
         // The query program receives the information from the subscription program, and then runs a query to see if the results match (with some known differences)
         #[derive(Debug)]
