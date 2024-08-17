@@ -379,6 +379,9 @@ impl SceneContext {
                     if current_count >= idle_count {
                         break;
                     }
+
+                    // Re-request the notification if we ever get an out-of-date notification (can happen due to a race condition)
+                    SceneCore::notify_on_next_idle(&scene_core);
                 }
 
                 // No longer waiting

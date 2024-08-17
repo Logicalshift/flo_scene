@@ -146,6 +146,12 @@ pub (crate) async fn idle_subprogram(input_stream: InputStream<IdleRequest>, con
                     }
 
                     pending_notifications = new_pending_notifications;
+                    if !pending_notifications.is_empty() {
+                        // Re-request an idle notification if there are any pending requests due to a race condition (this should be very rare)
+                        if let Some(core) = weak_core.upgrade() {
+                            SceneCore::notify_on_next_idle(&core);
+                        }
+                    }
 
                     // Send notifications to everything that's waiting
                     future::join_all(ready_notifications.into_iter()
