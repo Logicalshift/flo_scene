@@ -471,7 +471,7 @@ fn send_message_only_sends_one_connection_notification() {
 
 #[test]
 fn sending_scene_update_to_stopped_program_does_not_block() {
-    for pass_num in 0..100 {
+    for pass_num in 0..1000 {
         println!();
         println!("==== PASS {}", pass_num);
 
@@ -510,10 +510,14 @@ fn sending_scene_update_to_stopped_program_does_not_block() {
             // Read the updates until the scene becomes idle
             let mut input   = input;
             while let Some(update) = input.next().await {
-                println!("Received update");
                 match update {
-                    SubscriberProgramMessage::SceneUpdate(_)        => { },
-                    SubscriberProgramMessage::IdleNotification(_)   => { break; }
+                    SubscriberProgramMessage::SceneUpdate(_)        => {
+                        println!("  --> Scene update");
+                    },
+                    SubscriberProgramMessage::IdleNotification(_)   => { 
+                        println!("  --> Idle notification");
+                        break;
+                    }
                 }
             }
             println!("Now idle");
@@ -550,8 +554,15 @@ fn sending_scene_update_to_stopped_program_does_not_block() {
 
             // Query the current state of the scene (this creates more 'connected' messages which can block the scene control program)
             println!("Querying status...");
-            let query = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).unwrap();
-            let query = query.collect::<HashSet<_>>().await;
+            let mut query = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).unwrap();
+            let mut query_result = HashSet::new();
+
+            while let Some(result) = query.next().await {
+                println!("  Received value from query");
+                query_result.insert(result);
+            }
+
+            let query = query_result;
             println!("Query done: {} updates", query.len());
 
             context.send(test_program_id).unwrap()
