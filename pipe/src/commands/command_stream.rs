@@ -233,6 +233,18 @@ impl CommandRequest {
     }
 }
 
+impl Into<String> for VariableName {
+    fn into(self) -> String {
+        self.0
+    }
+}
+
+impl<'a> Into<String> for &'a VariableName {
+    fn into(self) -> String {
+        self.0.clone()
+    }
+}
+
 ///
 /// Reads data for the command program socket from an input stream
 ///
