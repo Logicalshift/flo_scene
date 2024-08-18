@@ -130,6 +130,7 @@ impl CommandSession {
 
             match request {
                 Command     { command, argument } => { self.run_command(command, argument, &context).await }
+                RawJson     { value }             => { stream::iter(iter::once(CommandResponse::Json(value))).boxed() }
                 Pipe        { from, to }          => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
                 Assign      { variable, from }    => {
                     let request_responses = self.evaluate_request(*from, context).await;

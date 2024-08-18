@@ -44,9 +44,10 @@ pub enum CommandArgument {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CommandRequest {
     Command     { command: CommandName, argument: serde_json::Value },
+    RawJson     { value: serde_json::Value },
     Pipe        { from: Box<CommandRequest>, to: Box<CommandRequest> },
     Assign      { variable: VariableName, from: Box<CommandRequest> },
-    ForTarget   { target: StreamTarget, request: Box<CommandRequest> }
+    ForTarget   { target: StreamTarget, request: Box<CommandRequest> },
 }
 
 ///
