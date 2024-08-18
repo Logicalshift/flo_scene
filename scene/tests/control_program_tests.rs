@@ -749,3 +749,10 @@ fn subscription_events_match_query_messages() {
         })
         .run_in_scene_with_threads(&scene, test_program_id, 5);
 }
+
+#[test]
+fn subscription_events_match_query_messages_times_1000() {
+    for _ in 0..1000 {
+        subscription_events_match_query_messages()
+    }
+}
