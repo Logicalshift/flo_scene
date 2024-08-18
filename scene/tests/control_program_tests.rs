@@ -752,7 +752,11 @@ fn subscription_events_match_query_messages() {
 
 #[test]
 fn subscription_events_match_query_messages_times_1000() {
-    for _ in 0..1000 {
+    for iteration in 0..1000 {
+        println!();
+        println!("*** iteration {}", iteration);
+        println!();
+
         subscription_events_match_query_messages()
     }
 }
