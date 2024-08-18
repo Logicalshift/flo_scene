@@ -147,15 +147,27 @@ impl CommandSession {
         // Retrieve the target for the commands
         let target = self.target.clone();
 
-        // Create the command query
-        let command = JsonCommand::new((), command, parameter, context.current_program_id());
+        // Check for a variable matching this command name
+        let variable_value = {
+            let variables                   = self.variables.lock().unwrap();
+            let CommandName(command_name)   = &command;
+            variables.get(command_name).cloned()
+        };
 
-        // Run the command and retrieve the first response if we can
-        let command_result = context.spawn_query(ReadCommand::default(), command, target);
+        if let Some(variable_value) = variable_value {
+            // Variables replace commands (even with parameters), so if a variable is defined, this is the value
+            stream::iter(iter::once(CommandResponse::Json(variable_value))).boxed()
+        } else {
+            // Create the command query
+            let command = JsonCommand::new((), command, parameter, context.current_program_id());
 
-        match command_result {
-            Err(err)            => stream::iter(iter::once(CommandResponse::Error(format!("Could not send command: {:?}", err)))).boxed(),
-            Ok(result_stream)   => result_stream.boxed()
+            // Run the command and retrieve the first response if we can
+            let command_result = context.spawn_query(ReadCommand::default(), command, target);
+
+            match command_result {
+                Err(err)            => stream::iter(iter::once(CommandResponse::Error(format!("Could not send command: {:?}", err)))).boxed(),
+                Ok(result_stream)   => result_stream.boxed()
+            }
         }
     }
 
