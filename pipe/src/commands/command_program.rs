@@ -184,7 +184,7 @@ impl CommandSession {
                 match response {
                     Some(CommandResponse::Json(value)) => {
                         // Assign this value to the variable
-                        yield_value(CommandResponse::Message(format!("Result assigned to {}", variable))).await;
+                        yield_value(CommandResponse::Message(format!("Result assigned to `{}`", variable))).await;
                         self.variables.lock().unwrap().insert(variable, value);
                         break;
                     }
