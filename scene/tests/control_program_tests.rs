@@ -688,6 +688,8 @@ fn subscription_events_match_query_messages() {
         let query = query.collect::<HashSet<_>>().await;
         println!("Query done: {} updates", query.len());
 
+        assert!(query.len() > 0, "Query had 0 updates");
+
         let added_updates   = query.iter().filter(|msg| !updates.contains(*msg)).cloned().collect::<Vec<_>>();
         let removed_updates = updates.iter().filter(|msg| !query.contains(*msg)).cloned().collect::<Vec<_>>();
         let same_updates    = query.iter().filter(|msg| updates.contains(msg)).cloned().collect::<Vec<_>>();
