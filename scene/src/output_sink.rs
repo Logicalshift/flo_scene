@@ -186,6 +186,25 @@ where
     }
 
     ///
+    /// Returns true if this output sink is discarding its output (you can send to it, but nothing will receive the message)
+    ///
+    pub fn is_discarding(&self) -> bool {
+        // Retrieve the input core. If it's 'discard' this counts as attached as the message will be 'delivered' (to oblivion)
+        // Disconnected streams will generally block - nothing is processing their messages - so we report them as unattached
+        match &self.core.lock().unwrap().target {
+            OutputSinkTarget::Discard   => true,
+            _                           => false,
+        }
+    }
+
+    ///
+    /// Returns the program where this output sink is sending its data to, or None if the sink is disconnected or discarding its output
+    ///
+    pub fn target_program_id(&self) -> Option<SubProgramId> {
+        OutputSinkCore::target_program_id(&self.core)
+    }
+
+    ///
     /// Sends a message in immediate mode
     ///
     /// If the target input stream supports thread stealing, this may dispatch the message by running that program
