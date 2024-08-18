@@ -620,7 +620,7 @@ fn subscription_events_match_query_messages() {
         while let Some(update) = input.next().await {
             match update {
                 SubscriberProgramMessage::IdleNotification(_) => { break; }
-                _ => { }
+                SubscriberProgramMessage::SceneUpdate(update) => { panic!("Unexcepted scene update (not subscribed yet): {:?}", update); }
             }
         }
 
