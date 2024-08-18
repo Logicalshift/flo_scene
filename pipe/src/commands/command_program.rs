@@ -7,8 +7,11 @@ use flo_scene::*;
 use flo_scene::commands::*;
 use flo_scene::programs::*;
 
+use flo_stream::*;
+
 use futures::prelude::*;
 use futures::{pin_mut};
+use futures::future::{BoxFuture};
 use futures::stream::{BoxStream};
 use once_cell::sync::{Lazy};
 
@@ -119,9 +122,28 @@ impl CommandSession {
     }
 
     ///
+    /// Evaluates a command request in this session
+    ///
+    pub fn evaluate_request<'a>(&'a self, request: CommandRequest, context: &'a SceneContext) -> BoxFuture<'a, BoxStream<'a, CommandResponse>> {
+        async move {
+            use CommandRequest::*;
+
+            match request {
+                Command     { command, argument } => { self.run_command(command, argument, &context).await }
+                Pipe        { from, to }          => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
+                Assign      { variable, from }    => {
+                    let request_responses = self.evaluate_request(*from, context).await;
+                    self.assign(variable, request_responses).await
+                }
+                ForTarget   { target, request }   => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
+            }
+        }.boxed()
+    }
+
+    ///
     /// Runs a command, returning the response
     ///
-    pub async fn run_command(&self, command: CommandName, parameter: serde_json::Value, context: &SceneContext) -> BoxStream<'static, CommandResponse> {
+    pub async fn run_command<'a>(&'a self, command: CommandName, parameter: serde_json::Value, context: &SceneContext) -> BoxStream<'a, CommandResponse> {
         // Retrieve the target for the commands
         let target = self.target.clone();
 
@@ -138,11 +160,66 @@ impl CommandSession {
     }
 
     ///
+    /// Assigns the result of a response stream to a variable, returning a stream of results to pass on to the user or the next stage
+    ///
+    /// There are two types of response that can be assigned to a variable:
+    ///
+    ///   * A JSON result will just assign that value straight to the variable
+    ///   * A JSON stream will initially assign 'null' to the variable and then assign whatever is the most recent message to the variable (so this can be used to 
+    ///     represent an updating state). A message is generated to indicate that this has happened.
+    ///
+    /// Errors will short-circuit the assignment (ie, we'll display the error and any results will be left out)
+    ///
+    pub async fn assign<'a>(&'a self, variable: impl Into<String>, response: BoxStream<'a, CommandResponse>) -> BoxStream<'a, CommandResponse> {
+        let variable = variable.into();
+
+        // The assignment happens when the response reader reaches the appropriate point
+        generator_stream(move |yield_value| async move {
+            let mut responses = response;
+
+            // Read until we can assign a variable
+            loop {
+                let response = responses.next().await;
+
+                match response {
+                    Some(CommandResponse::Json(value)) => {
+                        // Assign this value to the variable
+                        yield_value(CommandResponse::Message(format!("Result assigned to {}", variable))).await;
+                        self.variables.lock().unwrap().insert(variable, value);
+                        break;
+                    }
+
+                    Some(CommandResponse::Error(err)) => {
+                        // If an error is generated before we get an assignment to make, 
+                        yield_value(CommandResponse::Error(err)).await;
+                        break;
+                    }
+
+                    Some(response) => {
+                        // Default behaviour is to yield the response and carry out
+                        yield_value(response).await;
+                    }
+
+                    None => {
+                        // No value to assign: report an error and abort
+                        yield_value(CommandResponse::Error("Command did not generate a value that can be assigned to this variable".into())).await;
+                        return;
+                    }
+                }
+            }
+
+            // The variable is assigned or the assignment was aborted: all other responses are yielded directly
+            while let Some(response) = responses.next().await {
+                yield_value(response).await;
+            }
+        }).boxed()
+    }
+
+    ///
     /// Runs the command session program
     ///
     pub fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=CommandSessionRequest>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         // Set up the session state
-        let run_variables   = Arc::clone(&self.variables);
         let input_variables = Arc::clone(&self.variables);
         let run_context     = context;
         let input_context   = run_context.clone();
@@ -153,18 +230,10 @@ impl CommandSession {
         // Create a future that runs the commands received from the socket
         let run_commands = async move {
             let context     = run_context;
-            let variables   = run_variables;
 
             while let Ok(next_command) = socket.next_request().await {
-                use CommandRequest::*;
-
                 // Read the next command and decide on the response
-                let command_responses = match next_command {
-                    Command     { command, argument } => { self.run_command(command, argument, &context).await }
-                    Pipe        { from, to }          => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
-                    Assign      { variable, from }    => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
-                    ForTarget   { target, request }   => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
-                };
+                let command_responses = self.evaluate_request(next_command, &context).await;
 
                 // Send the responses to the socket
                 if socket.send_responses(command_responses).await.is_err() {
