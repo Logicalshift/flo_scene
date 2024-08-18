@@ -12,6 +12,9 @@ pub enum CommandToken {
     /// Specifies which command to call
     Command,
 
+    /// A variable name
+    Variable,
+
     /// The '|' symbol, used to send the output of one command to another
     Pipe,
 
@@ -115,6 +118,7 @@ impl TokenMatcher<CommandToken> for CommandToken {
     fn try_match(&self, lookahead: &'_ str, eof: bool) -> TokenMatchResult<CommandToken> {
         match self {
             CommandToken::Command   => match_command(lookahead, eof),
+            CommandToken::Variable  => match_variable(lookahead, eof),
             CommandToken::Comment   => match_command_comment(lookahead, eof),
             CommandToken::Pipe      => if lookahead.starts_with("|") { TokenMatchResult::Matches(CommandToken::Pipe, 1) } else { TokenMatchResult::LookaheadCannotMatch },
             CommandToken::SemiColon => if lookahead.starts_with(";") { TokenMatchResult::Matches(CommandToken::SemiColon, 1) } else { TokenMatchResult::LookaheadCannotMatch },
@@ -155,6 +159,7 @@ impl<TStream> Tokenizer<CommandToken, TStream> {
         self
             .with_json_matchers()
             .with_matcher(CommandToken::Command)
+            .with_matcher(CommandToken::Variable)
             .with_matcher(CommandToken::Comment)
             .with_matcher(CommandToken::Pipe)
             .with_matcher(CommandToken::SemiColon)
@@ -166,7 +171,7 @@ impl<TStream> Tokenizer<CommandToken, TStream> {
 }
 
 ///
-/// Matches against the command syntax
+/// Matches against the command token
 ///
 fn match_command(lookahead: &str, eof: bool) -> TokenMatchResult<CommandToken> {
     let mut characters = lookahead.chars();
@@ -193,6 +198,48 @@ fn match_command(lookahead: &str, eof: bool) -> TokenMatchResult<CommandToken> {
 
             if eof {
                 TokenMatchResult::Matches(CommandToken::Command, len)
+            } else {
+                TokenMatchResult::LookaheadIsPrefix
+            }
+        } else {
+            // Not a command
+            TokenMatchResult::LookaheadCannotMatch
+        }
+    } else {
+        TokenMatchResult::LookaheadCannotMatch
+    }
+}
+
+///
+/// Matches against the variable token
+///
+/// Variables are `:name`, `$name` or `_name`
+///
+fn match_variable(lookahead: &str, eof: bool) -> TokenMatchResult<CommandToken> {
+    let mut characters = lookahead.chars();
+    let mut len = 0;
+
+    if let Some(first_chr) = characters.next() {
+        if first_chr == ':' || first_chr == '$' || first_chr == '_' {
+            // Will match a command of some description
+            len += 1;
+
+            while let Some(next_chr) = characters.next() {
+                if next_chr.is_alphabetic() || next_chr.is_digit(10) || next_chr == '_' || next_chr == ':' {
+                    // Is a valid continuation
+                } else {
+                    if len > 1 {
+                        return TokenMatchResult::Matches(CommandToken::Variable, len);
+                    } else {
+                        return TokenMatchResult::LookaheadCannotMatch;
+                    }
+                }
+
+                len += 1;
+            }
+
+            if eof {
+                TokenMatchResult::Matches(CommandToken::Variable, len)
             } else {
                 TokenMatchResult::LookaheadIsPrefix
             }
@@ -276,18 +323,9 @@ where
 
             if let Some(lookahead) = lookahead {
                 match lookahead.token {
-                    Some(CommandToken::Newline) => { parser.skip_token(); }
-                    Some(CommandToken::Command) => { 
-                        // Can be 'Command <argument>' or 'Variable = Command'
-                        let following = parser.lookahead(1, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
-
-                        match following.as_ref().and_then(|following| following.token) {
-                            Some(CommandToken::Equals)  => command_parse_assignment(parser, tokenizer).await?,
-                            _                           => command_parse_command(parser, tokenizer).await?
-                        }
-
-                        break Ok(()); 
-                    }
+                    Some(CommandToken::Newline)  => { parser.skip_token(); }
+                    Some(CommandToken::Command)  => { command_parse_command(parser, tokenizer).await?; break Ok(()); }
+                    Some(CommandToken::Variable) => { command_parse_assignment(parser, tokenizer).await?; break Ok(()); }
 
                     _ => { break Err(lookahead.into()); }
                 }
@@ -344,7 +382,7 @@ where
                 })?;
             }
 
-            // TODO: command can have no arguments and be followed by a pipe or an equals
+            // TODO: command can have no arguments and be followed by a pipe
 
             _ => { return Err(maybe_argument.into()); }
         }
@@ -370,7 +408,7 @@ where
     let command = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
 
     // This should be a sanity check, as the lookahead should already be checked
-    if command.as_ref().and_then(|cmd| cmd.token) != Some(CommandToken::Command) {
+    if command.as_ref().and_then(|cmd| cmd.token) != Some(CommandToken::Variable) {
         return Err(CommandParseError::UnexpectedToken(command.clone().and_then(|cmd| cmd.token), command.map(|cmd| cmd.fragment.clone()).unwrap_or(String::new())));
     }
 
@@ -454,6 +492,51 @@ mod test {
     fn match_command_with_following_whitespace() {
         let match_result = match_command("test \n", false);
         assert!(match_result == TokenMatchResult::Matches(CommandToken::Command, "test".chars().count()), "{:?}", match_result);
+    }
+
+    #[test]
+    fn tokenize_variable_1() {
+        let variable        = ":variable";
+        let mut tokenizer   = Tokenizer::new(stream::iter(variable.bytes()).ready_chunks(2));
+
+        tokenizer.with_command_matchers();
+        let variable_token = executor::block_on(async { command_read_token(&mut tokenizer).await });
+
+        assert!(variable_token.is_some());
+        let variable_token = variable_token.unwrap();
+
+        assert!(variable_token.token == Some(CommandToken::Variable), "{:?}", variable_token);
+        assert!(variable_token.fragment == ":variable", "{:?}", variable_token);
+    }
+
+    #[test]
+    fn tokenize_variable_2() {
+        let variable        = "$variable";
+        let mut tokenizer   = Tokenizer::new(stream::iter(variable.bytes()).ready_chunks(2));
+
+        tokenizer.with_command_matchers();
+        let variable_token = executor::block_on(async { command_read_token(&mut tokenizer).await });
+
+        assert!(variable_token.is_some());
+        let variable_token = variable_token.unwrap();
+
+        assert!(variable_token.token == Some(CommandToken::Variable), "{:?}", variable_token);
+        assert!(variable_token.fragment == "$variable", "{:?}", variable_token);
+    }
+
+    #[test]
+    fn tokenize_variable_3() {
+        let variable        = ":variable = ";
+        let mut tokenizer   = Tokenizer::new(stream::iter(variable.bytes()).ready_chunks(2));
+
+        tokenizer.with_command_matchers();
+        let variable_token = executor::block_on(async { command_read_token(&mut tokenizer).await });
+
+        assert!(variable_token.is_some());
+        let variable_token = variable_token.unwrap();
+
+        assert!(variable_token.token == Some(CommandToken::Variable), "{:?}", variable_token);
+        assert!(variable_token.fragment == ":variable", "{:?}", variable_token);
     }
 
     #[test]
@@ -633,7 +716,7 @@ mod test {
 
     #[test]
     fn parse_command_assignment() {
-        let assignment      = stream::iter(r#"variable = some_command [ 1, 2, 3, 4 ]"#.bytes()).ready_chunks(2);
+        let assignment      = stream::iter(r#":variable = some_command [ 1, 2, 3, 4 ]"#.bytes()).ready_chunks(2);
         let mut tokenizer   = Tokenizer::new(assignment);
         let mut parser      = Parser::new();
 
@@ -644,7 +727,7 @@ mod test {
             let result = parser.finish().unwrap();
 
             assert!(result == CommandRequest::Assign {
-                variable:   VariableName("variable".into()),
+                variable:   VariableName(":variable".into()),
                 from:       Box::new(CommandRequest::Command { command: CommandName("some_command".to_string()), argument: json!{[1, 2, 3, 4]} })
             });
         });
