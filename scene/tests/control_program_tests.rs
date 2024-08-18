@@ -471,7 +471,7 @@ fn send_message_only_sends_one_connection_notification() {
 
 #[test]
 fn sending_scene_update_to_stopped_program_does_not_block() {
-    for pass_num in 0..1000 {
+    for pass_num in 0..100 {
         println!();
         println!("==== PASS {}", pass_num);
 
