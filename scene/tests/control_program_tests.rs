@@ -657,7 +657,7 @@ fn subscription_events_match_query_messages() {
     }, 0);
 
     scene.connect_programs(StreamSource::Filtered(update_filter), (), StreamId::with_message_type::<SceneUpdate>().for_target(subscriber_program)).unwrap();
-    scene.connect_programs(StreamSource::Filtered(idle_filter), subscriber_program, StreamId::with_message_type::<IdleNotification>()).unwrap();
+    scene.connect_programs(StreamSource::Filtered(idle_filter), subscriber_program, StreamId::with_message_type::<IdleNotification>().for_target(subscriber_program)).unwrap();
 
     // The query program receives the information from the subscription program, and then runs a query to see if the results match (with some known differences)
     #[derive(Debug)]
