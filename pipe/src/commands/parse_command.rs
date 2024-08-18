@@ -325,7 +325,17 @@ where
                 match lookahead.token {
                     Some(CommandToken::Newline)  => { parser.skip_token(); }
                     Some(CommandToken::Command)  => { command_parse_command(parser, tokenizer).await?; break Ok(()); }
-                    Some(CommandToken::Variable) => { command_parse_assignment(parser, tokenizer).await?; break Ok(()); }
+                    Some(CommandToken::Variable) => { 
+                        let maybe_equals = parser.lookahead(1, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
+
+                        if maybe_equals.as_ref().and_then(|eqls| eqls.token) == Some(CommandToken::Equals) {
+                            command_parse_assignment(parser, tokenizer).await?; 
+                            break Ok(());
+                        } else {
+                            command_parse_command(parser, tokenizer).await?;
+                            break Ok(());
+                        }
+                    }
 
                     _ => { break Err(lookahead.into()); }
                 }
@@ -730,6 +740,22 @@ mod test {
                 variable:   VariableName(":variable".into()),
                 from:       Box::new(CommandRequest::Command { command: CommandName("some_command".to_string()), argument: json!{[1, 2, 3, 4]} })
             });
+        });
+    }
+
+    #[test]
+    fn parse_variable_command() {
+        let assignment      = stream::iter(r#"$variable"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(assignment);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Command { command: CommandName("$variable".to_string()), argument: serde_json::Value::Null }, "{:?}", result);
         });
     }
 }
