@@ -2,6 +2,7 @@ use super::command_stream::*;
 use crate::parser::*;
 
 use futures::prelude::*;
+use futures::future::{BoxFuture};
 
 ///
 /// Tokens from the command stream
@@ -265,30 +266,41 @@ where
 ///
 /// Parses a command from an input stream
 ///
-pub async fn command_parse<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), CommandParseError> 
+pub fn command_parse<'a, TStream>(parser: &'a mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &'a mut Tokenizer<CommandToken, TStream>) -> BoxFuture<'a, Result<(), CommandParseError>>
 where
     TStream: Send + Stream<Item=Vec<u8>>,
 {
-    loop {
-        let lookahead = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
+    async move {
+        loop {
+            let lookahead = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
 
-        if let Some(lookahead) = lookahead {
-            match lookahead.token {
-                Some(CommandToken::Newline) => { parser.skip_token(); }
-                Some(CommandToken::Command) => { command_parse_command(parser, tokenizer).await?; break Ok(()); }
+            if let Some(lookahead) = lookahead {
+                match lookahead.token {
+                    Some(CommandToken::Newline) => { parser.skip_token(); }
+                    Some(CommandToken::Command) => { 
+                        // Can be 'Command <argument>' or 'Variable = Command'
+                        let following = parser.lookahead(1, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
 
-                _ => { break Err(lookahead.into()); }
+                        match following.as_ref().and_then(|following| following.token) {
+                            Some(CommandToken::Equals)  => command_parse_assignment(parser, tokenizer).await?,
+                            _                           => command_parse_command(parser, tokenizer).await?
+                        }
+
+                        break Ok(()); 
+                    }
+
+                    _ => { break Err(lookahead.into()); }
+                }
+            } else {
+                // No symbol
+                break Err(CommandParseError::ExpectedMoreInput);
             }
-        } else {
-            // No symbol
-            break Err(CommandParseError::ExpectedMoreInput);
         }
-    }
+    }.boxed()
 }
 
 ///
 /// Parses a command, at the point where the lookahead contains the 'Command' token
-///
 ///
 async fn command_parse_command<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), CommandParseError>
 where
@@ -344,6 +356,49 @@ where
         })?;
     }
 
+    Ok(())
+}
+
+///
+/// Parses a 'Variable = <value>' assignment command
+///
+async fn command_parse_assignment<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), CommandParseError>
+where
+    TStream: Send + Stream<Item=Vec<u8>>,
+{
+    // Lookahead should be 'command ='
+    let command = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
+
+    // This should be a sanity check, as the lookahead should already be checked
+    if command.as_ref().and_then(|cmd| cmd.token) != Some(CommandToken::Command) {
+        return Err(CommandParseError::UnexpectedToken(command.clone().and_then(|cmd| cmd.token), command.map(|cmd| cmd.fragment.clone()).unwrap_or(String::new())));
+    }
+
+    let equals = parser.lookahead(1, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
+    if equals.as_ref().and_then(|equals| equals.token) != Some(CommandToken::Equals) {
+        return Err(CommandParseError::UnexpectedToken(equals.clone().and_then(|equals| equals.token), equals.map(|equals| equals.fragment.clone()).unwrap_or(String::new())));
+    }
+
+    // Accept the 'command =' tokens
+    parser.accept_token()?;
+    parser.accept_token()?;
+
+    // Should be followed by another command
+    command_parse(parser, tokenizer).await?;
+
+    // Reduce as a variable assignment
+    parser.reduce(3, |mut assignment| {
+        let command     = assignment.pop().unwrap();
+        let _equals     = assignment.pop().unwrap();
+        let variable    = assignment.pop().unwrap();
+
+        CommandRequest::Assign {
+            variable:   VariableName(variable.to_token().unwrap().fragment),
+            from:       Box::new(command.to_node().unwrap())
+        }
+    })?;
+
+    // Matched
     Ok(())
 }
 
@@ -573,6 +628,25 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
             assert!(result == CommandRequest::Command { command: CommandName("and_another".to_string()), argument: json!{["Hello"]} });
+        });
+    }
+
+    #[test]
+    fn parse_command_assignment() {
+        let assignment      = stream::iter(r#"variable = some_command [ 1, 2, 3, 4 ]"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(assignment);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Assign {
+                variable:   VariableName("variable".into()),
+                from:       Box::new(CommandRequest::Command { command: CommandName("some_command".to_string()), argument: json!{[1, 2, 3, 4]} })
+            });
         });
     }
 }
