@@ -337,6 +337,21 @@ where
                         }
                     }
 
+                    Some(CommandToken::Json(_)) => {
+                        // Convert to a JSON parser
+                        let mut json_parser = Parser::with_lookahead_from(parser);
+                        json_parse_value(&mut json_parser, tokenizer).await?;
+
+                        // Restore any lookahead to the original parser
+                        parser.take_lookahead_from(&mut json_parser);
+
+                        // Fetch the JSON value for the argument
+                        let json_value = json_parser.finish()?;
+                        parser.reduce(0, |_| CommandRequest::RawJson { value: json_value })?;
+
+                        break Ok(());
+                    }
+
                     _ => { break Err(lookahead.into()); }
                 }
             } else {
@@ -745,8 +760,8 @@ mod test {
 
     #[test]
     fn parse_variable_command() {
-        let assignment      = stream::iter(r#"$variable"#.bytes()).ready_chunks(2);
-        let mut tokenizer   = Tokenizer::new(assignment);
+        let variable        = stream::iter(r#"$variable"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(variable);
         let mut parser      = Parser::new();
 
         tokenizer.with_command_matchers();
@@ -756,6 +771,54 @@ mod test {
             let result = parser.finish().unwrap();
 
             assert!(result == CommandRequest::Command { command: CommandName("$variable".to_string()), argument: serde_json::Value::Null }, "{:?}", result);
+        });
+    }
+
+    #[test]
+    fn parse_raw_json_1() {
+        let json            = stream::iter(r#"[ 1, 2, 3, 4 ]"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(json);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::RawJson { value: json!{[1, 2, 3, 4]} }, "{:?}", result);
+        });
+    }
+
+    #[test]
+    fn parse_raw_json_2() {
+        let json            = stream::iter(r#""string""#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(json);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::RawJson { value: json!{"string"} }, "{:?}", result);
+        });
+    }
+
+    #[test]
+    fn parse_raw_json_3() {
+        let json            = stream::iter(r#"{ "test": 1 } "#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(json);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::RawJson { value: json!{{"test": 1}} }, "{:?}", result);
         });
     }
 }
