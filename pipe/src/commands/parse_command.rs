@@ -346,7 +346,7 @@ where
  {
     // Lookahead must be a 'Command'
     let command_name = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await.ok_or(CommandParseError::ExpectedMoreInput)?;
-    if command_name.token != Some(CommandToken::Command) { return Err(command_name.into()); }
+    if !matches!(command_name.token, Some(CommandToken::Command) | Some(CommandToken::Variable)) { return Err(command_name.into()); }
 
     parser.accept_token()?;
 
