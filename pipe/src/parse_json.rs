@@ -734,16 +734,16 @@ where
     }
 }
 
-impl Into<serde_json::Value> for ParsedJson {
+impl From<ParsedJson> for serde_json::Value {
     ///
     /// Converts a parsed JSON structure into a serde value. All variables are replaced with 'null':
     /// if you want to substitute these you will need to implement a separate converter.
     ///
-    fn into(self) -> serde_json::Value {
+    fn from(json: ParsedJson) -> serde_json::Value {
         use ParsedJson::*;
         use serde_json::Value;
 
-        match self {
+        match json {
             Variable(_)     => Value::Null,
 
             Null            => Value::Null,

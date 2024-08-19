@@ -404,7 +404,7 @@ where
 
                 parser.reduce(2, |cmd| {
                     let name = cmd[0].token().unwrap().fragment.clone();
-                    CommandRequest::Command { command: CommandName(name), argument: serde_json::Value::Null }
+                    CommandRequest::Command { command: CommandName(name), argument: ParsedJson::Null }
                 })?;
             }
 
@@ -416,7 +416,7 @@ where
         // No argument, so just a command
         parser.reduce(1, |cmd| {
             let name = cmd[0].token().unwrap().fragment.clone();
-            CommandRequest::Command { command: CommandName(name), argument: serde_json::Value::Null }
+            CommandRequest::Command { command: CommandName(name), argument: ParsedJson::Null }
         })?;
     }
 
@@ -593,7 +593,7 @@ mod test {
             command_parse_argument(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::Command { command: CommandName("".to_string()), argument: json!{[1, 2, 3, 4]} });
+            assert!(result == CommandRequest::Command { command: CommandName("".to_string()), argument: json!{[1, 2, 3, 4]}.into() });
         });
     }
 
@@ -609,7 +609,7 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: serde_json::Value::Null });
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: serde_json::Value::Null.into() });
         });
     }
 
@@ -625,7 +625,7 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]} });
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]}.into() });
         });
     }
 
@@ -641,7 +641,7 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]} });
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]}.into() });
         });
     }
 
@@ -657,7 +657,7 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!({}) });
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!({}).into() });
         });
     }
 
@@ -673,7 +673,7 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!( { "test": "test" }) });
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!( { "test": "test" }).into() });
         });
     }
 
@@ -689,7 +689,7 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!( { "test": "test", "number": 4.5 } ) });
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!( { "test": "test", "number": 4.5 } ).into() });
         });
     }
 
@@ -705,7 +705,7 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]} });
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]}.into() });
         });
     }
 
@@ -724,19 +724,19 @@ mod test {
         executor::block_on(async {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
-            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]} });
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]}.into() });
 
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
-            assert!(result == CommandRequest::Command { command: CommandName("another::command".to_string()), argument: serde_json::Value::Null });
+            assert!(result == CommandRequest::Command { command: CommandName("another::command".to_string()), argument: serde_json::Value::Null.into() });
 
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
-            assert!(result == CommandRequest::Command { command: CommandName("one_more".to_string()), argument: serde_json::Value::Null });
+            assert!(result == CommandRequest::Command { command: CommandName("one_more".to_string()), argument: serde_json::Value::Null.into() });
 
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
-            assert!(result == CommandRequest::Command { command: CommandName("and_another".to_string()), argument: json!{["Hello"]} });
+            assert!(result == CommandRequest::Command { command: CommandName("and_another".to_string()), argument: json!{["Hello"]}.into() });
         });
     }
 
@@ -754,7 +754,7 @@ mod test {
 
             assert!(result == CommandRequest::Assign {
                 variable:   VariableName(":variable".into()),
-                from:       Box::new(CommandRequest::Command { command: CommandName("some_command".to_string()), argument: json!{[1, 2, 3, 4]} })
+                from:       Box::new(CommandRequest::Command { command: CommandName("some_command".to_string()), argument: json!{[1, 2, 3, 4]}.into() })
             });
         });
     }
@@ -771,7 +771,7 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::Command { command: CommandName("$variable".to_string()), argument: serde_json::Value::Null }, "{:?}", result);
+            assert!(result == CommandRequest::Command { command: CommandName("$variable".to_string()), argument: serde_json::Value::Null.into() }, "{:?}", result);
         });
     }
 
@@ -787,7 +787,7 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::RawJson { value: json!{[1, 2, 3, 4]} }, "{:?}", result);
+            assert!(result == CommandRequest::RawJson { value: json!{[1, 2, 3, 4]}.into() }, "{:?}", result);
         });
     }
 
@@ -803,7 +803,7 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::RawJson { value: json!{"string"} }, "{:?}", result);
+            assert!(result == CommandRequest::RawJson { value: json!{"string"}.into() }, "{:?}", result);
         });
     }
 
@@ -819,7 +819,7 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::RawJson { value: json!{{"test": 1}} }, "{:?}", result);
+            assert!(result == CommandRequest::RawJson { value: json!{{"test": 1}}.into() }, "{:?}", result);
         });
     }
 }
