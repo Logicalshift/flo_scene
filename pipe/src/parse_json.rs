@@ -509,7 +509,12 @@ where
                 Some(Ok(JsonToken::String)) => {
                     // <String> : <Value>
                     parser.accept_token()?;
-                    parser.reduce(1, |string| serde_json::from_str(&string[0].token().unwrap().fragment).unwrap())?;
+                    parser.reduce(1, |string| {
+                            match serde_json::from_str(&string[0].token().unwrap().fragment).unwrap() {
+                                serde_json::Value::String(val)  => ParsedJson::String(val),
+                                _                               => ParsedJson::String("".into())
+                            }
+                        })?;
                     num_tokens += 1;
 
                     // ... ':'
@@ -684,6 +689,7 @@ where
         if let Some(Ok(JsonToken::String)) = lookahead.token.clone().map(|token| token.try_into()) {
             // Reduce as a string
             let value = serde_json::from_str(&lookahead.fragment)?;
+            let value = match value { serde_json::Value::String(val) => ParsedJson::String(val), _ => ParsedJson::String("".into()) };
 
             parser.accept_token()?.reduce(1, |_| value)?;
             Ok(())
@@ -713,6 +719,7 @@ where
         if let Some(Ok(JsonToken::Number)) = lookahead.token.clone().map(|token| token.try_into()) {
             // Reduce as a number
             let value = serde_json::from_str(&lookahead.fragment)?;
+            let value = match value { serde_json::Value::Number(val) => ParsedJson::Number(val), _ => ParsedJson::Number(0.into()) };
 
             parser.accept_token()?.reduce(1, |_| value)?;
             Ok(())
