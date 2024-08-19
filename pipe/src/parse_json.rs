@@ -3,6 +3,9 @@ use crate::parser::*;
 use futures::prelude::*;
 use futures::future::{BoxFuture};
 use itertools::*;
+use serde::{Deserialize, Serialize};
+
+use std::collections::{HashMap};
 
 ///
 /// The tokens that make up the JSON language
@@ -12,6 +15,7 @@ pub enum JsonToken {
     Whitespace,
     Number,
     String,
+    Variable,
     True,
     False,
     Null,
@@ -37,6 +41,20 @@ pub enum JsonParseError {
 
     /// A value that the parser thought was valid JSON was rejected by serde (usually indicating an error in this parser)
     SerdeJsonError,
+}
+
+///
+/// The parsed form of a JSON statement. This can incorporate variables, as well as the parts of a standard JSON value
+///
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub enum ParsedJson {
+    Null,
+    Bool(bool),
+    Number(serde_json::Number),
+    String(String),
+    Array(Vec<ParsedJson>),
+    Object(HashMap<String, ParsedJson>),
+    Variable(String),
 }
 
 ///
@@ -377,6 +395,7 @@ where
             True            => match_true(lookahead, eof).into(),
             False           => match_false(lookahead, eof).into(),
             Null            => match_null(lookahead, eof).into(),
+            Variable        => TokenMatchResult::LookaheadCannotMatch, // These are generated externally, so there's no matcher here
         }
     }
 }
