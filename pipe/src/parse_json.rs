@@ -748,6 +748,16 @@ impl Into<serde_json::Value> for ParsedJson {
     }
 }
 
+impl ParsedJson {
+    ///
+    /// Returns this object as a serde_json value, with any variables substituted with 'null'.
+    ///
+    #[inline]
+    pub fn to_serde(self) -> serde_json::Value {
+        self.into()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1070,7 +1080,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == serde_json::Value::String("string".into()));
+            assert!(result.to_serde() == serde_json::Value::String("string".into()));
         })
     }
 
@@ -1086,7 +1096,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == serde_json::Value::Number(1234.into()));
+            assert!(result.to_serde() == serde_json::Value::Number(1234.into()));
         })
     }
 
@@ -1102,7 +1112,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == serde_json::Value::String("string".into()));
+            assert!(result.to_serde() == serde_json::Value::String("string".into()));
         })
     }
 
@@ -1118,7 +1128,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == serde_json::Value::Number(1234.into()));
+            assert!(result.to_serde() == serde_json::Value::Number(1234.into()));
         })
     }
 
@@ -1136,7 +1146,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == json!({ }));
+            assert!(result.to_serde() == json!({ }));
         })
     }
 
@@ -1154,7 +1164,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == json!({
+            assert!(result.to_serde() == json!({
                 "field1": 12
             }));
         })
@@ -1174,7 +1184,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == json!({
+            assert!(result.to_serde() == json!({
                 "field1": 12,
                 "field2": false
             }));
@@ -1195,7 +1205,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == json!({
+            assert!(result.to_serde() == json!({
                 "field1": 12,
                 "field2": {
                     "field3": 34,
@@ -1219,7 +1229,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == json!([ ]));
+            assert!(result.to_serde() == json!([ ]));
         })
     }
 
@@ -1237,7 +1247,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == json!([ 1 ]));
+            assert!(result.to_serde() == json!([ 1 ]));
         })
     }
 
@@ -1255,7 +1265,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == json!([ 1, 2, 3, 4 ]));
+            assert!(result.to_serde() == json!([ 1, 2, 3, 4 ]));
         })
     }
 
@@ -1273,7 +1283,7 @@ mod test {
 
             let result = parser.finish().unwrap();
 
-            assert!(result == json!([ 1, 2, 3, 4 ]));
+            assert!(result.to_serde() == json!([ 1, 2, 3, 4 ]));
         })
     }
 }
