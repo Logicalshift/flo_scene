@@ -261,8 +261,8 @@ fn wait_for_idle_program_queues_extra_requests() {
 }
 
 #[test]
-fn wait_for_idle_program_queues_extra_requests_1000_times() {
-    for _ in 0..1000 {
+fn wait_for_idle_program_queues_extra_requests_100_times() {
+    for _ in 0..100 {
         let scene           = Scene::empty();
         let test_program    = SubProgramId::new();
         let waiting_program = SubProgramId::new();

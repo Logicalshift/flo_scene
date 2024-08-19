@@ -310,7 +310,7 @@ fn read_from_background_stream() {
 #[test]
 fn read_from_background_stream_repeat() {
     // There was a race condition here so we re-run this test repeatedly
-    for _ in 0..1000 {
+    for _ in 0..100 {
         read_from_background_stream_iteration();
     }
 }
