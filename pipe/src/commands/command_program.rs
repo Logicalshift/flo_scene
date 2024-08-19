@@ -2,6 +2,7 @@ use super::command_stream::*;
 use super::command_socket::*;
 use super::json_command::*;
 use crate::socket::*;
+use crate::parse_json::*;
 
 use flo_scene::*;
 use flo_scene::commands::*;
@@ -122,6 +123,55 @@ impl CommandSession {
     }
 
     ///
+    /// Substitutes any variables found in a `ParsedJson` structure.
+    ///
+    /// Return value is the substituted variable or an error response
+    ///
+    pub fn substitute_variables<'a>(&'a self, parsed_json: ParsedJson, context: &'a SceneContext) -> BoxFuture<'a, Result<serde_json::Value, CommandResponse>> {
+        // TODO: a way to have `command { }` type substitutions
+        async move {
+            use ParsedJson::*;
+            use serde_json::Value;
+
+            match parsed_json {
+                Null                => Ok(Value::Null),
+                Bool(val)           => Ok(Value::Bool(val)),
+                Number(num)         => Ok(Value::Number(num)),
+                String(string)      => Ok(Value::String(string)),
+
+                Array(array) => {
+                    let mut substituted = Vec::with_capacity(array.len());
+
+                    for val in array {
+                        substituted.push(self.substitute_variables(val, context).await?);
+                    }
+
+                    Ok(Value::Array(substituted))
+                }
+
+                Object(map) => {
+                    let mut substituted = serde_json::Map::new();
+
+                    for (key, val) in map {
+                        let val = self.substitute_variables(val, context).await?;
+                        substituted.insert(key, val);
+                    }
+
+                    Ok(Value::Object(substituted))
+                }
+
+                Variable(variable) => {
+                    if let Some(value) = self.variables.lock().unwrap().get(&variable).cloned() {
+                        Ok(value)
+                    } else {
+                        Err(CommandResponse::Error(format!("Variable '{}' is not defined", variable)))
+                    }
+                }
+            }
+        }.boxed()
+    }
+
+    ///
     /// Evaluates a command request in this session
     ///
     pub fn evaluate_request<'a>(&'a self, request: CommandRequest, context: &'a SceneContext) -> BoxFuture<'a, BoxStream<'a, CommandResponse>> {
@@ -129,8 +179,8 @@ impl CommandSession {
             use CommandRequest::*;
 
             match request {
-                Command     { command, argument } => { self.run_command(command, argument.into(), &context).await }
-                RawJson     { value }             => { stream::iter(iter::once(CommandResponse::Json(value.into()))).boxed() }
+                Command     { command, argument } => { self.run_command(command, argument, &context).await }
+                RawJson     { value }             => { self.raw_json(value, context).await }
                 Pipe        { from, to }          => { stream::iter(iter::once(CommandResponse::Error("Not implemented yet".into()))).boxed() }
                 Assign      { variable, from }    => {
                     let request_responses = self.evaluate_request(*from, context).await;
@@ -142,9 +192,24 @@ impl CommandSession {
     }
 
     ///
+    /// Evaluates a raw JSON request
+    ///
+    async fn raw_json(&self, value: ParsedJson, context: &SceneContext) -> BoxStream<'_, CommandResponse> {
+        match self.substitute_variables(value, context).await {
+            Ok(json) => stream::iter(iter::once(CommandResponse::Json(json))).boxed(),
+            Err(err) => stream::iter(iter::once(err)).boxed(),
+        }
+    }
+
+    ///
     /// Runs a command, returning the response
     ///
-    pub async fn run_command<'a>(&'a self, command: CommandName, parameter: serde_json::Value, context: &SceneContext) -> BoxStream<'a, CommandResponse> {
+    pub async fn run_command<'a>(&'a self, command: CommandName, parameter: ParsedJson, context: &SceneContext) -> BoxStream<'a, CommandResponse> {
+        let parameter = match self.substitute_variables(parameter, context).await {
+            Ok(json) => json,
+            Err(err) => { return stream::iter(iter::once(err)).boxed(); }
+        };
+
         // Retrieve the target for the commands
         let target = self.target.clone();
 
