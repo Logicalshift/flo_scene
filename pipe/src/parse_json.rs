@@ -444,7 +444,7 @@ where
 /// Attempts to parse a JSON value starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub fn json_parse_value<'a, TStream, TToken>(parser: &'a mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &'a mut Tokenizer<TToken, TStream>) -> BoxFuture<'a, Result<(), JsonParseError>>
+pub fn json_parse_value<'a, TStream, TToken>(parser: &'a mut Parser<TokenMatch<TToken>, ParsedJson>, tokenizer: &'a mut Tokenizer<TToken, TStream>) -> BoxFuture<'a, Result<(), JsonParseError>>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
@@ -462,9 +462,9 @@ where
                 Some(Ok(JsonToken::Number))         => json_parse_number(parser, tokenizer).await,
                 Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer).await,
                 Some(Ok(JsonToken::Character('['))) => json_parse_array(parser, tokenizer).await,
-                Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| serde_json::Value::Bool(true))?; Ok(()) },
-                Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| serde_json::Value::Bool(false))?; Ok(()) },
-                Some(Ok(JsonToken::Null))           => { parser.accept_token()?.reduce(1, |_| serde_json::Value::Null)?; Ok(()) },
+                Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(true))?; Ok(()) },
+                Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
+                Some(Ok(JsonToken::Null))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Null)?; Ok(()) },
                 _                                   => Err(lookahead.into())
             }
         } else {
@@ -478,7 +478,7 @@ where
 /// Attempts to parse a JSON object starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_object<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
+pub async fn json_parse_object<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, ParsedJson>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
@@ -566,14 +566,14 @@ where
                 .map(|(key, _colon, value, _comma_or_brace)| {
                     // Key should be a string node
                     let key = match key.to_node() {
-                        Some(serde_json::Value::String(key))    => key,
-                        _                                       => panic!(),
+                        Some(ParsedJson::String(key))   => key,
+                        _                               => panic!(),
                     };
 
                     (key, value.to_node().unwrap())
                 });
 
-            serde_json::Value::Object(values.collect())
+            ParsedJson::Object(values.collect())
         })?;
 
         Ok(())
@@ -587,7 +587,7 @@ where
 /// Attempts to parse a JSON array starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_array<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
+pub async fn json_parse_array<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, ParsedJson>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
@@ -658,7 +658,7 @@ where
                 .tuples()
                 .map(|(value, _comma_or_bracket)| value.to_node().unwrap());
 
-            serde_json::Value::Array(values.collect())
+            ParsedJson::Array(values.collect())
         })?;
 
         Ok(())
@@ -672,7 +672,7 @@ where
 /// Attempts to parse a JSON string starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_string<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
+pub async fn json_parse_string<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, ParsedJson>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
@@ -701,7 +701,7 @@ where
 /// Attempts to parse a JSON object starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_number<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, serde_json::Value>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
+pub async fn json_parse_number<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, ParsedJson>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
@@ -723,6 +723,28 @@ where
     } else {
         // No lookahead
         Err(JsonParseError::ExpectedMoreInput(JsonInputType::Number))
+    }
+}
+
+impl Into<serde_json::Value> for ParsedJson {
+    ///
+    /// Converts a parsed JSON structure into a serde value. All variables are replaced with 'null':
+    /// if you want to substitute these you will need to implement a separate converter.
+    ///
+    fn into(self) -> serde_json::Value {
+        use ParsedJson::*;
+        use serde_json::Value;
+
+        match self {
+            Variable(_)     => Value::Null,
+
+            Null            => Value::Null,
+            Bool(val)       => Value::Bool(val),
+            Number(num)     => Value::Number(num),
+            String(string)  => Value::String(string),
+            Array(array)    => Value::Array(array.into_iter().map(|val| val.into()).collect()),
+            Object(map)     => Value::Object(map.into_iter().map(|(key, val)| (key, val.into())).collect()),
+        }
     }
 }
 

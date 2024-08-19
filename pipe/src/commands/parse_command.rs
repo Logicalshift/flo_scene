@@ -347,7 +347,7 @@ where
 
                         // Fetch the JSON value for the argument
                         let json_value = json_parser.finish()?;
-                        parser.reduce(0, |_| CommandRequest::RawJson { value: json_value })?;
+                        parser.reduce(0, |_| CommandRequest::RawJson { value: json_value.into() })?;
 
                         break Ok(());
                     }
@@ -483,7 +483,7 @@ where
     let json_value = json_parser.finish()?;
 
     // Add as a node to the current parser
-    parser.reduce(0, |_| CommandRequest::Command { command: CommandName("".to_string()), argument: json_value })?;
+    parser.reduce(0, |_| CommandRequest::Command { command: CommandName("".to_string()), argument: json_value.into() })?;
 
     Ok(())
 }

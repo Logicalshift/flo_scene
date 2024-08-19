@@ -528,6 +528,7 @@ impl CommandSocket {
                         match value {
                             Err(_)    => { break; }
                             Ok(value) => {
+                                let value: serde_json::Value = value.into();
                                 if send_input.send(value).await.is_err() { break; } 
                             }
                         }
