@@ -147,6 +147,84 @@ fn echo_command() {
 }
 
 #[test]
+fn echo_variable() {
+    let scene           = Scene::default().with_standard_json_commands();
+    let internal_socket = SubProgramId::called("echo_internal_socket");
+    let test_program    = SubProgramId::called("echo_test_program");
+ 
+    scene.with_serializer(|| serde_json::value::Serializer)
+        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+
+    // Test case is to assign a variable value and then echo it
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#":test = "Hello"
+        echo :test
+        "#, 
+        move |msg, context| async move {
+            assert!(msg.contains("   Hello\n"), "{}", msg);
+            context.send(test_program).unwrap().send(TestSucceeded { message: "Ok".into() }).await.unwrap();
+        });
+
+    // Create a test program that receives the TestSucceeded message
+    TestBuilder::new()
+        .expect_message(|_: TestSucceeded| Ok(()))
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+fn echo_array_variable() {
+    let scene           = Scene::default().with_standard_json_commands();
+    let internal_socket = SubProgramId::called("echo_internal_socket");
+    let test_program    = SubProgramId::called("echo_test_program");
+ 
+    scene.with_serializer(|| serde_json::value::Serializer)
+        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+
+    // Test case is to assign a variable value and then substitute it in an array and echo it
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#":test = "Hello"
+        echo [ :test, :test ]
+        "#, 
+        move |msg, context| async move {
+            assert!(msg.contains("   Hello\n   Hello\n"), "{}", msg);
+            context.send(test_program).unwrap().send(TestSucceeded { message: "Ok".into() }).await.unwrap();
+        });
+
+    // Create a test program that receives the TestSucceeded message
+    TestBuilder::new()
+        .expect_message(|_: TestSucceeded| Ok(()))
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+fn echo_object_variable() {
+    let scene           = Scene::default().with_standard_json_commands();
+    let internal_socket = SubProgramId::called("echo_internal_socket");
+    let test_program    = SubProgramId::called("echo_test_program");
+ 
+    scene.with_serializer(|| serde_json::value::Serializer)
+        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+
+    // Test case is to assign a variable value and then substitute it in an object and echo it (object formatting syntax might change, which this test doesn't account for at the moment)
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#":test = "Hello"
+        echo { "test": :test }
+        "#, 
+        move |msg, context| async move {
+            assert!(msg.contains("   {\n     \"test\": \"Hello\"\n   }"), "{}", msg);
+            context.send(test_program).unwrap().send(TestSucceeded { message: "Ok".into() }).await.unwrap();
+        });
+
+    // Create a test program that receives the TestSucceeded message
+    TestBuilder::new()
+        .expect_message(|_: TestSucceeded| Ok(()))
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
 fn subscribe_command() {
     let scene               = Scene::default().with_standard_json_commands();
     let internal_socket     = SubProgramId::called("send_internal_socket");
