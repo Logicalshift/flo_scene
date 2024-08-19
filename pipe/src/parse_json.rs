@@ -465,6 +465,7 @@ where
                 Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(true))?; Ok(()) },
                 Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
                 Some(Ok(JsonToken::Null))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Null)?; Ok(()) },
+                Some(Ok(JsonToken::Variable))       => { let fragment = lookahead.fragment.clone(); parser.accept_token()?.reduce(1, |_| ParsedJson::Variable(fragment))?; Ok(()) },
                 _                                   => Err(lookahead.into())
             }
         } else {
