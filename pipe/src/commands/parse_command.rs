@@ -107,6 +107,7 @@ impl TryInto<JsonToken> for CommandToken {
     fn try_into(self) -> Result<JsonToken, Self::Error> {
         match self {
             CommandToken::Json(token)   => Ok(token),
+            CommandToken::Variable      => Ok(JsonToken::Variable),
             CommandToken::Comment       => Ok(JsonToken::Whitespace),
             CommandToken::Newline       => Ok(JsonToken::Whitespace),
             other                       => Err(other),
