@@ -1,0 +1,24 @@
+[package]
+name            = "flo_scene_wasm"
+version         = "0.2.0"
+edition         = "2021"
+authors         = ["Andrew Hunter"]
+license         = "Apache-2.0"
+readme          = "README.md"
+repository      = "https://github.com/Logicalshift/flo_scene"
+description     = "Supports loading flo_scene subprograms compiled as WASM modules"
+categories      = [ "concurrency", "data-structures" ]
+keywords        = [ "message-queue" ]
+
+[features]
+default         = [ ]
+
+[dependencies]
+flo_scene       = { version = "0.2", features = [ "serde_support", "json", "tokio" ] }
+serde           = { version = "1.0", features = [ "derive" ] }
+serde_json      = { version = "1.0" }
+futures         = "0.3"
+ron             = "0.8"
+uuid            = { version = "1.0", features = [ "v4" ] }
+once_cell       = "1.18"
+wasmer          = "4.3"
