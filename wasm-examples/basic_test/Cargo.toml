@@ -3,8 +3,12 @@ name    = "flo_scene_wasm_basic_test"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-flo_scene       = { version = "0.2", features = [ "json" ] }
-futures         = "0.3"
-wasm-bindgen    = "0.2"
-getrandom       = { version = "0.2", features = ["js"] }
+flo_scene               = { version = "0.2", features = [ "json" ] }
+futures                 = "0.3"
+wasm-bindgen            = "0.2"
+wasm-bindgen-futures    = "0.4"
+getrandom               = { version = "0.2", features = ["js"] }

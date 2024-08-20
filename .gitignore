@@ -1,2 +1,2 @@
 /target
-/wasm-examples/target
+/wasm-examples/**/target
