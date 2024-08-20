@@ -3,9 +3,6 @@ use flo_scene::programs::*;
 
 use futures::prelude::*;
 
-use wasm_bindgen::prelude::*;
-
-#[wasm_bindgen]
 pub async fn test() -> i32 {
     future::ready(42).await
 }

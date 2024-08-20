@@ -1,7 +1,7 @@
 use wasmer::*;
 
 fn main() {
-    let module = include_bytes!("../../wasm-examples/basic_test/pkg/flo_scene_wasm_basic_test_bg.wasm");
+    let module = include_bytes!("../../wasm-examples/target/wasm32-wasip1/debug/flo_scene_wasm_basic_test.wasm");
 
     let mut store       = Store::default();
     let module          = Module::new(&store, &module).unwrap();

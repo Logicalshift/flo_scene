@@ -9,6 +9,5 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 flo_scene               = { version = "0.2", features = [ "json" ] }
 futures                 = "0.3"
-wasm-bindgen            = "0.2"
-wasm-bindgen-futures    = "0.4"
+wasi                    = "0.13"
 getrandom               = { version = "0.2", features = ["js"] }
