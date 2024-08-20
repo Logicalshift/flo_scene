@@ -10,4 +10,5 @@ crate-type = ["cdylib", "rlib"]
 flo_scene               = { version = "0.2", features = [ "json" ] }
 futures                 = "0.3"
 wasi                    = "0.13"
+wit-bindgen             = "0.30.0"
 getrandom               = { version = "0.2", features = ["js"] }

@@ -3,6 +3,20 @@ use flo_scene::programs::*;
 
 use futures::prelude::*;
 
+wit_bindgen::generate!({
+    world: "host",
+});
+
+struct TestHost;
+
+impl Guest for TestHost {
+    fn test() -> u32 {
+        42
+    }
+}
+
+export!(TestHost);
+
 pub async fn test() -> i32 {
     future::ready(42).await
 }
