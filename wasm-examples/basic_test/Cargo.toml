@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# flo_scene = { version = "0.2", features = [ "json" ] }
-wasm-bindgen = "0.2"
+flo_scene       = { version = "0.2", features = [ "json" ] }
+futures         = "0.3"
+wasm-bindgen    = "0.2"
+getrandom       = { version = "0.2", features = ["js"] }
