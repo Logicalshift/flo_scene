@@ -1,9 +1,9 @@
 [workspace]
 members     = [
-    "basic_test",
+    "wasi_test",
 ]
 resolver    = "2"
 
 [patch.crates-io]
 flo_scene                   = { path = "../scene" }
-flo_scene_wasm_basic_test   = { path = "./basic_test" }
+flo_scene_wasm_wasi_test    = { path = "./wasi_test" }
