@@ -22,4 +22,3 @@ ron             = "0.8"
 uuid            = { version = "1.0", features = [ "v4" ] }
 once_cell       = "1.18"
 wasmer          = "4.3"
-wasmer-wasix    = "0.25"
