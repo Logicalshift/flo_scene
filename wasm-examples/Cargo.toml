@@ -2,6 +2,7 @@
 members     = [ "raw_wasm",
     "wasi_test",
     "raw_wasm",
+    "bindgen",
 ]
 resolver    = "2"
 
@@ -9,3 +10,4 @@ resolver    = "2"
 flo_scene                   = { path = "../scene" }
 flo_scene_wasm_wasi_test    = { path = "./wasi_test" }
 flo_scene_wasm_raw_test     = { path = "./raw_wasm" }
+flo_scene_wasm_bindgen_test = { path = "./bindgen" }

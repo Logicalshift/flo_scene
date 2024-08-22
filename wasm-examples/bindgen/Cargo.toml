@@ -1,0 +1,11 @@
+[package]
+name = "flo_scene_wasm_bindgen_test"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen            = "0.2"
+wasm-bindgen-futures    = "0.4"
