@@ -10,5 +10,7 @@
 
 #[no_mangle]
 pub fn test() -> u32 {
-    42
+    let foo = vec![1, 2, 3, 42];
+
+    foo[3]
 }

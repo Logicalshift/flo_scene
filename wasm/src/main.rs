@@ -10,4 +10,7 @@ fn main() {
 
     let test            = instance.exports.get_function("test").unwrap();
     println!("Test type: {:?}", test.ty(&store));
+
+    let result = test.call(&mut store, &[]);
+    println!("{:?}", result);
 }
