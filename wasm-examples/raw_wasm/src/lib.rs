@@ -52,3 +52,8 @@ pub fn test5<'a>() -> &'a Foo {
 
     &FOO
 }
+
+#[no_mangle]
+pub extern fn test6() -> (i32, i32) {
+    (42, 42)
+}
