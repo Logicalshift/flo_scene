@@ -1,4 +1,16 @@
+use std::borrow::Borrow;
+
 use wasmer::*;
+
+use std::mem;
+
+// Matches what's in the wasm
+#[repr(C)]
+#[derive(Debug)]
+pub struct Bar {
+    val1: i32,
+    val2: f32,
+}
 
 fn main() {
     let module = include_bytes!("../../wasm-examples/target/wasm32-unknown-unknown/debug/flo_scene_wasm_raw_test.wasm");
@@ -15,7 +27,7 @@ fn main() {
     println!("Test type: {:?}", test.ty(&store));
     println!("Test type 2: {:?}", test2.ty(&store));
     println!("Test type 3: {:?}", test3.ty(&store));
-    println!("Test type 4: {:?}", test3.ty(&store));
+    println!("Test type 4: {:?}", test4.ty(&store));
 
     let result = test.call(&mut store, &[]);
     println!("1 {:?}", result);
@@ -26,6 +38,15 @@ fn main() {
     let result = test3.call(&mut store, &[]);
     println!("3 {:?}", result);
 
-    let result = test4.call(&mut store, &[]);
+    let result4 = test4.call(&mut store, &[]);
     println!("4 {:?}", result);
+
+    let memory          = instance.exports.get_memory("memory").unwrap();
+    let view            = memory.view(&store);
+    let mut bar_bytes   = [0u8; size_of::<Bar>()];
+    view.read(match &result4.unwrap()[0] { Value::I32(offset) => *offset as u64, _ => panic!() }, &mut bar_bytes).unwrap();
+    println!("Read {:?}", bar_bytes);
+
+    let actually_bar: Bar = unsafe { mem::transmute(bar_bytes) };
+    println!("Transmuted: {:?}", actually_bar);
 }
