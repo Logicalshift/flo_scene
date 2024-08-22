@@ -7,6 +7,14 @@ use std::mem;
 // Matches what's in the wasm
 #[repr(C)]
 #[derive(Debug)]
+pub enum Foo {
+    Foo(f32),
+    Bar,
+    Baz(u128),
+}
+
+#[repr(C)]
+#[derive(Debug)]
 pub struct Bar {
     val1: i32,
     val2: f32,
@@ -49,4 +57,16 @@ fn main() {
 
     let actually_bar: Bar = unsafe { mem::transmute(bar_bytes) };
     println!("Transmuted: {:?}", actually_bar);
+
+    let test5           = instance.exports.get_function("test5").unwrap();
+    let result5         = test5.call(&mut store, &[]);
+    let memory          = instance.exports.get_memory("memory").unwrap();
+    let view            = memory.view(&store);
+    let mut foo_bytes   = [0u8; size_of::<Foo>()];
+
+    view.read(match &result5.unwrap()[0] { Value::I32(offset) => *offset as u64, _ => panic!() }, &mut foo_bytes).unwrap();
+    println!("Read {:?}", foo_bytes);
+
+    let actually_foo: Foo = unsafe { mem::transmute(foo_bytes) };
+    println!("Transmuted: {:?}", actually_foo);
 }

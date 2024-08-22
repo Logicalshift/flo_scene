@@ -13,11 +13,11 @@ pub fn test() -> u32 {
     42
 }
 
-// #[repr(C)]
+#[repr(C)]
 pub enum Foo {
     Foo(f32),
     Bar,
-    Baz(usize),
+    Baz(u128),
 }
 
 #[no_mangle]
@@ -44,4 +44,11 @@ pub fn test4<'a>() -> &'a Bar {
     static BAR: Bar = Bar { val1: 42, val2: 120.2 };
 
     &BAR
+}
+
+#[no_mangle]
+pub fn test5<'a>() -> &'a Foo {
+    static FOO: Foo = Foo::Baz(42);
+
+    &FOO
 }
