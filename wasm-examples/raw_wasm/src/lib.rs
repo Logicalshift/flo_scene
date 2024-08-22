@@ -25,6 +25,7 @@ pub fn test2() -> Foo {
     Foo::Bar
 }
 
+#[repr(C)]
 pub struct Bar {
     val1: i32,
     val2: f32,
@@ -36,4 +37,11 @@ pub fn test3() -> Bar {
         val1: 42,
         val2: 120.2,
     }
+}
+
+#[no_mangle]
+pub fn test4<'a>() -> &'a Bar {
+    static BAR: Bar = Bar { val1: 42, val2: 120.2 };
+
+    &BAR
 }
