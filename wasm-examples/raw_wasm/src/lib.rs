@@ -10,7 +10,30 @@
 
 #[no_mangle]
 pub fn test() -> u32 {
-    let foo = vec![1, 2, 3, 42];
+    42
+}
 
-    foo[3]
+// #[repr(C)]
+pub enum Foo {
+    Foo(f32),
+    Bar,
+    Baz(usize),
+}
+
+#[no_mangle]
+pub fn test2() -> Foo {
+    Foo::Bar
+}
+
+pub struct Bar {
+    val1: i32,
+    val2: f32,
+}
+
+#[no_mangle]
+pub fn test3() -> Bar {
+    Bar {
+        val1: 42,
+        val2: 120.2,
+    }
 }
