@@ -57,3 +57,8 @@ pub fn test5<'a>() -> &'a Foo {
 pub extern fn test6() -> (i32, i32) {
     (42, 42)
 }
+
+#[no_mangle]
+pub extern fn test7(closure: &dyn Fn(i32, i32) -> ()) {
+    closure(42, 42)
+}
