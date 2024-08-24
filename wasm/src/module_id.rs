@@ -4,7 +4,7 @@ use serde::*;
 ///
 /// Identifies module loaded by a WASM control program
 ///
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WasmModuleId {
     Id(Uuid),
 }
