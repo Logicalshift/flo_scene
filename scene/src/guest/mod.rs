@@ -16,7 +16,9 @@
 mod traits;
 mod poll_action;
 mod poll_result;
+mod subprogram_handle;
 
 pub use traits::*;
 pub use poll_action::*;
 pub use poll_result::*;
+pub use subprogram_handle::*;
