@@ -71,6 +71,7 @@
 
 mod control_subprogram;
 mod error;
+mod module;
 mod module_id;
 mod wasm_control;
 

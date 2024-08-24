@@ -23,7 +23,7 @@ pub enum WasmControl {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum WasmUpdate {
     /// Tried to load a module but there was a problem
-    CouldNotLoadModule(WasmModuleId, WasmError),
+    CouldNotLoadModule(WasmModuleId, WasmSubprogramError),
 
     /// A `LoadModule` command was successful
     ModuleLoaded(WasmModuleId),
