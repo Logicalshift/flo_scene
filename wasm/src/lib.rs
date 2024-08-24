@@ -69,10 +69,12 @@
 // functions that match a particular name/type signature.
 //
 
+mod control_subprogram;
 mod error;
 mod module_id;
 mod wasm_control;
 
+pub use control_subprogram::*;
 pub use error::*;
 pub use module_id::*;
 pub use wasm_control::*;

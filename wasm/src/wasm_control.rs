@@ -31,3 +31,9 @@ pub enum WasmUpdate {
     /// A subprogram from a module is running
     RunningModule(WasmModuleId, SubProgramId),
 }
+
+impl SceneMessage for WasmControl {
+}
+
+impl SceneMessage for WasmUpdate {
+}
