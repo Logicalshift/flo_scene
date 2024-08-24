@@ -173,43 +173,21 @@
 
 #![allow(clippy::redundant_field_names)]            // I prefer this to be consistent across the struct when initialising
 
-mod scene;
-mod scene_core;
-mod subprogram_core;
-mod process_core;
-mod scene_context;
-mod subprogram_id;
-mod stream_id;
-mod stream_source;
-mod stream_target;
-mod input_stream;
-mod output_sink;
-mod filter;
-mod scene_message;
-mod thread_stealer;
-mod command_trait;
-mod connect_result;
+mod host;
 
-pub mod error;
-pub mod programs;
-pub mod commands;
-
-pub use scene::*;
-pub use scene_context::*;
-pub use subprogram_id::*;
-pub use stream_id::*;
-pub use stream_source::*;
-pub use stream_target::*;
-pub use input_stream::*;
-pub use output_sink::*;
-pub use filter::*;
-pub use scene_message::*;
-pub use command_trait::*;
-pub use connect_result::*;
-pub use error::{ConnectionError, SceneSendError};
-
-#[cfg(feature = "serde_support")]
-mod serialization;
-
-#[cfg(feature = "serde_support")]
-pub use serialization::*;
+pub use host::*;
+pub (crate) use host::scene;
+pub (crate) use host::scene_core;
+pub (crate) use host::subprogram_core;
+pub (crate) use host::process_core;
+pub (crate) use host::subprogram_id;
+pub (crate) use host::stream_id;
+pub (crate) use host::stream_source;
+pub (crate) use host::stream_target;
+pub (crate) use host::input_stream;
+pub (crate) use host::output_sink;
+pub (crate) use host::filter;
+pub (crate) use host::scene_message;
+pub (crate) use host::thread_stealer;
+pub (crate) use host::command_trait;
+pub (crate) use host::connect_result;
