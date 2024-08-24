@@ -12,3 +12,11 @@
 //! Examples of where a guest might be used are for a wasm module or a subprogram that runs as an external
 //! process.
 //!
+
+mod traits;
+mod poll_action;
+mod poll_result;
+
+pub use traits::*;
+pub use poll_action::*;
+pub use poll_result::*;
