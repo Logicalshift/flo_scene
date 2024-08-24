@@ -21,8 +21,11 @@ pub enum GuestAction {
     /// In response to a request indicating that a guest has a new subprogram, assigns a new handle to it for the purposes of sending/receiving messages
     AssignSubProgram(SubProgramId, GuestSubProgramHandle),
 
+    /// Indicate whether or not hte specified subprogram is ready to accept a message
+    IsReady(GuestSubProgramHandle),
+
     /// Sends a message encoded as bytes to a subprogram identified by ID
-    SendMessage(usize, Vec<u8>),
+    SendMessage(GuestSubProgramHandle, Vec<u8>),
 }
 
 impl GuestPollAction {
