@@ -12,6 +12,7 @@ pub struct GuestPollAction {
 ///
 /// A guest action request
 ///
+#[derive(Clone, Debug)]
 pub enum GuestAction {
     /// Request to start the guest subprogram (each guest has only one 'core' subprogram). Value indicates the ID assigned to this instance of the
     /// subprogram.
@@ -50,5 +51,15 @@ impl GuestPollAction {
         GuestPollAction { 
             actions: actions.into_iter().collect()
         }
+    }
+}
+
+impl IntoIterator for GuestPollAction {
+    type Item = GuestAction;
+
+    type IntoIter = <Vec<GuestAction> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.actions.into_iter()
     }
 }
