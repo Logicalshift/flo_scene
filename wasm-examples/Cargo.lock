@@ -113,6 +113,9 @@ dependencies = [
 [[package]]
 name = "flo_scene_wasm_raw_test"
 version = "0.1.0"
+dependencies = [
+ "flo_scene",
+]
 
 [[package]]
 name = "flo_scene_wasm_wasi_test"

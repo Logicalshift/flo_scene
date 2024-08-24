@@ -173,6 +173,15 @@
 
 #![allow(clippy::redundant_field_names)]            // I prefer this to be consistent across the struct when initialising
 
+#[cfg(not(target_family="wasm"))]
 mod host;
 
+#[cfg(not(target_family="wasm"))]
 pub use host::*;
+
+#[cfg(target_family="wasm")]
+mod guest {
+}
+
+#[cfg(target_family="wasm")]
+pub use guest::*;
