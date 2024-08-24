@@ -8,3 +8,21 @@ pub enum WasmSubprogramError {
     /// An uncategorised error with a description of what went wrong
     Description(String),
 }
+
+impl From<wasmer::WasmError> for WasmSubprogramError {
+    fn from(err: wasmer::WasmError) -> Self {
+        WasmSubprogramError::Description(format!("{:?}", err))
+    }
+}
+
+impl From<wasmer::CompileError> for WasmSubprogramError {
+    fn from(err: wasmer::CompileError) -> Self {
+        WasmSubprogramError::Description(format!("{:?}", err))
+    }
+}
+
+impl From<wasmer::InstantiationError> for WasmSubprogramError {
+    fn from(err: wasmer::InstantiationError) -> Self {
+        WasmSubprogramError::Description(format!("{:?}", err))
+    }
+}

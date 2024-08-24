@@ -17,9 +17,9 @@ impl WasmModule {
     ///
     pub fn load_bare_module(module_bytes: &[u8]) -> Result<Self, WasmSubprogramError> {
         let mut store   = Store::default();
-        let module      = Module::new(&store, &module_bytes).unwrap();
+        let module      = Module::new(&store, &module_bytes)?;
         let imports     = Self::bare_imports();
-        let instance    = Instance::new(&mut store, &module, &imports).unwrap();
+        let instance    = Instance::new(&mut store, &module, &imports)?;
 
         Ok(WasmModule { store, module, instance })
     }
