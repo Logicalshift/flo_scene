@@ -1,0 +1,13 @@
+[package]
+name            = "flo_scene_macros"
+version         = "0.2.0"
+edition         = "2021"
+authors         = ["Andrew Hunter"]
+license         = "Apache-2.0"
+readme          = "README.md"
+repository      = "https://github.com/Logicalshift/flo_scene"
+description     = "Macros for flo_scene - declaring subprograms and WASM guest support"
+categories      = [ "concurrency", "data-structures" ]
+keywords        = [ "message-queue" ]
+
+[dependencies]
