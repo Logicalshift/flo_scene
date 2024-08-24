@@ -176,18 +176,3 @@
 mod host;
 
 pub use host::*;
-pub (crate) use host::scene;
-pub (crate) use host::scene_core;
-pub (crate) use host::subprogram_core;
-pub (crate) use host::process_core;
-pub (crate) use host::subprogram_id;
-pub (crate) use host::stream_id;
-pub (crate) use host::stream_source;
-pub (crate) use host::stream_target;
-pub (crate) use host::input_stream;
-pub (crate) use host::output_sink;
-pub (crate) use host::filter;
-pub (crate) use host::scene_message;
-pub (crate) use host::thread_stealer;
-pub (crate) use host::command_trait;
-pub (crate) use host::connect_result;
