@@ -68,3 +68,11 @@
 // crate doesn't work for webassembly, but we can iterate over the exports in wasmer to find
 // functions that match a particular name/type signature.
 //
+
+mod error;
+mod module_id;
+mod wasm_control;
+
+pub use error::*;
+pub use module_id::*;
+pub use wasm_control::*;
