@@ -1,3 +1,5 @@
+use super::sink_handle::*;
+use super::stream_target::*;
 use super::subprogram_handle::*;
 use crate::subprogram_id::*;
 
@@ -31,6 +33,12 @@ pub enum GuestResult {
 
     /// Indicates that a guest subprogram cannot accept a message, and it must be re-sent
     Pending(GuestSubProgramHandle, Vec<u8>),
+
+    /// Creates a connection to a target on the host side
+    Connect(HostSinkHandle, HostStreamTarget),
+
+    /// Sends data to a sink established on the target side (which must have indicated that it's 'ready')
+    Send(HostSinkHandle, Vec<u8>),
 }
 
 impl GuestPollResult {

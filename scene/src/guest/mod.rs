@@ -17,10 +17,12 @@ mod traits;
 mod poll_action;
 mod poll_result;
 mod sink_handle;
+mod stream_target;
 mod subprogram_handle;
 
 pub use traits::*;
 pub use poll_action::*;
 pub use poll_result::*;
 pub use sink_handle::*;
+pub use stream_target::*;
 pub use subprogram_handle::*;

@@ -1,4 +1,4 @@
-use super::subprogram_handle::*;
+use super::{subprogram_handle::*, HostSinkHandle};
 use crate::subprogram_id::*;
 
 ///
@@ -26,6 +26,9 @@ pub enum GuestAction {
 
     /// Sends a message encoded as bytes to a subprogram identified by ID
     SendMessage(GuestSubProgramHandle, Vec<u8>),
+
+    /// The specified host sink is ready to accept a message
+    Ready(HostSinkHandle),
 }
 
 impl GuestPollAction {
