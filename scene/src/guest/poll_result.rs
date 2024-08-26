@@ -1,4 +1,5 @@
 use super::sink_handle::*;
+use super::stream_id::*;
 use super::stream_target::*;
 use super::subprogram_handle::*;
 use crate::subprogram_id::*;
@@ -22,8 +23,9 @@ pub enum GuestResult {
     Stopped,
 
     /// Indicates that the guest has internally created a new subprogram that should appear in the scene with the specified subprogram ID
-    /// `AssignSubProgram` should be used to give this subprogram a handle for message processing purposes
-    CreateSubprogram(SubProgramId),
+    /// `AssignSubProgram` should be used to give this subprogram a handle for message processing purposes. The stream ID is used for
+    /// serializing messages destined for this subprogram.
+    CreateSubprogram(SubProgramId, HostStreamId),
 
     /// The specified subprogram has ended and cannot accept any more messages
     EndedSubprogram(GuestSubProgramHandle),
