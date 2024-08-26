@@ -13,6 +13,9 @@ pub struct GuestPollResult {
 ///
 /// A result returned after a guest program has been polled
 ///
+/// The guest should wait for the `Ready` message before trying to send any message, and also needs to wait again
+/// after sending a message.
+///
 #[derive(Clone, Debug)]
 pub enum GuestResult {
     /// Indicates that the guest has stopped running and won't accept any further requests
@@ -28,17 +31,14 @@ pub enum GuestResult {
     /// Indicates that the specified guest subprogram is ready to receive a message
     Ready(GuestSubProgramHandle),
 
-    /// Indicates that a guest subprogram has accepted a message
-    Accepted(GuestSubProgramHandle),
-
-    /// Indicates that a guest subprogram cannot accept a message, and it must be re-sent
-    Pending(GuestSubProgramHandle, Vec<u8>),
-
     /// Creates a connection to a target on the host side
     Connect(HostSinkHandle, HostStreamTarget),
 
     /// Sends data to a sink established on the target side (which must have indicated that it's 'ready')
     Send(HostSinkHandle, Vec<u8>),
+
+    /// Remove the connection associated with a sink handle
+    Disconnect(HostSinkHandle),
 }
 
 impl GuestPollResult {

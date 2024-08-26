@@ -12,6 +12,12 @@ pub struct GuestPollAction {
 ///
 /// A guest action request
 ///
+/// The host must not generate `SendMessage` until a `GuestResult::Ready` message has been received from the guest, and must not generate
+/// `SendMessage` again until another `GuestResult::Ready` message is sent.
+///
+/// Similarly, the host will indicate that the guest can send messages to a sink with the `GuestAction::Ready` message, and the
+/// host will expect the guest to not send more messages for a specific sink until the host indicates that it's ready.
+///
 #[derive(Clone, Debug)]
 pub enum GuestAction {
     /// Request to start the guest subprogram (each guest has only one 'core' subprogram). Value indicates the ID assigned to this instance of the
@@ -20,9 +26,6 @@ pub enum GuestAction {
 
     /// In response to a request indicating that a guest has a new subprogram, assigns a new handle to it for the purposes of sending/receiving messages
     AssignSubProgram(SubProgramId, GuestSubProgramHandle),
-
-    /// Indicate whether or not hte specified subprogram is ready to accept a message
-    IsReady(GuestSubProgramHandle),
 
     /// Sends a message encoded as bytes to a subprogram identified by ID
     SendMessage(GuestSubProgramHandle, Vec<u8>),
