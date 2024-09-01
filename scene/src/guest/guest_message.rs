@@ -13,7 +13,7 @@ pub trait GuestSceneMessage : SceneMessage + serde::Serialize + for<'de> serde::
 ///
 /// The guest message encoder
 ///
-pub trait GuestMessageEncoder {
+pub trait GuestMessageEncoder : Clone {
     /// Encodes a guest message
     fn encode(&self, message: impl GuestSceneMessage) -> Vec<u8>;
 
@@ -27,6 +27,7 @@ pub trait GuestMessageEncoder {
 /// This is a slow and fairly inefficient way to encode messages, but the results are human-readable, which can aid in
 /// debugging or interoperability with other systems.
 ///
+#[derive(Clone)]
 pub struct GuestJsonEncoder;
 
 impl GuestMessageEncoder for GuestJsonEncoder {
