@@ -179,6 +179,7 @@ mod host;
 #[cfg(not(target_family="wasm"))]
 pub use host::*;
 
+#[cfg(feature="guest_programs")]
 pub mod guest;
 
 #[cfg(target_family="wasm")]
