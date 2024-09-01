@@ -13,6 +13,7 @@ keywords        = [ "message-queue" ]
 [features]
 serde_support   = [ "serde", "uuid/serde" ]
 json            = [ "serde_support", "serde_json" ]
+guest_programs  = [ "serde_support" ]
 tokio           = [ ]
 
 [dependencies]
