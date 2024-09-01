@@ -22,6 +22,7 @@ mod sink_handle;
 mod stream_id;
 mod stream_target;
 mod subprogram_handle;
+mod input_stream;
 
 pub use traits::*;
 pub use guest_message::*;
@@ -32,3 +33,4 @@ pub use sink_handle::*;
 pub use stream_id::*;
 pub use stream_target::*;
 pub use subprogram_handle::*;
+pub use input_stream::*;
