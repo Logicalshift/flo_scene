@@ -1,7 +1,6 @@
 use crate::scene_message::*;
 
 use serde;
-use rkyv;
 
 ///
 /// A guest scene message is one that can be sent to a 'guest' scene. These messages are serializable, and are the type
