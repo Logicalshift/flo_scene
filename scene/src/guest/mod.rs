@@ -14,6 +14,7 @@
 //!
 
 mod traits;
+mod guest_message;
 mod poll_action;
 mod poll_result;
 mod runtime;
@@ -23,6 +24,7 @@ mod stream_target;
 mod subprogram_handle;
 
 pub use traits::*;
+pub use guest_message::*;
 pub use poll_action::*;
 pub use poll_result::*;
 pub use runtime::*;
