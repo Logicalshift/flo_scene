@@ -14,7 +14,7 @@ keywords        = [ "message-queue" ]
 serde_support   = [ "serde", "uuid/serde" ]
 rkyv_support    = [ "rkyv" ]
 json            = [ "serde_support", "serde_json" ]
-guest_programs  = [ "serde_support", "rkyv_support" ]
+guest_programs  = [ "serde_support", "serde_json", "rkyv_support" ]
 tokio_support   = [ "tokio" ]
 
 [dependencies]
