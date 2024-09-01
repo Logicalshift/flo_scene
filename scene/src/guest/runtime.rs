@@ -1,7 +1,9 @@
 use crate::scene_message::*;
 
 use futures::prelude::*;
+use futures::future::{BoxFuture};
 
+use std::collections::{HashSet};
 use std::marker::{PhantomData};
 
 ///
@@ -10,10 +12,21 @@ use std::marker::{PhantomData};
 /// the guest subprograms, it's a single-threaded futures executor.
 ///
 pub struct GuestRuntime {
+    /// The futures that are running in the guest
+    futures: Vec<Option<BoxFuture<'static, ()>>>,
 
+    /// Indices of the futures that are awake
+    awake: HashSet<usize>,
 }
 
+///
+/// A guest input stream works with the reads deserialized messages from the host side
+///
 pub struct GuestInputStream<TMessageType>(PhantomData<TMessageType>);
+
+///
+/// A guest scene context relays requests from the guest side to the host side
+///
 pub struct GuestSceneContext;
 
 impl GuestRuntime {
