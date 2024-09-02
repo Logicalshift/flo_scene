@@ -36,6 +36,33 @@ pub struct GuestInputStream<TMessageType: GuestSceneMessage> {
     decode_as: PhantomData<TMessageType>,
 }
 
+impl<TMessageType> GuestInputStream<TMessageType>
+where
+    TMessageType: GuestSceneMessage,
+{
+    /// Creates a new guest input stream
+    pub (crate) fn new(encoder: impl 'static + GuestMessageEncoder) -> Self {
+        // Create the core
+        let core = GuestInputStreamCore {
+            waiting:    VecDeque::new(),
+            waker:      None,
+            closed:     false,
+        };
+        let core = Arc::new(Mutex::new(core));
+
+        // Decoder is a function that calls the encoder that was passed in
+        let decoder     = Box::new(move |msg| encoder.decode(msg));
+        let decode_as   = PhantomData;
+
+        Self { core, decoder, decode_as }
+    }
+
+    /// Retrieves the core of this input stream
+    #[inline]
+    pub (crate) fn core(&self) -> &Arc<Mutex<GuestInputStreamCore>> {
+        &self.core
+    }
+}
 
 impl<TMessageType> Stream for GuestInputStream<TMessageType> 
 where
