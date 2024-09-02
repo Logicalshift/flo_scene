@@ -13,7 +13,7 @@ pub trait GuestSceneMessage : SceneMessage + serde::Serialize + for<'de> serde::
 ///
 /// The guest message encoder
 ///
-pub trait GuestMessageEncoder : Clone {
+pub trait GuestMessageEncoder : Send + Sync + Clone {
     /// Encodes a guest message
     fn encode(&self, message: impl GuestSceneMessage) -> Vec<u8>;
 
