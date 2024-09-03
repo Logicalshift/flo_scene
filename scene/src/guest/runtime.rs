@@ -24,12 +24,9 @@ enum GuestFuture {
     Finished
 }
 
-struct GuestRuntimeCore<TEncoder: GuestMessageEncoder> {
+struct GuestRuntimeCore {
     /// The futures that are running in the guest
     futures: Vec<GuestFuture>,
-
-    /// The encoder, used for serializing and deserializing messages sent to and from the guest program
-    encoder: TEncoder,
 
     /// Indices of the futures that are awake
     awake: HashSet<usize>,
@@ -47,7 +44,11 @@ struct GuestRuntimeCore<TEncoder: GuestMessageEncoder> {
 /// the guest subprograms, it's a single-threaded futures executor.
 ///
 pub struct GuestRuntime<TEncoder: GuestMessageEncoder> {
-    core: Arc<Mutex<GuestRuntimeCore<TEncoder>>>,
+    /// The core, which manages the runtime
+    core: Arc<Mutex<GuestRuntimeCore>>,
+
+    /// The encoder, used for serializing and deserializing messages sent to and from the guest program
+    encoder: TEncoder,
 }
 
 ///
@@ -75,10 +76,10 @@ where
         let input_streams       = HashMap::new();
         let next_stream_handle  = 0;
 
-        let core = GuestRuntimeCore { futures, encoder, awake, input_streams, next_stream_handle };
+        let core = GuestRuntimeCore { futures, awake, input_streams, next_stream_handle };
         let core = Arc::new(Mutex::new(core));
 
-        let runtime = GuestRuntime { core: Arc::clone(&core) };
+        let runtime = GuestRuntime { core: Arc::clone(&core), encoder };
 
         // Initialise the initial subprogram
         let (_input_handle, input_stream)   = runtime.create_input_stream();
@@ -96,7 +97,7 @@ where
     ///
     #[inline]
     pub fn create_input_stream<TMessageType: GuestSceneMessage>(&self) -> (usize, GuestInputStream<TMessageType>) {
-        GuestRuntimeCore::create_input_stream(&self.core)
+        GuestRuntimeCore::create_input_stream(&self.core, &self.encoder)
     }
 
     ///
@@ -115,14 +116,11 @@ where
     }
 }
 
-impl<TEncoder> GuestRuntimeCore<TEncoder>
-where
-    TEncoder: 'static + GuestMessageEncoder,
-{
+impl GuestRuntimeCore {
     ///
     /// Creates a new input stream in a runtime core
     ///
-    pub (crate) fn create_input_stream<TMessageType: GuestSceneMessage>(core: &Arc<Mutex<Self>>) -> (usize, GuestInputStream<TMessageType>) {
+    pub (crate) fn create_input_stream<TMessageType: GuestSceneMessage>(core: &Arc<Mutex<Self>>, encoder: &(impl 'static + GuestMessageEncoder)) -> (usize, GuestInputStream<TMessageType>) {
         let mut core = core.lock().unwrap();
 
         // Assign a handle to the input stream
@@ -130,7 +128,7 @@ where
         core.next_stream_handle += 1;
 
         // Create a core for the new stream
-        let input_stream    = GuestInputStream::new(core.encoder.clone());
+        let input_stream    = GuestInputStream::new(encoder.clone());
         let input_core      = input_stream.core().clone();
 
         core.input_streams.insert(stream_handle, input_core);
