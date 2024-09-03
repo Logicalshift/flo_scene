@@ -116,6 +116,30 @@ where
     }
 }
 
+impl GuestFuture {
+    ///
+    /// If this future is in the ready state, returns Some(future) and leaves this in the busy state 
+    ///
+    #[inline]
+    pub fn take(&mut self) -> Option<BoxFuture<'static, ()>> {
+        use std::mem;
+
+        match self {
+            GuestFuture::Ready(_) => {
+                let mut taken_future = GuestFuture::Busy;
+                mem::swap(self, &mut taken_future);
+
+                match taken_future {
+                    GuestFuture::Ready(taken_future)    => Some(taken_future),
+                    _                                   => unreachable!()
+                }
+            }
+
+            _ => None
+        }
+    }
+}
+
 impl GuestRuntimeCore {
     ///
     /// Creates a new input stream in a runtime core
@@ -140,13 +164,31 @@ impl GuestRuntimeCore {
     /// Polls any awake futures in this core
     ///
     pub (crate) fn poll_awake(core: &Arc<Mutex<Self>>, set_context: bool) -> Vec<GuestResult> {
-        // Pick the futures to poll
+        loop {
+            // Pick the futures to poll
+            let ready_to_poll = {
+                // Take all of the futures that are ready out of the core (and mark them as asleep again)
+                let mut core    = core.lock().unwrap();
+                let core        = &mut *core;
 
-        // Poll the futures (stopping if we build up enough results)
+                let awake   = &mut core.awake;
+                let futures = &mut core.futures;
 
-        // Return the polled futures to the core
+                awake.drain()
+                    .map(|idx| {
+                        (idx, futures[idx].take())
+                    })
+                    .collect::<Vec<_>>()
+            };
 
-        // Return any results that were generated while polling
-        vec![]
+            // Return the actions that were generated when there aren o
+            if ready_to_poll.is_empty() {
+                return vec![];
+            }
+
+            // Poll the futures (stopping if we build up enough results)
+
+            // Return the polled futures to the core
+        }
     }
 }
