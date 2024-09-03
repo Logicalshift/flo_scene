@@ -10,9 +10,23 @@ use std::collections::{HashMap, HashSet};
 use std::marker::{PhantomData};
 use std::sync::*;
 
+///
+/// Enum representing the state of a future in the guest runtime
+///
+enum GuestFuture {
+    /// Future is ready to run
+    Ready(BoxFuture<'static, ()>),
+
+    /// Future is being polled elsewhere
+    Busy,
+
+    /// Future is finished (and can be replaced by another future if needed)
+    Finished
+}
+
 struct GuestRuntimeCore<TEncoder: GuestMessageEncoder> {
     /// The futures that are running in the guest
-    futures: Vec<Option<BoxFuture<'static, ()>>>,
+    futures: Vec<GuestFuture>,
 
     /// The encoder, used for serializing and deserializing messages sent to and from the guest program
     encoder: TEncoder,
@@ -71,7 +85,7 @@ where
         let context                         = GuestSceneContext;
         let subprogram                      = subprogram(input_stream, context);
 
-        core.lock().unwrap().futures.push(Some(subprogram.boxed()));
+        core.lock().unwrap().futures.push(GuestFuture::Ready(subprogram.boxed()));
         debug_assert!(_input_handle == 0);
 
         runtime
@@ -128,6 +142,13 @@ where
     /// Polls any awake futures in this core
     ///
     pub (crate) fn poll_awake(core: &Arc<Mutex<Self>>, set_context: bool) -> Vec<GuestResult> {
+        // Pick the futures to poll
+
+        // Poll the futures (stopping if we build up enough results)
+
+        // Return the polled futures to the core
+
+        // Return any results that were generated while polling
         vec![]
     }
 }
