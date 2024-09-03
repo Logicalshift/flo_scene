@@ -4,7 +4,7 @@ use super::input_stream::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
-use futures::task::{Waker};
+use futures::task::{waker, ArcWake, Context, Poll};
 
 use std::collections::{HashMap, HashSet};
 use std::marker::{PhantomData};
@@ -37,6 +37,9 @@ struct GuestRuntimeCore {
     /// The handle to assign to the next input stream we assign
     next_stream_handle: usize,
 }
+
+/// Wakes up future with the specified index in a guest runtime core
+struct CoreWaker(usize, Weak<Mutex<GuestRuntimeCore>>);
 
 ///
 /// The guest runtime runs a set of guest subprograms (providing GuestInputStream and GuestSceneContext functions),
@@ -103,16 +106,12 @@ where
     ///
     /// Polls any awake futures in this scene, returning any resulting actions
     ///
-    /// If set_context is true, this will set a futures context. This panics if called from another context, so the flag can be
-    /// set to false if the existing context should be used. (Things will also work with no context at all: the main thing that
-    /// the futures context does is panic if you try to enter another one)
-    ///
     /// In general, guest programs should be inherently non-blocking and isolated from anything running in the 'parent' context
-    /// so calling this from an existing future with set_context set to false should generally be safe.
+    /// so calling this from an existing future should generally be safe.
     ///
     #[inline]
-    pub fn poll_awake(&self, set_context: bool) -> Vec<GuestResult> {
-        GuestRuntimeCore::poll_awake(&self.core, set_context)
+    pub fn poll_awake(&self) -> Vec<GuestResult> {
+        GuestRuntimeCore::poll_awake(&self.core)
     }
 }
 
@@ -140,6 +139,20 @@ impl GuestFuture {
     }
 }
 
+
+impl ArcWake for CoreWaker {
+    fn wake_by_ref(arc_self: &Arc<Self>) {
+        let CoreWaker(future_idx, weak_runtime_core) = &**arc_self;
+        let future_idx = *future_idx;
+
+        if let Some(runtime_core) = weak_runtime_core.upgrade() {
+            // If the core still exists, add this future to the awake list
+            let mut core = runtime_core.lock().unwrap();
+            core.awake.insert(future_idx);
+        }
+    }
+}
+
 impl GuestRuntimeCore {
     ///
     /// Creates a new input stream in a runtime core
@@ -163,7 +176,7 @@ impl GuestRuntimeCore {
     ///
     /// Polls any awake futures in this core
     ///
-    pub (crate) fn poll_awake(core: &Arc<Mutex<Self>>, set_context: bool) -> Vec<GuestResult> {
+    pub (crate) fn poll_awake(core: &Arc<Mutex<Self>>) -> Vec<GuestResult> {
         loop {
             // Pick the futures to poll
             let ready_to_poll = {
@@ -175,20 +188,36 @@ impl GuestRuntimeCore {
                 let futures = &mut core.futures;
 
                 awake.drain()
-                    .map(|idx| {
-                        (idx, futures[idx].take())
+                    .flat_map(|idx| {
+                        futures[idx].take().map(|future| (idx, future))
                     })
                     .collect::<Vec<_>>()
             };
 
             // Return the actions that were generated when there aren o
             if ready_to_poll.is_empty() {
+                // TODO: collect pending messages from the futures to return here
                 return vec![];
             }
 
-            // Poll the futures (stopping if we build up enough results)
+            // Poll the futures
+            // TODO: (stopping if we build up enough results)
+            for (future_idx, ready_future) in ready_to_poll.into_iter() {
+                // Create a context to poll in (will wake the attached future if hit)
+                let core_waker  = CoreWaker(future_idx, Arc::downgrade(core));
+                let core_waker  = waker(Arc::new(core_waker));
+                let mut context = Context::from_waker(&core_waker);
 
-            // Return the polled futures to the core
+                // Poll the future
+                let mut ready_future = ready_future;
+                let poll_result = ready_future.poll_unpin(&mut context);
+
+                // Return the future to the list (or mark it as finished)
+                match poll_result {
+                    Poll::Ready(_) => { core.lock().unwrap().futures[future_idx] = GuestFuture::Finished; }
+                    Poll::Pending  => { core.lock().unwrap().futures[future_idx] = GuestFuture::Ready(ready_future); }
+                }
+            }
         }
     }
 }
