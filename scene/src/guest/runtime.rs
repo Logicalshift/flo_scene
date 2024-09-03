@@ -1,4 +1,5 @@
 use super::guest_message::*;
+use super::poll_result::*;
 use super::input_stream::*;
 
 use futures::prelude::*;
@@ -83,6 +84,21 @@ where
     pub fn create_input_stream<TMessageType: GuestSceneMessage>(&self) -> (usize, GuestInputStream<TMessageType>) {
         GuestRuntimeCore::create_input_stream(&self.core)
     }
+
+    ///
+    /// Polls any awake futures in this scene, returning any resulting actions
+    ///
+    /// If set_context is true, this will set a futures context. This panics if called from another context, so the flag can be
+    /// set to false if the existing context should be used. (Things will also work with no context at all: the main thing that
+    /// the futures context does is panic if you try to enter another one)
+    ///
+    /// In general, guest programs should be inherently non-blocking and isolated from anything running in the 'parent' context
+    /// so calling this from an existing future with set_context set to false should generally be safe.
+    ///
+    #[inline]
+    pub fn poll_awake(&self, set_context: bool) -> Vec<GuestResult> {
+        GuestRuntimeCore::poll_awake(&self.core, set_context)
+    }
 }
 
 impl<TEncoder> GuestRuntimeCore<TEncoder>
@@ -106,5 +122,12 @@ where
         core.input_streams.insert(stream_handle, input_core);
 
         (stream_handle, input_stream)
+    }
+
+    ///
+    /// Polls any awake futures in this core
+    ///
+    pub (crate) fn poll_awake(core: &Arc<Mutex<Self>>, set_context: bool) -> Vec<GuestResult> {
+        vec![]
     }
 }
