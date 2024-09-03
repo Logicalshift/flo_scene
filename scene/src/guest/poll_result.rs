@@ -41,6 +41,9 @@ pub enum GuestResult {
 
     /// Remove the connection associated with a sink handle
     Disconnect(HostSinkHandle),
+
+    /// The guest still has more work to do and should be immediately polled again
+    ContinuePolling,
 }
 
 impl GuestPollResult {
