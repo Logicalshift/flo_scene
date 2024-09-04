@@ -36,6 +36,9 @@ struct GuestRuntimeCore {
 
     /// The handle to assign to the next input stream we assign
     next_stream_handle: usize,
+
+    /// Actions and results that are waiting to be returned to the host
+    pending_results: Vec<GuestResult>,
 }
 
 /// Wakes up future with the specified index in a guest runtime core
@@ -78,8 +81,9 @@ where
         let awake               = HashSet::new();
         let input_streams       = HashMap::new();
         let next_stream_handle  = 0;
+        let pending_results     = vec![];
 
-        let core = GuestRuntimeCore { futures, awake, input_streams, next_stream_handle };
+        let core = GuestRuntimeCore { futures, awake, input_streams, next_stream_handle, pending_results };
         let core = Arc::new(Mutex::new(core));
 
         let runtime = GuestRuntime { core: Arc::clone(&core), encoder };
@@ -177,6 +181,8 @@ impl GuestRuntimeCore {
     /// Polls any awake futures in this core
     ///
     pub (crate) fn poll_awake(core: &Arc<Mutex<Self>>) -> Vec<GuestResult> {
+        use std::mem;
+
         loop {
             // Pick the futures to poll
             let ready_to_poll = {
@@ -194,10 +200,19 @@ impl GuestRuntimeCore {
                     .collect::<Vec<_>>()
             };
 
-            // Return the actions that were generated when there aren o
+            // Return the actions that were generated when there are no more futures ready to run
             if ready_to_poll.is_empty() {
-                // TODO: collect pending messages from the futures to return here
-                return vec![];
+                // Take the pending results out of the core
+                let results = {
+                    let mut core    = core.lock().unwrap();
+                    let mut results = vec![];
+                    mem::swap(&mut results, &mut core.pending_results);
+
+                    results
+                };
+
+                // Finished polling the futures
+                return results;
             }
 
             // Poll the futures
