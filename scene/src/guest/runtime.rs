@@ -1,6 +1,7 @@
 use super::guest_message::*;
 use super::poll_result::*;
 use super::input_stream::*;
+use super::GuestSubProgramHandle;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
@@ -116,6 +117,17 @@ where
     #[inline]
     pub fn poll_awake(&self) -> Vec<GuestResult> {
         GuestRuntimeCore::poll_awake(&self.core)
+    }
+
+    ///
+    /// Enqueues a messge for the specified subprogram
+    ///
+    /// This will always accept the message, but the specified subprogram should be considered 'not ready' after this call has
+    /// been made so that backpressure is generated. The message is discarded if there is no subprogram with the specified
+    /// ID running
+    ///
+    pub fn send_message(&self, target: GuestSubProgramHandle, data: Vec<u8>) {
+        GuestRuntimeCore::send_message(&self.core, target, data)
     }
 }
 
@@ -234,5 +246,41 @@ impl GuestRuntimeCore {
                 }
             }
         }
+    }
+
+    ///
+    /// Enqueues a messge for the specified subprogram
+    ///
+    /// This will always accept the message, but the specified subprogram should be considered 'not ready' after this call has
+    /// been made so that backpressure is generated. The message is discarded if there is no subprogram with the specified
+    /// ID running
+    ///
+    pub (crate) fn send_message(core: &Arc<Mutex<Self>>, target: GuestSubProgramHandle, message: Vec<u8>) {
+        use std::mem;
+
+        let waker = {
+            // Lock the core
+            let core = core.lock().unwrap();
+
+            // The handle is an index into the input_streams list
+            let GuestSubProgramHandle(target_id) = target;
+
+            // Get the input stream, if we can
+            let input_stream = core.input_streams.get(&target_id).cloned();
+
+            // Release the lock on the core
+            mem::drop(core);
+
+            if let Some(input_stream) = input_stream {
+                GuestInputStreamCore::send_message(&input_stream, message)
+            } else {
+                // This program is not running
+                None
+            }
+        };
+
+        // Wake anything that needs to be awoken
+        waker.into_iter()
+            .for_each(|waker| waker.wake());
     }
 }

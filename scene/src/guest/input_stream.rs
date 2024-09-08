@@ -96,3 +96,18 @@ where
         }
     }
 }
+
+impl GuestInputStreamCore {
+    ///
+    /// Enqueues a message into an input stream core, returning the waker for the future
+    ///
+    pub (crate) fn send_message(core: &Arc<Mutex<GuestInputStreamCore>>, message: Vec<u8>) -> Option<Waker> {
+        let mut core = core.lock().unwrap();
+
+        // Enqueue the message
+        core.waiting.push_back(message);
+
+        // Return the waker if there is one
+        core.waker.take()
+    }
+}
