@@ -20,13 +20,6 @@ pub struct GuestPollAction {
 ///
 #[derive(Clone, Debug)]
 pub enum GuestAction {
-    /// Request to start the guest subprogram (each guest has only one 'core' subprogram). Value indicates the ID assigned to this instance of the
-    /// subprogram.
-    StartSubProgram(GuestSubProgramHandle),
-
-    /// In response to a request indicating that a guest has a new subprogram, assigns a new handle to it for the purposes of sending/receiving messages
-    AssignSubProgram(SubProgramId, GuestSubProgramHandle),
-
     /// Sends a message encoded as bytes to a subprogram identified by ID
     SendMessage(GuestSubProgramHandle, Vec<u8>),
 
