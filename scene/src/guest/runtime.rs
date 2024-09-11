@@ -25,7 +25,7 @@ enum GuestFuture {
     Finished
 }
 
-struct GuestRuntimeCore {
+pub (crate) struct GuestRuntimeCore {
     /// The futures that are running in the guest
     futures: Vec<GuestFuture>,
 
@@ -173,15 +173,15 @@ impl GuestRuntimeCore {
     ///
     /// Creates a new input stream in a runtime core
     ///
-    pub (crate) fn create_input_stream<TMessageType: GuestSceneMessage>(core: &Arc<Mutex<Self>>, encoder: &(impl 'static + GuestMessageEncoder)) -> (usize, GuestInputStream<TMessageType>) {
-        let mut core = core.lock().unwrap();
+    pub (crate) fn create_input_stream<TMessageType: GuestSceneMessage>(runtime_core: &Arc<Mutex<Self>>, encoder: &(impl 'static + GuestMessageEncoder)) -> (usize, GuestInputStream<TMessageType>) {
+        let mut core = runtime_core.lock().unwrap();
 
         // Assign a handle to the input stream
         let stream_handle = core.next_stream_handle;
         core.next_stream_handle += 1;
 
         // Create a core for the new stream
-        let input_stream    = GuestInputStream::new(encoder.clone());
+        let input_stream    = GuestInputStream::new(GuestSubProgramHandle(stream_handle), encoder.clone(), runtime_core);
         let input_core      = input_stream.core().clone();
 
         core.input_streams.insert(stream_handle, input_core);
@@ -279,8 +279,18 @@ impl GuestRuntimeCore {
             }
         };
 
-        // Wake anything that needs to be awoken
+        // Wake anything that needs to be awoken for this stream
         waker.into_iter()
             .for_each(|waker| waker.wake());
+    }
+
+    ///
+    /// Indicates that a stream is ready to accept more input
+    ///
+    pub (crate) fn stream_ready(core: &Arc<Mutex<Self>>, target: GuestSubProgramHandle) {
+        // Indicate that the program is ready to receive a new message
+        let mut core = core.lock().unwrap();
+
+        core.pending_results.push(GuestResult::Ready(target))
     }
 }

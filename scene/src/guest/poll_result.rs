@@ -17,7 +17,7 @@ pub struct GuestPollResult {
 /// The guest should wait for the `Ready` message before trying to send any message, and also needs to wait again
 /// after sending a message.
 ///
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum GuestResult {
     /// Indicates that the guest has stopped running and won't accept any further requests
     Stopped,

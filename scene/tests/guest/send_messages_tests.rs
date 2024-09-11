@@ -39,8 +39,9 @@ pub fn send_json_message_to_runtime() {
     assert!(*woken.lock().unwrap() == false);
 
     // Poll once to make the loop start waiting (we can send messages before this point: want to test that we'll wake the thread up again)
-    let _result = guest_runtime.poll_awake();
+    let result = guest_runtime.poll_awake();
     assert!(*woken.lock().unwrap() == true);
+    assert!(result.contains(&GuestResult::Ready(GuestSubProgramHandle::default())));
 
     // Enqueue a message for the runtime (the default subprogram always has the same handle)
     let data = SimpleTestMessage { value: "Test".into() }.serialize(serde_json::value::Serializer).unwrap();
@@ -48,10 +49,15 @@ pub fn send_json_message_to_runtime() {
     guest_runtime.send_message(GuestSubProgramHandle::default(), data);
 
     // Polling the runtime once should clear the pending message
-    let _result = guest_runtime.poll_awake();
+    let result = guest_runtime.poll_awake();
 
     // Message should have been received and properly decoded
     let received = received.lock().unwrap();
     assert!(received.len() == 1, "{:?}", received);
     assert!(received[0] == SimpleTestMessage { value: "Test".into() }, "{:?}", received);
+    assert!(result.contains(&GuestResult::Ready(GuestSubProgramHandle::default())));
+
+    // Program isn't doing anything so it doesn't get more ready
+    let result = guest_runtime.poll_awake();
+    assert!(!result.contains(&GuestResult::Ready(GuestSubProgramHandle::default())));
 }

@@ -18,7 +18,7 @@ pub struct GuestPollAction {
 /// Similarly, the host will indicate that the guest can send messages to a sink with the `GuestAction::Ready` message, and the
 /// host will expect the guest to not send more messages for a specific sink until the host indicates that it's ready.
 ///
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum GuestAction {
     /// Sends a message encoded as bytes to a subprogram identified by ID
     SendMessage(GuestSubProgramHandle, Vec<u8>),

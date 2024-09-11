@@ -1,4 +1,6 @@
 use super::guest_message::*;
+use super::runtime::*;
+use super::GuestSubProgramHandle;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
@@ -20,6 +22,9 @@ pub (crate) struct GuestInputStreamCore {
 
     /// Set to true once the stream should be considered to be closed
     closed: bool,
+
+    /// Set to true when the stream is ready (and false when input is returned)
+    is_ready: bool,
 }
 
 ///
@@ -28,6 +33,12 @@ pub (crate) struct GuestInputStreamCore {
 pub struct GuestInputStream<TMessageType: GuestSceneMessage> {
     /// The core is shared with the runtime for managing the input stream
     core: Arc<Mutex<GuestInputStreamCore>>,
+
+    /// The handle assigned to the subprogram that owns this input stream
+    program_handle: GuestSubProgramHandle,
+
+    /// The runtime core (we need this to signal 'ready')
+    runtime_core: Arc<Mutex<GuestRuntimeCore>>,
 
     /// The decoder turns an encoded message back into a TMessageType
     decoder: Box<dyn 'static + Send + Fn(Vec<u8>) -> TMessageType>,
@@ -41,20 +52,22 @@ where
     TMessageType: GuestSceneMessage,
 {
     /// Creates a new guest input stream
-    pub (crate) fn new(encoder: impl 'static + GuestMessageEncoder) -> Self {
+    pub (crate) fn new(program_handle: GuestSubProgramHandle, encoder: impl 'static + GuestMessageEncoder, runtime_core: &Arc<Mutex<GuestRuntimeCore>>) -> Self {
         // Create the core
         let core = GuestInputStreamCore {
             waiting:    VecDeque::new(),
             waker:      None,
             closed:     false,
+            is_ready:   false,
         };
-        let core = Arc::new(Mutex::new(core));
+        let core            = Arc::new(Mutex::new(core));
+        let runtime_core    = Arc::clone(runtime_core);
 
         // Decoder is a function that calls the encoder that was passed in
         let decoder     = Box::new(move |msg| encoder.decode(msg));
         let decode_as   = PhantomData;
 
-        Self { core, decoder, decode_as }
+        Self { core, program_handle, runtime_core, decoder, decode_as }
     }
 
     /// Retrieves the core of this input stream
@@ -71,12 +84,15 @@ where
     type Item = TMessageType;
 
     fn poll_next(self: std::pin::Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        use std::mem;
+
         // Read the encoded form of the next message from the core
         let next_message = {
             let mut core = self.core.lock().unwrap();
 
             if let Some(encoded) = core.waiting.pop_front() {
                 // There's a message waiting
+                core.is_ready = false;
                 Poll::Ready(Some(encoded))
             } else if core.closed {
                 // Stream has finished
@@ -84,7 +100,19 @@ where
             } else {
                 // Stream is blocked: store the waker so we can invoke this in the future
                 core.waker = Some(context.waker().clone());
-                Poll::Pending
+
+                if !core.is_ready {
+                    // The core is ready
+                    core.is_ready = true;
+                    mem::drop(core);
+
+                    // Signal via the runtime
+                    GuestRuntimeCore::stream_ready(&self.runtime_core, self.program_handle);
+
+                    Poll::Pending
+                } else {
+                    Poll::Pending
+                }
             }
         };
 
