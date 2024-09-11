@@ -22,15 +22,16 @@ pub enum GuestResult {
     /// Indicates that the guest has stopped running and won't accept any further requests
     Stopped,
 
-    /// Indicates that the guest has internally created a new subprogram that should appear in the scene with the specified subprogram ID
-    /// `AssignSubProgram` should be used to give this subprogram a handle for message processing purposes. The stream ID is used for
-    /// serializing messages destined for this subprogram.
-    CreateSubprogram(SubProgramId, HostStreamId),
+    /// The guest has created a subprogram, which can be referred to using the specified subprogram handle.
+    /// Externally (on the host), it should be referred to by the subprogram ID instead
+    /// The host stream ID indicates the type of data that can be sent to the subprogram
+    CreateSubprogram(SubProgramId, GuestSubProgramHandle, HostStreamId),
 
     /// The specified subprogram has ended and cannot accept any more messages
     EndedSubprogram(GuestSubProgramHandle),
 
-    /// Indicates that the specified guest subprogram is ready to receive a message
+    /// Indicates that the specified guest subprogram is ready to receive a message (when a program is created or when a message sent to it, it should be considered
+    /// 'not ready' until this is received)
     Ready(GuestSubProgramHandle),
 
     /// Creates a connection to a target on the host side
