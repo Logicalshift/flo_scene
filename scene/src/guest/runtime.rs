@@ -95,6 +95,7 @@ where
         let subprogram                      = subprogram(input_stream, context);
 
         core.lock().unwrap().futures.push(GuestFuture::Ready(subprogram.boxed()));
+        core.lock().unwrap().awake.insert(0);
         debug_assert!(_input_handle == 0);
 
         runtime
@@ -154,7 +155,6 @@ impl GuestFuture {
         }
     }
 }
-
 
 impl ArcWake for CoreWaker {
     fn wake_by_ref(arc_self: &Arc<Self>) {
