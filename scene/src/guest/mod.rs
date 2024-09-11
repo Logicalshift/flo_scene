@@ -1,9 +1,11 @@
 //!
 //! # Functions for passing messages to and from a 'guest context'
 //!
-//! Normally scenes are run as a 'host context'. However, we may want to run subprograms in contexts
-//! that are isolated from the 'host' scene: this API provides a means for a 'host' scene to communicate
-//! with a 'guest' subprogram. Guests can be created almost completely isolated from their hosts.
+//! A 'guest context' provides a way for group of subprograms to communicate with a scene using a set
+//! of serialized messages. This is useful for creating components that run in a different environment.
+//! Such environments can be things like remote processes connected via a socket, scripting languages, 
+//! webassembly running locally or even in a user's browser. They are also a way of further isolating
+//! a set of subprograms in a parent program.
 //!
 //! See the traits for a full list of things that need to be provided to create a guest (or a host). The
 //! basics are that a guest needs a way to receive messages from the host, and to send messages back again;
