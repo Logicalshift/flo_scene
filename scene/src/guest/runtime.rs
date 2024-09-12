@@ -241,8 +241,15 @@ impl GuestRuntimeCore {
 
                 // Return the future to the list (or mark it as finished)
                 match poll_result {
-                    Poll::Ready(_) => { core.lock().unwrap().futures[future_idx] = GuestFuture::Finished; }
-                    Poll::Pending  => { core.lock().unwrap().futures[future_idx] = GuestFuture::Ready(ready_future); }
+                    Poll::Pending => { 
+                        core.lock().unwrap().futures[future_idx] = GuestFuture::Ready(ready_future);
+                    }
+
+                    Poll::Ready(_) => { 
+                        let mut core = core.lock().unwrap();
+                        core.futures[future_idx] = GuestFuture::Finished; 
+                        core.pending_results.push(GuestResult::EndedSubprogram(GuestSubProgramHandle(future_idx)));
+                    }
                 }
             }
         }
