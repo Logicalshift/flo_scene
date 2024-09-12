@@ -14,7 +14,12 @@ pub struct SimpleTestMessage {
 }
 
 impl SceneMessage for SimpleTestMessage { }
-impl GuestSceneMessage for SimpleTestMessage { }
+impl GuestSceneMessage for SimpleTestMessage {
+    fn stream_id() -> HostStreamId {
+        HostStreamId::with_name("flo_scene_tests::send_message_tests::SimpleTestMessage")
+    }
+}
+
 #[test]
 pub fn send_json_message_to_runtime() {
     // The results from the guest (we're not doing any isolation stuff so we can share variables this way)
