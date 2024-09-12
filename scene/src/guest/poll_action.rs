@@ -1,5 +1,8 @@
-use super::{subprogram_handle::*, HostSinkHandle};
-use crate::subprogram_id::*;
+use super::subprogram_handle::*;
+use super::sink_handle::*;
+use crate::error::*;
+
+use serde::*;
 
 ///
 /// Action requests sent from a host to a guest
@@ -25,6 +28,12 @@ pub enum GuestAction {
 
     /// The specified host sink is ready to accept a message
     Ready(HostSinkHandle),
+
+    /// A sink creation request failed with an error
+    SinkConnectionError(HostSinkHandle, ConnectionError),
+
+    /// A message could not be sent to a sink
+    SinkError(HostSinkHandle, SceneSendError<Vec<u8>>)
 }
 
 impl GuestPollAction {
