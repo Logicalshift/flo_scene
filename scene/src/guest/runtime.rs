@@ -385,9 +385,9 @@ impl GuestRuntimeCore {
     }
 
     ///
-    /// Performs a request to open a sink on the 
+    /// Performs a request to open a sink on the host side
     ///
-    pub (crate) fn open_target_stream(core: &Arc<Mutex<Self>>, target: HostStreamTarget) -> impl Send + Future<Output=Result<HostSinkHandle, ConnectionError>> {
+    pub (crate) fn open_host_sink(core: &Arc<Mutex<Self>>, target: HostStreamTarget) -> impl Send + Future<Output=Result<HostSinkHandle, ConnectionError>> {
         let core = Arc::clone(core);
 
         // Create a new sink. It's only a proposed sink handle at this point as we'll throw it away if it errors out
@@ -437,6 +437,62 @@ impl GuestRuntimeCore {
             } else {
                 // Sink disappeared while we were waiting
                 Poll::Ready(Err(ConnectionError::Cancelled))
+            }
+        })
+    }
+
+    ///
+    /// Sends an encoded message to a host sink
+    ///
+    pub (crate) fn send_to_host_sink(core: &Arc<Mutex<Self>>, sink: HostSinkHandle, message: Vec<u8>) -> impl Send + Future<Output=Result<HostSinkHandle, SceneSendError<Vec<u8>>>> {
+        let core = Arc::clone(core);
+
+        // Create a new sink. It's only a proposed sink handle at this point as we'll throw it away if it errors out
+        let proposed_sink_handle = {
+            let mut core = core.lock().unwrap();
+            let handle   = core.next_sink_handle;
+
+            core.sink_handles.insert(handle, GuestSink { waker: None, status: GuestSinkStatus::Busy });
+            core.next_sink_handle += 1;
+
+            handle
+        };
+
+        // Queue a request for this stream
+        core.lock().unwrap().pending_results.push(GuestResult::Send(sink, message));
+
+        // Poll until the sink moves to the ready state
+        future::poll_fn(move |context| {
+            let mut core = core.lock().unwrap();
+
+            if let Some(sink_data) = core.sink_handles.get_mut(&proposed_sink_handle) {
+                match &sink_data.status {
+                    GuestSinkStatus::Busy => {
+                        // Sink is still waiting for data
+                        sink_data.waker = Some(context.waker().clone());
+                        Poll::Pending
+                    }
+
+                    GuestSinkStatus::Ready => {
+                        // Sink is ready to send data
+                        Poll::Ready(Ok(HostSinkHandle(proposed_sink_handle)))
+                    }
+
+                    GuestSinkStatus::ConnectionError(_error) => {
+                        // Unexpected error
+                        panic!("Connection error (stream should already be connected");
+                    }
+
+                    GuestSinkStatus::SendError(error) => {
+                        // Unexpected error as we're not trying to send anything to the sink at this point
+                        let error = error.clone();
+                        core.sink_handles.remove(&proposed_sink_handle);
+                        Poll::Ready(Err(error))
+                    }
+                }
+            } else {
+                // Sink disappeared while we were waiting
+                Poll::Ready(Err(SceneSendError::TargetProgramEndedBeforeReady))
             }
         })
     }
