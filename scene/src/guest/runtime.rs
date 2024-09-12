@@ -1,7 +1,11 @@
 use super::guest_message::*;
 use super::poll_result::*;
 use super::input_stream::*;
+use super::sink_handle::*;
+use super::stream_id::*;
+use super::stream_target::*;
 use super::subprogram_handle::*;
+use crate::host::error::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
@@ -35,8 +39,14 @@ pub (crate) struct GuestRuntimeCore {
     /// The input stream cores used in the runtime
     input_streams: HashMap<usize, Arc<Mutex<GuestInputStreamCore>>>,
 
-    /// The handle to assign to the next input stream we assign
+    /// Sink handles
+    sink_handles: HashMap<usize, GuestSink>,
+
+    /// The handle to assign to the next input stream we assign (which doubles as the )
     next_stream_handle: usize,
+
+    /// The handle to assign to the next
+    next_sink_handle: usize,
 
     /// Actions and results that are waiting to be returned to the host
     pending_results: Vec<GuestResult>,
@@ -83,10 +93,12 @@ where
         let futures             = vec![];
         let awake               = HashSet::new();
         let input_streams       = HashMap::new();
+        let sink_handles        = HashMap::new();
         let next_stream_handle  = 0;
+        let next_sink_handle    = 0;
         let pending_results     = vec![GuestResult::CreateSubprogram(program_id, GuestSubProgramHandle::default(), TMessageType::stream_id())];
 
-        let core = GuestRuntimeCore { futures, awake, input_streams, next_stream_handle, pending_results };
+        let core = GuestRuntimeCore { futures, awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, pending_results };
         let core = Arc::new(Mutex::new(core));
 
         let runtime = GuestRuntime { core: Arc::clone(&core), encoder };
@@ -131,6 +143,75 @@ where
     ///
     pub fn send_message(&self, target: GuestSubProgramHandle, data: Vec<u8>) {
         GuestRuntimeCore::send_message(&self.core, target, data)
+    }
+
+    ///
+    /// Flags that a sink is ready to receive data
+    ///
+    pub fn sink_ready(&self, HostSinkHandle(sink): HostSinkHandle) {
+        let waker = {
+            let mut core = self.core.lock().unwrap();
+
+            if let Some(sink_data) = core.sink_handles.get_mut(&sink) {
+                // Set the sink to ready and wake it up
+                sink_data.status = GuestSinkStatus::Ready;
+                sink_data.waker.take()
+            } else {
+                // No sink with this handle is available
+                None
+            }
+        };
+
+        // Wake up the future for later polling
+        if let Some(waker) = waker {
+            waker.wake()
+        }
+    }
+
+    ///
+    /// Indicates that a sink could not be connected
+    ///
+    pub fn sink_connection_error(&self, HostSinkHandle(sink): HostSinkHandle, error: ConnectionError) {
+        let waker = {
+            let mut core = self.core.lock().unwrap();
+
+            if let Some(sink_data) = core.sink_handles.get_mut(&sink) {
+                // Set the sink to the error state
+                sink_data.status = GuestSinkStatus::ConnectionError(error);
+                sink_data.waker.take()
+            } else {
+                // No sink with this handle is available
+                None
+            }
+        };
+
+        // Wake up the future for later polling
+        if let Some(waker) = waker {
+            waker.wake()
+        }
+    }
+
+    ///
+    /// Indicates that a message could not be sent on a sink
+    ///
+    pub fn sink_send_error(&self, HostSinkHandle(sink): HostSinkHandle, error: SceneSendError<Vec<u8>>) {
+        let waker = {
+            let mut core = self.core.lock().unwrap();
+
+            if let Some(sink_data) = core.sink_handles.get_mut(&sink) {
+                // Set the sink to the error state
+                sink_data.status = GuestSinkStatus::SendError(error);
+                sink_data.waker.take()
+            } else {
+                // No sink with this handle is available
+                None
+            }
+        };
+
+        // Wake up the future for later polling
+        if let Some(waker) = waker {
+            waker.wake()
+        }
     }
 }
 
@@ -301,5 +382,62 @@ impl GuestRuntimeCore {
         let mut core = core.lock().unwrap();
 
         core.pending_results.push(GuestResult::Ready(target))
+    }
+
+    ///
+    /// Performs a request to open a sink on the 
+    ///
+    pub (crate) fn open_target_stream(core: &Arc<Mutex<Self>>, target: HostStreamTarget) -> impl Send + Future<Output=Result<HostSinkHandle, ConnectionError>> {
+        let core = Arc::clone(core);
+
+        // Create a new sink. It's only a proposed sink handle at this point as we'll throw it away if it errors out
+        let proposed_sink_handle = {
+            let mut core = core.lock().unwrap();
+            let handle   = core.next_sink_handle;
+
+            core.sink_handles.insert(handle, GuestSink { waker: None, status: GuestSinkStatus::Busy });
+            core.next_sink_handle += 1;
+
+            handle
+        };
+
+        // Queue a request for this stream
+        core.lock().unwrap().pending_results.push(GuestResult::Connect(HostSinkHandle(proposed_sink_handle), target));
+
+        // Poll until the sink moves to the ready state
+        future::poll_fn(move |context| {
+            let mut core = core.lock().unwrap();
+
+            if let Some(sink_data) = core.sink_handles.get_mut(&proposed_sink_handle) {
+                match &sink_data.status {
+                    GuestSinkStatus::Busy => {
+                        // Sink is still waiting for data
+                        sink_data.waker = Some(context.waker().clone());
+                        Poll::Pending
+                    }
+
+                    GuestSinkStatus::Ready => {
+                        // Sink is ready to send data
+                        Poll::Ready(Ok(HostSinkHandle(proposed_sink_handle)))
+                    }
+
+                    GuestSinkStatus::ConnectionError(error) => {
+                        // Sink could not connect
+                        let error = error.clone();
+                        core.sink_handles.remove(&proposed_sink_handle);
+                        Poll::Ready(Err(error))
+                    }
+
+                    GuestSinkStatus::SendError(_error) => {
+                        // Unexpected error as we're not trying to send anything to the sink at this point
+                        core.sink_handles.remove(&proposed_sink_handle);
+                        Poll::Ready(Err(ConnectionError::Cancelled))
+                    }
+                }
+            } else {
+                // Sink disappeared while we were waiting
+                Poll::Ready(Err(ConnectionError::Cancelled))
+            }
+        })
     }
 }
