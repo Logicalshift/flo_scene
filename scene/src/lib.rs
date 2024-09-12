@@ -176,6 +176,9 @@
 #[cfg(not(target_family="wasm"))]
 mod host;
 
+#[cfg(target_family="wasm")]
+pub mod host;
+
 #[cfg(not(target_family="wasm"))]
 pub use host::*;
 
