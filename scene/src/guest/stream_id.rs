@@ -7,3 +7,13 @@
 ///
 #[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord, Hash)]
 pub struct HostStreamId(pub String);
+
+impl HostStreamId {
+    ///
+    /// Creates a host stream ID using a type name
+    ///
+    #[inline]
+    pub fn with_name(name: impl Into<String>) -> Self {
+        HostStreamId(name.into())
+    }
+}

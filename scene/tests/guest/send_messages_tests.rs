@@ -15,7 +15,6 @@ pub struct SimpleTestMessage {
 
 impl SceneMessage for SimpleTestMessage { }
 impl GuestSceneMessage for SimpleTestMessage { }
-
 #[test]
 pub fn send_json_message_to_runtime() {
     // The results from the guest (we're not doing any isolation stuff so we can share variables this way)
@@ -26,7 +25,7 @@ pub fn send_json_message_to_runtime() {
     let encoder         = GuestJsonEncoder;
     let messages        = Arc::clone(&received);
     let awake           = Arc::clone(&woken);
-    let guest_runtime   = GuestRuntime::with_default_subprogram(encoder, move |input_stream: GuestInputStream<SimpleTestMessage>, _context| async move {
+    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), encoder, move |input_stream: GuestInputStream<SimpleTestMessage>, _context| async move {
         (*awake.lock().unwrap()) = true;
 
         let mut input_stream = input_stream;

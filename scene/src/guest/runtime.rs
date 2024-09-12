@@ -1,14 +1,14 @@
 use super::guest_message::*;
 use super::poll_result::*;
 use super::input_stream::*;
-use super::GuestSubProgramHandle;
+use super::subprogram_handle::*;
+use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
 use futures::task::{waker, ArcWake, Context, Poll};
 
 use std::collections::{HashMap, HashSet};
-use std::marker::{PhantomData};
 use std::sync::*;
 
 ///
@@ -70,9 +70,11 @@ where
     ///
     /// Creates a new guest runtime with the specified subprogram
     ///
-    /// The initial subprogram always has GuestSubProgramHandle(0) for sending input to
+    /// The initial subprogram always has GuestSubProgramHandle(0) for sending input to (this is also `GuestSubProgramHandle::default`).
     ///
-    pub fn with_default_subprogram<TMessageType, TFuture>(encoder: TEncoder, subprogram: impl FnOnce(GuestInputStream<TMessageType>, GuestSceneContext) -> TFuture) -> Self 
+    /// The subprogram ID here is only used to generate the initialisation message for this default subprogram.
+    ///
+    pub fn with_default_subprogram<TMessageType, TFuture>(program_id: SubProgramId, encoder: TEncoder, subprogram: impl FnOnce(GuestInputStream<TMessageType>, GuestSceneContext) -> TFuture) -> Self 
     where
         TMessageType:   GuestSceneMessage,
         TFuture:        'static + Send + Future<Output=()>,
@@ -82,7 +84,7 @@ where
         let awake               = HashSet::new();
         let input_streams       = HashMap::new();
         let next_stream_handle  = 0;
-        let pending_results     = vec![];
+        let pending_results     = vec![GuestResult::CreateSubprogram(program_id, GuestSubProgramHandle::default(), TMessageType::stream_id())];
 
         let core = GuestRuntimeCore { futures, awake, input_streams, next_stream_handle, pending_results };
         let core = Arc::new(Mutex::new(core));
