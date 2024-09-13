@@ -444,28 +444,18 @@ impl GuestRuntimeCore {
     ///
     /// Sends an encoded message to a host sink
     ///
-    pub (crate) fn send_to_host_sink(core: &Arc<Mutex<Self>>, sink: HostSinkHandle, message: Vec<u8>) -> impl Send + Future<Output=Result<HostSinkHandle, SceneSendError<Vec<u8>>>> {
+    pub (crate) fn send_to_host_sink(core: &Arc<Mutex<Self>>, sink: HostSinkHandle, message: Vec<u8>) -> impl Send + Future<Output=Result<(), SceneSendError<Vec<u8>>>> {
         let core = Arc::clone(core);
-
-        // Create a new sink. It's only a proposed sink handle at this point as we'll throw it away if it errors out
-        let proposed_sink_handle = {
-            let mut core = core.lock().unwrap();
-            let handle   = core.next_sink_handle;
-
-            core.sink_handles.insert(handle, GuestSink { waker: None, status: GuestSinkStatus::Busy });
-            core.next_sink_handle += 1;
-
-            handle
-        };
 
         // Queue a request for this stream
         core.lock().unwrap().pending_results.push(GuestResult::Send(sink, message));
 
         // Poll until the sink moves to the ready state
+        let HostSinkHandle(sink) = sink;
         future::poll_fn(move |context| {
             let mut core = core.lock().unwrap();
 
-            if let Some(sink_data) = core.sink_handles.get_mut(&proposed_sink_handle) {
+            if let Some(sink_data) = core.sink_handles.get_mut(&sink) {
                 match &sink_data.status {
                     GuestSinkStatus::Busy => {
                         // Sink is still waiting for data
@@ -475,7 +465,7 @@ impl GuestRuntimeCore {
 
                     GuestSinkStatus::Ready => {
                         // Sink is ready to send data
-                        Poll::Ready(Ok(HostSinkHandle(proposed_sink_handle)))
+                        Poll::Ready(Ok(()))
                     }
 
                     GuestSinkStatus::ConnectionError(_error) => {
@@ -486,7 +476,7 @@ impl GuestRuntimeCore {
                     GuestSinkStatus::SendError(error) => {
                         // Unexpected error as we're not trying to send anything to the sink at this point
                         let error = error.clone();
-                        core.sink_handles.remove(&proposed_sink_handle);
+                        core.sink_handles.remove(&sink);
                         Poll::Ready(Err(error))
                     }
                 }
@@ -495,5 +485,20 @@ impl GuestRuntimeCore {
                 Poll::Ready(Err(SceneSendError::TargetProgramEndedBeforeReady))
             }
         })
+    }
+
+    ///
+    /// Creates a sink that receives encoded data and sends it to a target 
+    ///
+    pub (crate) fn create_output_sink(core: &Arc<Mutex<Self>>, target: HostStreamTarget) -> impl Future<Output=Result<impl Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError>> {
+        let core = Arc::clone(&core);
+
+        async move {
+            // Create the connection to the core
+            let sink_handle = GuestRuntimeCore::open_host_sink(&core, target).await?;
+
+            // Use unfold to send messages
+            Ok(sink::unfold((), move |_, data| GuestRuntimeCore::send_to_host_sink(&core, sink_handle, data)))
+        }
     }
 }
