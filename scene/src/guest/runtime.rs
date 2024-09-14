@@ -1,8 +1,8 @@
+use super::guest_context::*;
 use super::guest_message::*;
 use super::poll_result::*;
 use super::input_stream::*;
 use super::sink_handle::*;
-use super::stream_id::*;
 use super::stream_target::*;
 use super::subprogram_handle::*;
 use crate::host::error::*;
@@ -52,7 +52,7 @@ pub (crate) struct GuestRuntimeCore {
     pending_results: Vec<GuestResult>,
 }
 
-/// Wakes up future with the specified index in a guest runtime core
+/// Wakes up the future with the specified index in a guest runtime core
 struct CoreWaker(usize, Weak<Mutex<GuestRuntimeCore>>);
 
 ///
@@ -67,11 +67,6 @@ pub struct GuestRuntime<TEncoder: GuestMessageEncoder> {
     /// The encoder, used for serializing and deserializing messages sent to and from the guest program
     encoder: TEncoder,
 }
-
-///
-/// A guest scene context relays requests from the guest side to the host side
-///
-pub struct GuestSceneContext;
 
 impl<TEncoder> GuestRuntime<TEncoder>
 where
@@ -105,7 +100,7 @@ where
 
         // Initialise the initial subprogram
         let (_input_handle, input_stream)   = runtime.create_input_stream();
-        let context                         = GuestSceneContext;
+        let context                         = GuestSceneContext { core: Arc::clone(&core) };
         let subprogram                      = subprogram(input_stream, context);
 
         core.lock().unwrap().futures.push(GuestFuture::Ready(subprogram.boxed()));
