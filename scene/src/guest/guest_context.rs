@@ -11,6 +11,9 @@ use std::sync::*;
 /// A guest scene context relays requests from the guest side to the host side
 ///
 pub struct GuestSceneContext<TEncoder> {
+    /// The ID of the program running in this context
+    pub (crate) subprogram_id: SubProgramId,
+
     /// The core of the runtime where this context is running
     pub (crate) core: Arc<Mutex<GuestRuntimeCore>>,
 
@@ -23,7 +26,7 @@ where
     TEncoder: 'static + GuestMessageEncoder,
 {
     pub fn current_program_id(&self) -> Option<SubProgramId> {
-        todo!();
+        Some(self.subprogram_id)
     }
 
     pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<impl Unpin + Sink<TMessageType, Error=SceneSendError<Vec<u8>>>, ConnectionError>

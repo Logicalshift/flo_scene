@@ -101,7 +101,7 @@ where
 
         // Initialise the initial subprogram
         let (_input_handle, input_stream)   = runtime.create_input_stream();
-        let context                         = GuestSceneContext { core: Arc::clone(&core), encoder: context_encoder };
+        let context                         = GuestSceneContext { core: Arc::clone(&core), encoder: context_encoder, subprogram_id: program_id };
         let subprogram                      = subprogram(input_stream, context);
 
         core.lock().unwrap().futures.push(GuestFuture::Ready(subprogram.boxed()));
