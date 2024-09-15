@@ -20,13 +20,13 @@ pub struct GuestSceneContext<TEncoder> {
 
 impl<TEncoder> GuestSceneContext<TEncoder>
 where
-    TEncoder: GuestMessageEncoder,
+    TEncoder: 'static + GuestMessageEncoder,
 {
     pub fn current_program_id(&self) -> Option<SubProgramId> {
         todo!();
     }
 
-    pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<impl Sink<TMessageType, Error=SceneSendError<Vec<u8>>>, ConnectionError>
+    pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<impl Unpin + Sink<TMessageType, Error=SceneSendError<Vec<u8>>>, ConnectionError>
     where
         TMessageType: 'static + SceneMessage + GuestSceneMessage,
     {
@@ -37,7 +37,7 @@ where
         let encoder     = self.encoder.clone();
 
         Ok(sink::unfold((connection, core, target, encoder), move |(connection, core, target, encoder), item| {
-            async move {
+            Box::pin(async move {
                 let mut connection = match connection {
                     None => {
                         let core    = core.unwrap();
@@ -69,7 +69,7 @@ where
                 connection.send(encoded).await?;
 
                 Ok((Some(connection), None, None, encoder))
-            }
+            })
         }))
     }
 
