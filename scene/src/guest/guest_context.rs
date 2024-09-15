@@ -35,8 +35,9 @@ where
         let connection  = None;
         let core        = Some(self.core.clone());
         let target      = Some(target.into());
+        let encoder     = self.encoder.clone();
 
-        Ok(sink::unfold((connection, core, target), move |(connection, core, target), item| {
+        Ok(sink::unfold((connection, core, target, encoder), move |(connection, core, target, encoder), item| {
             async move {
                 let mut connection = match connection {
                     None => {
@@ -61,14 +62,14 @@ where
                     Some(connection) => connection,
                 };
 
-                // TODO: encode the message (need to pass in the encoder)
-                let encoded = vec![];
+                // Encode the message
+                let encoded = encoder.encode(item);
 
                 // Send the encoded message
                 // TODO: Rust can't figure out the type (it should be able to because it can with just the above code, but apparently not... which is an issue because it's anonymous so we can't declare it)
                 connection.send(encoded).await?;
 
-                Ok((Some(connection), None, None))
+                Ok((Some(connection), None, None, encoder))
             }
         }))
     }
