@@ -20,24 +20,23 @@ impl GuestSceneContext {
         todo!();
     }
 
-    // TODO: use StreamTarget here
+    // TODO: use StreamTarget here and convert to HostStreamTarget
     pub fn send<TMessageType>(&self, target: impl Into<HostStreamTarget>) -> Result<impl Sink<TMessageType, Error=SceneSendError<Vec<u8>>>, ConnectionError>
     where
         TMessageType: 'static + SceneMessage + GuestSceneMessage,
     {
         // Set up the state
         let connection  = None;
-        let mut core    = Some(self.core.clone());
-        let target      = target.into();
+        let core        = Some(self.core.clone());
+        let target      = Some(target.into());
 
-        Ok(sink::unfold(connection, move |connection, item| {
-            match connection {
-                None => {
-                    // Create a new connection before sending the message
-                    let core    = core.take().unwrap();
-                    let target  = target.clone();
+        Ok(sink::unfold((connection, core, target), move |(connection, core, target), item| {
+            async move {
+                match connection {
+                    None => {
+                        let core    = core.unwrap();
+                        let target  = target.unwrap();
 
-                    async move {
                         // Create the connection
                         let connection = GuestRuntimeCore::create_output_sink(&core, target).await;
 
@@ -49,28 +48,27 @@ impl GuestSceneContext {
                                 // Send the encoded message
                                 connection.send(encoded).await?;
 
-                                Ok(Some(connection))
+                                Ok((Some(connection), None, None))
                             }
 
                             Err(err) => {
                                 Err(SceneSendError::CouldNotConnect(err))
                             }
                         }
-                    }.boxed()
-                }
+                    }
 
-                Some(mut connection) => {
-                    // Connection already exists, so send the message
-                    async move {
+
+                    Some(mut connection) => {
+                        // Connection already exists, so send the message
                         // TODO: encode the message
-                        // let encoded = vec![];
+                        //let encoded = vec![];
 
                         // Send the encoded message
                         // TODO: Rust can't figure out the type (it should be able to because it can with just the above code, but apparently not... which is an issue because it's anonymous so we can't declare it)
-                        // connection.send(encoded).await?;
+                        //connection.send(encoded).await?;
 
-                        Ok(Some(connection))
-                    }.boxed()
+                        Ok((Some(connection), None, None))
+                    }
                 }
             }
         }))
