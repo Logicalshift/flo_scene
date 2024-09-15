@@ -26,13 +26,13 @@ impl GuestSceneContext {
         TMessageType: 'static + SceneMessage + GuestSceneMessage,
     {
         // Set up the state
-        let connection: Option<impl Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>  = None;
+        let connection  = None;
         let core        = Some(self.core.clone());
         let target      = Some(target.into());
 
         Ok(sink::unfold((connection, core, target), move |(connection, core, target), item| {
             async move {
-                match connection {
+                let mut connection = match connection {
                     None => {
                         let core    = core.unwrap();
                         let target  = target.unwrap();
@@ -41,35 +41,28 @@ impl GuestSceneContext {
                         let connection = GuestRuntimeCore::create_output_sink(&core, target).await;
 
                         match connection {
-                            Ok(mut connection) => {
-                                // TODO: encode the message (need to pass in the encoder)
-                                let encoded = vec![];
-
-                                // Send the encoded message
-                                connection.send(encoded).await?;
-
-                                Ok((Some(connection), None, None))
+                            Ok(connection) => {
+                                connection
                             }
 
                             Err(err) => {
-                                Err(SceneSendError::CouldNotConnect(err))
+                                return Err(SceneSendError::CouldNotConnect(err));
                             }
                         }
                     }
 
 
-                    Some(mut connection) => {
-                        // Connection already exists, so send the message
-                        // TODO: encode the message
-                        let encoded = vec![];
+                    Some(connection) => connection,
+                };
 
-                        // Send the encoded message
-                        // TODO: Rust can't figure out the type (it should be able to because it can with just the above code, but apparently not... which is an issue because it's anonymous so we can't declare it)
-                        connection.send(encoded).await?;
+                // TODO: encode the message (need to pass in the encoder)
+                let encoded = vec![];
 
-                        Ok((Some(connection), None, None))
-                    }
-                }
+                // Send the encoded message
+                // TODO: Rust can't figure out the type (it should be able to because it can with just the above code, but apparently not... which is an issue because it's anonymous so we can't declare it)
+                connection.send(encoded).await?;
+
+                Ok((Some(connection), None, None))
             }
         }))
     }
