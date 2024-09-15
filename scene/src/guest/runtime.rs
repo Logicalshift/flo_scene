@@ -440,7 +440,7 @@ impl GuestRuntimeCore {
     ///
     /// Sends an encoded message to a host sink
     ///
-    pub (crate) fn send_to_host_sink(core: &Arc<Mutex<Self>>, sink: HostSinkHandle, message: Vec<u8>) -> impl Send + Future<Output=Result<(), SceneSendError<Vec<u8>>>> {
+    pub (crate) fn send_to_host_sink(core: &Arc<Mutex<Self>>, sink: HostSinkHandle, message: Vec<u8>) -> impl Send + Unpin + Future<Output=Result<(), SceneSendError<Vec<u8>>>> {
         let core = Arc::clone(core);
 
         // Queue a request for this stream
@@ -486,7 +486,7 @@ impl GuestRuntimeCore {
     ///
     /// Creates a sink that receives encoded data and sends it to a target 
     ///
-    pub (crate) fn create_output_sink(core: &Arc<Mutex<Self>>, target: HostStreamTarget) -> impl Future<Output=Result<impl Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError>> {
+    pub (crate) fn create_output_sink(core: &Arc<Mutex<Self>>, target: HostStreamTarget) -> impl Future<Output=Result<impl 'static + Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError>> {
         let core = Arc::clone(&core);
 
         async move {
