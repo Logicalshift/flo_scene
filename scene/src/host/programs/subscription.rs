@@ -135,6 +135,9 @@ where
                 Err(SceneSendError::TargetProgramEndedBeforeReady)  |
                 Err(SceneSendError::ErrorAfterDeserialization)      |
                 Err(SceneSendError::CannotReEnterTargetProgram)     => {
+                    // Remove this subscriber as it errored out
+                    self.receivers.remove(self.next_receiver);
+
                     // The message was sent but was not processed by the target (we treat this as 'Ok' because we can't get it back)
                     break Ok(());
                 }
