@@ -1,5 +1,6 @@
 use super::guest_context::*;
 use super::guest_message::*;
+use super::poll_action::*;
 use super::poll_result::*;
 use super::input_stream::*;
 use super::sink_handle::*;
@@ -11,6 +12,7 @@ use crate::host::subprogram_id::*;
 use futures::prelude::*;
 use futures::future::{BoxFuture};
 use futures::task::{waker, ArcWake, Context, Poll};
+use futures::channel::mpsc;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::*;
@@ -208,6 +210,48 @@ where
         if let Some(waker) = waker {
             waker.wake()
         }
+    }
+
+    ///
+    /// Creates a sender/receiver pair from this runtime that will run the guest runtime
+    ///
+    /// The caller can read actions from the returned stream, and send actions to the sender (which is an mpsc sender
+    /// so can be replicated if there are multiple sources of actions if needed)
+    ///
+    pub fn as_streams(self) -> (mpsc::Sender<GuestAction>, impl 'static + Send + Stream<Item=GuestResult>) {
+        // Create the sender/receiver
+        let (action_sender, action_receiver) = mpsc::channel(32);
+
+        // We gather the receiver values into chunks to process as many as possible at once
+        let action_receiver = action_receiver.chunks(64);
+
+        // Poll the runtime to make sure that it's in an idle condition
+        let initial_results = self.poll_awake();
+
+        // Create the result stream; the runtime is run by awaiting on this
+        let result_stream = stream::unfold((self, action_receiver), |(runtime, action_receiver)| async move {
+            let mut action_receiver = action_receiver;
+
+            if let Some(actions) = action_receiver.next().await {
+                // Process the actions into the runtime
+                // actions.into_iter().for_each(|action| runtime.process(action));
+
+                // Poll for the next set of results
+                let next_actions = runtime.poll_awake();
+                let next_actions = stream::iter(next_actions);
+
+                Some((next_actions, (runtime, action_receiver)))
+            } else {
+                // The actions have finished
+                None
+            }
+        }).flatten();
+
+        // Chain the initial results with the extra result stream
+        let result_stream = stream::iter(initial_results).chain(result_stream);
+
+        // Result is the stream we just built
+        (action_sender, result_stream)
     }
 }
 
