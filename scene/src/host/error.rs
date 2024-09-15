@@ -89,6 +89,9 @@ pub enum ConnectionError {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum SceneSendError<TMessage> {
+    /// A message could not be sent because the connection failed
+    CouldNotConnect(ConnectionError),
+
     /// The target program ended while waiting for it to become ready (or after sending the message but before it could be flushed)
     TargetProgramEndedBeforeReady,
 
@@ -124,6 +127,7 @@ impl<TMessage> SceneSendError<TMessage> {
     ///
     pub fn message(&self) -> Option<&TMessage> {
         match self {
+            SceneSendError::CouldNotConnect(_)                          => None,
             SceneSendError::TargetProgramEndedBeforeReady               => None,
             SceneSendError::StreamClosed(msg)                           => Some(msg),
             SceneSendError::TargetProgramEnded(msg)                     => Some(msg),
@@ -145,6 +149,7 @@ impl<TMessage> SceneSendError<TMessage> {
     ///
     pub fn to_message(self) -> Option<TMessage> {
         match self {
+            SceneSendError::CouldNotConnect(_)                          => None,
             SceneSendError::TargetProgramEndedBeforeReady               => None,
             SceneSendError::StreamClosed(msg)                           => Some(msg),
             SceneSendError::TargetProgramEnded(msg)                     => Some(msg),
@@ -160,6 +165,7 @@ impl<TMessage> SceneSendError<TMessage> {
 impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
     fn from(err: SceneSendError<TMessage>) -> ConnectionError {
         match err {
+            SceneSendError::CouldNotConnect(err)                        => err,
             SceneSendError::TargetProgramEndedBeforeReady               => ConnectionError::TargetNotInScene,
             SceneSendError::StreamClosed(_)                             => ConnectionError::TargetNotAvailable,
             SceneSendError::TargetProgramEnded(_)                       => ConnectionError::TargetNotInScene,

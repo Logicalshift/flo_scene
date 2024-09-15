@@ -131,6 +131,7 @@ where
             match self.receivers[self.next_receiver].send(message).await {
                 Ok(()) => { break Ok(()); }
 
+                Err(SceneSendError::CouldNotConnect(_))             |
                 Err(SceneSendError::TargetProgramEndedBeforeReady)  |
                 Err(SceneSendError::ErrorAfterDeserialization)      |
                 Err(SceneSendError::CannotReEnterTargetProgram)     => {
