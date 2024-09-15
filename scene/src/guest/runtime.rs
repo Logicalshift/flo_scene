@@ -232,7 +232,7 @@ where
     /// The caller can read actions from the returned stream, and send actions to the sender (which is an mpsc sender
     /// so can be replicated if there are multiple sources of actions if needed)
     ///
-    pub fn as_streams(self) -> (mpsc::Sender<GuestAction>, impl 'static + Send + Stream<Item=GuestResult>) {
+    pub fn as_streams(self) -> (mpsc::Sender<GuestAction>, impl 'static + Send + Unpin + Stream<Item=GuestResult>) {
         // Create the sender/receiver
         let (action_sender, action_receiver) = mpsc::channel(32);
 
@@ -265,7 +265,7 @@ where
         let result_stream = stream::iter(initial_results).chain(result_stream);
 
         // Result is the stream we just built
-        (action_sender, result_stream)
+        (action_sender, Box::pin(result_stream))
     }
 }
 
