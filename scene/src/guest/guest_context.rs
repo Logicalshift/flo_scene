@@ -73,16 +73,16 @@ where
         }))
     }
 
-    /*
     pub async fn send_message<TMessageType>(&self, message: TMessageType) -> Result<(), ConnectionError> 
     where
         TMessageType: 'static + SceneMessage + GuestSceneMessage,
     {
         let mut target = self.send::<TMessageType>(())?;
 
-        target.send(message).await?
+        target.send(message).await?;
+
+        Ok(())
     }
-    */
 
     // TODO: guest versions of spawn_command and spawn_query (these are a bit complicated, so duplicating them is a pain: suggests that
     // improving the design might make things easier, ideally want to make use of the host's implementation I think)
