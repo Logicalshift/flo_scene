@@ -61,6 +61,9 @@ pub enum ConnectionError {
     /// The input for the filter to a filter target must match the stream ID being connected
     FilterTargetInputMustMatchStream,
 
+    /// The filter supplied is not supported
+    FilterNotSupported,
+
     /// A stream target had an unexpected value
     UnexpectedConnectionType,
 
