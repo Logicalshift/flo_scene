@@ -26,15 +26,14 @@ where
         todo!();
     }
 
-    // TODO: use StreamTarget here and convert to HostStreamTarget
-    pub fn send<TMessageType>(&self, target: impl Into<HostStreamTarget>) -> Result<impl Sink<TMessageType, Error=SceneSendError<Vec<u8>>>, ConnectionError>
+    pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<impl Sink<TMessageType, Error=SceneSendError<Vec<u8>>>, ConnectionError>
     where
         TMessageType: 'static + SceneMessage + GuestSceneMessage,
     {
         // Set up the state
         let connection  = None;
         let core        = Some(self.core.clone());
-        let target      = Some(target.into());
+        let target      = Some(HostStreamTarget::from_stream_target::<TMessageType>(target)?);
         let encoder     = self.encoder.clone();
 
         Ok(sink::unfold((connection, core, target, encoder), move |(connection, core, target, encoder), item| {
