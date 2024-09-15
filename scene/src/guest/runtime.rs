@@ -213,6 +213,20 @@ where
     }
 
     ///
+    /// Processes a single action in this runtime (note that `poll_awake()` needs to be called after this to actually execute the runtime)
+    ///
+    pub fn process(&self, action: GuestAction) {
+        use GuestAction::*;
+
+        match action {
+            SendMessage(sub_program, message)       => { self.send_message(sub_program, message) }
+            Ready(sink_handle)                      => { self.sink_ready(sink_handle) },
+            SinkConnectionError(sink_handle, error) => { self.sink_connection_error(sink_handle, error) },
+            SinkError(sink_handle, error)           => { self.sink_send_error(sink_handle, error) }
+        }
+    }
+
+    ///
     /// Creates a sender/receiver pair from this runtime that will run the guest runtime
     ///
     /// The caller can read actions from the returned stream, and send actions to the sender (which is an mpsc sender
@@ -234,7 +248,7 @@ where
 
             if let Some(actions) = action_receiver.next().await {
                 // Process the actions into the runtime
-                // actions.into_iter().for_each(|action| runtime.process(action));
+                actions.into_iter().for_each(|action| runtime.process(action));
 
                 // Poll for the next set of results
                 let next_actions = runtime.poll_awake();
