@@ -10,12 +10,18 @@ use std::sync::*;
 ///
 /// A guest scene context relays requests from the guest side to the host side
 ///
-pub struct GuestSceneContext {
+pub struct GuestSceneContext<TEncoder> {
     /// The core of the runtime where this context is running
     pub (crate) core: Arc<Mutex<GuestRuntimeCore>>,
+
+    /// Used to encode messages
+    pub (crate) encoder: TEncoder,
 }
 
-impl GuestSceneContext {
+impl<TEncoder> GuestSceneContext<TEncoder>
+where
+    TEncoder: GuestMessageEncoder,
+{
     pub fn current_program_id(&self) -> Option<SubProgramId> {
         todo!();
     }

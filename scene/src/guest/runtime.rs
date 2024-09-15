@@ -79,7 +79,7 @@ where
     ///
     /// The subprogram ID here is only used to generate the initialisation message for this default subprogram.
     ///
-    pub fn with_default_subprogram<TMessageType, TFuture>(program_id: SubProgramId, encoder: TEncoder, subprogram: impl FnOnce(GuestInputStream<TMessageType>, GuestSceneContext) -> TFuture) -> Self 
+    pub fn with_default_subprogram<TMessageType, TFuture>(program_id: SubProgramId, encoder: TEncoder, subprogram: impl FnOnce(GuestInputStream<TMessageType>, GuestSceneContext<TEncoder>) -> TFuture) -> Self 
     where
         TMessageType:   GuestSceneMessage,
         TFuture:        'static + Send + Future<Output=()>,
@@ -96,11 +96,12 @@ where
         let core = GuestRuntimeCore { futures, awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, pending_results };
         let core = Arc::new(Mutex::new(core));
 
-        let runtime = GuestRuntime { core: Arc::clone(&core), encoder };
+        let context_encoder = encoder.clone();
+        let runtime         = GuestRuntime { core: Arc::clone(&core), encoder };
 
         // Initialise the initial subprogram
         let (_input_handle, input_stream)   = runtime.create_input_stream();
-        let context                         = GuestSceneContext { core: Arc::clone(&core) };
+        let context                         = GuestSceneContext { core: Arc::clone(&core), encoder: context_encoder };
         let subprogram                      = subprogram(input_stream, context);
 
         core.lock().unwrap().futures.push(GuestFuture::Ready(subprogram.boxed()));
