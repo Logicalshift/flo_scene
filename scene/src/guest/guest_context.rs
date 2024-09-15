@@ -26,7 +26,7 @@ impl GuestSceneContext {
         TMessageType: 'static + SceneMessage + GuestSceneMessage,
     {
         // Set up the state
-        let connection  = None;
+        let connection: Option<impl Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>  = None;
         let core        = Some(self.core.clone());
         let target      = Some(target.into());
 
@@ -61,11 +61,11 @@ impl GuestSceneContext {
                     Some(mut connection) => {
                         // Connection already exists, so send the message
                         // TODO: encode the message
-                        //let encoded = vec![];
+                        let encoded = vec![];
 
                         // Send the encoded message
                         // TODO: Rust can't figure out the type (it should be able to because it can with just the above code, but apparently not... which is an issue because it's anonymous so we can't declare it)
-                        //connection.send(encoded).await?;
+                        connection.send(encoded).await?;
 
                         Ok((Some(connection), None, None))
                     }
