@@ -443,11 +443,10 @@ impl GuestRuntimeCore {
     pub (crate) fn send_to_host_sink(core: &Arc<Mutex<Self>>, sink: HostSinkHandle, message: Vec<u8>) -> impl Send + Unpin + Future<Output=Result<(), SceneSendError<Vec<u8>>>> {
         let core = Arc::clone(core);
 
-        // Queue a request for this stream
-        core.lock().unwrap().pending_results.push(GuestResult::Send(sink, message));
-
         // Poll until the sink moves to the ready state
+        let mut message = Some(message);
         let HostSinkHandle(sink) = sink;
+
         future::poll_fn(move |context| {
             let mut core = core.lock().unwrap();
 
@@ -460,8 +459,20 @@ impl GuestRuntimeCore {
                     }
 
                     GuestSinkStatus::Ready => {
-                        // Sink is ready to send data
-                        Poll::Ready(Ok(()))
+                        if let Some(message) = message.take() {
+                            // Move the sink to the busy state
+                            sink_data.status = GuestSinkStatus::Busy;
+                            sink_data.waker  = Some(context.waker().clone());
+
+                            // Send the data
+                            core.pending_results.push(GuestResult::Send(HostSinkHandle(sink), message));
+
+                            // Wait for the sink to become ready (or report an error)
+                            Poll::Pending
+                        } else {
+                            // Message was previously sent and the sink is now ready again
+                            Poll::Ready(Ok(()))
+                        }
                     }
 
                     GuestSinkStatus::ConnectionError(_error) => {
