@@ -237,7 +237,7 @@ where
         let (action_sender, action_receiver) = mpsc::channel(32);
 
         // We gather the receiver values into chunks to process as many as possible at once
-        let action_receiver = action_receiver.chunks(64);
+        let action_receiver = action_receiver.ready_chunks(64);
 
         // Poll the runtime to make sure that it's in an idle condition
         let initial_results = self.poll_awake();
