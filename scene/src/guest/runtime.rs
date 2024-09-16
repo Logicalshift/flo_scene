@@ -386,6 +386,11 @@ impl GuestRuntimeCore {
                         let mut core = core.lock().unwrap();
                         core.futures[future_idx] = GuestFuture::Finished; 
                         core.pending_results.push(GuestResult::EndedSubprogram(GuestSubProgramHandle(future_idx)));
+
+                        if core.futures.iter().all(|future| matches!(future, GuestFuture::Finished)) {
+                            // No more running futures in the guest
+                            core.pending_results.push(GuestResult::Stopped);
+                        }
                     }
                 }
             }
