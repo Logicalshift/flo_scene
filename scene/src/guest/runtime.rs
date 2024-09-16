@@ -241,20 +241,30 @@ where
 
         // Poll the runtime to make sure that it's in an idle condition
         let initial_results = self.poll_awake();
+        let stopped         = false;
 
         // Create the result stream; the runtime is run by awaiting on this
-        let result_stream = stream::unfold((self, action_receiver), |(runtime, action_receiver)| async move {
+        let result_stream = stream::unfold((self, action_receiver, stopped), |(runtime, action_receiver, stopped)| async move {
             let mut action_receiver = action_receiver;
 
-            if let Some(actions) = action_receiver.next().await {
+            if stopped {
+                // Most recent poll result indicated we have run out of actions
+                None
+            } else if let Some(actions) = action_receiver.next().await {
                 // Process the actions into the runtime
                 actions.into_iter().for_each(|action| runtime.process(action));
 
                 // Poll for the next set of results
                 let next_actions = runtime.poll_awake();
-                let next_actions = stream::iter(next_actions);
 
-                Some((next_actions, (runtime, action_receiver)))
+                // Check if the runtime has stopped
+                let mut stopped = stopped;
+                if next_actions.iter().any(|action| matches!(action, GuestResult::Stopped)) {
+                    stopped = true;
+                }
+
+                let next_actions = stream::iter(next_actions);
+                Some((next_actions, (runtime, action_receiver, stopped)))
             } else {
                 // The actions have finished
                 None
