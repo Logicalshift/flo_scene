@@ -60,10 +60,6 @@ pub fn send_json_message_to_runtime_using_stream() {
 
         // Poll until the program finishes
         while let Some(_) = output.next().await {
-            if !received.lock().unwrap().is_empty() {
-                // TODO: here because we don't actually finish yet
-                break;
-            }
         }
     });
 
