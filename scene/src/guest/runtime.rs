@@ -240,31 +240,50 @@ where
         let action_receiver = action_receiver.ready_chunks(64);
 
         // Poll the runtime to make sure that it's in an idle condition
-        let initial_results = self.poll_awake();
-        let stopped         = false;
+        let initial_results     = self.poll_awake();
+        let stopped             = false;
+        let poll_immediately    = false;
 
         // Create the result stream; the runtime is run by awaiting on this
-        let result_stream = stream::unfold((self, action_receiver, stopped), |(runtime, action_receiver, stopped)| async move {
+        let result_stream = stream::unfold((self, action_receiver, stopped, poll_immediately), |(runtime, action_receiver, stopped, poll_immediately)| async move {
             let mut action_receiver = action_receiver;
 
             if stopped {
-                // Most recent poll result indicated we have run out of actions
-                None
-            } else if let Some(actions) = action_receiver.next().await {
+                // Most recent poll result indicated we have run out of actions (we have to wait to stop the stream as we want the results to be processed)
+                return None;
+            }
+
+            let maybe_actions = if poll_immediately {
+                // The guest indicated it wanted an immediate callback without waiting (so we do so once all of the results have been processed)
+                Some(vec![])
+            } else {
+                // The guest is idle, so we wait until some external action wakes it up
+                action_receiver.next().await
+            };
+
+            // Process the actions in the guest
+            if let Some(actions) = maybe_actions {
                 // Process the actions into the runtime
                 actions.into_iter().for_each(|action| runtime.process(action));
 
                 // Poll for the next set of results
                 let next_actions = runtime.poll_awake();
 
-                // Check if the runtime has stopped
-                let mut stopped = stopped;
-                if next_actions.iter().any(|action| matches!(action, GuestResult::Stopped)) {
-                    stopped = true;
+                // Check if the runtime has stopped or if we need to poll immediately the next time through
+                let mut stopped             = stopped;
+                let mut poll_immediately    = false;
+
+                for action in next_actions.iter() {
+                    match action {
+                        GuestResult::Stopped            => { stopped = true;}
+                        GuestResult::ContinuePolling    => { poll_immediately = true; }
+                        _                               => { }
+                    }
                 }
 
+                // Convert to a stream
                 let next_actions = stream::iter(next_actions);
-                Some((next_actions, (runtime, action_receiver, stopped)))
+                Some((next_actions, (runtime, action_receiver, stopped, poll_immediately)))
             } else {
                 // The actions have finished
                 None
