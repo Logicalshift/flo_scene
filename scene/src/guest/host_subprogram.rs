@@ -4,7 +4,10 @@ use super::guest_message::*;
 use crate::host::*;
 
 use futures::prelude::*;
+use futures::task::{Poll, Waker};
 use futures::channel::mpsc;
+
+use std::sync::*;
 
 ///
 /// Runs a guest subprogram as a subprogram in a scene
@@ -58,6 +61,10 @@ where
         panic!("Was expecting a guest program generating message type {:?}, but got {:?}", TMessageType::stream_id(), guest_stream_id);
     }
 
+    // Signal used to indicate when we can send a message we've received that's destined for this program. This is basically just a semaphore we can poll for
+    let signal_ready    = Arc::new(Mutex::new((None, false)));
+    let wait_ready      = signal_ready.clone();
+
     // Main loop: relay messages and connect to sinks
     future::select(
         Box::pin(async move {
@@ -72,7 +79,7 @@ where
                     }
 
                     CreateSubprogram(_id, _handle, _stream_id) => {
-
+                        // TODO: we don't support subprograms other than our own
                     }
 
                     EndedSubprogram(program_handle) => {
@@ -83,7 +90,21 @@ where
                     }
 
                     Ready(handle) => {
-                        // Indicate we're ready to receive mroe input
+                        if handle == guest_program_handle {
+                            // Indicate we're ready to send more input
+                            let waker = {
+                                let (waker, is_ready)           = &mut *signal_ready.lock().unwrap();
+                                let waker: &mut Option<Waker>   = waker;
+
+                                *is_ready = true;
+                                waker.take()
+                            };
+
+                            // Wake up anything that's waiting for the input stream to become ready
+                            if let Some(waker) = waker {
+                                waker.wake();
+                            }
+                        }
                     }
 
                     Connect(sink_handle, stream_target) => { 
@@ -109,7 +130,27 @@ where
             // Loop 2: read from the input stream
             let mut input_stream = input_stream;
             while let Some(input) = input_stream.next().await {
-                // TODO: send as an action if the input stream is ready
+                // Wait for the input stream to become ready (and mark it as 'not ready' in anticipation of the message we're sending)
+                let wait_ready = wait_ready.clone();
+                future::poll_fn(|context| {
+                    let (waker, is_ready) = &mut *wait_ready.lock().unwrap();
+
+                    if *is_ready {
+                        *is_ready = false;
+                        Poll::Ready(())
+                    } else {
+                        *waker = Some(context.waker().clone());
+                        Poll::Pending
+                    }
+                }).await;
+
+                // Encode the input stream and send it
+                let encoded_input = encoder.encode(input);
+
+                if actions.send(GuestAction::SendMessage(guest_program_handle, encoded_input)).await.is_err() {
+                    // Just stop if there's any error sending to the guest program
+                    break;
+                }
             }
         })
     ).await;
