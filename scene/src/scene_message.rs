@@ -9,6 +9,43 @@ use serde::*;
 /// Scene messages should implement the serde serialization primitives but can return only errors. These types should also
 /// return `false` from `serializable()` so that the serialization filters aren't generated.
 ///
+/// An implementation like the following can be used for non-serializable messages
+///
+/// ```
+/// # use flo_scene::*;
+/// use serde::*;
+/// use serde::de::{Error as DeError};
+/// use serde::ser::{Error as SeError};
+///
+/// struct ExampleMessage;
+/// 
+/// impl Serialize for ExampleMessage {
+///     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+///     where
+///         S: Serializer 
+///     {
+///         Err(S::Error::custom("ExampleMessage cannot be serialized"))
+///     }
+/// }
+/// 
+/// impl<'a> Deserialize<'a> for ExampleMessage {
+///     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+///     where
+///         D: Deserializer<'a> 
+///     {
+///         Err(D::Error::custom("RunCommand cannot be serialized"))
+///     }
+/// }
+/// 
+/// impl SceneMessage for ExampleMessage
+/// where
+///     TParameter: Unpin + Send,
+///     TResponse:  Unpin + Send
+/// {
+///     fn serializable() -> bool { false }
+/// }
+/// ```
+///
 pub trait SceneMessage :
     Sized                   + 
     Send                    + 
