@@ -23,7 +23,7 @@ use serde::*;
 /// return `false` from `serializable()` so that the serialization filters aren't generated. Most messages can use 
 /// `#[derive(Serialize, Deserialize)]` to generate the serialization routines.
 ///
-/// An implementation like the following can be used for non-serializable messages
+/// An implementation like the following can be used for non-serializable messages:
 ///
 /// ```
 /// # use flo_scene::*;
