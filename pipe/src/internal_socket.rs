@@ -7,6 +7,10 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf, AsyncWriteExt};
 use futures::prelude::*;
 use futures::stream::{BoxStream, ReadyChunks};
 
+use serde::*;
+use serde::de::{Error as DeError};
+use serde::ser::{Error as SeError};
+
 use std::io;
 use std::io::{Error};
 use std::pin::{Pin};
@@ -24,7 +28,27 @@ pub enum InternalSocketMessage {
     CreateInternalSocket(Box<dyn Send + AsyncRead>, Box<dyn Send + AsyncWrite>),
 }
 
-impl SceneMessage for InternalSocketMessage { }
+impl SceneMessage for InternalSocketMessage {
+    fn serializable() -> bool { false }
+}
+
+impl Serialize for InternalSocketMessage {
+    fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer 
+    {
+        Err(S::Error::custom("InternalSocketMessage cannot be serialized"))
+    }
+}
+
+impl<'a> Deserialize<'a> for InternalSocketMessage {
+    fn deserialize<D>(_: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a> 
+    {
+        Err(D::Error::custom("InternalSocketMessage cannot be serialized"))
+    }
+}
 
 ///
 /// The stream reader is used to convert an input stream of bytes into an AsyncRead implementation
