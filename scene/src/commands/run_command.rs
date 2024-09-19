@@ -2,6 +2,10 @@ use crate::scene_message::*;
 use crate::stream_target::*;
 use crate::programs::*;
 
+use serde::*;
+use serde::de::{Error as DeError};
+use serde::ser::{Error as SeError};
+
 use std::marker::{PhantomData};
 use std::sync::*;
 
@@ -62,11 +66,30 @@ where
     }
 }
 
+impl<TParameter, TResponse> Serialize for RunCommand<TParameter, TResponse> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer 
+    {
+        Err(S::Error::custom("RunCommand cannot be serialized"))
+    }
+}
+
+impl<'a, TParameter, TResponse> Deserialize<'a> for RunCommand<TParameter, TResponse> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a> 
+    {
+        Err(D::Error::custom("RunCommand cannot be serialized"))
+    }
+}
+
 impl<TParameter, TResponse> SceneMessage for RunCommand<TParameter, TResponse>
 where
     TParameter: Unpin + Send,
     TResponse:  Unpin + Send
 {
+    fn serializable() -> bool { false }
 }
 
 impl<TParameter, TResponse> QueryRequest for RunCommand<TParameter, TResponse> 
