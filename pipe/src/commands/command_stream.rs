@@ -263,3 +263,53 @@ pub fn read_command_data(input: impl 'static + Send + Unpin + Stream<Item=Vec<u8
 pub fn write_command_data(input: impl 'static + Send + Unpin + Stream<Item=CommandData>) -> BoxStream<'static, Vec<u8>> {
     input.map(|CommandData(data)| data).boxed()
 }
+
+///
+/// Serialized forms of a JSON command response. Note that the streaming forms can't be supported in a simple serialized response, so
+/// we just say they were present and convert them to errors on the other side
+///
+#[derive(Serialize, Deserialize)]
+enum SerializedCommandResponse {
+    Json(serde_json::Value),
+    Message(String),
+
+    BackgroundStreamNotSupported,
+    IoStreamNotSupported,
+    InteractiveStreamNotSupported,
+
+    Error(String),    
+}
+
+impl Serialize for CommandResponse {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer
+    {
+        match self {
+            CommandResponse::Json(json)             => SerializedCommandResponse::Json(json.clone()),
+            CommandResponse::Message(msg)           => SerializedCommandResponse::Message(msg.clone()),
+            CommandResponse::Error(err)             => SerializedCommandResponse::Error(err.clone()),
+
+            CommandResponse::BackgroundStream(_)    => SerializedCommandResponse::BackgroundStreamNotSupported,
+            CommandResponse::IoStream(_)            => SerializedCommandResponse::IoStreamNotSupported,
+            CommandResponse::InteractiveStream(_)   => SerializedCommandResponse::InteractiveStreamNotSupported,
+        }.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for CommandResponse {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>
+    {
+        match SerializedCommandResponse::deserialize(deserializer)? {
+            SerializedCommandResponse::Json(json)   => Ok(CommandResponse::Json(json)),
+            SerializedCommandResponse::Message(msg) => Ok(CommandResponse::Message(msg)),
+            SerializedCommandResponse::Error(err)   => Ok(CommandResponse::Error(err)),
+
+            SerializedCommandResponse::BackgroundStreamNotSupported     => Ok(CommandResponse::Error("Background stream not supported".into())),
+            SerializedCommandResponse::IoStreamNotSupported             => Ok(CommandResponse::Error("I/O stream not supported".into())),
+            SerializedCommandResponse::InteractiveStreamNotSupported    => Ok(CommandResponse::Error("Interactive stream not supported".into())),
+        }
+    }
+}
