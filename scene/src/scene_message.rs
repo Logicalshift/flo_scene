@@ -7,7 +7,8 @@ use serde::*;
 /// Trait implemented by messages that can be sent via a scene
 ///
 /// Scene messages should implement the serde serialization primitives but can return only errors. These types should also
-/// return `false` from `serializable()` so that the serialization filters aren't generated.
+/// return `false` from `serializable()` so that the serialization filters aren't generated. Most messages can use 
+/// `#[derive(Serialize, Deserialize)]` to generate the serialization routines.
 ///
 /// An implementation like the following can be used for non-serializable messages
 ///
@@ -43,6 +44,40 @@ use serde::*;
 ///     TResponse:  Unpin + Send
 /// {
 ///     fn serializable() -> bool { false }
+/// }
+/// ```
+///
+/// Another approach is to serialize via an intermediate type, which can be used when special treatment is needed for serialization
+/// or deserialization. This can look like this:
+///
+/// ```
+/// # use flo_scene::*;
+/// use serde::*;
+/// # 
+/// # struct ExampleMessage { real_number: usize }
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct IntermediateMessage { serialized_number: usize }
+/// 
+/// // This is a contrived example that serializes a different number
+///
+/// impl Serialize for ExampleMessage {
+///     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+///     where
+///         S: Serializer 
+///     {
+///         IntermediateMessage { serialized_number: self.real_number + 1 }.serialize(serializer)
+///     }
+/// }
+/// 
+/// impl<'a> Deserialize<'a> for ExampleMessage {
+///     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+///     where
+///         D: Deserializer<'a> 
+///     {
+///         let intermediate = IntermediateMessage::deserialize(deserializer)?;
+///         Ok(ExampleMessage { real_number: intermediate.serialized_number - 1 })
+///     }
 /// }
 /// ```
 ///
