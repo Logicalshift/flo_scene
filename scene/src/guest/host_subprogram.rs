@@ -108,7 +108,8 @@ where
                     }
 
                     Connect(sink_handle, stream_target) => { 
-                        // TODO: connect to a sink on the source side
+                        // TODO: connect to a sink on the source side (this needs a way to convert the stream ID into a stream we can deserialize)
+                        // TODO: if there's no way to deserialize this sink we can potentially still send it between guest programs (we need a way to distinguish stream IDs that use the same type to do this)
                     }
 
                     Send(sink_handle, encoded_bytes) => {
