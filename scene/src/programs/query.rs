@@ -5,13 +5,13 @@ use futures::prelude::*;
 use futures::stream;
 use futures::stream::{BoxStream};
 
-use std::marker::{PhantomData};
-use std::pin::*;
-use std::task::{Context, Poll};
-
 use serde::*;
 use serde::de::{Error as DeError};
 use serde::ser::{Error as SeError};
+
+use std::marker::{PhantomData};
+use std::pin::*;
+use std::task::{Context, Poll};
 
 ///
 /// A query request is a type of message representing a request for a query response of a particular type
@@ -59,7 +59,7 @@ impl<TResponseData: Send> SceneMessage for QueryResponse<TResponseData> {
 }
 
 impl<TResponseData: Send> Serialize for QueryResponse<TResponseData> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer 
     {
@@ -68,7 +68,7 @@ impl<TResponseData: Send> Serialize for QueryResponse<TResponseData> {
 }
 
 impl<'a, TResponseData: Send> Deserialize<'a> for QueryResponse<TResponseData> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'a> 
     {

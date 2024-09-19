@@ -34,7 +34,7 @@ use serde::*;
 /// struct ExampleMessage;
 /// 
 /// impl Serialize for ExampleMessage {
-///     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+///     fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
 ///     where
 ///         S: Serializer 
 ///     {
@@ -43,7 +43,7 @@ use serde::*;
 /// }
 /// 
 /// impl<'a> Deserialize<'a> for ExampleMessage {
-///     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+///     fn deserialize<D>(_: D) -> Result<Self, D::Error>
 ///     where
 ///         D: Deserializer<'a> 
 ///     {

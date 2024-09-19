@@ -67,7 +67,7 @@ where
 }
 
 impl<TParameter, TResponse> Serialize for RunCommand<TParameter, TResponse> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer 
     {
@@ -76,7 +76,7 @@ impl<TParameter, TResponse> Serialize for RunCommand<TParameter, TResponse> {
 }
 
 impl<'a, TParameter, TResponse> Deserialize<'a> for RunCommand<TParameter, TResponse> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'a> 
     {
