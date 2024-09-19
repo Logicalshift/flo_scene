@@ -174,9 +174,12 @@ impl Scene {
     /// ```
     /// #   use flo_scene::*;
     /// #   use futures::prelude::*;
+    /// #   use serde::*;
     /// #
+    /// #   #[derive(Serialize, Deserialize)]
     /// #   enum ExampleMessage { Test };
     /// #   impl SceneMessage for ExampleMessage { }
+    /// #   #[derive(Serialize, Deserialize)]
     /// #   enum FilteredMessage { Test };
     /// #   impl SceneMessage for FilteredMessage { }
     /// #   let scene           = Scene::empty();

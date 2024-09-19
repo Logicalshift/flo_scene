@@ -25,11 +25,12 @@
 //! 
 //! ```
 //! # use flo_scene::*;
+//! # use serde::*;
 //! # use futures::prelude::*;
 //! # let scene = Scene::default();
 //! #
 //! // Simple logger
-//! #[derive(Debug)]
+//! #[derive(Debug, Serialize, Deserialize)]
 //! pub enum LogMessage {
 //!     Info(String),
 //!     Warning(String),
@@ -59,8 +60,10 @@
 //! ```
 //! # use flo_scene::*;
 //! # use futures::prelude::*;
+//! # use serde::*;
 //! # let scene = Scene::default();
 //! # let log_program = SubProgramId::new();
+//! # #[derive(Serialize, Deserialize)]
 //! # pub enum LogMessage { Warning(String) };
 //! # impl SceneMessage for LogMessage { }
 //! # scene.add_subprogram(log_program, |_: InputStream<LogMessage>, _| async { }, 0);
@@ -76,8 +79,9 @@
 //! ```
 //! # use flo_scene::*;
 //! # use futures::prelude::*;
+//! # use serde::*;
 //! # let scene = Scene::default();
-//! # #[derive(Debug)]
+//! # #[derive(Debug, Serialize, Deserialize)]
 //! # pub enum LogMessage { Warning(String) };
 //! # impl SceneMessage for LogMessage { }
 //! #

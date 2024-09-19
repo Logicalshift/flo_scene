@@ -10,6 +10,7 @@ use serde::*;
 ///
 /// ```
 /// # use flo_scene::*;
+/// # use serde::*;
 /// #[derive(Serialize, Deserialize)]
 /// struct ExampleMessage { some_value: i64 };
 ///
@@ -51,11 +52,7 @@ use serde::*;
 ///     }
 /// }
 /// 
-/// impl SceneMessage for ExampleMessage
-/// where
-///     TParameter: Unpin + Send,
-///     TResponse:  Unpin + Send
-/// {
+/// impl SceneMessage for ExampleMessage {
 ///     fn serializable() -> bool { false }
 /// }
 /// ```
