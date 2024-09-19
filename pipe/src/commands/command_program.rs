@@ -15,6 +15,7 @@ use futures::{pin_mut};
 use futures::future::{BoxFuture};
 use futures::stream::{BoxStream};
 use once_cell::sync::{Lazy};
+use serde::*;
 
 use std::collections::{HashMap};
 use std::iter;
@@ -36,6 +37,7 @@ pub type CommandProgramSocketMessage = SocketMessage<CommandData, CommandData>;
 /// This is the message type accepted by the subprograms started by the `command_connection_program` subprogram
 ///
 #[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize)]
 pub enum CommandSessionRequest {
     /// Changes a variable in this session
     SetVariable(String, serde_json::Value),
@@ -51,6 +53,7 @@ pub enum CommandSessionRequest {
 /// Query response indicating the value of a variable in a command session
 ///
 #[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize)]
 pub struct CommandVariable(pub String, pub serde_json::Value);
 
 impl SceneMessage for CommandSessionRequest {
