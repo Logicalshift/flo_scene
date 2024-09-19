@@ -6,6 +6,19 @@ use serde::*;
 ///
 /// Trait implemented by messages that can be sent via a scene
 ///
+/// A basic message type can be declared like this:
+///
+/// ```
+/// # use flo_scene::*;
+/// #[derive(Serialize, Deserialize)]
+/// struct ExampleMessage { some_value: i64 };
+///
+/// impl SceneMessage for ExampleMessage { }
+/// ```
+///
+/// Messages are initialised the first time they are encountered in a scene. The `initialise()` function can be used to
+/// customise this if needed: for example, to set up the default set of connections that a message should support.
+///
 /// Scene messages should implement the serde serialization primitives but can return only errors. These types should also
 /// return `false` from `serializable()` so that the serialization filters aren't generated. Most messages can use 
 /// `#[derive(Serialize, Deserialize)]` to generate the serialization routines.
