@@ -8,7 +8,7 @@ use futures::channel::mpsc;
 
 use std::collections::{HashMap};
 
-#[cfg(feature="serde_support")] use serde::*;
+use serde::*;
 
 ///
 /// ID of the program that sends idle notifications by default
@@ -26,7 +26,7 @@ pub static IDLE_NOTIFICATION_PROGRAM: StaticSubProgramId = StaticSubProgramId::c
 /// now in a state where it can be rendered without further updates ocurring.
 ///
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub enum IdleRequest {
     ///
     /// When the scene next becomes idle, send a message to the specified subprogram ID

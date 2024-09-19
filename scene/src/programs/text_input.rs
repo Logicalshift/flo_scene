@@ -10,7 +10,7 @@ use std::str;
 use std::thread;
 use std::io::{BufRead};
 
-#[cfg(feature="serde_support")] use serde::*;
+use serde::*;
 
 pub static STDIN_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::stdin");
 
@@ -18,7 +18,7 @@ pub static STDIN_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_s
 /// Text input programs read from an input stream and sends `TextInputResult` messages to a target program
 ///
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub enum TextInput {
     /// Reads a single character from an input stream and sends it as a TextInputResult to a target program
     RequestCharacter(SubProgramId),
@@ -34,7 +34,7 @@ pub enum TextInput {
 /// The message that's sent as a response to a text input request
 ///
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash, Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub enum TextInputResult {
     /// The stream produced some characters as a result of a request
     Characters(String),

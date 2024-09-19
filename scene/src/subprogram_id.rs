@@ -7,9 +7,8 @@ use std::fmt;
 use std::fmt::{Debug};
 use std::sync::*;
 
-#[cfg(feature="serde_support")] use serde::*;
-#[cfg(feature="serde_support")] use serde::ser::*;
-#[cfg(feature="serde_support")] use serde::de::*;
+use serde::*;
+use serde::de::*;
 
 static IDS_FOR_NAMES: Lazy<RwLock<HashMap<String, SubProgramNameId>>>   = Lazy::new(|| RwLock::new(HashMap::new()));
 static NAMES_FOR_IDS: Lazy<RwLock<Vec<String>>>                         = Lazy::new(|| RwLock::new(vec![]));
@@ -47,7 +46,7 @@ fn name_for_id(id: SubProgramNameId) -> Option<String> {
 /// A unique identifier for a subprogram in a scene
 ///
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub struct SubProgramId(SubProgramIdValue);
 
 ///
@@ -57,7 +56,7 @@ pub struct SubProgramId(SubProgramIdValue);
 struct SubProgramNameId(usize);
 
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 enum SubProgramIdValue {
     /// A subprogram identified with a well-known name
     Named(SubProgramNameId),

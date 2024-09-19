@@ -8,7 +8,7 @@ use futures::prelude::*;
 
 use std::marker::{PhantomData};
 
-#[cfg(feature="serde_support")] use serde::*;
+use serde::*;
 
 ///
 /// Sub-programs that can send events should support this 'Subscribe' message (via a filter). This is a request that the
@@ -23,7 +23,7 @@ use std::marker::{PhantomData};
 /// It's better to use an output stream so that `connect()` can be most easily used to specify where the events are going.
 ///
 #[derive(Clone)]
-#[cfg_attr(feature="serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub struct Subscribe<TMessageType: SceneMessage>(StreamTarget, PhantomData<TMessageType>);
 
 impl<TMessageType: SceneMessage> SceneMessage for Subscribe<TMessageType> { }

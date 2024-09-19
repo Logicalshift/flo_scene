@@ -1,12 +1,12 @@
 use crate::scene_message::*;
 
-#[cfg(feature="serde_support")] use serde::*;
+use serde::*;
 
 ///
 /// Description of a command as returned by ListCommand
 ///
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature="serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub struct CommandDescription {
     /// The name of the command
     pub name: String,
@@ -17,7 +17,7 @@ pub struct CommandDescription {
 /// is often used with a conversion into the response type of a command.
 ///
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature="serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub struct ListCommandResponse(pub Vec<CommandDescription>);
 
 impl SceneMessage for ListCommandResponse { }

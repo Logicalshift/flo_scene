@@ -189,6 +189,7 @@ mod scene_message;
 mod thread_stealer;
 mod command_trait;
 mod connect_result;
+mod serialization;
 
 pub mod error;
 pub mod programs;
@@ -207,9 +208,4 @@ pub use scene_message::*;
 pub use command_trait::*;
 pub use connect_result::*;
 pub use error::{ConnectionError, SceneSendError};
-
-#[cfg(feature = "serde_support")]
-mod serialization;
-
-#[cfg(feature = "serde_support")]
 pub use serialization::*;

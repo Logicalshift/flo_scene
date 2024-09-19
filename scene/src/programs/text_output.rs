@@ -6,7 +6,7 @@ use once_cell::sync::{Lazy};
 
 use std::io::*;
 
-#[cfg(feature="serde_support")] use serde::*;
+use serde::*;
 
 pub static STDOUT_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::stdout");
 pub static STDERR_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::stderr");
@@ -16,7 +16,7 @@ static ERROR_TO_TEXT_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for
 /// Messages for writing text to an output stream
 ///
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub enum TextOutput {
     /// Writes a single character to the output
     Character(char),
@@ -32,7 +32,7 @@ pub enum TextOutput {
 /// Messages for writing text to an error stream
 ///
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub enum ErrorOutput {
     /// Writes a single character to the output
     Character(char),

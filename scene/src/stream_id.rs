@@ -551,7 +551,6 @@ impl StreamId {
     }
 }
 
-#[cfg(feature="serde_support")]
 mod serialization {
     use super::*;
 

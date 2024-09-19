@@ -1,10 +1,10 @@
-#[cfg(feature="serde_support")] use serde::*;
+use serde::*;
 
 ///
 /// An error that can be generated from a command
 ///
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[cfg_attr(feature="serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub enum CommandError {
     /// Error generated when an attempt is made to run a command that does not exist
     CommandNotFound(String),

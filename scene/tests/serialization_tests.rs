@@ -1,4 +1,3 @@
-#[cfg(feature = "serde_support")]
 mod with_serde_support {
     use flo_scene::*;
     use flo_scene::programs::*;
