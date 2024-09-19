@@ -14,6 +14,8 @@ use futures::stream;
 
 use once_cell::sync::{Lazy};
 use serde::*;
+use serde::ser::{Error as SeError};
+use serde::de::{Error as DeError};
 
 use std::any::*;
 use std::collections::{HashMap};
@@ -54,6 +56,25 @@ impl<TSerializedType> SceneMessage for SerializedMessage<TSerializedType>
 where
     TSerializedType: Send + Unpin,
 {
+    fn serializable() -> bool { false }
+}
+
+impl<TSerializedType> Serialize for SerializedMessage<TSerializedType> {
+    fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer 
+    {
+        Err(S::Error::custom("TestRequest cannot be serialized"))
+    }
+}
+
+impl<'a, TSerializedType> Deserialize<'a> for SerializedMessage<TSerializedType> {
+    fn deserialize<D>(_: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a> 
+    {
+        Err(D::Error::custom("TestRequest cannot be serialized"))
+    }
 }
 
 ///
