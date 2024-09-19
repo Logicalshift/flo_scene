@@ -37,6 +37,7 @@ pub enum TimerRequest {
 /// Duration is the true time since the first request was made
 ///
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct TimeOut(pub usize, pub Duration);
 
 impl SceneMessage for TimerRequest {
