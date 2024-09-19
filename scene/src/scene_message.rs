@@ -1,13 +1,20 @@
 use crate::scene::*;
 use crate::stream_target::*;
 
+use serde::*;
+
 ///
 /// Trait implemented by messages that can be sent via a scene
 ///
+/// Scene messages should implement the serde serialization primitives but can return only errors. These types should also
+/// return `false` from `serializable()` so that the serialization filters aren't generated.
+///
 pub trait SceneMessage :
-    Sized       + 
-    Send        + 
-    Unpin       +
+    Sized                   + 
+    Send                    + 
+    Unpin                   +
+    Serialize               +
+    for<'a> Deserialize<'a> + 
 {
     ///
     /// The default target for this message type
@@ -35,10 +42,21 @@ pub trait SceneMessage :
     /// polled in the main loop.
     ///
     fn allow_thread_stealing_by_default() -> bool { false }
+
+    ///
+    /// True if this message supports serialization
+    ///
+    /// This is true by default, but can be overridden to return false. Messages that are not serializable do not generate
+    /// filters for receiving serialized messages.
+    ///
+    /// All messages must implement the serialization interfaces, but in order to allow messages that are intended to
+    /// only be sent within an application (eg, messages that contain function calls or similar non-serializable values,
+    /// this can be overridden to return false)
+    ///
+    fn serializable() -> bool { true }
 }
 
 impl SceneMessage for () { }
-impl SceneMessage for &'static str { }
 impl SceneMessage for String { }
 impl SceneMessage for char { }
 impl SceneMessage for usize { }
