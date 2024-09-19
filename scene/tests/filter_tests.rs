@@ -16,6 +16,8 @@ use futures::future::{select};
 use futures::executor;
 use futures_timer::*;
 
+use serde::*;
+
 use std::time::{Duration};
 use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -511,15 +513,15 @@ fn filter_with_send_and_target_filter() {
     let scene = Scene::default();
 
     // The test program can pick up on a filter defined before it starts
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     enum Message1 { Msg(String) }
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     enum Message2 { Msg(String) }
 
     impl SceneMessage for Message1 { }
     impl SceneMessage for Message2 { }
 
-    let str_to_msg1  = FilterHandle::for_filter(|string_value: InputStream<&'static str>| string_value.map(|val| Message1::Msg(val.to_string())));
+    let str_to_msg1  = FilterHandle::for_filter(|string_value: InputStream<String>| string_value.map(|val| Message1::Msg(val.to_string())));
     let msg1_to_msg2 = FilterHandle::for_filter(|msg1: InputStream<Message1>| { msg1.map(|msg| match msg { Message1::Msg(val) => Message2::Msg(val) })});
 
     // The IDs of the two programs involved
@@ -532,9 +534,9 @@ fn filter_with_send_and_target_filter() {
         let mut sender = context.send(StreamTarget::Filtered(str_to_msg1, message2_receiver_program)).unwrap();
 
         println!("Sending 1...");
-        sender.send("Hello").await.unwrap();
+        sender.send("Hello".to_string()).await.unwrap();
         println!("Sending 2...");
-        sender.send("Goodbyte").await.unwrap();
+        sender.send("Goodbyte".to_string()).await.unwrap();
         println!("Done");
     }, 0);
 
@@ -564,9 +566,9 @@ fn filter_at_target() {
     let scene = Scene::default();
 
     // The test program can pick up on a filter defined before it starts
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     enum Message1 { Msg(String) }
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     enum Message2 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -616,9 +618,9 @@ fn filter_target_using_source_filter() {
     let scene = Scene::default();
 
     // The test program can pick up on a filter defined before it starts
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     enum Message1 { Msg(String) }
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     enum Message2 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -668,9 +670,9 @@ fn filter_at_source_with_specific_target() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message1 { Msg(String) }
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     enum Message2 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -722,9 +724,9 @@ fn filter_at_source_with_any_target() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message1 { Msg(String) }
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     enum Message2 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -781,9 +783,9 @@ fn filter_at_source_with_direct_target() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message1 { Msg(String) }
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     enum Message2 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -837,11 +839,11 @@ fn chain_filters_with_target_filter() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message1 { Msg(String) }
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message2 { Msg(String) }
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message3 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -912,13 +914,13 @@ fn chain_two_filters_with_target_filter_1() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message1 { Msg(String) }
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message2 { Msg(String) }
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message3 { Msg(String) }
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message4 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -990,13 +992,13 @@ fn chain_two_filters_with_target_filter_2() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message1 { Msg(String) }
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message2 { Msg(String) }
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message3 { Msg(String) }
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message4 { Msg(String) }
 
     impl SceneMessage for Message1 { }
@@ -1068,11 +1070,11 @@ fn chain_with_direct_target() {
     let scene = Scene::default();
 
     // Filters can also be specified as a source for a stream. These change the input for all targets that target that source
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message1 { Msg(String) }
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     enum Message2 { Msg(String) }
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum Message3 { Msg(String) }
 
     impl SceneMessage for Message1 { }

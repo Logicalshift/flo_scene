@@ -2,10 +2,12 @@ use flo_scene::*;
 use flo_scene::programs::*;
 
 use futures::prelude::*;
+use serde::*;
 
 #[test]
 fn auto_start_on_first_message() {
     // Define a message with an initialisation routine that starts the default subprogram
+    #[derive(Serialize, Deserialize)]
     struct AutoStartMessage;
 
     impl SceneMessage for AutoStartMessage {
@@ -33,6 +35,7 @@ fn auto_start_on_first_message() {
 #[test]
 fn auto_start_on_connect() {
     // Define a message with an initialisation routine that starts the default subprogram
+    #[derive(Serialize, Deserialize)]
     struct AutoStartMessage;
 
     impl SceneMessage for AutoStartMessage {

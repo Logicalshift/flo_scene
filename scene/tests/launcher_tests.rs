@@ -2,13 +2,15 @@ use flo_scene::*;
 use flo_scene::programs::*;
 use flo_scene::commands::*;
 
+use serde::*;
+
 #[test]
 pub fn call_launcher_command() {
     let test_program        = SubProgramId::new();
     let launcher_program    = SubProgramId::new();
 
     // Create a response object for the test command
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     pub struct TestResponse(String);
 
     impl From<ListCommandResponse> for TestResponse {
