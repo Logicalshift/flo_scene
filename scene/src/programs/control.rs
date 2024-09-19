@@ -22,12 +22,13 @@ use futures::{pin_mut};
 
 use once_cell::sync::{Lazy};
 
+use serde::*;
+use serde::ser::{Error as SeError};
+
 use std::collections::{HashSet, HashMap};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::sync::*;
-
-use serde::*;
 
 /// The identifier for the standard scene control program
 pub static SCENE_CONTROL_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::scene_control");
@@ -438,6 +439,56 @@ impl SceneControl {
                     update_subscribers.send(update).await;
                 }
             }
+        }
+    }
+}
+
+///
+/// Intermediate type used for serializing SceneControl messages. 'Start' messages require a function definition so they can't be serialized
+///
+#[derive(Serialize, Deserialize)]
+enum SerializedSceneControl {
+    Connect(StreamSource, StreamTarget, StreamId),
+    Close(SubProgramId),
+    StopSceneWhenIdle,
+    StopScene,
+    Subscribe(StreamTarget),
+    Query(StreamTarget),
+}
+
+impl Serialize for SceneControl {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer 
+    {
+        let intermediate = match self {
+            SceneControl::Connect(source, target, stream)   => Ok(SerializedSceneControl::Connect(source.clone(), target.clone(), stream.clone())),
+            SceneControl::Close(program)                    => Ok(SerializedSceneControl::Close(*program)),
+            SceneControl::StopSceneWhenIdle                 => Ok(SerializedSceneControl::StopSceneWhenIdle),
+            SceneControl::StopScene                         => Ok(SerializedSceneControl::StopScene),
+            SceneControl::Subscribe(target)                 => Ok(SerializedSceneControl::Subscribe(target.clone())),
+            SceneControl::Query(target)                     => Ok(SerializedSceneControl::Query(target.clone())),
+            SceneControl::Start(_)                          => Err(S::Error::custom("SceneControl::Start cannot be serialized (uses a function)"))
+        }?;
+
+        intermediate.serialize(serializer)
+    }
+}
+
+impl<'a> Deserialize<'a> for SceneControl {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a> 
+    {
+        let intermediate = SerializedSceneControl::deserialize(deserializer)?;
+
+        match intermediate {
+            SerializedSceneControl::Connect(source, target, stream) => Ok(SceneControl::Connect(source, target, stream)),
+            SerializedSceneControl::Close(program)                  => Ok(SceneControl::Close(program)),
+            SerializedSceneControl::StopSceneWhenIdle               => Ok(SceneControl::StopSceneWhenIdle),
+            SerializedSceneControl::StopScene                       => Ok(SceneControl::StopScene),
+            SerializedSceneControl::Subscribe(target)               => Ok(SceneControl::Subscribe(target)),
+            SerializedSceneControl::Query(target)                   => Ok(SceneControl::Query(target)),
         }
     }
 }
