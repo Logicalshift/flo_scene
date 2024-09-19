@@ -3,8 +3,6 @@ use crate::stream_target::*;
 use crate::programs::*;
 
 use serde::*;
-use serde::de::{Error as DeError};
-use serde::ser::{Error as SeError};
 
 use std::marker::{PhantomData};
 use std::sync::*;
@@ -13,6 +11,7 @@ use std::sync::*;
 /// The RunCommand is a query request that will run a named command with a parameter, returning the result as a stream of responses to a target
 ///
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct RunCommand<TParameter, TResponse> {
     /// Where the responses to the command should be sent
     target:     StreamTarget,
@@ -66,36 +65,21 @@ where
     }
 }
 
-impl<TParameter, TResponse> Serialize for RunCommand<TParameter, TResponse> {
-    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer 
-    {
-        Err(S::Error::custom("RunCommand cannot be serialized"))
-    }
-}
-
-impl<'a, TParameter, TResponse> Deserialize<'a> for RunCommand<TParameter, TResponse> {
-    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'a> 
-    {
-        Err(D::Error::custom("RunCommand cannot be serialized"))
-    }
-}
-
 impl<TParameter, TResponse> SceneMessage for RunCommand<TParameter, TResponse>
 where
-    TParameter: Unpin + Send,
-    TResponse:  Unpin + Send
+    TParameter: Unpin + Send + Serialize,
+    TResponse:  Unpin + Send + Serialize,
+    for<'de> TParameter: Deserialize<'de>,
+    for<'de> TResponse: Deserialize<'de>
 {
-    fn serializable() -> bool { false }
 }
 
 impl<TParameter, TResponse> QueryRequest for RunCommand<TParameter, TResponse> 
 where
-    TParameter: Unpin + Send,
-    TResponse:  Unpin + Send
+    TParameter: Unpin + Send + Serialize,
+    TResponse:  Unpin + Send + Serialize,
+    for<'de> TParameter: Deserialize<'de>,
+    for<'de> TResponse: Deserialize<'de>
 {
     type ResponseData = TResponse;
 
