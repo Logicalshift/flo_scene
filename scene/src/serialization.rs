@@ -19,6 +19,7 @@ use serde::de::{Error as DeError};
 
 use std::any::*;
 use std::collections::{HashMap};
+use std::fmt::{Display};
 use std::marker::{PhantomData};
 use std::ops::{Deref};
 use std::sync::*;
@@ -43,6 +44,50 @@ static TYPED_SERIALIZERS: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + S
 
 /// Stores the filters we've already created so we don't create extr
 static FILTERS_FOR_TYPE: Lazy<Mutex<HashMap<(TypeId, TypeId), Vec<FilterHandle>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+///
+/// Trait implemented by scene messages that can be serialized as a particular type
+///
+/// This abstracts away the various possible serialization frameworks (also gives some restrictions that serde usually doesn't have
+/// but which make sense for the cases where a scene message is being automatically serialized). Filters for serializing
+/// and deserializing a message can be automatically defined for any message type that implements this interface.
+///
+/// Some serialization targets are made special by the `flo_scene` crate. These targets are automatically defined for every message
+/// type, so can be considered to be universally available. Rust doesn't really provide a mechanism for declaring these types outside 
+/// of the main crate. These types are added by feature flags:
+///
+///  * `serde_json` - all `SceneMessage`s can be serialized to a serde_json::Value object
+///
+pub trait MessageSerializeAs<TTarget> : Sized {
+    type SerializeError     : Display;
+    type DeserializeError   : Display;
+
+    /// Serializes this message as the target type
+    fn to_serialized(self) -> Result<TTarget, Self::SerializeError>;
+
+    /// Deserializes this message from the target type
+    fn from_serialized(data: TTarget) -> Result<Self, Self::DeserializeError>;
+}
+
+#[cfg(feature="serde_json")]
+impl<TMessage> MessageSerializeAs<serde_json::Value> for TMessage
+where
+    TMessage: SceneMessage
+{
+    type SerializeError     = serde_json::error::Error;
+    type DeserializeError   = serde_json::error::Error;
+
+    #[inline]
+    fn to_serialized(self) -> Result<serde_json::Value, serde_json::error::Error> {
+        let serializer = serde_json::value::Serializer;
+        self.serialize(serializer)
+    }
+
+    #[inline]
+    fn from_serialized(data: serde_json::Value) -> Result<Self, serde_json::error::Error> {
+        Self::deserialize(data)
+    }
+}
 
 ///
 /// A message created by serializing another message
