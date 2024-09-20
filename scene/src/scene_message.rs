@@ -136,20 +136,29 @@ pub trait SceneMessage :
     /// this can be overridden to return false)
     ///
     fn serializable() -> bool { true }
+
+    ///
+    /// A string that identifies this message type uniquely when serializing
+    ///
+    /// An error will occur if two types use the same name in the same process. We use `std::any::type_name()` by default
+    /// but this does not have a guaranteed format between Rust versions and may not be unique, so it's strongly recommended 
+    /// to override this function to return a specific value.
+    ///
+    fn message_type_name() -> String { std::any::type_name::<Self>().into() }
 }
 
-impl SceneMessage for () { }
-impl SceneMessage for String { }
-impl SceneMessage for char { }
-impl SceneMessage for usize { }
-impl SceneMessage for isize { }
-impl SceneMessage for i8 { }
-impl SceneMessage for u8 { }
-impl SceneMessage for i16 { }
-impl SceneMessage for u16 { }
-impl SceneMessage for i32 { }
-impl SceneMessage for u32 { }
-impl SceneMessage for i64 { }
-impl SceneMessage for u64 { }
-impl SceneMessage for i128 { }
-impl SceneMessage for u128 { }
+impl SceneMessage for ()        { fn message_type_name() -> String { "()".into() } }
+impl SceneMessage for String    { fn message_type_name() -> String { "String".into() } }
+impl SceneMessage for char      { fn message_type_name() -> String { "char".into() } }
+impl SceneMessage for usize     { fn message_type_name() -> String { "usize".into() } }
+impl SceneMessage for isize     { fn message_type_name() -> String { "isize".into() } }
+impl SceneMessage for i8        { fn message_type_name() -> String { "i8".into() } }
+impl SceneMessage for u8        { fn message_type_name() -> String { "u8".into() } }
+impl SceneMessage for i16       { fn message_type_name() -> String { "i16".into() } }
+impl SceneMessage for u16       { fn message_type_name() -> String { "u16".into() } }
+impl SceneMessage for i32       { fn message_type_name() -> String { "i32".into() } }
+impl SceneMessage for u32       { fn message_type_name() -> String { "u32".into() } }
+impl SceneMessage for i64       { fn message_type_name() -> String { "i64".into() } }
+impl SceneMessage for u64       { fn message_type_name() -> String { "u64".into() } }
+impl SceneMessage for i128      { fn message_type_name() -> String { "i128".into() } }
+impl SceneMessage for u128      { fn message_type_name() -> String { "u128".into() } }

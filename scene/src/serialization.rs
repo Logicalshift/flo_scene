@@ -102,6 +102,9 @@ where
     TSerializedType: Send + Unpin,
 {
     fn serializable() -> bool { false }
+
+    #[inline]
+    fn message_type_name() -> String { format!("flo_scene::SerializedMessage<{}>", std::any::type_name::<TSerializedType>()) }
 }
 
 impl<TSerializedType> Serialize for SerializedMessage<TSerializedType> {
@@ -109,7 +112,7 @@ impl<TSerializedType> Serialize for SerializedMessage<TSerializedType> {
     where
         S: Serializer 
     {
-        Err(S::Error::custom("TestRequest cannot be serialized"))
+        Err(S::Error::custom("SerializedMessage cannot be serialized"))
     }
 }
 
@@ -118,7 +121,7 @@ impl<'a, TSerializedType> Deserialize<'a> for SerializedMessage<TSerializedType>
     where
         D: Deserializer<'a> 
     {
-        Err(D::Error::custom("TestRequest cannot be serialized"))
+        Err(D::Error::custom("SerializedMessage cannot be serialized"))
     }
 }
 

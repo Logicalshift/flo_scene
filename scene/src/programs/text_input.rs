@@ -43,10 +43,16 @@ pub enum TextInputResult {
     Eof,
 }
 
-impl SceneMessage for TextInputResult { }
+impl SceneMessage for TextInputResult {
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::TextInputResult".into() }
+}
 
 impl SceneMessage for TextInput {
     fn default_target() -> StreamTarget { (*STDIN_PROGRAM).into() }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::TextInput".into() }
 }
 
 ///

@@ -57,11 +57,13 @@ impl From<ErrorOutput> for TextOutput {
 impl SceneMessage for TextOutput {
     fn default_target() -> StreamTarget             { (*STDOUT_PROGRAM).into() }
     fn allow_thread_stealing_by_default() -> bool   { true }
+    fn message_type_name() -> String                { "flo_scene::TextOutput".into() }
 }
 
 impl SceneMessage for ErrorOutput {
     fn default_target() -> StreamTarget             { (*STDERR_PROGRAM).into() }
     fn allow_thread_stealing_by_default() -> bool   { true }
+    fn message_type_name() -> String                { "flo_scene::ErrorOutput".into() }
 
     fn initialise(scene: &Scene) {
         // Convert ErrorOutput into TextOutput when sending to STDERR

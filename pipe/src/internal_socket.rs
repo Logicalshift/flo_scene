@@ -30,6 +30,9 @@ pub enum InternalSocketMessage {
 
 impl SceneMessage for InternalSocketMessage {
     fn serializable() -> bool { false }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene_pipe::InternalSocketMessage".into() }
 }
 
 impl Serialize for InternalSocketMessage {

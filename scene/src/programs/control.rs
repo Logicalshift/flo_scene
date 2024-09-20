@@ -201,6 +201,9 @@ impl SceneMessage for SceneControl {
         // TODO: this is done in the scene 'with_standard_programs' right now because you can't connect before a program is added
         // scene.connect_programs((), *SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
     }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::SceneControl".into() }
 }
 
 impl SceneMessage for SceneUpdate { 
@@ -208,6 +211,9 @@ impl SceneMessage for SceneUpdate {
         // Updates are discarded by default
         StreamTarget::None
     }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::SceneUpdate".into() }
 }
 
 impl SceneControl {

@@ -72,6 +72,8 @@ where
     for<'de> TParameter: Deserialize<'de>,
     for<'de> TResponse: Deserialize<'de>
 {
+    #[inline]
+    fn message_type_name() -> String { format!("flo_scene::RunCommand<{}, {}>", std::any::type_name::<TParameter>(), std::any::type_name::<TResponse>()) }
 }
 
 impl<TParameter, TResponse> QueryRequest for RunCommand<TParameter, TResponse> 

@@ -55,10 +55,16 @@ impl SceneMessage for IdleRequest {
     fn default_target() -> StreamTarget { (*IDLE_NOTIFICATION_PROGRAM).into() }
 
     fn allow_thread_stealing_by_default() -> bool { true }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::IdleRequest".into() }
 }
 
 impl SceneMessage for IdleNotification {
     fn default_target() -> StreamTarget { StreamTarget::None }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::IdleNotification".into() }
 }
 
 ///

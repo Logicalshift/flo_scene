@@ -60,9 +60,15 @@ impl SceneMessage for CommandSessionRequest {
     fn initialise(scene: &Scene) {
         scene.connect_programs(StreamSource::Filtered(*COMMAND_SESSION_VARIABLE_QUERY_FILTER), (), StreamId::with_message_type::<Query<CommandVariable>>()).unwrap();
     }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene_pipe::CommandSessionRequest".into() }
 }
 
-impl SceneMessage for CommandVariable { }
+impl SceneMessage for CommandVariable { 
+    #[inline]
+    fn message_type_name() -> String { "flo_scene_pipe::CommandVariable".into() }
+}
 
 ///
 /// The command program accepts connections from a socket and will generate command output messages

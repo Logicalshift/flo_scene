@@ -44,9 +44,15 @@ impl SceneMessage for TimerRequest {
     fn default_target() -> StreamTarget {
         (*TIMER_PROGRAM).into()
     }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::TimerRequest".into() }
 }
 
-impl SceneMessage for TimeOut {}
+impl SceneMessage for TimeOut {
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::TimeOut".into() }
+}
 
 struct Timer {
     target_program:     SubProgramId,

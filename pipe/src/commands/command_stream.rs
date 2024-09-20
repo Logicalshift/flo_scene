@@ -13,7 +13,6 @@ use serde_json;
 
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use std::task::{Poll};
 
 ///
 /// A string value representing the name of a command sent to a stream
@@ -121,8 +120,15 @@ where
     Error(String),    
 }
 
-impl SceneMessage for CommandRequest { }
-impl SceneMessage for CommandResponse { }
+impl SceneMessage for CommandRequest {
+    #[inline]
+    fn message_type_name() -> String { "flo_scene_pipe::CommandRequest".into() }
+}
+
+impl SceneMessage for CommandResponse {
+    #[inline]
+    fn message_type_name() -> String { "flo_scene_pipe::CommandResponse".into() }
+}
 
 impl<TResponseData> From<TResponseData> for CommandResponseData<TResponseData>
 where

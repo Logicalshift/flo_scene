@@ -31,6 +31,9 @@ impl SceneMessage for TestRequest {
     fn serializable() -> bool {
         false
     }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::TestRequest".into() }
 }
 
 impl Serialize for TestRequest {

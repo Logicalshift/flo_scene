@@ -90,6 +90,9 @@ impl SceneMessage for JsonCommand {
         (*JSON_DISPATCHER_SUBPROGRAM).into()
     }
 
+    #[inline]
+    fn message_type_name() -> String { "flo_scene_pipe::JsonCommand".into() }
+
     fn initialise(scene: &Scene) {
         // Always run a JSON command dispatcher (this dispatches the 'run command' request)
         start_json_command_dispatcher(scene, *JSON_DISPATCHER_SUBPROGRAM);

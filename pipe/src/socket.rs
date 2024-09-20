@@ -49,6 +49,9 @@ pub enum SocketMessage<TInputMessage, TOutputMessage> {
 
 impl<TInputMessage, TOutputMessage> SceneMessage for SocketMessage<TInputMessage, TOutputMessage> {
     fn serializable() -> bool { false }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene_pipe::SocketMessage<_, _>".into() }
 }
 
 

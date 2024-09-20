@@ -26,7 +26,10 @@ use serde::*;
 #[derive(Serialize, Deserialize)]
 pub struct Subscribe<TMessageType: SceneMessage>(StreamTarget, PhantomData<TMessageType>);
 
-impl<TMessageType: SceneMessage> SceneMessage for Subscribe<TMessageType> { }
+impl<TMessageType: SceneMessage> SceneMessage for Subscribe<TMessageType> { 
+    #[inline]
+    fn message_type_name() -> String { format!("flo_scene::Subscribe<{}>", TMessageType::message_type_name()) }
+}
 
 impl<TMessageType: SceneMessage> Subscribe<TMessageType> { 
     ///

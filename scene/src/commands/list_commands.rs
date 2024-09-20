@@ -20,4 +20,7 @@ pub struct CommandDescription {
 #[derive(Serialize, Deserialize)]
 pub struct ListCommandResponse(pub Vec<CommandDescription>);
 
-impl SceneMessage for ListCommandResponse { }
+impl SceneMessage for ListCommandResponse { 
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::ListCommandResponse".into() }
+}

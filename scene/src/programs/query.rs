@@ -52,10 +52,16 @@ impl<TResponseData: Send + Unpin> QueryRequest for Query<TResponseData> {
 ///
 pub struct QueryResponse<TResponseData>(BoxStream<'static, TResponseData>);
 
-impl<TResponseData: Send + Unpin> SceneMessage for Query<TResponseData> { }
+impl<TResponseData: Send + Unpin> SceneMessage for Query<TResponseData> {
+    #[inline]
+    fn message_type_name() -> String { format!("flo_scene::Query<{}>", std::any::type_name::<TResponseData>()) }
+}
 
 impl<TResponseData: Send> SceneMessage for QueryResponse<TResponseData> {
     fn serializable() -> bool { false }
+
+    #[inline]
+    fn message_type_name() -> String { format!("flo_scene::QueryResponse<{}>", std::any::type_name::<TResponseData>()) }
 }
 
 impl<TResponseData: Send> Serialize for QueryResponse<TResponseData> {
