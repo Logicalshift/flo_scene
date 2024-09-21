@@ -10,7 +10,9 @@ use tokio::io::*;
 /// TestSucceeded message is used to indicate when a test has passed
 #[derive(Serialize, Deserialize, Debug)]
 struct TestSucceeded { message: String }
-impl SceneMessage for TestSucceeded { }
+impl SceneMessage for TestSucceeded {
+    fn message_type_name() -> String { "test::TestSucceeded".into() }
+}
 
 ///
 /// Creates an internal socket program in a scene that can be used to send commands
@@ -237,7 +239,9 @@ fn subscribe_command() {
         text: String,
     }
 
-    impl SceneMessage for SubscribeCommandTestMessage { }
+    impl SceneMessage for SubscribeCommandTestMessage {
+        fn message_type_name() -> String { "test::SubscribeCommandTestMessage".into() }
+    }
  
     scene.with_serializer(|| serde_json::value::Serializer)
         .with_serializable_type::<SubscribeCommandTestMessage>("test::SubscribeCommandTestMessage")
@@ -287,7 +291,9 @@ fn query_command() {
         text: String,
     }
 
-    impl SceneMessage for QueryCommandTestMessage { }
+    impl SceneMessage for QueryCommandTestMessage {
+        fn message_type_name() -> String { "test::QueryCommandTestMessage".into() }
+    }
  
     scene.with_serializer(|| serde_json::value::Serializer)
         .with_serializable_type::<QueryCommandTestMessage>("test::QueryCommandTestMessage")
