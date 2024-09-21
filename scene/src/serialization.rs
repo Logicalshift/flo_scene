@@ -63,10 +63,10 @@ pub trait MessageSerializeAs<TTarget> : Sized {
     type DeserializeError   : Display;
 
     /// Serializes this message as the target type
-    fn to_serialized(self) -> Result<TTarget, Self::SerializeError>;
+    fn to_serialized(&self) -> Result<TTarget, Self::SerializeError>;
 
     /// Deserializes this message from the target type
-    fn from_serialized(data: TTarget) -> Result<Self, Self::DeserializeError>;
+    fn from_serialized(data: &TTarget) -> Result<Self, Self::DeserializeError>;
 }
 
 #[cfg(feature="serde_json")]
@@ -78,13 +78,13 @@ where
     type DeserializeError   = serde_json::error::Error;
 
     #[inline]
-    fn to_serialized(self) -> Result<serde_json::Value, serde_json::error::Error> {
+    fn to_serialized(&self) -> Result<serde_json::Value, serde_json::error::Error> {
         let serializer = serde_json::value::Serializer;
         self.serialize(serializer)
     }
 
     #[inline]
-    fn from_serialized(data: serde_json::Value) -> Result<Self, serde_json::error::Error> {
+    fn from_serialized(data: &serde_json::Value) -> Result<Self, serde_json::error::Error> {
         Self::deserialize(data)
     }
 }
@@ -172,6 +172,9 @@ where
 pub fn install_serializable_type<TMessageType, TSerializer>(type_name: impl Into<String>) -> Result<(), &'static str>
 where
     TMessageType:                   'static + SceneMessage,
+    TMessageType:                   MessageSerializeAs<TSerializer::Ok>,
+    Subscribe<TMessageType>:        MessageSerializeAs<TSerializer::Ok>,
+    Query<TMessageType>:            MessageSerializeAs<TSerializer::Ok>,
     TMessageType:                   for<'a> Deserialize<'a>,
     TMessageType:                   Serialize,
     TSerializer:                    'static + Send + Serializer,
@@ -180,9 +183,9 @@ where
 {
     let type_name = type_name.into();
 
-    install_single_serializable_type::<TMessageType, TSerializer>(type_name.clone())?;
-    install_single_serializable_type::<Subscribe<TMessageType>, TSerializer>(format!("subscribe::{}", type_name))?;
-    install_single_serializable_type::<Query<TMessageType>, TSerializer>(format!("query::{}", type_name))?;
+    install_single_serializable_type::<TMessageType, TSerializer::Ok>()?;
+    install_single_serializable_type::<Subscribe<TMessageType>, TSerializer::Ok>()?;
+    install_single_serializable_type::<Query<TMessageType>, TSerializer::Ok>()?;
 
     Ok(())
 }
@@ -190,17 +193,13 @@ where
 ///
 /// Like install_serializable_type but doesn't install the query/subscribe messages
 ///
-fn install_single_serializable_type<TMessageType, TSerializer>(type_name: impl Into<String>) -> Result<(), &'static str>
+fn install_single_serializable_type<TMessageType, TSerializedType>() -> Result<(), &'static str>
 where
-    TMessageType:                   'static + SceneMessage,
-    TMessageType:                   for<'a> Deserialize<'a>,
-    TMessageType:                   Serialize,
-    TSerializer:                    'static + Send + Serializer,
-    TSerializer::Ok:                'static + Send + Unpin,
-    for<'a> &'a TSerializer::Ok:    Deserializer<'a>,
+    TMessageType:       'static + SceneMessage + MessageSerializeAs<TSerializedType>,
+    TSerializedType:    'static + Send,
 {
-    // Store the name for this type (which must match the old name)
-    let type_name = type_name.into();
+    let type_name = TMessageType::message_type_name();
+
     {
         let mut type_for_name = (*TYPE_ID_FOR_NAME).write().unwrap();
 
@@ -225,17 +224,9 @@ where
         }
     }
 
-    // Fetch the serializer constructor function (this is what's set up by install_serializer)
-    let new_serializer = (*CREATE_ANY_SERIALIZER).read().unwrap()
-        .get(&TypeId::of::<TSerializer>())
-        .cloned();
-    let new_serializer = if let Some(new_serializer) = new_serializer { new_serializer } else { return Err("Serializer has not been installed by install_serializer()"); };
-    let new_serializer = new_serializer().downcast::<Box<dyn Send + Sync + Fn() -> TSerializer>>();
-    let new_serializer = if let Ok(new_serializer) = new_serializer { new_serializer } else { return Err("Serializer was not installed correctly"); };
-
     // Create closures for creating a mapping between the input and the output type
-    let typed_serializer = move |input: TMessageType| -> Result<SerializedMessage<TSerializer::Ok>, TMessageType> {
-        if let Ok(val) = input.serialize(new_serializer()) {
+    let typed_serializer = move |input: TMessageType| -> Result<SerializedMessage<TSerializedType>, TMessageType> {
+        if let Ok(val) = input.to_serialized() {
             Ok(SerializedMessage(val, TypeId::of::<TMessageType>()))
         } else {
             Err(input)
@@ -243,10 +234,10 @@ where
     };
 
     // Create another closure for deserializing
-    let typed_deserializer = move |input: SerializedMessage<TSerializer::Ok>| -> Result<TMessageType, SerializedMessage<TSerializer::Ok>> {
+    let typed_deserializer = move |input: SerializedMessage<TSerializedType>| -> Result<TMessageType, SerializedMessage<TSerializedType>> {
         use std::mem;
 
-        let val = TMessageType::deserialize(&input.0);
+        let val = TMessageType::from_serialized(&input.0);
 
         match val {
             Ok(val) => Ok(val),
@@ -261,22 +252,22 @@ where
     let send_deserialized_stream = move |target: StreamTarget, context: &SceneContext| -> Result<Box<dyn Send + Any>, ConnectionError> {
         let target              = context.send::<TMessageType>(target)?;
         let deserialized_target = target
-            .sink_map_err(|_| SceneSendError::<TSerializer::Ok>::ErrorAfterDeserialization)            // The error doesn't preserve the input value, so we can't return it
-            .with(|msg| future::ready(match TMessageType::deserialize(&msg) {
+            .sink_map_err(|_| SceneSendError::<TSerializedType>::ErrorAfterDeserialization)            // The error doesn't preserve the input value, so we can't return it
+            .with(|msg| future::ready(match TMessageType::from_serialized(&msg) {
                 Ok(result)  => Ok(result),
                 Err(_)      => Err(SceneSendError::ErrorAfterDeserialization)
             }));
 
         // Box up the sink so we can use a generic type
-        let boxed_target: Box<dyn Send + Unpin + Sink<TSerializer::Ok, Error=SceneSendError::<TSerializer::Ok>>> = Box::new(deserialized_target);
+        let boxed_target: Box<dyn Send + Unpin + Sink<TSerializedType, Error=SceneSendError::<TSerializedType>>> = Box::new(deserialized_target);
 
         // Box it again to make it 'Any'
         Ok(Box::new(boxed_target))
     };
 
     // Convert to boxed functions
-    let typed_serializer: Box<dyn Send + Sync + Fn(TMessageType) -> Result<SerializedMessage<TSerializer::Ok>, TMessageType>>                           = Box::new(typed_serializer);
-    let typed_deserializer: Box<dyn Send + Sync + Fn(SerializedMessage<TSerializer::Ok>) -> Result<TMessageType, SerializedMessage<TSerializer::Ok>>>   = Box::new(typed_deserializer);
+    let typed_serializer: Box<dyn Send + Sync + Fn(TMessageType) -> Result<SerializedMessage<TSerializedType>, TMessageType>>                           = Box::new(typed_serializer);
+    let typed_deserializer: Box<dyn Send + Sync + Fn(SerializedMessage<TSerializedType>) -> Result<TMessageType, SerializedMessage<TSerializedType>>>   = Box::new(typed_deserializer);
 
     // Set as an 'any' type for storage
     let typed_serializer: Arc<dyn Send + Sync + Any>    = Arc::new(typed_serializer);
@@ -286,8 +277,8 @@ where
     {
         let mut typed_serializers = (*TYPED_SERIALIZERS).write().unwrap();
 
-        typed_serializers.insert((TypeId::of::<TMessageType>(), TypeId::of::<SerializedMessage<TSerializer::Ok>>()), typed_serializer);
-        typed_serializers.insert((TypeId::of::<SerializedMessage<TSerializer::Ok>>(), TypeId::of::<TMessageType>()), typed_deserializer);
+        typed_serializers.insert((TypeId::of::<TMessageType>(), TypeId::of::<SerializedMessage<TSerializedType>>()), typed_serializer);
+        typed_serializers.insert((TypeId::of::<SerializedMessage<TSerializedType>>(), TypeId::of::<TMessageType>()), typed_deserializer);
     }
 
     {
@@ -296,7 +287,7 @@ where
 
     {
         let mut send_deserialized = (*SEND_DESERIALIZED).write().unwrap();
-        send_deserialized.insert((TypeId::of::<TSerializer::Ok>(), TypeId::of::<TMessageType>()), Arc::new(send_deserialized_stream));
+        send_deserialized.insert((TypeId::of::<TSerializedType>(), TypeId::of::<TMessageType>()), Arc::new(send_deserialized_stream));
     }
 
     Ok(())
@@ -466,9 +457,12 @@ where
     ///
     pub fn with_serializable_type<TMessageType>(self, type_name: impl Into<String>) -> Self
     where
-        TMessageType:  'static + SceneMessage,
-        TMessageType:  for<'c> Deserialize<'c>,
-        TMessageType:  Serialize,
+        TMessageType:               'static + SceneMessage,
+        TMessageType:               MessageSerializeAs<TSerializer::Ok>,
+        Subscribe<TMessageType>:    MessageSerializeAs<TSerializer::Ok>,
+        Query<TMessageType>:        MessageSerializeAs<TSerializer::Ok>,
+        TMessageType:               for<'c> Deserialize<'c>,
+        TMessageType:               Serialize,
     {
         // Install the serializers for this type if they aren't already
         install_serializable_type::<TMessageType, TSerializer>(type_name).unwrap();
