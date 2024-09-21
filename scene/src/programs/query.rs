@@ -33,9 +33,9 @@ pub trait QueryRequest : SceneMessage {
 ///
 #[derive(Clone)]
 #[derive(Serialize, Deserialize)]
-pub struct Query<TResponseData: Send + Unpin>(StreamTarget, PhantomData<TResponseData>);
+pub struct Query<TResponseData: Send + Unpin + SceneMessage>(StreamTarget, PhantomData<TResponseData>);
 
-impl<TResponseData: Send + Unpin> QueryRequest for Query<TResponseData> {
+impl<TResponseData: Send + Unpin + SceneMessage> QueryRequest for Query<TResponseData> {
     type ResponseData = TResponseData;
 
     #[inline]
@@ -52,9 +52,9 @@ impl<TResponseData: Send + Unpin> QueryRequest for Query<TResponseData> {
 ///
 pub struct QueryResponse<TResponseData>(BoxStream<'static, TResponseData>);
 
-impl<TResponseData: Send + Unpin> SceneMessage for Query<TResponseData> {
+impl<TResponseData: Send + Unpin + SceneMessage> SceneMessage for Query<TResponseData> {
     #[inline]
-    fn message_type_name() -> String { format!("flo_scene::Query<{}>", std::any::type_name::<TResponseData>()) }
+    fn message_type_name() -> String { format!("query::{}", TResponseData::message_type_name()) }
 }
 
 impl<TResponseData: Send> SceneMessage for QueryResponse<TResponseData> {
@@ -105,7 +105,7 @@ impl<TResponseData: 'static + Send> QueryResponse<TResponseData> {
     }
 }
 
-impl<TResponseData: 'static + Send + Unpin> Query<TResponseData> {
+impl<TResponseData: 'static + Send + Unpin + SceneMessage> Query<TResponseData> {
     ///
     /// Creates a query message that will send its response to the specified target
     ///
@@ -135,7 +135,7 @@ impl<TResponseData: 'static + Send + Unpin> Query<TResponseData> {
 /// Creates a 'Query' message that will return a `QueryResponse<TMessageType>` message to the sender
 ///
 #[inline]
-pub fn query<TMessageType: 'static + Send + Unpin>(target: impl Into<StreamTarget>) -> Query<TMessageType> {
+pub fn query<TMessageType: 'static + Send + Unpin + SceneMessage>(target: impl Into<StreamTarget>) -> Query<TMessageType> {
     Query::with_target(target.into())
 }
 
