@@ -41,8 +41,9 @@ use flo_scene::*;
 use flo_scene::programs::*;
 
 use futures::prelude::*;
+use serde::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
 struct TestResult(String);
 impl SceneMessage for TestResult { }
@@ -96,7 +97,7 @@ pub fn connect_two_subprograms_using_filter() {
     let program_2       = SubProgramId::new();
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage;
     impl SceneMessage for TestMessage { }
 
@@ -144,7 +145,7 @@ pub fn connect_two_subprograms_using_filter_then_all_no_delay() {
     let program_2       = SubProgramId::called("program_2");
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage;
     impl SceneMessage for TestMessage { }
 
@@ -193,7 +194,7 @@ pub fn connect_default_using_source_filter_after_all() {
     let program_2       = SubProgramId::called("program_2");
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage;
     impl SceneMessage for TestMessage { }
 
@@ -244,7 +245,7 @@ pub fn connect_default_using_source_filter_after_all_no_delay() {
     let program_2       = SubProgramId::called("program_2");
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage;
     impl SceneMessage for TestMessage { }
 
@@ -293,11 +294,11 @@ pub fn connect_default_using_chained_filter() {
     let program_2       = SubProgramId::called("program_2");
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage1;
     impl SceneMessage for TestMessage1 { }
 
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage2;
     impl SceneMessage for TestMessage2 { }
 
@@ -347,11 +348,11 @@ pub fn connect_default_using_chained_filter_later_1() {
     let program_2       = SubProgramId::called("program_2");
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage1;
     impl SceneMessage for TestMessage1 { }
 
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage2;
     impl SceneMessage for TestMessage2 { }
 
@@ -403,11 +404,11 @@ pub fn connect_default_using_chained_filter_later_2() {
     let program_2       = SubProgramId::called("program_2");
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage1;
     impl SceneMessage for TestMessage1 { }
 
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage2;
     impl SceneMessage for TestMessage2 { }
 
@@ -459,11 +460,11 @@ pub fn connect_default_using_chained_filter_later_3() {
     let program_2       = SubProgramId::called("program_2");
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage1;
     impl SceneMessage for TestMessage1 { }
 
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage2;
     impl SceneMessage for TestMessage2 { }
 
@@ -515,7 +516,7 @@ pub fn connect_default_using_filter_added_later() {
     let program_2       = SubProgramId::called("program_2");
 
     // TestMessage2 can be filtered into a string, but we don't set the filter up until after the program has started
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage2;
     impl SceneMessage for TestMessage2 { }
 
@@ -565,7 +566,7 @@ pub fn connect_default_using_source_filter_added_later_1() {
     let program_2       = SubProgramId::called("program_2");
 
     // TestMessage2 can be filtered into a string, but we don't set the filter up until after we've created the stream
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage2;
     impl SceneMessage for TestMessage2 { }
 
@@ -615,7 +616,7 @@ pub fn connect_default_using_source_filter_added_later_2() {
     let program_2       = SubProgramId::called("program_2");
 
     // TestMessage2 can be filtered into a string. We set up the filter first, but don't create the connection that will use it until later
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage2;
     impl SceneMessage for TestMessage2 { }
 
@@ -665,7 +666,7 @@ pub fn connect_two_subprograms_using_source_filter() {
     let program_2       = SubProgramId::new();
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage;
     impl SceneMessage for TestMessage { }
 
@@ -713,7 +714,7 @@ pub fn connect_two_subprograms_using_source_filter_later() {
     let program_2       = SubProgramId::new();
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage;
     impl SceneMessage for TestMessage { }
 
@@ -761,7 +762,7 @@ pub fn connect_two_subprograms_using_string_type_then_source_filter() {
     let program_2       = SubProgramId::new();
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage;
     impl SceneMessage for TestMessage { }
 
@@ -1003,7 +1004,7 @@ pub fn connect_two_subprograms_after_creating_stream_using_filter_target() {
     let program_2       = SubProgramId::new();
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage;
     impl SceneMessage for TestMessage { }
 
@@ -1050,7 +1051,7 @@ pub fn connect_default_after_creating_stream_using_filter_target() {
     let program_2       = SubProgramId::new();
 
     // TestMessage can be filtered into a string, but we don't set the filter up
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage;
     impl SceneMessage for TestMessage { }
 

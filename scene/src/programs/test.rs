@@ -9,6 +9,10 @@ use futures::future::{BoxFuture};
 use futures::channel::mpsc;
 use futures_timer::{Delay};
 
+use serde::*;
+use serde::de::{Error as DeError};
+use serde::ser::{Error as SeError};
+
 use std::any::*;
 use std::collections::{HashMap};
 use std::time::{Duration};
@@ -24,7 +28,30 @@ enum TestRequest {
 }
 
 impl SceneMessage for TestRequest {
+    fn serializable() -> bool {
+        false
+    }
 
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::TestRequest".into() }
+}
+
+impl Serialize for TestRequest {
+    fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer 
+    {
+        Err(S::Error::custom("TestRequest cannot be serialized"))
+    }
+}
+
+impl<'a> Deserialize<'a> for TestRequest {
+    fn deserialize<D>(_: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a> 
+    {
+        Err(D::Error::custom("TestRequest cannot be serialized"))
+    }
 }
 
 ///

@@ -9,7 +9,7 @@ use futures::prelude::*;
 /// to different targets and also can return a 'standard' output stream to to the subprogram that spawned it.
 ///
 pub trait Command : Send + Clone {
-    type Input:  'static + Send;
+    type Input:  'static + SceneMessage;
     type Output: 'static + SceneMessage;
 
     fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()>;

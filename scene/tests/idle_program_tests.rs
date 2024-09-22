@@ -9,6 +9,8 @@ use flo_scene::programs::*;
 use futures::prelude::*;
 use futures::future;
 
+use serde::*;
+
 #[test]
 fn notify_on_idle() {
     let scene           = Scene::default();
@@ -76,11 +78,11 @@ fn wait_for_idle_program_errors_when_full() {
     let test_program    = SubProgramId::new();
     let waiting_program = SubProgramId::new();
 
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Serialize, Deserialize)]
     struct TrySend;
     impl SceneMessage for TrySend { }
 
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct SendResult(Result<(), SceneSendError<TrySend>>);
     impl SceneMessage for SendResult { }
 
@@ -121,11 +123,11 @@ fn wait_for_idle_program_closed_input_stream() {
     let test_program    = SubProgramId::new();
     let waiting_program = SubProgramId::new();
 
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Serialize, Deserialize)]
     struct TrySend;
     impl SceneMessage for TrySend { }
 
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct SendResult(Result<(), SceneSendError<TrySend>>);
     impl SceneMessage for SendResult { }
 
@@ -169,11 +171,11 @@ fn wait_for_idle_program_errors_after_filling_available_space() {
     let test_program    = SubProgramId::new();
     let waiting_program = SubProgramId::new();
 
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Serialize, Deserialize)]
     struct TrySend;
     impl SceneMessage for TrySend { }
 
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct SendResult(Result<(), SceneSendError<TrySend>>);
     impl SceneMessage for SendResult { }
 
@@ -217,7 +219,7 @@ fn wait_for_idle_program_queues_extra_requests() {
     let test_program    = SubProgramId::new();
     let waiting_program = SubProgramId::new();
 
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Serialize, Deserialize)]
     struct TrySend;
     impl SceneMessage for TrySend { }
 
@@ -267,7 +269,7 @@ fn wait_for_idle_program_queues_extra_requests_100_times() {
         let test_program    = SubProgramId::new();
         let waiting_program = SubProgramId::new();
 
-        #[derive(PartialEq, Debug)]
+        #[derive(PartialEq, Debug, Serialize, Deserialize)]
         struct TrySend;
         impl SceneMessage for TrySend { }
 

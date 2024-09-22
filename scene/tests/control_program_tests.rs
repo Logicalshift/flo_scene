@@ -13,6 +13,7 @@ use futures::prelude::*;
 use futures::future::{select};
 use futures::executor;
 use futures_timer::*;
+use serde::*;
 
 use std::collections::*;
 use std::time::{Duration};
@@ -395,17 +396,17 @@ fn send_message_only_sends_one_connection_notification() {
     let recv_messages   = SubProgramId::new();
 
     // The send program has finished sending, and waited for the scene to become idle
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct SendFinish;
     impl SceneMessage for SendFinish { }
 
     #[allow(dead_code)]
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct TestMessage(usize);
     impl SceneMessage for TestMessage { }
 
     #[allow(dead_code)]
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct ReceivedUpdate(SceneUpdate);
     impl SceneMessage for ReceivedUpdate { }
 
@@ -484,7 +485,7 @@ fn sending_scene_update_to_stopped_program_does_not_block() {
         let query_program       = SubProgramId::called("test::query_program");
 
         // The subscriber program sends all of the 'subscribe' messages sent before the scene becomes idle (after subscribing)
-        #[derive(Debug)]
+        #[derive(Debug, Serialize, Deserialize)]
         #[allow(dead_code)]
         enum SubscriberProgramMessage {
             SceneUpdate(SceneUpdate),
@@ -536,7 +537,7 @@ fn sending_scene_update_to_stopped_program_does_not_block() {
         scene.connect_programs(StreamSource::Filtered(idle_filter), (), StreamId::with_message_type::<IdleNotification>()).unwrap();
 
         // The query program receives the information from the subscription program, and then runs a query to see if the results match (with some known differences)
-        #[derive(Debug)]
+        #[derive(Debug, Serialize, Deserialize)]
         enum QueryProgramMessage {
             Ready
         }
@@ -570,7 +571,7 @@ fn sending_scene_update_to_stopped_program_does_not_block() {
         }, 1);
 
         // Test checks that there were only expected differences
-        #[derive(Debug)]
+        #[derive(Debug, Serialize, Deserialize)]
         enum TestResult {
             Ready
         }
@@ -598,7 +599,7 @@ fn subscription_events_match_query_messages() {
     let query_program       = SubProgramId::called("test::query_program");
 
     // The subscriber program sends all of the 'subscribe' messages sent before the scene becomes idle (after subscribing)
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum SubscriberProgramMessage {
         SceneUpdate(SceneUpdate),
         IdleNotification(IdleNotification),
@@ -660,7 +661,7 @@ fn subscription_events_match_query_messages() {
     scene.connect_programs(StreamSource::Filtered(idle_filter), subscriber_program, StreamId::with_message_type::<IdleNotification>().for_target(subscriber_program)).unwrap();
 
     // The query program receives the information from the subscription program, and then runs a query to see if the results match (with some known differences)
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum QueryProgramMessage {
         Updates(Vec<SceneUpdate>),
     }
@@ -704,7 +705,7 @@ fn subscription_events_match_query_messages() {
     }, 1);
 
     // Test checks that there were only expected differences
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     enum TestResult {
         QueryDifferences {
             added_updates:      Vec<SceneUpdate>,

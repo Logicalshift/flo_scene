@@ -22,7 +22,10 @@ pub struct ListSubprogramsResponse {
     pub serialized_type_name: Option<String>,
 }
 
-impl SceneMessage for ListSubprogramsResponse { }
+impl SceneMessage for ListSubprogramsResponse {
+    #[inline]
+    fn message_type_name() -> String { "flo_scene_pipe::ListSubprogramsResponse".into() }
+}
 
 ///
 /// The `list_subprograms` command, which lists the subprograms in the current scene

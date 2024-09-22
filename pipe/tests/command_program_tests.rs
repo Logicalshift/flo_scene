@@ -8,10 +8,13 @@ use futures::prelude::*;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 
+use serde::*;
+
 #[test]
 pub fn send_error_command() {
     let scene = Scene::default();
 
+    #[derive(Serialize, Deserialize)]
     struct TestSucceeded;
     impl SceneMessage for TestSucceeded { }
 

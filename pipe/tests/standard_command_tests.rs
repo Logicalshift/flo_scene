@@ -10,7 +10,9 @@ use tokio::io::*;
 /// TestSucceeded message is used to indicate when a test has passed
 #[derive(Serialize, Deserialize, Debug)]
 struct TestSucceeded { message: String }
-impl SceneMessage for TestSucceeded { }
+impl SceneMessage for TestSucceeded {
+    fn message_type_name() -> String { "test::TestSucceeded".into() }
+}
 
 ///
 /// Creates an internal socket program in a scene that can be used to send commands
@@ -102,9 +104,6 @@ fn send_command() {
     let internal_socket = SubProgramId::called("send_internal_socket");
     let test_program    = SubProgramId::called("send_test_program");
  
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
-
     // Set up the internal socket and the test case
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
@@ -127,9 +126,6 @@ fn echo_command() {
     let internal_socket = SubProgramId::called("echo_internal_socket");
     let test_program    = SubProgramId::called("echo_test_program");
  
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
-
     // Set up the internal socket and the test case
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
@@ -151,9 +147,6 @@ fn echo_variable() {
     let scene           = Scene::default().with_standard_json_commands();
     let internal_socket = SubProgramId::called("echo_internal_socket");
     let test_program    = SubProgramId::called("echo_test_program");
- 
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
 
     // Test case is to assign a variable value and then echo it
     create_internal_command_socket(&scene, internal_socket);
@@ -177,9 +170,6 @@ fn echo_array_variable() {
     let scene           = Scene::default().with_standard_json_commands();
     let internal_socket = SubProgramId::called("echo_internal_socket");
     let test_program    = SubProgramId::called("echo_test_program");
- 
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
 
     // Test case is to assign a variable value and then substitute it in an array and echo it
     create_internal_command_socket(&scene, internal_socket);
@@ -203,9 +193,6 @@ fn echo_object_variable() {
     let scene           = Scene::default().with_standard_json_commands();
     let internal_socket = SubProgramId::called("echo_internal_socket");
     let test_program    = SubProgramId::called("echo_test_program");
- 
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
 
     // Test case is to assign a variable value and then substitute it in an object and echo it (object formatting syntax might change, which this test doesn't account for at the moment)
     create_internal_command_socket(&scene, internal_socket);
@@ -237,11 +224,9 @@ fn subscribe_command() {
         text: String,
     }
 
-    impl SceneMessage for SubscribeCommandTestMessage { }
- 
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<SubscribeCommandTestMessage>("test::SubscribeCommandTestMessage")
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+    impl SceneMessage for SubscribeCommandTestMessage {
+        fn message_type_name() -> String { "test::SubscribeCommandTestMessage".into() }
+    }
 
     // Create a program that we can subscribe to
     scene.add_subprogram(subscribe_program, |input, context| async move {
@@ -287,11 +272,9 @@ fn query_command() {
         text: String,
     }
 
-    impl SceneMessage for QueryCommandTestMessage { }
- 
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<QueryCommandTestMessage>("test::QueryCommandTestMessage")
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+    impl SceneMessage for QueryCommandTestMessage {
+        fn message_type_name() -> String { "test::QueryCommandTestMessage".into() }
+    }
 
     // Create a program that we can query
     scene.add_subprogram(query_program, |input, context| async move {

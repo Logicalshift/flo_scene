@@ -2,6 +2,8 @@ use crate::scene_message::*;
 use crate::stream_target::*;
 use crate::programs::*;
 
+use serde::*;
+
 use std::marker::{PhantomData};
 use std::sync::*;
 
@@ -9,6 +11,7 @@ use std::sync::*;
 /// The RunCommand is a query request that will run a named command with a parameter, returning the result as a stream of responses to a target
 ///
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct RunCommand<TParameter, TResponse> {
     /// Where the responses to the command should be sent
     target:     StreamTarget,
@@ -64,15 +67,21 @@ where
 
 impl<TParameter, TResponse> SceneMessage for RunCommand<TParameter, TResponse>
 where
-    TParameter: Unpin + Send,
-    TResponse:  Unpin + Send
+    TParameter: 'static + Unpin + Send + Serialize,
+    TResponse:  'static + Unpin + Send + Serialize,
+    for<'de> TParameter: Deserialize<'de>,
+    for<'de> TResponse: Deserialize<'de>
 {
+    #[inline]
+    fn message_type_name() -> String { format!("flo_scene::RunCommand<{}, {}>", std::any::type_name::<TParameter>(), std::any::type_name::<TResponse>()) }
 }
 
 impl<TParameter, TResponse> QueryRequest for RunCommand<TParameter, TResponse> 
 where
-    TParameter: Unpin + Send,
-    TResponse:  Unpin + Send
+    TParameter: 'static + Unpin + Send + Serialize,
+    TResponse:  'static + Unpin + Send + Serialize,
+    for<'de> TParameter: Deserialize<'de>,
+    for<'de> TResponse: Deserialize<'de>
 {
     type ResponseData = TResponse;
 

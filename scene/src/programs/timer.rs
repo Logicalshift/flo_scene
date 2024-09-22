@@ -10,7 +10,7 @@ use std::collections::{VecDeque};
 use std::sync::*;
 use std::time::{Instant, Duration};
 
-#[cfg(feature="serde_support")] use serde::*;
+use serde::*;
 
 pub static TIMER_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::timer");
 
@@ -18,7 +18,7 @@ pub static TIMER_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_s
 /// The timer program can be used to sent one-off or recurring timer events
 ///
 #[derive(Copy, Clone, Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub enum TimerRequest {
     /// Sends a `TimeOut` message to a subprogram with the specified ID attached
     CallAfter(SubProgramId, usize, Duration),
@@ -37,15 +37,22 @@ pub enum TimerRequest {
 /// Duration is the true time since the first request was made
 ///
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct TimeOut(pub usize, pub Duration);
 
 impl SceneMessage for TimerRequest {
     fn default_target() -> StreamTarget {
         (*TIMER_PROGRAM).into()
     }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::TimerRequest".into() }
 }
 
-impl SceneMessage for TimeOut {}
+impl SceneMessage for TimeOut {
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::TimeOut".into() }
+}
 
 struct Timer {
     target_program:     SubProgramId,

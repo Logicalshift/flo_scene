@@ -79,17 +79,6 @@ impl Scene {
         if programs.contains(&*IDLE_NOTIFICATION_PROGRAM)   { scene.add_subprogram(*IDLE_NOTIFICATION_PROGRAM, idle_subprogram, 20); }
         if programs.contains(&*TIMER_PROGRAM)               { scene.add_subprogram(*TIMER_PROGRAM, timer_subprogram, 0); }
 
-        #[cfg(feature = "json")]
-        {
-            scene.with_serializer(|| serde_json::value::Serializer)
-                .with_serializable_type::<TextInput>("flo_scene::TextInput")
-                .with_serializable_type::<TextOutput>("flo_scene::TextOutput")
-                .with_serializable_type::<TimerRequest>("flo_scene::TimerRequest")
-                .with_serializable_type::<IdleRequest>("flo_scene::IdleRequest")
-                .with_serializable_type::<ListCommandResponse>("flo_scene::ListCommandResponse")
-                .with_serializable_type::<SceneUpdate>("flo_scene::SceneUpdate");
-        }
-
         scene
     }
 
@@ -174,9 +163,12 @@ impl Scene {
     /// ```
     /// #   use flo_scene::*;
     /// #   use futures::prelude::*;
+    /// #   use serde::*;
     /// #
+    /// #   #[derive(Serialize, Deserialize)]
     /// #   enum ExampleMessage { Test };
     /// #   impl SceneMessage for ExampleMessage { }
+    /// #   #[derive(Serialize, Deserialize)]
     /// #   enum FilteredMessage { Test };
     /// #   impl SceneMessage for FilteredMessage { }
     /// #   let scene           = Scene::empty();
