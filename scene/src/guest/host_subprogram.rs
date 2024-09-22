@@ -1,5 +1,6 @@
 use super::poll_action::*;
 use super::poll_result::*;
+use super::guest_encoder::*;
 use super::guest_message::*;
 use crate::host::*;
 

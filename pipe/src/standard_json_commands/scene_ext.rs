@@ -1,4 +1,4 @@
-use super::{launcher_ext::*, ListConnectionsResponse, ListSubprogramsResponse};
+use super::launcher_ext::*;
 use crate::commands::*;
 
 use flo_scene::*;
@@ -31,10 +31,6 @@ impl StandardCommandsSceneExt for Scene {
     fn default_with_json_commands() -> Self {
         let scene = Self::default()
             .with_standard_json_commands();
-
-        scene.with_serializer(|| serde_json::value::Serializer)
-            .with_serializable_type::<ListSubprogramsResponse>("flo_scene_pipe::ListSubprogramsResponse")
-            .with_serializable_type::<ListConnectionsResponse>("flo_scene_pipe::ListConnectionsResponse");
 
         scene
     }

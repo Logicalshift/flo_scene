@@ -17,7 +17,7 @@ use std::fmt;
 use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-#[cfg(feature="serde_support")] use serde::*;
+use serde::*;
 
 type CreateInputStreamFn = Box<dyn Send + Sync + Fn(SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>;
 type StreamIdForTargetFn = Box<dyn Send + Sync + Fn(Option<SubProgramId>) -> StreamId>;
@@ -40,7 +40,7 @@ static SOURCE_STREAM_ID:        Lazy<RwLock<HashMap<FilterHandle, StreamId>>>   
 /// handle references a predefined filter.
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature="serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub struct FilterHandle(usize);
 
 impl fmt::Debug for FilterHandle {

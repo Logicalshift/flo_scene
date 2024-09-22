@@ -1,4 +1,4 @@
-#[cfg(feature="serde_support")] use serde::*;
+use serde::*;
 
 ///
 /// The name of the message type that is accepted by a subprogram
@@ -6,21 +6,21 @@
 /// Output streams from subprograms must be connected to the input of a program that accepts that message type
 ///
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub struct TargetInputMessageType(pub String);
 
 ///
 /// The name of the message type that is being connected to a target
 ///
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub struct SourceStreamMessageType(pub String);
 
 ///
 /// Errors that can occur when trying to connect two subprograms in a scene
 ///
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub enum ConnectionError {
     // Something cancelled the connection
     Cancelled,
@@ -90,7 +90,7 @@ pub enum ConnectionError {
 /// Error that occurs while sending to a stream
 ///
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub enum SceneSendError<TMessage> {
     /// A message could not be sent because the connection failed
     CouldNotConnect(ConnectionError),

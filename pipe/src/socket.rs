@@ -8,6 +8,10 @@ use futures::{pin_mut};
 
 use tokio::io::*;
 
+use serde::*;
+use serde::de::{Error as DeError};
+use serde::ser::{Error as SeError};
+
 use std::result::{Result};
 use std::sync::*;
 
@@ -43,7 +47,31 @@ pub enum SocketMessage<TInputMessage, TOutputMessage> {
     Connection(SocketConnection<TInputMessage, TOutputMessage>)
 }
 
-impl<TInputMessage, TOutputMessage> SceneMessage for SocketMessage<TInputMessage, TOutputMessage> { }
+impl<TInputMessage: 'static, TOutputMessage: 'static> SceneMessage for SocketMessage<TInputMessage, TOutputMessage> {
+    fn serializable() -> bool { false }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene_pipe::SocketMessage<_, _>".into() }
+}
+
+
+impl<TInputMessage, TOutputMessage> Serialize for SocketMessage<TInputMessage, TOutputMessage> {
+    fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer 
+    {
+        Err(S::Error::custom("TestRequest cannot be serialized"))
+    }
+}
+
+impl<'a, TInputMessage, TOutputMessage> Deserialize<'a> for SocketMessage<TInputMessage, TOutputMessage> {
+    fn deserialize<D>(_: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a> 
+    {
+        Err(D::Error::custom("TestRequest cannot be serialized"))
+    }
+}
 
 impl<TInputMessage, TOutputMessage> SocketConnection<TInputMessage, TOutputMessage> 
 where

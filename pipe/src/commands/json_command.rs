@@ -5,6 +5,7 @@ use flo_scene::commands::*;
 use flo_scene::programs::*;
 
 use once_cell::sync::{Lazy};
+use serde::*;
 
 /// The filter converts from JsonCommand to RunCommands so we can use the standard dispatcher without any other interposer
 static      FILTER_CONVERT_JSON_COMMAND:    Lazy<FilterHandle>  = Lazy::new(|| FilterHandle::conversion_filter::<JsonCommand, RunCommand<JsonParameter, CommandResponse>>());
@@ -16,6 +17,7 @@ pub static  JSON_DISPATCHER_SUBPROGRAM:     StaticSubProgramId  = StaticSubProgr
 /// Parameter to a JSON command
 ///
 #[derive(Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct JsonParameter {
     /// The value of the parameter
     pub value: serde_json::Value,
@@ -28,6 +30,7 @@ pub struct JsonParameter {
 ///
 /// A JSON command is a command that uses a JSON value as a request and returns a `CommandResponse` (which is usually a JSON value)
 ///
+#[derive(Serialize, Deserialize)]
 pub struct JsonCommand(RunCommand<JsonParameter, CommandResponse>);
 
 impl From<()> for JsonParameter {
@@ -86,6 +89,9 @@ impl SceneMessage for JsonCommand {
     fn default_target() -> StreamTarget {
         (*JSON_DISPATCHER_SUBPROGRAM).into()
     }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene_pipe::JsonCommand".into() }
 
     fn initialise(scene: &Scene) {
         // Always run a JSON command dispatcher (this dispatches the 'run command' request)

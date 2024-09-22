@@ -3,9 +3,11 @@ use flo_scene::programs::*;
 
 use futures::prelude::*;
 
+use serde::*;
+
 #[test]
 pub fn simple_ping_test_with_test_builder() {
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct Ping;
     impl SceneMessage for Ping {}
 
@@ -36,7 +38,7 @@ pub fn simple_ping_test_with_test_builder() {
 
 #[test]
 pub fn multithreaded_ping() {
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct Ping;
     impl SceneMessage for Ping {}
 

@@ -1,9 +1,9 @@
 use super::guest_message::*;
+use super::guest_encoder::*;
 use super::runtime::*;
-use super::GuestSubProgramHandle;
+use super::subprogram_handle::*;
 
 use futures::prelude::*;
-use futures::future::{BoxFuture};
 use futures::task::{Waker, Poll, Context};
 
 use std::collections::{VecDeque};

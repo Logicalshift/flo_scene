@@ -1,13 +1,13 @@
 use crate::filter::*;
 use crate::subprogram_id::*;
 
-#[cfg(feature="serde_support")] use serde::*;
+use serde::*;
 
 ///
 /// Describes the source of a stream
 ///
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[derive(Serialize, Deserialize)]
 pub enum StreamSource {
     /// All sources of this type of stream
     All,

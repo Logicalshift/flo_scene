@@ -14,6 +14,7 @@ pub (crate) mod scene_message;
 pub (crate) mod thread_stealer;
 pub (crate) mod command_trait;
 pub (crate) mod connect_result;
+pub (crate) mod serialization;
 
 pub mod error;
 pub mod programs;
@@ -32,9 +33,4 @@ pub use scene_message::*;
 pub use command_trait::*;
 pub use connect_result::*;
 pub use error::{ConnectionError, SceneSendError};
-
-#[cfg(feature = "serde_support")]
-mod serialization;
-
-#[cfg(feature = "serde_support")]
 pub use serialization::*;

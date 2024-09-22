@@ -6,12 +6,14 @@ use flo_scene_pipe::commands::*;
 
 use futures::prelude::*;
 use tokio::io::*;
+use serde::*;
 
 #[test]
 fn error_from_internal_socket() {
     let scene           = Scene::default();
     let test_program    = SubProgramId::new();
  
+    #[derive(Serialize, Deserialize)]
     struct TestSucceeded;
     impl SceneMessage for TestSucceeded { }
 
@@ -70,6 +72,7 @@ fn run_expected_error_command_without_closing(command: impl Into<String>) {
     let scene           = Scene::default();
     let test_program    = SubProgramId::new();
  
+    #[derive(Serialize, Deserialize)]
     struct TestSucceeded;
     impl SceneMessage for TestSucceeded { }
 
@@ -161,7 +164,8 @@ fn read_from_background_stream_iteration() {
 
     let scene           = Scene::default();
     let test_program    = SubProgramId::new();
- 
+
+    #[derive(Serialize, Deserialize)]
     struct TestSucceeded;
     impl SceneMessage for TestSucceeded { }
 
@@ -236,6 +240,7 @@ fn send_raw_data_to_command_connection() {
     let scene           = Scene::default();
     let test_program    = SubProgramId::new();
  
+    #[derive(Serialize, Deserialize)]
     struct TestSucceeded;
     impl SceneMessage for TestSucceeded { }
 

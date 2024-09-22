@@ -1,4 +1,5 @@
 use super::guest_context::*;
+use super::guest_encoder::*;
 use super::guest_message::*;
 use super::poll_action::*;
 use super::poll_result::*;

@@ -1,3 +1,4 @@
+use super::guest_encoder::*;
 use super::guest_message::*;
 use super::runtime::*;
 use super::stream_target::*;

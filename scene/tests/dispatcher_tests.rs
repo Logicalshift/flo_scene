@@ -2,12 +2,14 @@ use flo_scene::*;
 use flo_scene::programs::*;
 use flo_scene::commands::*;
 
+use serde::*;
+
 pub fn call_dispatcher_command_iteration() {
     let test_program        = SubProgramId::new();
     let launcher_program    = SubProgramId::new();
     let dispatcher_program  = SubProgramId::new();
 
-    #[derive(Debug, PartialEq, Clone)]
+    #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
     pub struct TestRequest(String);
 
     impl From<()> for TestRequest {
@@ -17,7 +19,7 @@ pub fn call_dispatcher_command_iteration() {
     }
 
     // Create a response object for the test command
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     pub struct TestResponse(Vec<String>);
 
     impl From<ListCommandResponse> for TestResponse {

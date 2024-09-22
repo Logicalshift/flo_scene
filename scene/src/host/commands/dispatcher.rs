@@ -9,6 +9,7 @@ use crate::subprogram_id::*;
 use crate::programs::*;
 
 use futures::prelude::*;
+use serde::*;
 
 use std::collections::{HashMap, HashSet};
 use std::iter;
@@ -32,8 +33,9 @@ pub const LIST_COMMANDS: &str = "list_commands";
 ///
 pub async fn command_dispatcher_subprogram<TParameter, TResponse>(input: InputStream<RunCommand<TParameter, TResponse>>, context: SceneContext)
 where
-    TParameter: 'static + Unpin + Send + From<()>,
+    TParameter: 'static + Unpin + Send + From<()> + Serialize,
     TResponse:  'static + Unpin + Send + SceneMessage + TryInto<ListCommandResponse> + From<ListCommandResponse> + From<CommandError>,
+    for<'de> TParameter: Deserialize<'de>,
 {
     let our_program_id = context.current_program_id().unwrap();
 

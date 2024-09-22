@@ -39,7 +39,10 @@ pub struct ListConnectionsSource {
     pub serialized_type_name: Option<String>,
 }
 
-impl SceneMessage for ListConnectionsResponse { }
+impl SceneMessage for ListConnectionsResponse {
+    #[inline]
+    fn message_type_name() -> String { "flo_scene_pipe::ListConnectionsResponse".into() }
+}
 
 ///
 /// The `list_connections` command, which lists the connections that are active between subprograms
