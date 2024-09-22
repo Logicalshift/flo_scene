@@ -104,8 +104,8 @@ fn send_command() {
     let internal_socket = SubProgramId::called("send_internal_socket");
     let test_program    = SubProgramId::called("send_test_program");
  
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+    scene.with_serializer::<serde_json::Value>()
+        .with_serializable_type::<TestSucceeded>();
 
     // Set up the internal socket and the test case
     create_internal_command_socket(&scene, internal_socket);
@@ -129,8 +129,8 @@ fn echo_command() {
     let internal_socket = SubProgramId::called("echo_internal_socket");
     let test_program    = SubProgramId::called("echo_test_program");
  
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+    scene.with_serializer::<serde_json::Value>()
+        .with_serializable_type::<TestSucceeded>();
 
     // Set up the internal socket and the test case
     create_internal_command_socket(&scene, internal_socket);
@@ -154,8 +154,8 @@ fn echo_variable() {
     let internal_socket = SubProgramId::called("echo_internal_socket");
     let test_program    = SubProgramId::called("echo_test_program");
  
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+    scene.with_serializer::<serde_json::Value>()
+        .with_serializable_type::<TestSucceeded>();
 
     // Test case is to assign a variable value and then echo it
     create_internal_command_socket(&scene, internal_socket);
@@ -180,8 +180,8 @@ fn echo_array_variable() {
     let internal_socket = SubProgramId::called("echo_internal_socket");
     let test_program    = SubProgramId::called("echo_test_program");
  
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+    scene.with_serializer::<serde_json::Value>()
+        .with_serializable_type::<TestSucceeded>();
 
     // Test case is to assign a variable value and then substitute it in an array and echo it
     create_internal_command_socket(&scene, internal_socket);
@@ -206,8 +206,8 @@ fn echo_object_variable() {
     let internal_socket = SubProgramId::called("echo_internal_socket");
     let test_program    = SubProgramId::called("echo_test_program");
  
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+    scene.with_serializer::<serde_json::Value>()
+        .with_serializable_type::<TestSucceeded>();
 
     // Test case is to assign a variable value and then substitute it in an object and echo it (object formatting syntax might change, which this test doesn't account for at the moment)
     create_internal_command_socket(&scene, internal_socket);
@@ -243,9 +243,9 @@ fn subscribe_command() {
         fn message_type_name() -> String { "test::SubscribeCommandTestMessage".into() }
     }
  
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<SubscribeCommandTestMessage>("test::SubscribeCommandTestMessage")
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+    scene.with_serializer::<serde_json::Value>()
+        .with_serializable_type::<SubscribeCommandTestMessage>()
+        .with_serializable_type::<TestSucceeded>();
 
     // Create a program that we can subscribe to
     scene.add_subprogram(subscribe_program, |input, context| async move {
@@ -295,9 +295,9 @@ fn query_command() {
         fn message_type_name() -> String { "test::QueryCommandTestMessage".into() }
     }
  
-    scene.with_serializer(|| serde_json::value::Serializer)
-        .with_serializable_type::<QueryCommandTestMessage>("test::QueryCommandTestMessage")
-        .with_serializable_type::<TestSucceeded>("test::TestSucceeded");
+    scene.with_serializer::<serde_json::Value>()
+        .with_serializable_type::<QueryCommandTestMessage>()
+        .with_serializable_type::<TestSucceeded>();
 
     // Create a program that we can query
     scene.add_subprogram(query_program, |input, context| async move {

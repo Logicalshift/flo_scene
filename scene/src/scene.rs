@@ -81,13 +81,13 @@ impl Scene {
 
         #[cfg(feature = "json")]
         {
-            scene.with_serializer(|| serde_json::value::Serializer)
-                .with_serializable_type::<TextInput>("flo_scene::TextInput")
-                .with_serializable_type::<TextOutput>("flo_scene::TextOutput")
-                .with_serializable_type::<TimerRequest>("flo_scene::TimerRequest")
-                .with_serializable_type::<IdleRequest>("flo_scene::IdleRequest")
-                .with_serializable_type::<ListCommandResponse>("flo_scene::ListCommandResponse")
-                .with_serializable_type::<SceneUpdate>("flo_scene::SceneUpdate");
+            scene.with_serializer::<serde_json::Value>()
+                .with_serializable_type::<TextInput>()
+                .with_serializable_type::<TextOutput>()
+                .with_serializable_type::<TimerRequest>()
+                .with_serializable_type::<IdleRequest>()
+                .with_serializable_type::<ListCommandResponse>()
+                .with_serializable_type::<SceneUpdate>();
         }
 
         scene

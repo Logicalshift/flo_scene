@@ -169,23 +169,17 @@ where
 /// It's necessary to install a version of the serializable type for each serializer that's in use. The type name must
 /// identify a single message type and cannot be used for a different `TMessageType` 
 ///
-pub fn install_serializable_type<TMessageType, TSerializer>(type_name: impl Into<String>) -> Result<(), &'static str>
+pub fn install_serializable_type<TMessageType, TSerializedType>() -> Result<(), &'static str>
 where
-    TMessageType:                   'static + SceneMessage,
-    TMessageType:                   MessageSerializeAs<TSerializer::Ok>,
-    Subscribe<TMessageType>:        MessageSerializeAs<TSerializer::Ok>,
-    Query<TMessageType>:            MessageSerializeAs<TSerializer::Ok>,
-    TMessageType:                   for<'a> Deserialize<'a>,
-    TMessageType:                   Serialize,
-    TSerializer:                    'static + Send + Serializer,
-    TSerializer::Ok:                'static + Send + Unpin,
-    for<'a> &'a TSerializer::Ok:    Deserializer<'a>,
+    TSerializedType:            'static + Send,
+    TMessageType:               'static + SceneMessage,
+    TMessageType:               MessageSerializeAs<TSerializedType>,
+    Subscribe<TMessageType>:    MessageSerializeAs<TSerializedType>,
+    Query<TMessageType>:        MessageSerializeAs<TSerializedType>,
 {
-    let type_name = type_name.into();
-
-    install_single_serializable_type::<TMessageType, TSerializer::Ok>()?;
-    install_single_serializable_type::<Subscribe<TMessageType>, TSerializer::Ok>()?;
-    install_single_serializable_type::<Query<TMessageType>, TSerializer::Ok>()?;
+    install_single_serializable_type::<TMessageType, TSerializedType>()?;
+    install_single_serializable_type::<Subscribe<TMessageType>, TSerializedType>()?;
+    install_single_serializable_type::<Query<TMessageType>, TSerializedType>()?;
 
     Ok(())
 }
@@ -358,14 +352,10 @@ impl Scene {
     ///
     /// Starts setting up serialized types on this scene.
     ///
-    pub fn with_serializer<TSerializer>(&self, create_serializer: impl 'static + Send + Sync + Fn() -> TSerializer) -> SceneWithSerializer<'_, TSerializer> 
+    pub fn with_serializer<TSerializedType>(&self) -> SceneWithSerializer<'_, TSerializedType> 
     where
-        TSerializer:                    'static + Send + Serializer,
-        TSerializer::Ok:                'static + Send + Unpin,
-        for <'b> &'b TSerializer::Ok:   Deserializer<'b>,
+        TSerializedType:    'static + Send + Unpin,
     {
-        install_serializer(create_serializer);
-
         SceneWithSerializer(self, PhantomData)
     }
 }
@@ -444,32 +434,28 @@ impl SceneContext {
     }
 }
 
-impl<'a, TSerializer> SceneWithSerializer<'a, TSerializer> 
+impl<'a, TSerializedType> SceneWithSerializer<'a, TSerializedType> 
 where
-    TSerializer:                    'static + Send + Serializer,
-    TSerializer::Ok:                'static + Send + Unpin,
-    for <'b> &'b TSerializer::Ok:   Deserializer<'b>,
+    TSerializedType:    'static + Send + Unpin,
 {
     ///
     /// Adds filters to support serializing and deserializing the specified message type
     ///
     /// The name passed in here must be unique for the message type, or an error will be produced
     ///
-    pub fn with_serializable_type<TMessageType>(self, type_name: impl Into<String>) -> Self
+    pub fn with_serializable_type<TMessageType>(self) -> Self
     where
         TMessageType:               'static + SceneMessage,
-        TMessageType:               MessageSerializeAs<TSerializer::Ok>,
-        Subscribe<TMessageType>:    MessageSerializeAs<TSerializer::Ok>,
-        Query<TMessageType>:        MessageSerializeAs<TSerializer::Ok>,
-        TMessageType:               for<'c> Deserialize<'c>,
-        TMessageType:               Serialize,
+        TMessageType:               MessageSerializeAs<TSerializedType>,
+        Subscribe<TMessageType>:    MessageSerializeAs<TSerializedType>,
+        Query<TMessageType>:        MessageSerializeAs<TSerializedType>,
     {
         // Install the serializers for this type if they aren't already
-        install_serializable_type::<TMessageType, TSerializer>(type_name).unwrap();
+        install_serializable_type::<TMessageType, TSerializedType>().unwrap();
 
         // Create filters
-        let serialize_filter    = serializer_filter::<TMessageType, SerializedMessage<TSerializer::Ok>>().unwrap();
-        let deserialize_filter  = serializer_filter::<SerializedMessage<TSerializer::Ok>, TMessageType>().unwrap();
+        let serialize_filter    = serializer_filter::<TMessageType, SerializedMessage<TSerializedType>>().unwrap();
+        let deserialize_filter  = serializer_filter::<SerializedMessage<TSerializedType>, TMessageType>().unwrap();
 
         for filter in serialize_filter {
             self.0.connect_programs(StreamSource::Filtered(filter), (), filter.source_stream_id_any().unwrap()).ok();

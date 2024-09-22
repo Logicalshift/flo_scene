@@ -32,9 +32,9 @@ impl StandardCommandsSceneExt for Scene {
         let scene = Self::default()
             .with_standard_json_commands();
 
-        scene.with_serializer(|| serde_json::value::Serializer)
-            .with_serializable_type::<ListSubprogramsResponse>("flo_scene_pipe::ListSubprogramsResponse")
-            .with_serializable_type::<ListConnectionsResponse>("flo_scene_pipe::ListConnectionsResponse");
+        scene.with_serializer::<serde_json::Value>()
+            .with_serializable_type::<ListSubprogramsResponse>()
+            .with_serializable_type::<ListConnectionsResponse>();
 
         scene
     }

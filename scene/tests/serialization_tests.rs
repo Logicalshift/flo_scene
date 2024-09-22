@@ -23,7 +23,7 @@ mod with_serde_support {
         let deserialized_receiver   = SubProgramId::new();
 
         install_serializer(|| serde_json::value::Serializer);
-        install_serializable_type::<TestMessage, serde_json::value::Serializer>("flo_scene::TestMessage").unwrap();
+        install_serializable_type::<TestMessage, serde_json::Value>().unwrap();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         scene.add_subprogram(serialized_resender, 
@@ -83,8 +83,8 @@ mod with_serde_support {
     fn install_basic_serializer() {
         // Create a scene that will serialize and deserialize the message
         let scene = Scene::default();
-        scene.with_serializer(|| serde_json::value::Serializer)
-            .with_serializable_type::<TestMessage>("flo_scene::TestMessage");
+        scene.with_serializer::<serde_json::Value>()
+            .with_serializable_type::<TestMessage>();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         let test_program            = SubProgramId::new();
@@ -136,8 +136,8 @@ mod with_serde_support {
     fn query_response_serializer() {
         // Create a scene that will serialize and deserialize the message
         let scene = Scene::default();
-        scene.with_serializer(|| serde_json::value::Serializer)
-            .with_serializable_type::<TestMessage>("flo_scene::TestMessage");
+        scene.with_serializer::<serde_json::Value>()
+            .with_serializable_type::<TestMessage>();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         let test_program            = SubProgramId::new();
@@ -191,8 +191,8 @@ mod with_serde_support {
     fn query_response_deserializer() {
         // Create a scene that will serialize a message, then deserialize it via a query response deserializer
         let scene = Scene::default();
-        scene.with_serializer(|| serde_json::value::Serializer)
-            .with_serializable_type::<TestMessage>("flo_scene::TestMessage");
+        scene.with_serializer::<serde_json::Value>()
+            .with_serializable_type::<TestMessage>();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         let test_program            = SubProgramId::new();
