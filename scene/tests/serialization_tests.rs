@@ -22,7 +22,6 @@ mod with_serde_support {
         let serialized_resender     = SubProgramId::new();
         let deserialized_receiver   = SubProgramId::new();
 
-        install_serializer(|| serde_json::value::Serializer);
         install_serializable_type::<TestMessage, serde_json::Value>().unwrap();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program

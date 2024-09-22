@@ -33,9 +33,6 @@ static TYPE_ID_FOR_NAME: Lazy<RwLock<HashMap<String, TypeId>>> = Lazy::new(|| Rw
 /// The stream ID for a known serializable type
 static STREAM_ID_FOR_SERIALIZABLE_TYPE: Lazy<RwLock<HashMap<String, StreamId>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
-/// Stores the functions for creating serializers of a particular type
-static CREATE_ANY_SERIALIZER: Lazy<RwLock<HashMap<TypeId, Arc<dyn Send + Sync + Fn() -> Arc<dyn Send + Sync + Any>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
-
 /// Calls the 'send()' call and then deserializes the result
 static SEND_DESERIALIZED: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + Sync + Fn(StreamTarget, &SceneContext) -> Result<Box<dyn Send + Any>, ConnectionError>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
@@ -124,34 +121,6 @@ impl<'a, TSerializedType> Deserialize<'a> for SerializedMessage<TSerializedType>
         Err(D::Error::custom("SerializedMessage cannot be serialized"))
     }
 }
-
-///
-/// Adds a constructor for a serializer to the types that flo_scene knows about
-///
-/// flo_scene can't use serializers that need setting up with state for the default way that messages are serialized,
-/// but this allows it to automatically fill in all of the serializers for a single type.
-///
-/// This can be called multiple times for a serializer if necessary: the existing serializer will be replaced with
-/// whatever is passed in.
-///
-pub fn install_serializer<TSerializer>(create_serializer: impl 'static + Send + Sync + Fn() -> TSerializer) 
-where
-    TSerializer:                    'static + Send + Serializer,
-    TSerializer::Ok:                'static + Send + Unpin,
-    for<'a> &'a TSerializer::Ok:    Deserializer<'a>,
-{
-    let mut create_any_serializer = (*CREATE_ANY_SERIALIZER).write().unwrap();
-
-    let create_serializer_fn: Box<dyn Send + Sync + Fn() -> TSerializer>    = Box::new(create_serializer);
-    let create_serializer_fn: Arc<dyn Send + Sync + Any>                    = Arc::new(create_serializer_fn);
-
-    // Add a function that creates a boxed Any that creates this serializer type
-    create_any_serializer.insert(TypeId::of::<TSerializer>(), 
-        Arc::new(move || Arc::clone(&create_serializer_fn)));
-}
-
-// TODO: would be nice to not have to install the type for each type of serializable type we want to add but I'm currently not sure how to do this.
-// It's probably possible if we hard-code JSON as our serialization target
 
 ///
 /// Creates the data structures needed to serialize a particular type
