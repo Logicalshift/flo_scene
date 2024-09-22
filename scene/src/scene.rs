@@ -79,17 +79,6 @@ impl Scene {
         if programs.contains(&*IDLE_NOTIFICATION_PROGRAM)   { scene.add_subprogram(*IDLE_NOTIFICATION_PROGRAM, idle_subprogram, 20); }
         if programs.contains(&*TIMER_PROGRAM)               { scene.add_subprogram(*TIMER_PROGRAM, timer_subprogram, 0); }
 
-        #[cfg(feature = "json")]
-        {
-            scene.with_serializer::<serde_json::Value>()
-                .with_serializable_type::<TextInput>()
-                .with_serializable_type::<TextOutput>()
-                .with_serializable_type::<TimerRequest>()
-                .with_serializable_type::<IdleRequest>()
-                .with_serializable_type::<ListCommandResponse>()
-                .with_serializable_type::<SceneUpdate>();
-        }
-
         scene
     }
 
