@@ -1,7 +1,7 @@
-use super::guest_message::*;
 use super::guest_encoder::*;
 use super::runtime::*;
 use super::subprogram_handle::*;
+use crate::host::scene_message::*;
 
 use futures::prelude::*;
 use futures::task::{Waker, Poll, Context};
@@ -30,7 +30,7 @@ pub (crate) struct GuestInputStreamCore {
 ///
 /// A guest input stream works with the reads deserialized messages from the host side
 ///
-pub struct GuestInputStream<TMessageType: GuestSceneMessage> {
+pub struct GuestInputStream<TMessageType: SceneMessage> {
     /// The core is shared with the runtime for managing the input stream
     core: Arc<Mutex<GuestInputStreamCore>>,
 
@@ -49,7 +49,7 @@ pub struct GuestInputStream<TMessageType: GuestSceneMessage> {
 
 impl<TMessageType> GuestInputStream<TMessageType>
 where
-    TMessageType: GuestSceneMessage,
+    TMessageType: SceneMessage,
 {
     /// Creates a new guest input stream
     pub (crate) fn new(program_handle: GuestSubProgramHandle, encoder: impl 'static + GuestMessageEncoder, runtime_core: &Arc<Mutex<GuestRuntimeCore>>) -> Self {
@@ -79,7 +79,7 @@ where
 
 impl<TMessageType> Stream for GuestInputStream<TMessageType> 
 where
-    TMessageType: GuestSceneMessage,
+    TMessageType: SceneMessage,
 {
     type Item = TMessageType;
 

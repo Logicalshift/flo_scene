@@ -16,7 +16,6 @@
 //!
 
 mod traits;
-mod guest_message;
 mod guest_encoder;
 mod poll_action;
 mod poll_result;
@@ -30,7 +29,6 @@ mod input_stream;
 mod host_subprogram;
 
 pub use traits::*;
-pub use guest_message::*;
 pub use guest_encoder::*;
 pub use poll_action::*;
 pub use poll_result::*;

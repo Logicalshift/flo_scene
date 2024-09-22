@@ -1,13 +1,14 @@
 use super::guest_context::*;
 use super::guest_encoder::*;
-use super::guest_message::*;
 use super::poll_action::*;
 use super::poll_result::*;
 use super::input_stream::*;
 use super::sink_handle::*;
+use super::stream_id::*;
 use super::stream_target::*;
 use super::subprogram_handle::*;
 use crate::host::error::*;
+use crate::host::scene_message::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
@@ -84,7 +85,7 @@ where
     ///
     pub fn with_default_subprogram<TMessageType, TFuture>(program_id: SubProgramId, encoder: TEncoder, subprogram: impl FnOnce(GuestInputStream<TMessageType>, GuestSceneContext<TEncoder>) -> TFuture) -> Self 
     where
-        TMessageType:   GuestSceneMessage,
+        TMessageType:   SceneMessage,
         TFuture:        'static + Send + Future<Output=()>,
     {
         // Create the runtime
@@ -94,7 +95,7 @@ where
         let sink_handles        = HashMap::new();
         let next_stream_handle  = 0;
         let next_sink_handle    = 0;
-        let pending_results     = vec![GuestResult::CreateSubprogram(program_id, GuestSubProgramHandle::default(), TMessageType::stream_id())];
+        let pending_results     = vec![GuestResult::CreateSubprogram(program_id, GuestSubProgramHandle::default(), HostStreamId::for_message::<TMessageType>())];
 
         let core = GuestRuntimeCore { futures, awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, pending_results };
         let core = Arc::new(Mutex::new(core));
@@ -118,7 +119,7 @@ where
     /// Creates a guest input stream in this runtime, returning the stream and the handle for the stream
     ///
     #[inline]
-    pub fn create_input_stream<TMessageType: GuestSceneMessage>(&self) -> (usize, GuestInputStream<TMessageType>) {
+    pub fn create_input_stream<TMessageType: SceneMessage>(&self) -> (usize, GuestInputStream<TMessageType>) {
         GuestRuntimeCore::create_input_stream(&self.core, &self.encoder)
     }
 
@@ -340,7 +341,7 @@ impl GuestRuntimeCore {
     ///
     /// Creates a new input stream in a runtime core
     ///
-    pub (crate) fn create_input_stream<TMessageType: GuestSceneMessage>(runtime_core: &Arc<Mutex<Self>>, encoder: &(impl 'static + GuestMessageEncoder)) -> (usize, GuestInputStream<TMessageType>) {
+    pub (crate) fn create_input_stream<TMessageType: SceneMessage>(runtime_core: &Arc<Mutex<Self>>, encoder: &(impl 'static + GuestMessageEncoder)) -> (usize, GuestInputStream<TMessageType>) {
         let mut core = runtime_core.lock().unwrap();
 
         // Assign a handle to the input stream

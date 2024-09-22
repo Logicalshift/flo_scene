@@ -1,5 +1,4 @@
 use super::guest_encoder::*;
-use super::guest_message::*;
 use super::runtime::*;
 use super::stream_target::*;
 use crate::host::*;
@@ -48,7 +47,7 @@ where
     ///
     pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<impl Unpin + Sink<TMessageType, Error=SceneSendError<Vec<u8>>>, ConnectionError>
     where
-        TMessageType: 'static + SceneMessage + GuestSceneMessage,
+        TMessageType: 'static + SceneMessage,
     {
         // Set up the state
         let connection  = None;
@@ -98,7 +97,7 @@ where
     ///
     pub async fn send_message<TMessageType>(&self, message: TMessageType) -> Result<(), ConnectionError> 
     where
-        TMessageType: 'static + SceneMessage + GuestSceneMessage,
+        TMessageType: 'static + SceneMessage,
     {
         let mut target = self.send::<TMessageType>(())?;
 

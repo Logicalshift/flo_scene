@@ -1,3 +1,5 @@
+use crate::host::scene_message::*;
+
 ///
 /// Identifies a stream on the host side
 ///
@@ -15,5 +17,10 @@ impl HostStreamId {
     #[inline]
     pub fn with_name(name: impl Into<String>) -> Self {
         HostStreamId(name.into())
+    }
+
+    #[inline]
+    pub fn for_message<TMessage: SceneMessage>() -> Self {
+        HostStreamId(TMessage::message_type_name())
     }
 }

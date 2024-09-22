@@ -1,7 +1,7 @@
 use super::poll_action::*;
 use super::poll_result::*;
 use super::guest_encoder::*;
-use super::guest_message::*;
+use super::stream_id::*;
 use crate::host::*;
 
 use futures::prelude::*;
@@ -19,7 +19,7 @@ use std::sync::*;
 ///
 pub async fn run_host_subprogram<TMessageType>(input_stream: InputStream<TMessageType>, context: SceneContext, encoder: impl 'static + Send + GuestMessageEncoder, actions: mpsc::Sender<GuestAction>, results: impl 'static + Send + Unpin + Stream<Item=GuestResult>) 
 where
-    TMessageType: 'static + GuestSceneMessage + SceneMessage
+    TMessageType: 'static + SceneMessage
 {
     let mut actions = actions;
     let mut results = results;
@@ -56,10 +56,10 @@ where
     }
 
     // Guest program has started: perform 'pre-flight' checks
-    if guest_stream_id != TMessageType::stream_id() {
+    if guest_stream_id != HostStreamId::for_message::<TMessageType>() {
         // The guest program must generate the same stream ID as the host
         // TODO: log/soft error instead of panicking
-        panic!("Was expecting a guest program generating message type {:?}, but got {:?}", TMessageType::stream_id(), guest_stream_id);
+        panic!("Was expecting a guest program generating message type {:?}, but got {:?}", HostStreamId::for_message::<TMessageType>(), guest_stream_id);
     }
 
     // Signal used to indicate when we can send a message we've received that's destined for this program. This is basically just a semaphore we can poll for

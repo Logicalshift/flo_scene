@@ -1,8 +1,8 @@
-use super::guest_message::*;
 use super::stream_id::*;
 use crate::host::error::*;
-use crate::host::subprogram_id::*;
+use crate::host::scene_message::*;
 use crate::host::stream_target::*;
+use crate::host::subprogram_id::*;
 
 ///
 /// Indicates where a stream should be connected on the host side from a guest
@@ -21,9 +21,9 @@ impl HostStreamTarget {
     #[inline]
     pub fn from_stream_target<TMessageType>(target: impl Into<StreamTarget>) -> Result<HostStreamTarget, ConnectionError> 
     where
-        TMessageType: GuestSceneMessage,
+        TMessageType: SceneMessage,
     {
-        let stream_id = TMessageType::stream_id();
+        let stream_id = HostStreamId::for_message::<TMessageType>();
 
         match target.into() {
             StreamTarget::None                  => Ok(HostStreamTarget::None(stream_id)),

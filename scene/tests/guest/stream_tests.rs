@@ -14,10 +14,9 @@ pub struct SimpleTestMessage {
     value: String,
 }
 
-impl SceneMessage for SimpleTestMessage { }
-impl GuestSceneMessage for SimpleTestMessage {
-    fn stream_id() -> HostStreamId {
-        HostStreamId::with_name("flo_scene_tests::send_message_tests::SimpleTestMessage")
+impl SceneMessage for SimpleTestMessage {
+    fn message_type_name() -> String {
+        "flo_scene_tests::stream_tests::SimpleTestMessage".into()
     }
 }
 

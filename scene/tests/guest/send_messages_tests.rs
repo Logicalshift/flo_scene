@@ -13,10 +13,9 @@ pub struct SimpleTestMessage {
     value: String,
 }
 
-impl SceneMessage for SimpleTestMessage { }
-impl GuestSceneMessage for SimpleTestMessage {
-    fn stream_id() -> HostStreamId {
-        HostStreamId::with_name("flo_scene_tests::send_message_tests::SimpleTestMessage")
+impl SceneMessage for SimpleTestMessage {
+    fn message_type_name() -> String {
+        "flo_scene_tests::send_message_tests::SimpleTestMessage".into()
     }
 }
 
@@ -90,7 +89,7 @@ pub fn receive_message_from_runtime() {
         unreachable!()
     };
 
-    assert!(stream_target == HostStreamTarget::Any(SimpleTestMessage::stream_id()));
+    assert!(stream_target == HostStreamTarget::Any(HostStreamId::for_message::<SimpleTestMessage>()));
 
     // We need to send a connection back
     guest_runtime.sink_ready(sink_handle);
@@ -138,7 +137,7 @@ pub fn receive_several_messages_from_runtime() {
         unreachable!()
     };
 
-    assert!(stream_target == HostStreamTarget::Any(SimpleTestMessage::stream_id()));
+    assert!(stream_target == HostStreamTarget::Any(HostStreamId::for_message::<SimpleTestMessage>()));
 
     // We need to send a connection back
     guest_runtime.sink_ready(sink_handle);
