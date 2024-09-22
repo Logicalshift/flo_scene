@@ -1,4 +1,5 @@
 use crate::error::*;
+use crate::filter::*;
 use crate::input_stream::*;
 use crate::output_sink::*;
 use crate::scene::*;
@@ -111,9 +112,9 @@ impl StreamTypeFunctions {
     where
         TMessageType: 'static + SceneMessage,
     {
-        // Set up this type for serialization when the stream functions are created (so we don't recreate the filters every time)
-        install_serializable_type::<TMessageType, serde_json::Value>().unwrap();
-        let serialization_filters = TMessageType::create_serializer_filters();
+        // Maps types to their filter handles (so we only create the filters once per application)
+        // Could be simplified if Rust ever adds support for generic static values
+        static FILTERS: Lazy<RwLock<HashMap<TypeId, Vec<FilterHandle>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
         StreamTypeFunctions {
             connect_output_to_input: Arc::new(|output_sink_any, input_stream_any, close_when_dropped| {
@@ -230,6 +231,35 @@ impl StreamTypeFunctions {
             }),
 
             initialise: Arc::new(move |scene| {
+                use std::mem;
+
+                let serialization_filters = {
+                    let filters = (*FILTERS).read().unwrap();
+                    if let Some(existing_filters) = filters.get(&TypeId::of::<TMessageType>()) {
+                        // We only create the filters once
+                        existing_filters.clone()
+                    } else {
+                        mem::drop(filters);
+
+                        // Set up the serialization for this type if it's not already set up
+                        #[cfg(feature="serde_json")]
+                        install_serializable_type::<TMessageType, serde_json::Value>().unwrap();
+
+                        // Create the filters for this type
+                        let mut filters = (*FILTERS).write().unwrap();
+                        if let Some(existing_filters) = filters.get(&TypeId::of::<TMessageType>()) {
+                            // Lost the race: someone else created the filters
+                            existing_filters.clone()
+                        } else {
+                            // Create the filters for this type
+                            let new_filters = TMessageType::create_serializer_filters();
+                            filters.insert(TypeId::of::<TMessageType>(), new_filters.clone());
+
+                            new_filters
+                        }
+                    }
+                };
+
                 // Install the default filters for this type
                 for filter in serialization_filters.iter() {
                     scene.connect_programs(StreamSource::Filtered(*filter), (), filter.source_stream_id_any().unwrap()).ok();
