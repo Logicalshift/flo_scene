@@ -45,4 +45,16 @@ impl HostStreamTarget {
             HostStreamTarget::Program(_, stream)    => &stream.0,
         })
     }
+
+    ///
+    /// Converts to a `StreamTarget`
+    ///
+    #[inline]
+    pub fn to_stream_target(&self) -> StreamTarget {
+        match self {
+            HostStreamTarget::None(_)                   => StreamTarget::None,
+            HostStreamTarget::Any(_)                    => StreamTarget::Any,
+            HostStreamTarget::Program(program_id, _)    => StreamTarget::Program(*program_id)
+        }
+    }
 }
