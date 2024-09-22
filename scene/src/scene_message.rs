@@ -170,15 +170,32 @@ pub trait SceneMessage :
 ///
 pub fn create_default_serializer_filters<TMessage: SceneMessage>() -> Vec<FilterHandle> {
     use std::iter;
+    use futures::prelude::*;
+    use std::sync::*;
 
     let filters = iter::empty();
 
     // Convert to and from JSON messages
     #[cfg(feature="serde_json")]
-    let filters = filters.chain(serializer_filter::<TMessage, SerializedMessage<serde_json::Value>>().into_iter().flatten());
+    let filters = {
+        // Create the standard to/from JSON filters
+        let to_json     = serialization_function::<TMessage, SerializedMessage<serde_json::Value>>().unwrap();
+        let from_json   = serialization_function::<SerializedMessage<serde_json::Value>, TMessage>().unwrap();
 
-    #[cfg(feature="serde_json")]
-    let filters = filters.chain(serializer_filter::<SerializedMessage<serde_json::Value>, TMessage>().into_iter().flatten());
+        let to_json = FilterHandle::for_filter(move |input_messages| {
+            let to_json = Arc::clone(&to_json);
+
+            input_messages.flat_map(move |msg| stream::iter((*to_json)(msg).ok()))
+        });
+
+        let from_json = FilterHandle::for_filter(move |input_messages| {
+            let from_json = Arc::clone(&from_json);
+
+            input_messages.flat_map(move |msg| stream::iter((*from_json)(msg).ok()))
+        });
+
+        filters.chain([to_json, from_json])
+    };
 
     filters.collect()
 }
