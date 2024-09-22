@@ -1,4 +1,4 @@
-use super::guest_message::*;
+use crate::host::scene_message::*;
 
 use serde_json;
 
@@ -7,10 +7,10 @@ use serde_json;
 ///
 pub trait GuestMessageEncoder : Send + Sync + Clone {
     /// Encodes a guest message
-    fn encode(&self, message: impl GuestSceneMessage) -> Vec<u8>;
+    fn encode(&self, message: impl SceneMessage) -> Vec<u8>;
 
     /// Decodes a guest message
-    fn decode<TMessage: GuestSceneMessage>(&self, message: Vec<u8>) -> TMessage;
+    fn decode<TMessage: SceneMessage>(&self, message: Vec<u8>) -> TMessage;
 }
 
 ///
@@ -24,14 +24,14 @@ pub struct GuestJsonEncoder;
 
 impl GuestMessageEncoder for GuestJsonEncoder {
     #[inline]
-    fn encode(&self, message: impl GuestSceneMessage) -> Vec<u8> {
+    fn encode(&self, message: impl SceneMessage) -> Vec<u8> {
         serde_json::to_string(&message)
             .unwrap()
             .into()
     }
 
     #[inline]
-    fn decode<TMessage: GuestSceneMessage>(&self, message: Vec<u8>) -> TMessage {
+    fn decode<TMessage: SceneMessage>(&self, message: Vec<u8>) -> TMessage {
         serde_json::from_slice(&message)
             .unwrap()
     }
