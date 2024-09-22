@@ -1,4 +1,6 @@
+use crate::filter::*;
 use crate::scene_message::*;
+use crate::serialization::*;
 use crate::stream_target::*;
 
 use futures::prelude::*;
@@ -11,6 +13,7 @@ use serde::ser::{Error as SeError};
 
 use std::marker::{PhantomData};
 use std::pin::*;
+use std::sync::*;
 use std::task::{Context, Poll};
 
 ///
@@ -59,6 +62,49 @@ impl<TResponseData: Send + Unpin + SceneMessage> SceneMessage for Query<TRespons
 
 impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryResponse<TResponseData> {
     fn serializable() -> bool { false }
+
+    fn create_serializer_filters() -> Vec<FilterHandle> {
+        use std::iter;
+
+        let filters = iter::empty();
+
+        // Create filters that convert the message type to its serialized equivalent
+        #[cfg(feature="serde_json")]
+        let filters = {
+            // Ensure that TResponseData has serializers set up
+            install_serializable_type::<TResponseData, serde_json::Value>().unwrap();
+
+            // Types for serializing and deserializing the response data
+            let to_json     = serialization_function::<TResponseData, SerializedMessage<serde_json::Value>>().unwrap();
+            let from_json   = serialization_function::<SerializedMessage<serde_json::Value>, TResponseData>().unwrap();
+
+            // Filter to convert the response data to JSON format
+            let to_json = FilterHandle::for_filter(move |input_messages| {
+                let to_json = Arc::clone(&to_json);
+
+                input_messages.map(move |response: QueryResponse<TResponseData>| {
+                    let to_json = Arc::clone(&to_json);
+                    let responses = response.flat_map(move |msg| stream::iter((*to_json)(msg).ok()));
+                    QueryResponse::with_stream(responses.boxed())
+                })
+            });
+
+            // Filter to convert the response data from JSON format
+            let from_json = FilterHandle::for_filter(move |input_messages| {
+                let from_json = Arc::clone(&from_json);
+
+                input_messages.map(move |response: QueryResponse<SerializedMessage<serde_json::Value>>| {
+                    let from_json = Arc::clone(&from_json);
+                    let responses = response.flat_map(move |msg| stream::iter((*from_json)(msg).ok()));
+                    QueryResponse::with_stream(responses.boxed())
+                })
+            });
+
+            filters.chain([to_json, from_json])
+        };
+
+        filters.collect()
+    }
 
     #[inline]
     fn message_type_name() -> String { format!("flo_scene::QueryResponse<{}>", std::any::type_name::<TResponseData>()) }
