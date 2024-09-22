@@ -1,4 +1,5 @@
 use crate::filter::*;
+use crate::scene::*;
 use crate::scene_message::*;
 use crate::serialization::*;
 use crate::stream_target::*;
@@ -58,6 +59,11 @@ pub struct QueryResponse<TResponseData>(BoxStream<'static, TResponseData>);
 impl<TResponseData: Send + Unpin + SceneMessage> SceneMessage for Query<TResponseData> {
     #[inline]
     fn message_type_name() -> String { format!("query::{}", TResponseData::message_type_name()) }
+
+    fn initialise(_: &Scene) {
+        #[cfg(feature="serde_json")]
+        install_serializable_type::<TResponseData, serde_json::Value>().unwrap();
+    }
 }
 
 impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryResponse<TResponseData> {
