@@ -4,6 +4,8 @@ use crate::output_sink::*;
 use crate::scene::*;
 use crate::scene_core::*;
 use crate::scene_message::*;
+use crate::serialization::*;
+use crate::stream_source::*;
 use crate::stream_target::*;
 use crate::subprogram_id::*;
 
@@ -224,6 +226,30 @@ impl StreamTypeFunctions {
             }),
 
             initialise: Arc::new(|scene| {
+                // Set up any serialization needed for this message
+                if TMessageType::serializable() {
+                    // Every serializable type has the JSON serializer if support is turned on
+                    #[cfg(feature="serde_json")]
+                    {
+                        // Install the serializers for this type if they aren't already
+                        install_serializable_type::<TMessageType, serde_json::Value>().unwrap();
+
+                        /* -- TODO: creates infinite recursion around QueryResponses...
+                        // Create filters
+                        let serialize_filter    = serializer_filter::<TMessageType, SerializedMessage<serde_json::Value>>().unwrap();
+                        let deserialize_filter  = serializer_filter::<SerializedMessage<serde_json::Value>, TMessageType>().unwrap();
+
+                        for filter in serialize_filter {
+                            scene.connect_programs(StreamSource::Filtered(filter), (), filter.source_stream_id_any().unwrap()).ok();
+                        }
+                        for filter in deserialize_filter {
+                            scene.connect_programs(StreamSource::Filtered(filter), (), filter.source_stream_id_any().unwrap()).ok();
+                        }
+                        */
+                    }
+                }
+
+                // Call the message-specific initialisation
                 TMessageType::initialise(scene)
             }),
         }
