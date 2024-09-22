@@ -1,4 +1,6 @@
+use crate::filter::*;
 use crate::scene::*;
+use crate::serialization::*;
 use crate::stream_target::*;
 
 use serde::*;
@@ -92,6 +94,7 @@ use serde::*;
 /// ```
 ///
 pub trait SceneMessage :
+    'static                 +
     Sized                   + 
     Send                    + 
     Unpin                   +
@@ -116,6 +119,21 @@ pub trait SceneMessage :
     /// particular message type. This is called the first time that a message is referenced in a scene.
     ///
     fn initialise(scene: &Scene) { let _ = scene; }
+
+    ///
+    /// Creates the serializer filter handles for this type
+    ///
+    /// This is an action performed when this type is initialised. This can be overridden 
+    ///
+    fn create_serializer_filters() -> Vec<FilterHandle> {
+        if Self::serializable() {
+            // Create some actual serialization filters
+            create_default_serializer_filters::<Self>()
+        } else {
+            // No filters to create
+            vec![]
+        }
+    }
 
     ///
     /// True if input streams for this message type should allow thread stealing by default
@@ -145,6 +163,24 @@ pub trait SceneMessage :
     /// to override this function to return a specific value.
     ///
     fn message_type_name() -> String { std::any::type_name::<Self>().into() }
+}
+
+///
+/// Creates the default serializer filters for a scene message
+///
+pub fn create_default_serializer_filters<TMessage: SceneMessage>() -> Vec<FilterHandle> {
+    use std::iter;
+
+    let filters = iter::empty();
+
+    // Convert to and from JSON messages
+    #[cfg(feature="serde_json")]
+    let filters = filters.chain(serializer_filter::<TMessage, SerializedMessage<serde_json::Value>>().into_iter().flatten());
+
+    #[cfg(feature="serde_json")]
+    let filters = filters.chain(serializer_filter::<SerializedMessage<serde_json::Value>, TMessage>().into_iter().flatten());
+
+    filters.collect()
 }
 
 impl SceneMessage for ()        { fn message_type_name() -> String { "()".into() } }

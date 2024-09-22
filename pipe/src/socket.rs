@@ -47,7 +47,7 @@ pub enum SocketMessage<TInputMessage, TOutputMessage> {
     Connection(SocketConnection<TInputMessage, TOutputMessage>)
 }
 
-impl<TInputMessage, TOutputMessage> SceneMessage for SocketMessage<TInputMessage, TOutputMessage> {
+impl<TInputMessage: 'static, TOutputMessage: 'static> SceneMessage for SocketMessage<TInputMessage, TOutputMessage> {
     fn serializable() -> bool { false }
 
     #[inline]

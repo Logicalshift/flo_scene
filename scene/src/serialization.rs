@@ -96,7 +96,7 @@ pub struct SerializedMessage<TSerializedType>(pub TSerializedType, pub TypeId);
 
 impl<TSerializedType> SceneMessage for SerializedMessage<TSerializedType> 
 where
-    TSerializedType: Send + Unpin,
+    TSerializedType: 'static + Send + Unpin,
 {
     fn serializable() -> bool { false }
 

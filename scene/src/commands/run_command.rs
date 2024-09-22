@@ -67,8 +67,8 @@ where
 
 impl<TParameter, TResponse> SceneMessage for RunCommand<TParameter, TResponse>
 where
-    TParameter: Unpin + Send + Serialize,
-    TResponse:  Unpin + Send + Serialize,
+    TParameter: 'static + Unpin + Send + Serialize,
+    TResponse:  'static + Unpin + Send + Serialize,
     for<'de> TParameter: Deserialize<'de>,
     for<'de> TResponse: Deserialize<'de>
 {
@@ -78,8 +78,8 @@ where
 
 impl<TParameter, TResponse> QueryRequest for RunCommand<TParameter, TResponse> 
 where
-    TParameter: Unpin + Send + Serialize,
-    TResponse:  Unpin + Send + Serialize,
+    TParameter: 'static + Unpin + Send + Serialize,
+    TResponse:  'static + Unpin + Send + Serialize,
     for<'de> TParameter: Deserialize<'de>,
     for<'de> TResponse: Deserialize<'de>
 {
