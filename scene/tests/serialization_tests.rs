@@ -82,8 +82,6 @@ mod with_serde_support {
     fn install_basic_serializer() {
         // Create a scene that will serialize and deserialize the message
         let scene = Scene::default();
-        scene.with_serializer::<serde_json::Value>()
-            .with_serializable_type::<TestMessage>();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         let test_program            = SubProgramId::new();
@@ -135,8 +133,6 @@ mod with_serde_support {
     fn query_response_serializer() {
         // Create a scene that will serialize and deserialize the message
         let scene = Scene::default();
-        scene.with_serializer::<serde_json::Value>()
-            .with_serializable_type::<TestMessage>();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         let test_program            = SubProgramId::new();
@@ -190,8 +186,6 @@ mod with_serde_support {
     fn query_response_deserializer() {
         // Create a scene that will serialize a message, then deserialize it via a query response deserializer
         let scene = Scene::default();
-        scene.with_serializer::<serde_json::Value>()
-            .with_serializable_type::<TestMessage>();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         let test_program            = SubProgramId::new();
