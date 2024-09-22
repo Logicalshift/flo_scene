@@ -240,6 +240,27 @@ where
 }
 
 ///
+/// Returns a serialization function for changing a source type into a target type
+///
+/// The function returned here
+///
+pub fn serialization_function<TSourceType, TTargetType>() -> Result<Arc<impl 'static + Send + Fn(TSourceType) -> Result<TTargetType, TSourceType>>, &'static str>
+where
+    TSourceType: 'static + SceneMessage,
+    TTargetType: 'static + SceneMessage,
+{
+    let typed_serializer = (*TYPED_SERIALIZERS).read().unwrap().get(&(TypeId::of::<TSourceType>(), TypeId::of::<TTargetType>())).cloned();
+    let typed_serializer = if let Some(typed_serializer) = typed_serializer { Ok(typed_serializer) } else { Err("The requested serializers are not installed") }?;
+    let typed_serializer = if let Ok(typed_serializer) = typed_serializer.downcast::<Box<dyn Send + Sync + Fn(TSourceType) -> Result<TTargetType, TSourceType>>>() { 
+        Ok(typed_serializer)
+    } else {
+        Err("Could not properly resolve the type of the requested serializer")
+    }?;
+
+    Ok(typed_serializer)
+}
+
+///
 /// If installed, returns the filters to use to convert from a source type to a target type
 ///
 /// This will create either a serializer or a deserializer depending on the direction that the conversion goes in
