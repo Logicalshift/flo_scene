@@ -57,7 +57,7 @@ impl<TResponseData: Send + Unpin + SceneMessage> SceneMessage for Query<TRespons
     fn message_type_name() -> String { format!("query::{}", TResponseData::message_type_name()) }
 }
 
-impl<TResponseData: 'static + Send> SceneMessage for QueryResponse<TResponseData> {
+impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryResponse<TResponseData> {
     fn serializable() -> bool { false }
 
     #[inline]

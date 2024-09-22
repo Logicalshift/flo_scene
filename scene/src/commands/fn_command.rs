@@ -32,7 +32,7 @@ where
 
 impl<TInput, TOutput> Command for FnCommand<TInput, TOutput> 
 where
-    TInput:     'static + Send,
+    TInput:     'static + SceneMessage,
     TOutput:    'static + SceneMessage,
 {
     type Input  = TInput;
