@@ -140,9 +140,9 @@ impl<'a, TSerializedType> Deserialize<'a> for SerializedMessage<TSerializedType>
 ///
 pub fn install_serializable_type<TMessageType, TSerializedType>() -> Result<(), &'static str>
 where
-    TSerializedType:            'static + Send,
-    TMessageType:               'static + SceneMessage,
-    TMessageType:               MessageSerializeAs<TSerializedType>,
+    TSerializedType:    'static + Send,
+    TMessageType:       'static + SceneMessage,
+    TMessageType:       MessageSerializeAs<TSerializedType>,
 {
     let type_name = TMessageType::message_type_name();
 
