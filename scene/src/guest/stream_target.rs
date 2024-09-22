@@ -1,6 +1,7 @@
 use super::stream_id::*;
 use crate::host::error::*;
 use crate::host::scene_message::*;
+use crate::host::stream_id::*;
 use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
@@ -31,5 +32,17 @@ impl HostStreamTarget {
             StreamTarget::Program(program_id)   => Ok(HostStreamTarget::Program(program_id, stream_id)),
             StreamTarget::Filtered(_, _)        => Err(ConnectionError::FilterNotSupported),
         }
+    }
+
+    ///
+    /// Retrieves the stream ID, if there's a type within the current process that matches
+    ///
+    #[inline]
+    pub fn stream_id(&self) -> Option<StreamId> {
+        StreamId::with_serialization_type(match self {
+            HostStreamTarget::None(stream)          |
+            HostStreamTarget::Any(stream)           |
+            HostStreamTarget::Program(_, stream)    => &stream.0,
+        })
     }
 }
