@@ -143,23 +143,6 @@ where
     TSerializedType:            'static + Send,
     TMessageType:               'static + SceneMessage,
     TMessageType:               MessageSerializeAs<TSerializedType>,
-    Subscribe<TMessageType>:    MessageSerializeAs<TSerializedType>,
-    Query<TMessageType>:        MessageSerializeAs<TSerializedType>,
-{
-    install_single_serializable_type::<TMessageType, TSerializedType>()?;
-    install_single_serializable_type::<Subscribe<TMessageType>, TSerializedType>()?;
-    install_single_serializable_type::<Query<TMessageType>, TSerializedType>()?;
-
-    Ok(())
-}
-
-///
-/// Like install_serializable_type but doesn't install the query/subscribe messages
-///
-fn install_single_serializable_type<TMessageType, TSerializedType>() -> Result<(), &'static str>
-where
-    TMessageType:       'static + SceneMessage + MessageSerializeAs<TSerializedType>,
-    TSerializedType:    'static + Send,
 {
     let type_name = TMessageType::message_type_name();
 
@@ -405,7 +388,7 @@ impl SceneContext {
 
 impl<'a, TSerializedType> SceneWithSerializer<'a, TSerializedType> 
 where
-    TSerializedType:    'static + Send + Unpin,
+    TSerializedType: 'static + Send + Unpin,
 {
     ///
     /// Adds filters to support serializing and deserializing the specified message type
@@ -414,10 +397,8 @@ where
     ///
     pub fn with_serializable_type<TMessageType>(self) -> Self
     where
-        TMessageType:               'static + SceneMessage,
-        TMessageType:               MessageSerializeAs<TSerializedType>,
-        Subscribe<TMessageType>:    MessageSerializeAs<TSerializedType>,
-        Query<TMessageType>:        MessageSerializeAs<TSerializedType>,
+        TMessageType: 'static + SceneMessage,
+        TMessageType: MessageSerializeAs<TSerializedType>,
     {
         // Install the serializers for this type if they aren't already
         install_serializable_type::<TMessageType, TSerializedType>().unwrap();
