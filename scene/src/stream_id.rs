@@ -111,6 +111,10 @@ impl StreamTypeFunctions {
     where
         TMessageType: 'static + SceneMessage,
     {
+        // Set up this type for serialization when the stream functions are created (so we don't recreate the filters every time)
+        install_serializable_type::<TMessageType, serde_json::Value>().unwrap();
+        let serialization_filters = TMessageType::create_serializer_filters();
+
         StreamTypeFunctions {
             connect_output_to_input: Arc::new(|output_sink_any, input_stream_any, close_when_dropped| {
                 // Cast the 'any' stream and sink to the appropriate types
@@ -225,28 +229,10 @@ impl StreamTypeFunctions {
                 Ok(waker)
             }),
 
-            initialise: Arc::new(|scene| {
-                // Set up any serialization needed for this message
-                if TMessageType::serializable() {
-                    // Every serializable type has the JSON serializer if support is turned on
-                    #[cfg(feature="serde_json")]
-                    {
-                        // Install the serializers for this type if they aren't already
-                        install_serializable_type::<TMessageType, serde_json::Value>().unwrap();
-
-                        /* -- TODO: creates infinite recursion around QueryResponses...
-                        // Create filters
-                        let serialize_filter    = serializer_filter::<TMessageType, SerializedMessage<serde_json::Value>>().unwrap();
-                        let deserialize_filter  = serializer_filter::<SerializedMessage<serde_json::Value>, TMessageType>().unwrap();
-
-                        for filter in serialize_filter {
-                            scene.connect_programs(StreamSource::Filtered(filter), (), filter.source_stream_id_any().unwrap()).ok();
-                        }
-                        for filter in deserialize_filter {
-                            scene.connect_programs(StreamSource::Filtered(filter), (), filter.source_stream_id_any().unwrap()).ok();
-                        }
-                        */
-                    }
+            initialise: Arc::new(move |scene| {
+                // Install the default filters for this type
+                for filter in serialization_filters.iter() {
+                    scene.connect_programs(StreamSource::Filtered(*filter), (), filter.source_stream_id_any().unwrap()).ok();
                 }
 
                 // Call the message-specific initialisation
