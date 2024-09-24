@@ -83,6 +83,7 @@ enum StreamIdType {
 ///
 #[derive(Clone, Eq, Debug)]
 pub struct StreamId {
+    label:                  Option<String>,
     stream_id_type:         StreamIdType,
     message_type_name:      &'static str,
     message_type:           TypeId,
@@ -371,6 +372,7 @@ impl StreamId {
         StreamTypeFunctions::add::<TMessageType>();
 
         StreamId {
+            label:                  None,
             stream_id_type:         StreamIdType::MessageType,
             message_type_name:      type_name::<TMessageType>(),
             message_type:           TypeId::of::<TMessageType>(),
@@ -383,7 +385,25 @@ impl StreamId {
     ///
     pub fn for_target(&self, target: impl Into<StreamTarget>) -> Self {
         StreamId {
+            label:                  None,
             stream_id_type:         StreamIdType::Target(target.into()),
+            message_type_name:      self.message_type_name,
+            message_type:           self.message_type,
+            input_stream_core_type: self.input_stream_core_type,
+        }
+    }
+
+    ///
+    /// Returns a stream ID with a target type name attached to it.
+    ///
+    /// This is used for serialized messages where the message type is a generic serialized message (such as
+    /// `SerializedMessage<serde_json::Value>`) but the type can be deserialized as one of many other types:
+    /// this is used to determine the 'true' target of a stream of serialized messages.
+    ///
+    pub fn with_target_type_name(&self, label: impl Into<String>) -> Self {
+        StreamId {
+            label:                  Some(label.into()),
+            stream_id_type:         self.stream_id_type.clone(),
             message_type_name:      self.message_type_name,
             message_type:           self.message_type,
             input_stream_core_type: self.input_stream_core_type,
@@ -395,6 +415,7 @@ impl StreamId {
     ///
     pub fn as_message_type(&self) -> Self {
         StreamId {
+            label:                  None,
             stream_id_type:         StreamIdType::MessageType,
             message_type_name:      self.message_type_name,
             message_type:           self.message_type,
