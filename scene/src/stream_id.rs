@@ -93,7 +93,7 @@ pub struct StreamId {
 impl PartialEq for StreamId {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.stream_id_type == other.stream_id_type && self.message_type == other.message_type
+        self.stream_id_type == other.stream_id_type && self.message_type == other.message_type && self.label == other.label
     }
 }
 
