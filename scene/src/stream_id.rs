@@ -263,7 +263,7 @@ impl StreamTypeFunctions {
 
                 // Install the default filters for this type
                 for filter in serialization_filters.iter() {
-                    scene.connect_programs(StreamSource::Filtered(*filter), (), filter.source_stream_id_any().unwrap()).ok();
+                    scene.connect_programs(StreamSource::Filtered(*filter), (), filter.source_stream_id_any().unwrap().with_target_type_name(TMessageType::message_type_name())).ok();
                 }
 
                 // Call the message-specific initialisation
@@ -400,9 +400,9 @@ impl StreamId {
     /// `SerializedMessage<serde_json::Value>`) but the type can be deserialized as one of many other types:
     /// this is used to determine the 'true' target of a stream of serialized messages.
     ///
-    pub fn with_target_type_name(&self, label: impl Into<String>) -> Self {
+    pub fn with_target_type_name(&self, message_type_name: impl Into<String>) -> Self {
         StreamId {
-            label:                  Some(label.into()),
+            label:                  Some(message_type_name.into()),
             stream_id_type:         self.stream_id_type.clone(),
             message_type_name:      self.message_type_name,
             message_type:           self.message_type,
