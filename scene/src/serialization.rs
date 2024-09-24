@@ -66,7 +66,7 @@ pub trait MessageSerializeAs<TTarget> : Sized {
     fn from_serialized(data: &TTarget) -> Result<Self, Self::DeserializeError>;
 }
 
-#[cfg(feature="serde_json")]
+#[cfg(feature="json")]
 impl<TMessage> MessageSerializeAs<serde_json::Value> for TMessage
 where
     TMessage: SceneMessage

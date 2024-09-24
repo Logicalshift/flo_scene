@@ -30,7 +30,7 @@ pub struct Subscribe<TMessageType: SceneMessage>(StreamTarget, PhantomData<TMess
 
 impl<TMessageType: SceneMessage> SceneMessage for Subscribe<TMessageType> { 
     fn initialise(_: &Scene) {
-        #[cfg(feature="serde_json")]
+        #[cfg(feature="json")]
         install_serializable_type::<TMessageType, serde_json::Value>().unwrap();
     }
 
