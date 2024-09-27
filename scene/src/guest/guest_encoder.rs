@@ -18,7 +18,7 @@ pub trait GuestMessageEncoder : Send + Sync + Clone {
     fn decode<TMessage: SceneMessage>(&self, message: Vec<u8>) -> TMessage;
 
     /// Creates a connection to a host stream
-    fn connect(&self, stream_id: StreamId, target: StreamTarget, context: &SceneContext) -> Result<impl Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError>;
+    fn connect(&self, stream_id: StreamId, target: StreamTarget, context: &SceneContext) -> Result<impl Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError>;
 }
 
 ///
@@ -44,7 +44,7 @@ impl GuestMessageEncoder for GuestJsonEncoder {
             .unwrap()
     }
 
-    fn connect(&self, stream_id: StreamId, target: StreamTarget, context: &SceneContext) -> Result<impl Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError> {
+    fn connect(&self, stream_id: StreamId, target: StreamTarget, context: &SceneContext) -> Result<impl Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError> {
         // TODO: actually connect the stream
         if false {
             Ok(sink::drain().sink_map_err(|_| SceneSendError::TargetProgramEndedBeforeReady))
