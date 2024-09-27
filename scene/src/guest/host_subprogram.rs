@@ -8,6 +8,7 @@ use futures::prelude::*;
 use futures::task::{Poll, Waker};
 use futures::channel::mpsc;
 
+use std::collections::{HashMap};
 use std::sync::*;
 
 ///
@@ -62,10 +63,12 @@ where
     }
 
     // Signal used to indicate when we can send a message we've received that's destined for this program. This is basically just a semaphore we can poll for
-    let signal_ready    = Arc::new(Mutex::new((None, false)));
-    let wait_ready      = signal_ready.clone();
-    let message_actions = actions.clone();
-    let control_actions = actions;
+    let signal_ready        = Arc::new(Mutex::new((None, false)));
+    let wait_ready          = signal_ready.clone();
+    let message_actions     = actions.clone();
+    let control_actions     = actions;
+    let message_encoder     = encoder.clone();
+    let control_encoder     = encoder;
 
     // Main loop: relay messages and connect to sinks
     future::select(
@@ -73,6 +76,7 @@ where
             use GuestResult::*;
 
             let mut control_actions = control_actions;
+            let mut active_sinks    = HashMap::new();
 
             // Loop 1: handle the results from the guest program
             while let Some(result) = results.next().await {
@@ -119,10 +123,13 @@ where
                             let target      = stream_target.to_stream_target();
 
                             // Ask the encoder to do the attachement
-                            match encoder.connect(stream_id, target, &context) {
+                            match control_encoder.connect(stream_id, target, &context) {
                                 Ok(sink) => {
-                                    // TODO: associate this with the sink handle
-                                    todo!()
+                                    // Store this sink
+                                    active_sinks.insert(sink_handle, sink);
+
+                                    // Indicate that we're ready
+                                    if control_actions.send(GuestAction::Ready(sink_handle)).await.is_err() { return; }
                                 }
 
                                 Err(err) => {
@@ -138,11 +145,30 @@ where
                     }
 
                     Send(sink_handle, encoded_bytes) => {
-                        // TODO: send to an existing connected sink handle
+                        // Send to an existing connected sink handle
+                        // TODO: perform the send in parallel with the other waiting messages
+                        if let Some(sink) = active_sinks.get_mut(&sink_handle) {
+                            match sink.send(encoded_bytes).await {
+                                Ok(()) => {
+                                    // Message was sent, sink is ready again
+                                    if control_actions.send(GuestAction::Ready(sink_handle)).await.is_err() { return; }
+                                }
+
+                                Err(err) => {
+                                    // Report the error to the guest program
+                                    if control_actions.send(GuestAction::SinkError(sink_handle, err)).await.is_err() { return; }
+                                    if control_actions.send(GuestAction::Ready(sink_handle)).await.is_err() { return; }
+                                }
+                            }
+                        } else {
+                            // Sink is not connected
+                            if control_actions.send(GuestAction::SinkError(sink_handle, SceneSendError::StreamDisconnected(encoded_bytes))).await.is_err() { return; }
+                        }
                     }
 
                     Disconnect(sink_handle) => {
-                        // TODO: remove a sink handle
+                        // Remove a sink handle (which should disconnect it)
+                        active_sinks.remove(&sink_handle);
                     }
 
                     ContinuePolling => { 
@@ -173,7 +199,7 @@ where
                 }).await;
 
                 // Encode the input stream and send it
-                let encoded_input = encoder.encode(input);
+                let encoded_input = message_encoder.encode(input);
 
                 if message_actions.send(GuestAction::SendMessage(guest_program_handle, encoded_input)).await.is_err() {
                     // Just stop if there's any error sending to the guest program
