@@ -21,7 +21,6 @@ pub async fn run_host_subprogram<TMessageType>(input_stream: InputStream<TMessag
 where
     TMessageType: 'static + SceneMessage
 {
-    let mut actions = actions;
     let mut results = results;
 
     let guest_program_handle;
@@ -65,11 +64,15 @@ where
     // Signal used to indicate when we can send a message we've received that's destined for this program. This is basically just a semaphore we can poll for
     let signal_ready    = Arc::new(Mutex::new((None, false)));
     let wait_ready      = signal_ready.clone();
+    let message_actions = actions.clone();
+    let control_actions = actions;
 
     // Main loop: relay messages and connect to sinks
     future::select(
         Box::pin(async move {
             use GuestResult::*;
+
+            let mut control_actions = control_actions;
 
             // Loop 1: handle the results from the guest program
             while let Some(result) = results.next().await {
@@ -108,9 +111,30 @@ where
                         }
                     }
 
-                    Connect(sink_handle, stream_target) => { 
-                        // TODO: connect to a sink on the source side (this needs a way to convert the stream ID into a stream we can deserialize)
-                        // TODO: if there's no way to deserialize this sink we can potentially still send it between guest programs (we need a way to distinguish stream IDs that use the same type to do this)
+                    Connect(sink_handle, stream_target) => {
+                        // Get the host streams that we want to connect to
+                        let stream_id   = stream_target.stream_id();
+
+                        if let Some(stream_id) = stream_id  {
+                            let target      = stream_target.to_stream_target();
+
+                            // Ask the encoder to do the attachement
+                            match encoder.connect(stream_id, target, &context) {
+                                Ok(sink) => {
+                                    // TODO: associate this with the sink handle
+                                    todo!()
+                                }
+
+                                Err(err) => {
+                                    // Could not connect this sink
+                                    if control_actions.send(GuestAction::SinkConnectionError(sink_handle, err)).await.is_err() { return; }
+                                }
+                            }
+                        } else {
+                            // We can't deserialize this stream within this scene
+                            // TODO: if there's no way to deserialize this sink we can potentially still send it between guest programs (we need a way to distinguish stream IDs that use the same type to do this)
+                            if control_actions.send(GuestAction::SinkConnectionError(sink_handle, ConnectionError::StreamNotKnown)).await.is_err() { return; }
+                        }
                     }
 
                     Send(sink_handle, encoded_bytes) => {
@@ -129,6 +153,8 @@ where
         }),
 
         Box::pin(async move {
+            let mut message_actions = message_actions;
+
             // Loop 2: read from the input stream
             let mut input_stream = input_stream;
             while let Some(input) = input_stream.next().await {
@@ -149,7 +175,7 @@ where
                 // Encode the input stream and send it
                 let encoded_input = encoder.encode(input);
 
-                if actions.send(GuestAction::SendMessage(guest_program_handle, encoded_input)).await.is_err() {
+                if message_actions.send(GuestAction::SendMessage(guest_program_handle, encoded_input)).await.is_err() {
                     // Just stop if there's any error sending to the guest program
                     break;
                 }
