@@ -1,5 +1,10 @@
+use crate::guest::stream_id::*;
+use crate::host::error::*;
+use crate::host::scene_context::*;
 use crate::host::scene_message::*;
+use crate::host::stream_target::*;
 
+use futures::prelude::*;
 use serde_json;
 
 ///
@@ -11,6 +16,9 @@ pub trait GuestMessageEncoder : Send + Sync + Clone {
 
     /// Decodes a guest message
     fn decode<TMessage: SceneMessage>(&self, message: Vec<u8>) -> TMessage;
+
+    /// Creates a connection to a host stream
+    fn connect(&self, stream_id: HostStreamId, target: StreamTarget, context: &SceneContext) -> Result<impl Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError>;
 }
 
 ///
@@ -34,5 +42,14 @@ impl GuestMessageEncoder for GuestJsonEncoder {
     fn decode<TMessage: SceneMessage>(&self, message: Vec<u8>) -> TMessage {
         serde_json::from_slice(&message)
             .unwrap()
+    }
+
+    fn connect(&self, stream_id: HostStreamId, target: StreamTarget, context: &SceneContext) -> Result<impl Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError> {
+        // TODO: actually connect the stream
+        if false {
+            Ok(sink::drain().sink_map_err(|_| SceneSendError::TargetProgramEndedBeforeReady))
+        } else {
+            Err(ConnectionError::TargetNotInScene)
+        }
     }
 }
