@@ -147,6 +147,8 @@ where
                     Send(sink_handle, encoded_bytes) => {
                         // Send to an existing connected sink handle
                         // TODO: perform the send in parallel with the other waiting messages
+                        // We don't usually need to do this if there's only one program in the guest as the guest will usually just be waiting for the ready, but for
+                        // multiple programs or guest programs that use something like 'select' this will improve performance
                         if let Some(sink) = active_sinks.get_mut(&sink_handle) {
                             match sink.send(encoded_bytes).await {
                                 Ok(()) => {
@@ -172,7 +174,7 @@ where
                     }
 
                     ContinuePolling => { 
-                        // Nothing to do, should be handled by the stream
+                        // Nothing for us to do, should be handled by the stream
                     }
                 }
             } 
