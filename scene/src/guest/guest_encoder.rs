@@ -3,6 +3,7 @@ use crate::host::scene_context::*;
 use crate::host::scene_message::*;
 use crate::host::stream_id::*;
 use crate::host::stream_target::*;
+use crate::host::serialization::*;
 
 use futures::prelude::*;
 use serde_json;
@@ -45,11 +46,29 @@ impl GuestMessageEncoder for GuestJsonEncoder {
     }
 
     fn connect(&self, stream_id: StreamId, target: StreamTarget, context: &SceneContext) -> Result<impl Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError> {
-        // TODO: actually connect the stream
-        if false {
-            Ok(sink::drain().sink_map_err(|_| SceneSendError::TargetProgramEndedBeforeReady))
-        } else {
-            Err(ConnectionError::TargetNotInScene)
-        }
+        // Create the stream target
+        let serialized_target = SerializedStreamTarget::from(stream_id);
+        let serialized_target = match target {
+            StreamTarget::None | StreamTarget::Any  => Ok(serialized_target),
+            StreamTarget::Program(program_id)       => todo!("Cannot map a target program to a specific stream ID at the moment"),
+            StreamTarget::Filtered(_, _)            => Err(ConnectionError::FilterMappingMissing)
+        }?;
+
+        // Send as a JSON stream
+        let json_stream = context.send_serialized::<serde_json::Value>(serialized_target)?;
+
+        // Put a JSON parser in front of the stream
+        let json_stream = json_stream
+            .sink_map_err(|_| SceneSendError::TargetProgramEndedBeforeReady /* TODO */)
+            .with(|bytes: Vec<u8>| async move {
+                let value = serde_json::from_slice::<serde_json::Value>(&bytes);
+
+                match value {
+                    Ok(value)   => Ok(value),
+                    Err(_)      => Err(SceneSendError::CannotDeserialize(bytes))
+                }
+            });
+
+        Ok(Box::pin(json_stream))
     }
 }
