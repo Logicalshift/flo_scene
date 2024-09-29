@@ -59,7 +59,7 @@ impl GuestMessageEncoder for GuestJsonEncoder {
 
         // Put a JSON parser in front of the stream
         let json_stream = json_stream
-            .sink_map_err(|_| SceneSendError::TargetProgramEndedBeforeReady /* TODO */)
+            .sink_map_err(|err| err.map(|msg| serde_json::to_vec_pretty(&msg).unwrap_or_else(|_| vec![])))
             .with(|bytes: Vec<u8>| async move {
                 let value = serde_json::from_slice::<serde_json::Value>(&bytes);
 
