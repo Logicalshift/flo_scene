@@ -163,6 +163,23 @@ impl<TMessage> SceneSendError<TMessage> {
             SceneSendError::ErrorAfterDeserialization                   => None,
         }
     }
+
+    ///
+    /// Maps the content of this error to another message type
+    ///
+    pub fn map<TTarget>(self, map_fn: impl FnOnce(TMessage) -> TTarget) -> SceneSendError<TTarget> {
+        match self {
+            SceneSendError::CouldNotConnect(msg)                        => SceneSendError::CouldNotConnect(msg),
+            SceneSendError::TargetProgramEndedBeforeReady               => SceneSendError::TargetProgramEndedBeforeReady,
+            SceneSendError::StreamClosed(msg)                           => SceneSendError::StreamClosed(map_fn(msg)),
+            SceneSendError::TargetProgramEnded(msg)                     => SceneSendError::TargetProgramEnded(map_fn(msg)),
+            SceneSendError::StreamDisconnected(msg)                     => SceneSendError::StreamDisconnected(map_fn(msg)),
+            SceneSendError::CannotReEnterTargetProgram                  => SceneSendError::CannotReEnterTargetProgram,
+            SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(msg)  => SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(map_fn(msg)),
+            SceneSendError::CannotDeserialize(msg)                      => SceneSendError::CannotDeserialize(map_fn(msg)),
+            SceneSendError::ErrorAfterDeserialization                   => SceneSendError::ErrorAfterDeserialization,
+        }
+    }
 }
 
 impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
