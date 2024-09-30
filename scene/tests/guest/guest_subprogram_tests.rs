@@ -37,7 +37,7 @@ fn run_basic_guest_subprogram() {
     let test_subprogram_id      = SubProgramId::called("Test subprogram");
 
     // Start a guest runtime that mirrors messages
-    let guest_runtime = GuestRuntime::with_default_subprogram(SubProgramId::new(), GuestJsonEncoder, move |input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
+    let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, GuestJsonEncoder, move |input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
         // Send responses to the defualt target for the scene
         let mut response = context.send::<SimpleResponseMessage>(()).unwrap();
 
