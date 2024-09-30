@@ -1151,6 +1151,46 @@ fn connect_single_source_to_single_target() {
         .run_in_scene(&scene, test_subprogram_id);
 }
 
+
+#[test]
+fn connect_single_source_to_single_target_before_creation() {
+    let scene = Scene::default();
+
+    let guest_subprogram_id     = SubProgramId::called("Guest subprogram");
+    let sender_subprogram_id    = SubProgramId::called("Sender subprogram");
+    let test_subprogram_id      = SubProgramId::called("Test subprogram");
+
+    // Set the default output of just the program we created to the test program (but not the default for every message of this type)
+    scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
+
+    // Run a program that relays any messages it receives to the default output
+    scene.add_subprogram(guest_subprogram_id, move |input_stream: InputStream<SimpleTestMessage>, context| async move {
+        // Send responses to the defualt target for the scene
+        let mut response = context.send::<SimpleResponseMessage>(()).unwrap();
+
+        let mut input_stream = input_stream;
+        while let Some(msg) = input_stream.next().await {
+            println!("Received message: {:?}", msg);
+
+            response.send(SimpleResponseMessage { value: msg.value }).await.unwrap();
+
+            println!("Sent message");
+        }
+    }, 10);
+
+    // Run another program to send messages to the first one
+    scene.add_subprogram(sender_subprogram_id, move |_input: InputStream<()>, context| async move {
+        let mut test_messages = context.send(guest_subprogram_id).unwrap();
+
+        test_messages.send(SimpleTestMessage { value: "Hello".into() }).await.unwrap();
+        test_messages.send(SimpleTestMessage { value: "Goodbyte".into() }).await.unwrap();
+    }, 0);
+
+    TestBuilder::new()
+        .expect_message(|_: SimpleResponseMessage| { Ok(()) })
+        .expect_message(|_: SimpleResponseMessage| { Ok(()) })
+        .run_in_scene(&scene, test_subprogram_id);
+}
+
 // TODO: `connect_single_source_to_single_target` but with source and target filters
-// TODO: also, the case where the connection is set up before the program is started should work
 
