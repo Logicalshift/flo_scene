@@ -63,8 +63,8 @@ fn test_without_guest() {
     scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
 
     TestBuilder::new()
-        .expect_message(|msg: SimpleResponseMessage| { Ok(()) })
-        .expect_message(|msg: SimpleResponseMessage| { Ok(()) })
+        .expect_message(|_: SimpleResponseMessage| { Ok(()) })
+        .expect_message(|_: SimpleResponseMessage| { Ok(()) })
         .run_in_scene(&scene, test_subprogram_id);
 }
 
@@ -107,7 +107,7 @@ fn run_basic_guest_subprogram() {
     scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
 
     TestBuilder::new()
-        .expect_message(|msg: SimpleResponseMessage| { Ok(()) })
-        .expect_message(|msg: SimpleResponseMessage| { Ok(()) })
+        .expect_message(|msg: SimpleResponseMessage| { if msg.value == "Hello" { Ok(()) } else { Err(format!("Value is {} (should be Hello)", msg.value)) } })
+        .expect_message(|msg: SimpleResponseMessage| { if msg.value == "Goodbyte" { Ok(()) } else { Err(format!("Value is {} (should be Goodbyte)", msg.value)) } })
         .run_in_scene(&scene, test_subprogram_id);
 }
