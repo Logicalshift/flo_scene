@@ -64,7 +64,7 @@ fn run_basic_guest_subprogram() {
     }, 0);
 
     // Connect the programs
-    scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>());
+    scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
 
     TestBuilder::new()
         .expect_message(|msg: SimpleResponseMessage| { Ok(()) })
