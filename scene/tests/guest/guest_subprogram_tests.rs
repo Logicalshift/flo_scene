@@ -60,7 +60,7 @@ fn test_without_guest() {
     }, 0);
 
     // Connect the programs
-    scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
+    scene.connect_programs((), test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
 
     TestBuilder::new()
         .expect_message(|_: SimpleResponseMessage| { Ok(()) })
@@ -104,7 +104,7 @@ fn run_basic_guest_subprogram() {
     }, 0);
 
     // Connect the programs
-    scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
+    scene.connect_programs((), test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
 
     TestBuilder::new()
         .expect_message(|msg: SimpleResponseMessage| { if msg.value == "Hello" { Ok(()) } else { Err(format!("Value is {} (should be Hello)", msg.value)) } })
