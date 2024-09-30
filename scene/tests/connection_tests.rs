@@ -1119,7 +1119,7 @@ fn connect_single_source_to_single_target() {
     let sender_subprogram_id    = SubProgramId::called("Sender subprogram");
     let test_subprogram_id      = SubProgramId::called("Test subprogram");
 
-    // This is the program we'll run as a guest in the other tests ()
+    // Run a program that relays any messages it receives to the default output
     scene.add_subprogram(guest_subprogram_id, move |input_stream: InputStream<SimpleTestMessage>, context| async move {
         // Send responses to the defualt target for the scene
         let mut response = context.send::<SimpleResponseMessage>(()).unwrap();
@@ -1142,7 +1142,7 @@ fn connect_single_source_to_single_target() {
         test_messages.send(SimpleTestMessage { value: "Goodbyte".into() }).await.unwrap();
     }, 0);
 
-    // Connect the programs
+    // Set the default output of just the program we created to the test program (but not the default for every message of this type)
     scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
 
     TestBuilder::new()
@@ -1150,3 +1150,7 @@ fn connect_single_source_to_single_target() {
         .expect_message(|_: SimpleResponseMessage| { Ok(()) })
         .run_in_scene(&scene, test_subprogram_id);
 }
+
+// TODO: `connect_single_source_to_single_target` but with source and target filters
+// TODO: also, the case where the connection is set up before the program is started should work
+
