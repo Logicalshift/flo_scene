@@ -1192,5 +1192,6 @@ fn connect_single_source_to_single_target_before_creation() {
         .run_in_scene(&scene, test_subprogram_id);
 }
 
+// TODO: both these tests set up the connection before the connection is made, we also need to test making the connection later on
 // TODO: `connect_single_source_to_single_target` but with source and target filters
 
