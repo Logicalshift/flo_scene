@@ -1111,6 +1111,12 @@ impl SceneMessage for SimpleResponseMessage {
     }
 }
 
+// These seem to be failing because the test uses a filter target mechanism and you can't connect a specific stream to a generic filter target
+// (Ie, source=Any, target=Filter does not add a filter for the source=specific, target=specific case). It's annoyingly complicated to fix this
+// though the source filter is an option here.
+//
+// (We start the stream as disconnected in anticipation of a filter being added later on, but in a sense there already is a filter)
+
 #[test]
 fn connect_single_source_to_single_target() {
     let scene = Scene::default();
