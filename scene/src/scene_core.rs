@@ -801,6 +801,9 @@ impl SceneCore {
             // If the target we got was for a specific program without a filter, check if there's an 'all' filter for this program
             let all_target = self.connections.get(&(StreamSource::All, stream_id.for_target(target_program)));
             if let Some(StreamTarget::Filtered(filter_handle, filter_target)) = all_target {
+                // TODO: should we also redirect specific connections if there's an 'all' redirect? (I think we should, it's more consistent and I think not applying the 'all' redirects is similarly confusing)
+                // TODO: This looks easy: we can just use the filter target here, but we'll need to deal with the case where there's just
+                // TODO: a redirect, and also any cases where there's a chain of redirects
                 if filter_target == target_program {
                     // The 'all' input for this stream has a filter on it, so override the target to use the same filter
                     Ok(StreamTarget::Filtered(*filter_handle, *target_program))
