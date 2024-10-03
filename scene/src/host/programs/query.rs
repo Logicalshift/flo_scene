@@ -61,7 +61,7 @@ impl<TResponseData: Send + Unpin + SceneMessage> SceneMessage for Query<TRespons
     fn message_type_name() -> String { format!("query::{}", TResponseData::message_type_name()) }
 
     fn initialise(_: &Scene) {
-        #[cfg(feature="serde_json")]
+        #[cfg(feature="json")]
         install_serializable_type::<TResponseData, serde_json::Value>().unwrap();
     }
 }
@@ -75,7 +75,7 @@ impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryRespons
         let filters = iter::empty();
 
         // Create filters that convert the message type to its serialized equivalent
-        #[cfg(feature="serde_json")]
+        #[cfg(feature="json")]
         let filters = {
             // Ensure that TResponseData has serializers set up
             install_serializable_type::<TResponseData, serde_json::Value>().unwrap();

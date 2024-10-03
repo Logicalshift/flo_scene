@@ -182,7 +182,7 @@ pub fn create_default_serializer_filters<TMessage: SceneMessage>() -> Vec<Filter
     let filters = iter::empty();
 
     // Convert to and from JSON messages
-    #[cfg(feature="serde_json")]
+    #[cfg(feature="json")]
     let filters = {
         // Create the standard to/from JSON filters
         let to_json     = serialization_function::<TMessage, SerializedMessage<serde_json::Value>>().unwrap();

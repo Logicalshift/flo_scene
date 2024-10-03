@@ -1088,3 +1088,116 @@ pub fn connect_default_after_creating_stream_using_filter_target() {
         .expect_message(|_msg: TestResult| { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SimpleTestMessage {
+    value: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SimpleResponseMessage {
+    value: String,
+}
+
+impl SceneMessage for SimpleTestMessage {
+    fn message_type_name() -> String {
+        "flo_scene_tests::guest_subprogram_tests::SimpleTestMessage".into()
+    }
+}
+
+impl SceneMessage for SimpleResponseMessage {
+    fn message_type_name() -> String {
+        "flo_scene_tests::guest_subprogram_tests::SimpleResponseMessage".into()
+    }
+}
+
+// These seem to be failing because the test uses a filter target mechanism and you can't connect a specific stream to a generic filter target
+// (Ie, source=Any, target=Filter does not add a filter for the source=specific, target=specific case). It's annoyingly complicated to fix this
+// though the source filter is an option here.
+//
+// (We start the stream as disconnected in anticipation of a filter being added later on, but in a sense there already is a filter)
+
+#[test]
+fn connect_single_source_to_single_target() {
+    let scene = Scene::default();
+
+    let guest_subprogram_id     = SubProgramId::called("Guest subprogram");
+    let sender_subprogram_id    = SubProgramId::called("Sender subprogram");
+    let test_subprogram_id      = SubProgramId::called("Test subprogram");
+
+    // Run a program that relays any messages it receives to the default output
+    scene.add_subprogram(guest_subprogram_id, move |input_stream: InputStream<SimpleTestMessage>, context| async move {
+        // Send responses to the defualt target for the scene
+        let mut response = context.send::<SimpleResponseMessage>(()).unwrap();
+
+        let mut input_stream = input_stream;
+        while let Some(msg) = input_stream.next().await {
+            println!("Received message: {:?}", msg);
+
+            response.send(SimpleResponseMessage { value: msg.value }).await.unwrap();
+
+            println!("Sent message");
+        }
+    }, 10);
+
+    // Run another program to send messages to the first one
+    scene.add_subprogram(sender_subprogram_id, move |_input: InputStream<()>, context| async move {
+        let mut test_messages = context.send(guest_subprogram_id).unwrap();
+
+        test_messages.send(SimpleTestMessage { value: "Hello".into() }).await.unwrap();
+        test_messages.send(SimpleTestMessage { value: "Goodbyte".into() }).await.unwrap();
+    }, 0);
+
+    // Set the default output of just the program we created to the test program (but not the default for every message of this type)
+    scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
+
+    TestBuilder::new()
+        .expect_message(|_: SimpleResponseMessage| { Ok(()) })
+        .expect_message(|_: SimpleResponseMessage| { Ok(()) })
+        .run_in_scene(&scene, test_subprogram_id);
+}
+
+
+#[test]
+fn connect_single_source_to_single_target_before_creation() {
+    let scene = Scene::default();
+
+    let guest_subprogram_id     = SubProgramId::called("Guest subprogram");
+    let sender_subprogram_id    = SubProgramId::called("Sender subprogram");
+    let test_subprogram_id      = SubProgramId::called("Test subprogram");
+
+    // Set the default output of just the program we created to the test program (but not the default for every message of this type)
+    scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
+
+    // Run a program that relays any messages it receives to the default output
+    scene.add_subprogram(guest_subprogram_id, move |input_stream: InputStream<SimpleTestMessage>, context| async move {
+        // Send responses to the defualt target for the scene
+        let mut response = context.send::<SimpleResponseMessage>(()).unwrap();
+
+        let mut input_stream = input_stream;
+        while let Some(msg) = input_stream.next().await {
+            println!("Received message: {:?}", msg);
+
+            response.send(SimpleResponseMessage { value: msg.value }).await.unwrap();
+
+            println!("Sent message");
+        }
+    }, 10);
+
+    // Run another program to send messages to the first one
+    scene.add_subprogram(sender_subprogram_id, move |_input: InputStream<()>, context| async move {
+        let mut test_messages = context.send(guest_subprogram_id).unwrap();
+
+        test_messages.send(SimpleTestMessage { value: "Hello".into() }).await.unwrap();
+        test_messages.send(SimpleTestMessage { value: "Goodbyte".into() }).await.unwrap();
+    }, 0);
+
+    TestBuilder::new()
+        .expect_message(|_: SimpleResponseMessage| { Ok(()) })
+        .expect_message(|_: SimpleResponseMessage| { Ok(()) })
+        .run_in_scene(&scene, test_subprogram_id);
+}
+
+// TODO: both these tests set up the connection before the connection is made, we also need to test making the connection later on
+// TODO: `connect_single_source_to_single_target` but with source and target filters
+
