@@ -797,7 +797,25 @@ impl SceneCore {
             }
         };
 
-        Ok(mapped_target)
+        if let StreamTarget::Program(target_program) = &mapped_target {
+            // If the target we got was for a specific program without a filter, check if there's an 'all' filter for this program
+            let all_target = self.connections.get(&(StreamSource::All, stream_id.for_target(target_program)));
+            if let Some(StreamTarget::Filtered(filter_handle, filter_target)) = all_target {
+                if filter_target == target_program {
+                    // The 'all' input for this stream has a filter on it, so override the target to use the same filter
+                    Ok(StreamTarget::Filtered(*filter_handle, *target_program))
+                } else {
+                    // There is a filter, but it's also redirecting to another program, and we want to target this program specifically, so don't remap anything
+                    Ok(mapped_target)
+                }
+            } else {
+                // No filter, so just use the target directly
+                Ok(mapped_target)
+            }
+        } else {
+            // Other targets stay the same
+            Ok(mapped_target)
+        }
     }
 
     ///
