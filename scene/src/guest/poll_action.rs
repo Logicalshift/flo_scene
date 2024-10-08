@@ -1,6 +1,6 @@
 use super::subprogram_handle::*;
 use super::sink_handle::*;
-use crate::error::*;
+use crate::host::error::*;
 
 ///
 /// Action requests sent from a host to a guest

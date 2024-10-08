@@ -2,7 +2,7 @@ use super::sink_handle::*;
 use super::stream_id::*;
 use super::stream_target::*;
 use super::subprogram_handle::*;
-use crate::subprogram_id::*;
+use crate::host::subprogram_id::*;
 
 ///
 /// Results from a polling action (requests from the host side)

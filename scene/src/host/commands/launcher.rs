@@ -1,7 +1,7 @@
-use crate::input_stream::*;
-use crate::programs::QueryResponse;
-use crate::scene_context::*;
-use crate::scene_message::*;
+use crate::host::input_stream::*;
+use crate::host::programs::QueryResponse;
+use crate::host::scene_context::*;
+use crate::host::scene_message::*;
 use super::dispatcher::*;
 use super::error::*;
 use super::fn_command::*;

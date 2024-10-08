@@ -2,11 +2,11 @@ use super::run_command::*;
 use super::list_commands::*;
 use super::read_command::*;
 use super::error::*;
-use crate::input_stream::*;
-use crate::scene_context::*;
-use crate::scene_message::*;
-use crate::subprogram_id::*;
-use crate::programs::*;
+use crate::host::input_stream::*;
+use crate::host::scene_context::*;
+use crate::host::scene_message::*;
+use crate::host::subprogram_id::*;
+use crate::host::programs::*;
 
 use futures::prelude::*;
 use serde::*;

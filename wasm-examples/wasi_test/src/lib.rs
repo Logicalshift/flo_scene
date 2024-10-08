@@ -10,7 +10,7 @@
 //!
 
 use flo_scene::*;
-use flo_scene::programs::*;
+use flo_scene::host::programs::*;
 
 use futures::prelude::*;
 
