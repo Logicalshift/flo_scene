@@ -8,6 +8,8 @@
 //! These modules should work just as well in a browser as in wasmer.
 //!
 
+use flo_scene::*;
+
 #[no_mangle]
 pub fn test() -> u32 {
     42

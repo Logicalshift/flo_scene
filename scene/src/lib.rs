@@ -193,4 +193,4 @@ pub mod guest;
 pub use guest::*;
 
 // #[cfg(target_family="wasm")]
-mod wasm_rt;
+pub mod wasm_rt;
