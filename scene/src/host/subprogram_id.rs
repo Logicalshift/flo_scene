@@ -1,3 +1,5 @@
+use crate::uuid_impl::*;
+
 use uuid::{Uuid};
 use once_cell::sync::{OnceCell, Lazy};
 
@@ -87,7 +89,7 @@ impl SubProgramId {
     #[inline]
     #[allow(clippy::new_without_default)]   // As this isn't a default value, it's a *new* value, there's no default subprogram ID
     pub fn new() -> SubProgramId {
-        SubProgramId(SubProgramIdValue::Guid(Uuid::new_v4()))
+        SubProgramId(SubProgramIdValue::Guid(new_uuid()))
     }
 
     ///

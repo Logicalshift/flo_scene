@@ -1,3 +1,5 @@
+use flo_scene::uuid_impl::*;
+
 use uuid::{Uuid};
 use serde::*;
 
@@ -14,6 +16,6 @@ impl WasmModuleId {
     /// Creates a new WASM module ID with a unique ID
     ///
     pub fn new() -> WasmModuleId {
-        WasmModuleId::Id(Uuid::new_v4())
+        WasmModuleId::Id(new_uuid())
     }
 }

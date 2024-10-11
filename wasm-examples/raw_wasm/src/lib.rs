@@ -64,3 +64,11 @@ pub extern fn test6() -> (i32, i32) {
 pub extern fn test7(closure: &dyn Fn(i32, i32) -> ()) {
     closure(42, 42)
 }
+
+#[no_mangle]
+pub extern fn test8() -> u8 {
+    let uuid = flo_scene::uuid_impl::new_uuid();
+
+    let bytes = uuid.as_bytes();
+    bytes[0]
+}
