@@ -46,7 +46,7 @@ static FILTERS_FOR_TYPE: Lazy<Mutex<HashMap<(TypeId, TypeId), Vec<FilterHandle>>
 /// Bytes in postcard format
 ///
 #[cfg(feature="postcard")]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Postcard(pub Vec<u8>);
 
 ///
@@ -90,6 +90,25 @@ where
     #[inline]
     fn from_serialized(data: &serde_json::Value) -> Result<Self, serde_json::error::Error> {
         Self::deserialize(data)
+    }
+}
+
+#[cfg(feature="postcard")]
+impl<TMessage> MessageSerializeAs<Postcard> for TMessage
+where
+    TMessage: SceneMessage
+{
+    type SerializeError     = postcard::Error;
+    type DeserializeError   = postcard::Error;
+
+    #[inline]
+    fn to_serialized(&self) -> Result<Postcard, postcard::Error> {
+        postcard::to_allocvec(self).map(|ok| Postcard(ok))
+    }
+
+    #[inline]
+    fn from_serialized(data: &Postcard) -> Result<Self, postcard::Error> {
+        postcard::from_bytes(&data.0)
     }
 }
 
