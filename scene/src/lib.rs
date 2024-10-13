@@ -195,5 +195,5 @@ pub mod guest;
 pub use guest::*;
 
 // #[cfg(target_family="wasm")]
-#[cfg(feature="postcard")]
+#[cfg(any(feature="postcard", target_family="wasm"))]
 pub mod wasm_rt;
