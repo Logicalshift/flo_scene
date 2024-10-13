@@ -245,6 +245,9 @@ impl StreamTypeFunctions {
                         #[cfg(feature="serde_json")]
                         install_serializable_type::<TMessageType, serde_json::Value>().unwrap();
 
+                        #[cfg(feature="postcard")]
+                        install_serializable_type::<TMessageType, Postcard>().unwrap();
+
                         // Create the filters for this type
                         let mut filters = (*FILTERS).write().unwrap();
                         if let Some(existing_filters) = filters.get(&TypeId::of::<TMessageType>()) {
