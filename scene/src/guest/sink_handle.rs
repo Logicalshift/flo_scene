@@ -1,11 +1,12 @@
 use crate::host::error::*;
 
 use futures::task::{Waker};
+use serde::*;
 
 ///
 /// Handle that identifies an output sink on the host side
 ///
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct HostSinkHandle(pub usize);
 

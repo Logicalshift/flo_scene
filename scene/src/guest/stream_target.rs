@@ -5,10 +5,12 @@ use crate::host::stream_id::*;
 use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
+use serde::*;
+
 ///
 /// Indicates where a stream should be connected on the host side from a guest
 ///
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum HostStreamTarget {
     None(HostStreamId),
     Any(HostStreamId),

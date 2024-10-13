@@ -1,4 +1,5 @@
 use crate::host::scene_message::*;
+use serde::*;
 
 ///
 /// Identifies a stream on the host side
@@ -7,7 +8,7 @@ use crate::host::scene_message::*;
 /// each other using a stream type that's not known to the host (connections are passed without any processing if the
 /// stream ID matches on the other side of the connection)
 ///
-#[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Debug, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct HostStreamId(pub String);
 
 impl HostStreamId {

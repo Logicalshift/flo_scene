@@ -1,7 +1,9 @@
+use serde::*;
+
 ///
 /// Handle that identifies a subprogram running on the guest side
 ///
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct GuestSubProgramHandle(pub usize);
 
