@@ -34,3 +34,4 @@ uuid            = { version = "1.0", default-features = false, features = [ "ser
 
 [dev-dependencies]
 serde_json      = { version = "1.0" }
+postcard        = { version = "1.0" }
