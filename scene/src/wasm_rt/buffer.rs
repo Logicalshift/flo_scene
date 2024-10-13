@@ -32,7 +32,7 @@ pub unsafe extern "C" fn scene_borrow_buffer(buffer_handle: usize, buffer_size: 
 ///
 /// Claims a buffer from the native side
 ///
-pub (crate) fn claim_buffer(buffer_handle: usize) -> Vec<u8> {
+pub fn claim_buffer(buffer_handle: usize) -> Vec<u8> {
     let mut buffers = BUFFERS.lock().unwrap();
 
     // Remove the buffer from the hashmap and return it after unwrapping it from its cell
