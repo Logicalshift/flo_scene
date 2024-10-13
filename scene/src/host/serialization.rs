@@ -43,6 +43,13 @@ static TYPED_SERIALIZERS: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + S
 static FILTERS_FOR_TYPE: Lazy<Mutex<HashMap<(TypeId, TypeId), Vec<FilterHandle>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 ///
+/// Bytes in postcard format
+///
+#[cfg(feature="postcard")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Postcard(pub Vec<u8>);
+
+///
 /// Trait implemented by scene messages that can be serialized as a particular type
 ///
 /// This abstracts away the various possible serialization frameworks (also gives some restrictions that serde usually doesn't have

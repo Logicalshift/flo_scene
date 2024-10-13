@@ -10,6 +10,9 @@ use futures::prelude::*;
 #[cfg(feature="serde_json")]
 use serde_json;
 
+#[cfg(feature="postcard")]
+use postcard;
+
 ///
 /// The guest message encoder
 ///
@@ -66,6 +69,53 @@ impl GuestMessageEncoder for GuestJsonEncoder {
             .sink_map_err(|err| err.map(|msg| serde_json::to_vec_pretty(&msg).unwrap_or_else(|_| vec![])))
             .with(|bytes: Vec<u8>| async move {
                 let value = serde_json::from_slice::<serde_json::Value>(&bytes);
+
+                match value {
+                    Ok(value)   => Ok(value),
+                    Err(_)      => Err(SceneSendError::CannotDeserialize(bytes))
+                }
+            });
+
+        Ok(Box::pin(json_stream))
+    }
+}
+
+///
+/// Encoder that encodes/decodes postcard messages
+///
+#[cfg(feature="postcard")]
+#[derive(Clone)]
+pub struct GuestPostcardEncoder;
+
+#[cfg(feature="postcard")]
+impl GuestMessageEncoder for GuestPostcardEncoder {
+    #[inline]
+    fn encode(&self, message: impl SceneMessage) -> Vec<u8> {
+        postcard::to_allocvec(&message).unwrap()
+    }
+
+    #[inline]
+    fn decode<TMessage: SceneMessage>(&self, message: Vec<u8>) -> TMessage {
+        postcard::from_bytes(&message).unwrap()
+    }
+
+    fn connect(&self, stream_id: StreamId, target: StreamTarget, context: &SceneContext) -> Result<impl Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError> {
+        // Create the stream target
+        let serialized_target = SerializedStreamTarget::from(stream_id);
+        let serialized_target = match target {
+            StreamTarget::None | StreamTarget::Any  => Ok(serialized_target),
+            StreamTarget::Program(program_id)       => todo!("Cannot map a target program to a specific stream ID at the moment"),
+            StreamTarget::Filtered(_, _)            => Err(ConnectionError::FilterMappingMissing)
+        }?;
+
+        // Send as a postcard stream
+        let json_stream = context.send_serialized::<Postcard>(serialized_target)?;
+
+        // Put a postcard deserialzer in front of the stream
+        let json_stream = json_stream
+            .sink_map_err(|err| err.map(|msg| postcard::to_allocvec(&msg).unwrap_or_else(|_| vec![])))
+            .with(|bytes: Vec<u8>| async move {
+                let value = postcard::from_bytes(&bytes);
 
                 match value {
                     Ok(value)   => Ok(value),
