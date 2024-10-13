@@ -46,7 +46,7 @@ pub fn register_json_runtime(new_runtime: GuestRuntime<GuestJsonEncoder>) -> Gue
 /// Sends a message to a guest subprogram in a runtime
 ///
 #[no_mangle]
-pub extern "C" fn scene_guest_send_json_message(runtime: GuestRuntimeHandle, target: GuestSubProgramHandle, json_data: BufferHandle) {
+pub extern "C" fn scene_guest_json_send_message(runtime: GuestRuntimeHandle, target: GuestSubProgramHandle, json_data: BufferHandle) {
     // Get the JSON runtime with this ID
     let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
 
@@ -55,4 +55,37 @@ pub extern "C" fn scene_guest_send_json_message(runtime: GuestRuntimeHandle, tar
 
     // Send the message to the runtime
     runtime.send_message(target, json_data);
+}
+
+///
+/// Indicates to a guest subprogram that it is safe to send to a sink
+///
+#[no_mangle]
+pub extern "C" fn scene_guest_json_sink_ready(runtime: GuestRuntimeHandle, sink: HostSinkHandle) {
+    let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+    runtime.sink_ready(sink);
+}
+
+///
+/// Indicates to aguest subprogram that an error ocurred while connecting a sink
+///
+#[no_mangle]
+pub extern "C" fn scene_guest_json_sink_connection_error(runtime: GuestRuntimeHandle, sink: HostSinkHandle, json_error: BufferHandle) {
+    let json_error  = claim_buffer(json_error);
+    let error       = serde_json::from_slice(&json_error).unwrap();
+
+    let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+    runtime.sink_connection_error(sink, error);
+}
+
+///
+/// Indicates to a guest subprogram that an error ocurred while sending data to a sink
+///
+#[no_mangle]
+pub extern "C" fn scene_guest_json_sink_send_error(runtime: GuestRuntimeHandle, sink: HostSinkHandle, json_error: BufferHandle) {
+    let json_error  = claim_buffer(json_error);
+    let error       = serde_json::from_slice(&json_error).unwrap();
+
+    let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+    runtime.sink_send_error(sink, error);
 }
