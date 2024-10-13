@@ -70,7 +70,7 @@ pub fn read_buffer_set_incorrectly() {
     let view = memory.view(&store);
     view.write(buffer_address[0].unwrap_i32() as _, &[5, 6, 7, 8]).unwrap();
 
-    // Test that the correct value was written
+    // The test returns false if the buffer contents is not '1, 2, 3, 4'
     let buffer_contents_are_1234    = buffer_tests.exports.get_function("buffer_contents_are_1234").unwrap();
     let was_written                 = buffer_contents_are_1234.call(&mut store, &[]).unwrap();
 
