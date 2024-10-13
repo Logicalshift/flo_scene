@@ -113,7 +113,7 @@ impl GuestMessageEncoder for GuestPostcardEncoder {
 
         // Put a postcard deserialzer in front of the stream
         let postcard_stream = postcard_stream
-            .sink_map_err(|err| err.map(|msg| postcard::to_allocvec(&msg).unwrap_or_else(|_| vec![])))
+            .sink_map_err(|err| err.map(|msg| postcard::to_stdvec(&msg).unwrap_or_else(|_| vec![])))
             .with(|bytes: Vec<u8>| async move {
                 Ok(Postcard(bytes))
             });

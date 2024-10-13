@@ -103,7 +103,7 @@ where
 
     #[inline]
     fn to_serialized(&self) -> Result<Postcard, postcard::Error> {
-        postcard::to_allocvec(self).map(|ok| Postcard(ok))
+        postcard::to_stdvec(self).map(|ok| Postcard(ok))
     }
 
     #[inline]

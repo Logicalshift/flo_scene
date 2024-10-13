@@ -47,7 +47,7 @@ pub fn send_postcard_message_to_runtime() {
     assert!(result.contains(&GuestResult::Ready(GuestSubProgramHandle::default())));
 
     // Enqueue a message for the runtime (the default subprogram always has the same handle)
-    let data = postcard::to_allocvec(&SimpleTestMessage { value: "Test".into() }).unwrap();
+    let data = postcard::to_stdvec(&SimpleTestMessage { value: "Test".into() }).unwrap();
     guest_runtime.send_message(GuestSubProgramHandle::default(), data);
 
     // Polling the runtime once should clear the pending message
