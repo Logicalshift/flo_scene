@@ -5,5 +5,4 @@ members     = [
 resolver    = "2"
 
 [patch.crates-io]
-flo_scene       = { path = "../scene" }
-flo_scene_wasm  = { path = "../wasm" }
+flo_scene = { path = "../scene" }

@@ -1,14 +1,4 @@
-use crate::guest::*;
-use crate::wasm_rt::buffer::*;
-
-use once_cell::sync::{Lazy};
-
-use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::*;
-
-/// Guest runtimes using the JSON encoding
-static GUEST_JSON_RUNTIMES: Lazy<Mutex<HashMap<GuestRuntimeHandle, Arc<GuestRuntime<GuestJsonEncoder>>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 ///
 /// The guest runtime handle is used by the host side to make requests to a runtime defined on the wasm side.
@@ -23,7 +13,7 @@ pub struct GuestRuntimeHandle(pub usize);
 ///
 /// Assigns a new guest runtime handle
 ///
-fn allocate_handle() -> GuestRuntimeHandle {
+pub (super) fn allocate_handle() -> GuestRuntimeHandle {
     // The next handle to assign
     static NEXT_HANDLE: AtomicUsize = AtomicUsize::new(0);
 
@@ -31,61 +21,79 @@ fn allocate_handle() -> GuestRuntimeHandle {
     GuestRuntimeHandle(this_handle)
 }
 
-///
-/// Registers a guest runtime and returns the handle which can be passed on to the host side of things
-///
-pub fn register_json_runtime(new_runtime: GuestRuntime<GuestJsonEncoder>) -> GuestRuntimeHandle {
-    // Assign a handle and store in the guest list
-    let handle = allocate_handle();
-    GUEST_JSON_RUNTIMES.lock().unwrap().insert(handle, Arc::new(new_runtime));
+#[cfg(feature="serde_json")]
+pub use json_runtime::*;
 
-    handle
-}
+#[cfg(feature="serde_json")]
+mod json_runtime {
+    use super::*;
+    use crate::guest::*;
+    use crate::wasm_rt::buffer::*;
 
-///
-/// Sends a message to a guest subprogram in a runtime
-///
-#[no_mangle]
-pub extern "C" fn scene_guest_json_send_message(runtime: GuestRuntimeHandle, target: GuestSubProgramHandle, json_data: BufferHandle) {
-    // Get the JSON runtime with this ID
-    let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+    use once_cell::sync::{Lazy};
 
-    // Retrieve the JSON data buffer from where it was being written by the host
-    let json_data = claim_buffer(json_data);
+    use std::collections::{HashMap};
+    use std::sync::*;
 
-    // Send the message to the runtime
-    runtime.send_message(target, json_data);
-}
+    /// Guest runtimes using the JSON encoding
+    static GUEST_JSON_RUNTIMES: Lazy<Mutex<HashMap<GuestRuntimeHandle, Arc<GuestRuntime<GuestJsonEncoder>>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
-///
-/// Indicates to a guest subprogram that it is safe to send to a sink
-///
-#[no_mangle]
-pub extern "C" fn scene_guest_json_sink_ready(runtime: GuestRuntimeHandle, sink: HostSinkHandle) {
-    let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
-    runtime.sink_ready(sink);
-}
+    ///
+    /// Registers a guest runtime and returns the handle which can be passed on to the host side of things
+    ///
+    pub fn register_json_runtime(new_runtime: GuestRuntime<GuestJsonEncoder>) -> GuestRuntimeHandle {
+        // Assign a handle and store in the guest list
+        let handle = allocate_handle();
+        GUEST_JSON_RUNTIMES.lock().unwrap().insert(handle, Arc::new(new_runtime));
 
-///
-/// Indicates to aguest subprogram that an error ocurred while connecting a sink
-///
-#[no_mangle]
-pub extern "C" fn scene_guest_json_sink_connection_error(runtime: GuestRuntimeHandle, sink: HostSinkHandle, json_error: BufferHandle) {
-    let json_error  = claim_buffer(json_error);
-    let error       = serde_json::from_slice(&json_error).unwrap();
+        handle
+    }
 
-    let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
-    runtime.sink_connection_error(sink, error);
-}
+    ///
+    /// Sends a message to a guest subprogram in a runtime
+    ///
+    #[no_mangle]
+    pub extern "C" fn scene_guest_json_send_message(runtime: GuestRuntimeHandle, target: GuestSubProgramHandle, json_data: BufferHandle) {
+        // Get the JSON runtime with this ID
+        let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
 
-///
-/// Indicates to a guest subprogram that an error ocurred while sending data to a sink
-///
-#[no_mangle]
-pub extern "C" fn scene_guest_json_sink_send_error(runtime: GuestRuntimeHandle, sink: HostSinkHandle, json_error: BufferHandle) {
-    let json_error  = claim_buffer(json_error);
-    let error       = serde_json::from_slice(&json_error).unwrap();
+        // Retrieve the JSON data buffer from where it was being written by the host
+        let json_data = claim_buffer(json_data);
 
-    let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
-    runtime.sink_send_error(sink, error);
+        // Send the message to the runtime
+        runtime.send_message(target, json_data);
+    }
+
+    ///
+    /// Indicates to a guest subprogram that it is safe to send to a sink
+    ///
+    #[no_mangle]
+    pub extern "C" fn scene_guest_json_sink_ready(runtime: GuestRuntimeHandle, sink: HostSinkHandle) {
+        let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+        runtime.sink_ready(sink);
+    }
+
+    ///
+    /// Indicates to aguest subprogram that an error ocurred while connecting a sink
+    ///
+    #[no_mangle]
+    pub extern "C" fn scene_guest_json_sink_connection_error(runtime: GuestRuntimeHandle, sink: HostSinkHandle, json_error: BufferHandle) {
+        let json_error  = claim_buffer(json_error);
+        let error       = serde_json::from_slice(&json_error).unwrap();
+
+        let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+        runtime.sink_connection_error(sink, error);
+    }
+
+    ///
+    /// Indicates to a guest subprogram that an error ocurred while sending data to a sink
+    ///
+    #[no_mangle]
+    pub extern "C" fn scene_guest_json_sink_send_error(runtime: GuestRuntimeHandle, sink: HostSinkHandle, json_error: BufferHandle) {
+        let json_error  = claim_buffer(json_error);
+        let error       = serde_json::from_slice(&json_error).unwrap();
+
+        let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+        runtime.sink_send_error(sink, error);
+    }
 }
