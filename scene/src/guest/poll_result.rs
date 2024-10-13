@@ -4,9 +4,12 @@ use super::stream_target::*;
 use super::subprogram_handle::*;
 use crate::host::subprogram_id::*;
 
+use serde::*;
+
 ///
 /// Results from a polling action (requests from the host side)
 ///
+#[derive(Serialize, Deserialize)]
 pub struct GuestPollResult {
     results: Vec<GuestResult>,
 }
@@ -17,7 +20,7 @@ pub struct GuestPollResult {
 /// The guest should wait for the `Ready` message before trying to send any message, and also needs to wait again
 /// after sending a message.
 ///
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum GuestResult {
     /// Indicates that the guest has stopped running and won't accept any further requests
     Stopped,
