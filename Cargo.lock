@@ -452,7 +452,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "uuid",
- "wasmer",
 ]
 
 [[package]]
