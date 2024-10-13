@@ -4,7 +4,14 @@ use std::cell::{UnsafeCell};
 use std::collections::{HashMap};
 use std::sync::*;
 
-static BUFFERS: Lazy<Mutex<HashMap<usize, UnsafeCell<Vec<u8>>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static BUFFERS: Lazy<Mutex<HashMap<BufferHandle, UnsafeCell<Vec<u8>>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+///
+/// Handle to a buffer in a scene (these are used for transferring data to and from a webassembly module)
+///
+#[derive(Clone, Copy, PartialEq, Debug, Eq, Hash)]
+#[repr(transparent)]
+pub struct BufferHandle(pub usize);
 
 ///
 /// Borrows a buffer until scene_return_buffer is called to return the buffer to the store
@@ -14,7 +21,7 @@ static BUFFERS: Lazy<Mutex<HashMap<usize, UnsafeCell<Vec<u8>>>>> = Lazy::new(|| 
 /// webassembly module)
 ///
 #[no_mangle]
-pub unsafe extern "C" fn scene_borrow_buffer(buffer_handle: usize, buffer_size: usize) -> *mut u8 {
+pub unsafe extern "C" fn scene_borrow_buffer(buffer_handle: BufferHandle, buffer_size: usize) -> *mut u8 {
     // Retrieve the buffer (assuming nothing else is using it!)
     let mut buffers = BUFFERS.lock().unwrap();
     let buffer      = buffers.entry(buffer_handle).or_insert_with(|| UnsafeCell::new(vec![0; buffer_size]));
@@ -32,7 +39,7 @@ pub unsafe extern "C" fn scene_borrow_buffer(buffer_handle: usize, buffer_size: 
 ///
 /// Claims a buffer from the native side
 ///
-pub fn claim_buffer(buffer_handle: usize) -> Vec<u8> {
+pub fn claim_buffer(buffer_handle: BufferHandle) -> Vec<u8> {
     let mut buffers = BUFFERS.lock().unwrap();
 
     // Remove the buffer from the hashmap and return it after unwrapping it from its cell
