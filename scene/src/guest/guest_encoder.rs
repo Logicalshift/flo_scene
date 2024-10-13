@@ -109,20 +109,15 @@ impl GuestMessageEncoder for GuestPostcardEncoder {
         }?;
 
         // Send as a postcard stream
-        let json_stream = context.send_serialized::<Postcard>(serialized_target)?;
+        let postcard_stream = context.send_serialized::<Postcard>(serialized_target)?;
 
         // Put a postcard deserialzer in front of the stream
-        let json_stream = json_stream
+        let postcard_stream = postcard_stream
             .sink_map_err(|err| err.map(|msg| postcard::to_allocvec(&msg).unwrap_or_else(|_| vec![])))
             .with(|bytes: Vec<u8>| async move {
-                let value = postcard::from_bytes(&bytes);
-
-                match value {
-                    Ok(value)   => Ok(value),
-                    Err(_)      => Err(SceneSendError::CannotDeserialize(bytes))
-                }
+                Ok(Postcard(bytes))
             });
 
-        Ok(Box::pin(json_stream))
+        Ok(Box::pin(postcard_stream))
     }
 }
