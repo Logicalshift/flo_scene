@@ -33,11 +33,11 @@ pub trait GuestMessageEncoder : Send + Sync + Clone {
 /// This is a slow and fairly inefficient way to encode messages, but the results are human-readable, which can aid in
 /// debugging or interoperability with other systems.
 ///
-#[cfg(feature="serde_json")]
+#[cfg(feature="json")]
 #[derive(Clone)]
 pub struct GuestJsonEncoder;
 
-#[cfg(feature="serde_json")]
+#[cfg(feature="json")]
 impl GuestMessageEncoder for GuestJsonEncoder {
     #[inline]
     fn encode(&self, message: impl SceneMessage) -> Vec<u8> {
