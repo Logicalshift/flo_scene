@@ -16,6 +16,7 @@ static GUEST_JSON_RUNTIMES: Lazy<Mutex<HashMap<GuestRuntimeHandle, GuestRuntime<
 /// is that 
 ///
 #[derive(Clone, Copy, PartialEq, Debug, Eq, Hash)]
+#[repr(transparent)]
 pub struct GuestRuntimeHandle(pub usize);
 
 ///
