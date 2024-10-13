@@ -1,5 +1,6 @@
 [workspace]
-members     = [ "raw_wasm",
+members     = [ 
+    "raw_wasm",
     "wasi_test",
     "raw_wasm",
     "bindgen",
