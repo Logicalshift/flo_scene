@@ -6,6 +6,7 @@ use futures::task::{Waker};
 /// Handle that identifies an output sink on the host side
 ///
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct HostSinkHandle(pub usize);
 
 ///
