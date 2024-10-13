@@ -300,3 +300,30 @@ mod with_serde_support {
             .run_in_scene(&scene, test_program);
     }
 }
+
+mod with_postcard_support {
+    use flo_scene::*;
+
+    use serde::*;
+
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    pub struct SimpleResponseMessage {
+        value: String,
+    }
+
+    impl SceneMessage for SimpleResponseMessage {
+        fn message_type_name() -> String {
+            "flo_scene_tests::encoder_tests::SimpleResponseMessage".into()
+        }
+    }
+
+    #[test]
+    fn round_trip_msg_postcard() {
+        let msg     = SimpleResponseMessage { value: "Hello".into() };
+
+        let encoded: Postcard   = msg.to_serialized().unwrap();
+        let decoded             = SimpleResponseMessage::from_serialized(&encoded).unwrap();
+
+        assert!(decoded.value == "Hello");
+    }
+}
