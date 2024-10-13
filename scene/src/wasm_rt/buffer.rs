@@ -13,7 +13,7 @@ static NEXT_BUFFER: AtomicUsize = AtomicUsize::new(0);
 ///
 #[derive(Clone, Copy, PartialEq, Debug, Eq, Hash)]
 #[repr(transparent)]
-pub struct BufferHandle(pub usize);
+pub struct BufferHandle(usize);
 
 impl BufferHandle {
     ///

@@ -20,9 +20,11 @@ pub fn borrow_buffer() {
     let imports         = imports! { };
     let buffer_tests    = Instance::new(&mut store, &module, &imports).unwrap();
 
-    // Borrow buffer 1
+    // Borrow a buffer
+    let new_buffer      = buffer_tests.exports.get_function("scene_new_buffer").unwrap();
     let borrow_buffer   = buffer_tests.exports.get_function("scene_borrow_buffer").unwrap();
-    let buffer_address  = borrow_buffer.call(&mut store, &[Value::I32(1), Value::I32(4)]).unwrap();
+    let buffer_number   = new_buffer.call(&mut store, &[]).unwrap()[0].clone();
+    let buffer_address  = borrow_buffer.call(&mut store, &[buffer_number, Value::I32(4)]).unwrap();
 
     println!("Buffer address is {:?}", buffer_address);
 
@@ -38,9 +40,11 @@ pub fn read_buffer_set_correctly() {
     let buffer_tests    = Instance::new(&mut store, &module, &imports).unwrap();
     let memory          = buffer_tests.exports.get_memory("memory").unwrap();
 
-    // Borrow buffer 1
+    // Borrow a buffer to fill
+    let new_buffer      = buffer_tests.exports.get_function("scene_new_buffer").unwrap();
     let borrow_buffer   = buffer_tests.exports.get_function("scene_borrow_buffer").unwrap();
-    let buffer_address  = borrow_buffer.call(&mut store, &[Value::I32(1), Value::I32(4)]).unwrap();
+    let buffer_number   = new_buffer.call(&mut store, &[]).unwrap()[0].clone();
+    let buffer_address  = borrow_buffer.call(&mut store, &[buffer_number.clone(), Value::I32(4)]).unwrap();
 
     // Write 1 2 3 4 to it
     let view = memory.view(&store);
@@ -48,7 +52,7 @@ pub fn read_buffer_set_correctly() {
 
     // Test that the correct value was written
     let buffer_contents_are_1234    = buffer_tests.exports.get_function("buffer_contents_are_1234").unwrap();
-    let was_written                 = buffer_contents_are_1234.call(&mut store, &[]).unwrap();
+    let was_written                 = buffer_contents_are_1234.call(&mut store, &[buffer_number]).unwrap();
 
     assert!(was_written[0].unwrap_i32() != 0, "{:?}", was_written);
 }
@@ -62,9 +66,11 @@ pub fn read_buffer_set_incorrectly() {
     let buffer_tests    = Instance::new(&mut store, &module, &imports).unwrap();
     let memory          = buffer_tests.exports.get_memory("memory").unwrap();
 
-    // Borrow buffer 1
+    // Borrow a buffer to fill
+    let new_buffer      = buffer_tests.exports.get_function("scene_new_buffer").unwrap();
     let borrow_buffer   = buffer_tests.exports.get_function("scene_borrow_buffer").unwrap();
-    let buffer_address  = borrow_buffer.call(&mut store, &[Value::I32(1), Value::I32(4)]).unwrap();
+    let buffer_number   = new_buffer.call(&mut store, &[]).unwrap()[0].clone();
+    let buffer_address  = borrow_buffer.call(&mut store, &[buffer_number.clone(), Value::I32(4)]).unwrap();
 
     // Write 5, 6, 7, 8 to it (setting it to the incorrect values)
     let view = memory.view(&store);
@@ -72,7 +78,7 @@ pub fn read_buffer_set_incorrectly() {
 
     // The test returns false if the buffer contents is not '1, 2, 3, 4'
     let buffer_contents_are_1234    = buffer_tests.exports.get_function("buffer_contents_are_1234").unwrap();
-    let was_written                 = buffer_contents_are_1234.call(&mut store, &[]).unwrap();
+    let was_written                 = buffer_contents_are_1234.call(&mut store, &[buffer_number]).unwrap();
 
     assert!(was_written[0].unwrap_i32() == 0, "{:?}", was_written);
 }
