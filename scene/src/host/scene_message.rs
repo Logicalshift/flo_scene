@@ -203,6 +203,28 @@ pub fn create_default_serializer_filters<TMessage: SceneMessage>() -> Vec<Filter
         filters.chain([to_json, from_json])
     };
 
+    // Convert to and from postcard messages
+    #[cfg(feature="postcard")]
+    let filters = {
+        // Create the standard to/from postcard filters
+        let to_postcard     = serialization_function::<TMessage, SerializedMessage<Postcard>>().unwrap();
+        let from_postcard   = serialization_function::<SerializedMessage<Postcard>, TMessage>().unwrap();
+
+        let to_postcard = FilterHandle::for_filter(move |input_messages| {
+            let to_postcard = Arc::clone(&to_postcard);
+
+            input_messages.flat_map(move |msg| stream::iter((*to_postcard)(msg).ok()))
+        });
+
+        let from_postcard = FilterHandle::for_filter(move |input_messages| {
+            let from_postcard = Arc::clone(&from_postcard);
+
+            input_messages.flat_map(move |msg| stream::iter((*from_postcard)(msg).ok()))
+        });
+
+        filters.chain([to_postcard, from_postcard])
+    };
+
     filters.collect()
 }
 
