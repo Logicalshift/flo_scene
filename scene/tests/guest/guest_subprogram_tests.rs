@@ -114,6 +114,7 @@ fn run_basic_guest_subprogram_json() {
 
 #[test]
 fn run_basic_guest_subprogram_postcard() {
+    // TODO: there is a bug when a deserialization fails somewhere in here (we're awaiting the 'error' future more than once somehow)
     let scene = Scene::default();
 
     let guest_subprogram_id     = SubProgramId::called("Guest subprogram");
