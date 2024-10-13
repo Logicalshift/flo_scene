@@ -2,6 +2,7 @@
 /// Handle that identifies a subprogram running on the guest side
 ///
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct GuestSubProgramHandle(pub usize);
 
 /// The default subprogram handle refers to the initial guest subprogram
