@@ -31,6 +31,7 @@ pub struct WasmModule {
     store:      Store,
     module:     Module,
     instance:   Instance,
+    memory:     Memory,
 
     buffer:     BufferFunctions,
     runtime:    RuntimeFunctions,
@@ -45,11 +46,12 @@ impl WasmModule {
         let module      = Module::new(&store, &module_bytes)?;
         let imports     = Self::bare_imports();
         let instance    = Instance::new(&mut store, &module, &imports)?;
+        let memory      = instance.exports.get_memory("memory").unwrap().clone();
 
         let buffer      = BufferFunctions::from_instance(&instance, &mut store)?;
         let runtime     = RuntimeFunctions::from_instance(&instance, &mut store, "postcard")?;
 
-        Ok(WasmModule { store, module, instance, buffer, runtime })
+        Ok(WasmModule { store, module, instance, memory, buffer, runtime })
     }
 
     ///
@@ -57,6 +59,25 @@ impl WasmModule {
     ///
     fn bare_imports() -> Imports {
         imports! { }
+    }
+
+    ///
+    /// Copies a buffer to the wasm side, and returns the buffer handle
+    ///
+    fn copy_buffer(&mut self, data: Vec<u8>) -> i32 {
+        let buffer  = &self.buffer;
+        let memory  = &self.memory;
+        let store   = &mut self.store;
+
+        // Create a new buffer and borrow it
+        let buffer_handle   = buffer.new_buffer.call(store).unwrap();
+        let buffer_data_ptr = buffer.borrow_buffer.call(store, buffer_handle, data.len() as _).unwrap();
+
+        // Copy the data to the buffer
+        let view = memory.view(&store);
+        view.write(buffer_data_ptr as _, &data).unwrap();
+
+        buffer_handle
     }
 }
 
@@ -106,5 +127,13 @@ mod test {
         let module = WasmModule::load_bare_module(&BUFFER_TESTS_WASM);
 
         assert!(module.is_ok(), "{:?}", module.err());
+    }
+
+    #[test]
+    fn copy_buffer() {
+        // The buffer tests are linked against flo_scene so should load successfully as a module
+        let mut module = WasmModule::load_bare_module(&BUFFER_TESTS_WASM).unwrap();
+
+        module.copy_buffer(vec![1, 2, 3, 4, 5, 6, 7, 8]);
     }
 }
