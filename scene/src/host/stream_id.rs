@@ -245,7 +245,7 @@ impl StreamTypeFunctions {
                         #[cfg(feature="serde_json")]
                         install_serializable_type::<TMessageType, serde_json::Value>().unwrap();
 
-                        #[cfg(feature="postcard")]
+                        #[cfg(any(feature="postcard", target_family="wasm"))]
                         install_serializable_type::<TMessageType, Postcard>().unwrap();
 
                         // Create the filters for this type

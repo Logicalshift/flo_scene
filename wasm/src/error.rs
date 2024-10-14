@@ -7,6 +7,12 @@ use serde::*;
 pub enum WasmSubprogramError {
     /// An uncategorised error with a description of what went wrong
     Description(String),
+
+    /// The buffer functions are not in the wasm program
+    MissingBufferFunctions,
+
+    /// The runtime functions for the requested serialization format were missing
+    MissingRuntimeFunctions,
 }
 
 impl From<wasmer::WasmError> for WasmSubprogramError {

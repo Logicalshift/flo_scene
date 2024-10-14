@@ -103,6 +103,7 @@ mod json_runtime {
     ///
     /// The host should call scene_free_buffer on this buffer
     ///
+    #[no_mangle]
     pub extern "C" fn scene_guest_json_poll_awake(runtime: GuestRuntimeHandle) -> BufferHandle {
         let runtime     = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
         let result      = runtime.poll_awake();
@@ -112,16 +113,16 @@ mod json_runtime {
     }
 }
 
-#[cfg(feature="postcard")]
 pub use postcard_runtime::*;
 
-#[cfg(feature="postcard")]
 mod postcard_runtime {
     use super::*;
     use crate::guest::*;
     use crate::wasm_rt::buffer::*;
 
     use once_cell::sync::{Lazy};
+
+    use postcard;
 
     use std::collections::{HashMap};
     use std::sync::*;
@@ -194,6 +195,7 @@ mod postcard_runtime {
     ///
     /// The host should call scene_free_buffer on this buffer
     ///
+    #[no_mangle]
     pub extern "C" fn scene_guest_postcard_poll_awake(runtime: GuestRuntimeHandle) -> BufferHandle {
         let runtime     = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
         let result      = runtime.poll_awake();

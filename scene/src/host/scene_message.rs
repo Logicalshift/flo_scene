@@ -204,7 +204,7 @@ pub fn create_default_serializer_filters<TMessage: SceneMessage>() -> Vec<Filter
     };
 
     // Convert to and from postcard messages
-    #[cfg(feature="postcard")]
+    #[cfg(any(feature="postcard", target_family="wasm"))]
     let filters = {
         // Create the standard to/from postcard filters
         let to_postcard     = serialization_function::<TMessage, SerializedMessage<Postcard>>().unwrap();

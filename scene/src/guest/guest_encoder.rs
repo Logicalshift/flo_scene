@@ -10,7 +10,7 @@ use futures::prelude::*;
 #[cfg(feature="serde_json")]
 use serde_json;
 
-#[cfg(feature="postcard")]
+#[cfg(any(feature="postcard", target_family="wasm"))]
 use postcard;
 
 ///
@@ -83,11 +83,11 @@ impl GuestMessageEncoder for GuestJsonEncoder {
 ///
 /// Encoder that encodes/decodes postcard messages
 ///
-#[cfg(feature="postcard")]
+#[cfg(any(feature="postcard", target_family="wasm"))]
 #[derive(Clone)]
 pub struct GuestPostcardEncoder;
 
-#[cfg(feature="postcard")]
+#[cfg(any(feature="postcard", target_family="wasm"))]
 impl GuestMessageEncoder for GuestPostcardEncoder {
     #[inline]
     fn encode(&self, message: impl SceneMessage) -> Vec<u8> {

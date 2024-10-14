@@ -45,7 +45,7 @@ static FILTERS_FOR_TYPE: Lazy<Mutex<HashMap<(TypeId, TypeId), Vec<FilterHandle>>
 ///
 /// Bytes in postcard format
 ///
-#[cfg(feature="postcard")]
+#[cfg(any(feature="postcard", target_family="wasm"))]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Postcard(pub Vec<u8>);
 
@@ -93,7 +93,7 @@ where
     }
 }
 
-#[cfg(feature="postcard")]
+#[cfg(any(feature="postcard", target_family="wasm"))]
 impl<TMessage> MessageSerializeAs<Postcard> for TMessage
 where
     TMessage: SceneMessage
