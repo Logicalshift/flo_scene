@@ -65,6 +65,20 @@ pub unsafe extern "C" fn scene_borrow_buffer(buffer_handle: BufferHandle, buffer
 /// Releases a buffer from the host side, freeing the memory it's using and allowing the handle to be re-used
 ///
 #[no_mangle]
+pub unsafe extern "C" fn scene_buffer_size(buffer_handle: BufferHandle) -> usize {
+    let buffers = BUFFERS.lock().unwrap();
+
+    if let Some(buffer) = buffers.get(&buffer_handle) {
+        unsafe { (*buffer.get()).len() }
+    } else {
+        0
+    }
+}
+
+///
+/// Releases a buffer from the host side, freeing the memory it's using and allowing the handle to be re-used
+///
+#[no_mangle]
 pub unsafe extern "C" fn scene_free_buffer(buffer_handle: BufferHandle) {
     let mut buffers = BUFFERS.lock().unwrap();
 

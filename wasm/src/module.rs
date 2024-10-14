@@ -8,9 +8,10 @@ use wasmer::*;
 /// Functions for manipulating buffers on the WASM guest side
 ///
 pub struct BufferFunctions {
-    new_buffer:       TypedFunction<(), i32>,
-    borrow_buffer:    TypedFunction<(i32, i32), i32>,
-    free_buffer:      TypedFunction<i32, ()>,
+    new_buffer:     TypedFunction<(), i32>,
+    borrow_buffer:  TypedFunction<(i32, i32), i32>,
+    buffer_size:    TypedFunction<i32, i32>,
+    free_buffer:    TypedFunction<i32, ()>,
 }
 
 ///
@@ -95,9 +96,10 @@ impl BufferFunctions {
     pub fn from_instance(instance: &Instance, store: &mut Store) -> Result<BufferFunctions, WasmSubprogramError> {
         let new_buffer      = instance.exports.get_function("scene_new_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_new_buffer".into()))?.typed(store).unwrap();
         let borrow_buffer   = instance.exports.get_function("scene_borrow_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_borrow_buffer".into()))?.typed(store).unwrap();
+        let buffer_size     = instance.exports.get_function("scene_buffer_size").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_buffer_size".into()))?.typed(store).unwrap();
         let free_buffer     = instance.exports.get_function("scene_free_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_free_buffer".into()))?.typed(store).unwrap();
 
-        Ok(BufferFunctions { new_buffer, borrow_buffer, free_buffer })
+        Ok(BufferFunctions { new_buffer, borrow_buffer, buffer_size, free_buffer })
     }
 }
 
