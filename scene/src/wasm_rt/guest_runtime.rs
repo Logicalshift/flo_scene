@@ -96,6 +96,20 @@ mod json_runtime {
         let runtime = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
         runtime.sink_send_error(sink, error);
     }
+
+    ///
+    /// Performs the poll_awake runtime operation, filling a buffer, and returning it to the host. The return format is always using the 'postcard' serialziation
+    /// here (messages will be JSON serialized within that)
+    ///
+    /// The host should call scene_free_buffer on this buffer
+    ///
+    pub extern "C" fn scene_guest_json_poll_awake(runtime: GuestRuntimeHandle) -> BufferHandle {
+        let runtime     = GUEST_JSON_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+        let result      = runtime.poll_awake();
+        let serialized  = postcard::to_stdvec(&result).unwrap();
+
+        buffer_store(serialized)
+    }
 }
 
 #[cfg(feature="postcard")]
@@ -172,5 +186,19 @@ mod postcard_runtime {
 
         let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
         runtime.sink_send_error(sink, error);
+    }
+
+    ///
+    /// Performs the poll_awake runtime operation, filling a buffer, and returning it to the host. The return format is always using the 'postcard' serialziation
+    /// here.
+    ///
+    /// The host should call scene_free_buffer on this buffer
+    ///
+    pub extern "C" fn scene_guest_postcard_poll_awake(runtime: GuestRuntimeHandle) -> BufferHandle {
+        let runtime     = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+        let result      = runtime.poll_awake();
+        let serialized  = postcard::to_stdvec(&result).unwrap();
+
+        buffer_store(serialized)
     }
 }
