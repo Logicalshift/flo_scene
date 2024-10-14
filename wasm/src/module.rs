@@ -75,17 +75,42 @@ impl WasmModule {
         let buffer_data_ptr = buffer.borrow_buffer.call(store, buffer_handle, data.len() as _).unwrap();
 
         // Copy the data to the buffer
-        let view = memory.view(&store);
+        let view = memory.view(store);
         view.write(buffer_data_ptr as _, &data).unwrap();
 
         buffer_handle
     }
 
     ///
-    /// Reads a buffer from the wasm
+    /// Receives a buffer from the wasm
     ///
-    fn read_buffer(&mut self, buffer_handle: i32) -> Vec<u8> {
-        todo!()
+    fn receive_buffer(&mut self, buffer_handle: i32) -> Vec<u8> {
+        let buffer  = &self.buffer;
+        let memory  = &self.memory;
+        let store   = &mut self.store;
+
+        let buffer_size = buffer.buffer_size.call(store, buffer_handle).unwrap();
+
+        let result = if buffer_size > 0 {
+            // Borrow the buffer
+            let buffer_data_ptr = buffer.borrow_buffer.call(store, buffer_handle, buffer_size).unwrap();
+
+            // Read the bytes from memory into a new vec
+            let buffer_size = buffer_size as usize;
+            let view        = memory.view(&store);
+            let mut result  = vec![0; buffer_size];
+
+            view.read(buffer_data_ptr as _, &mut result).unwrap();
+
+            result
+        } else {
+            vec![]
+        };
+
+        // Release the buffer after 
+        buffer.free_buffer.call(store, buffer_handle).unwrap();
+
+        result
     }
 }
 
@@ -144,5 +169,16 @@ mod test {
         let mut module = WasmModule::load_bare_module(&BUFFER_TESTS_WASM).unwrap();
 
         module.copy_buffer(vec![1, 2, 3, 4, 5, 6, 7, 8]);
+    }
+
+    #[test]
+    fn receive_buffer() {
+        // The buffer tests are linked against flo_scene so should load successfully as a module
+        let mut module = WasmModule::load_bare_module(&BUFFER_TESTS_WASM).unwrap();
+
+        let handle      = module.copy_buffer(vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        let contents    = module.receive_buffer(handle);
+
+        assert!(contents == vec![1, 2, 3, 4, 5, 6, 7, 8]);
     }
 }
