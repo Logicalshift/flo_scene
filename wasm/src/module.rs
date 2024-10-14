@@ -79,6 +79,13 @@ impl WasmModule {
 
         buffer_handle
     }
+
+    ///
+    /// Reads a buffer from the wasm
+    ///
+    fn read_buffer(&mut self, buffer_handle: i32) -> Vec<u8> {
+        todo!()
+    }
 }
 
 impl BufferFunctions {
