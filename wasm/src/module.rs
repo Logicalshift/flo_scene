@@ -1,14 +1,16 @@
 use crate::error::*;
 
+use flo_scene::guest::*;
+
 use wasmer::*;
 
 ///
 /// Functions for manipulating buffers on the WASM guest side
 ///
 pub struct BufferFunctions {
-    new_buffer:       Function,
-    borrow_buffer:    Function,
-    free_buffer:      Function,
+    new_buffer:       TypedFunction<(), i32>,
+    borrow_buffer:    TypedFunction<(i32, i32), i32>,
+    free_buffer:      TypedFunction<i32, ()>,
 }
 
 ///
@@ -44,7 +46,7 @@ impl WasmModule {
         let imports     = Self::bare_imports();
         let instance    = Instance::new(&mut store, &module, &imports)?;
 
-        let buffer      = BufferFunctions::from_instance(&instance)?;
+        let buffer      = BufferFunctions::from_instance(&instance, &mut store)?;
         let runtime     = RuntimeFunctions::from_instance(&instance, "postcard")?;
 
         Ok(WasmModule { store, module, instance, buffer, runtime })
@@ -62,10 +64,10 @@ impl BufferFunctions {
     ///
     /// Imports the buffer functions from the specified instance
     ///
-    pub fn from_instance(instance: &Instance) -> Result<BufferFunctions, WasmSubprogramError> {
-        let new_buffer      = instance.exports.get_function("scene_new_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_new_buffer".into()))?.clone();
-        let borrow_buffer   = instance.exports.get_function("scene_borrow_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_borrow_buffer".into()))?.clone();
-        let free_buffer     = instance.exports.get_function("scene_free_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_free_buffer".into()))?.clone();
+    pub fn from_instance(instance: &Instance, store: &mut Store) -> Result<BufferFunctions, WasmSubprogramError> {
+        let new_buffer      = instance.exports.get_function("scene_new_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_new_buffer".into()))?.typed(store).unwrap();
+        let borrow_buffer   = instance.exports.get_function("scene_borrow_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_borrow_buffer".into()))?.typed(store).unwrap();
+        let free_buffer     = instance.exports.get_function("scene_free_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_free_buffer".into()))?.typed(store).unwrap();
 
         Ok(BufferFunctions { new_buffer, borrow_buffer, free_buffer })
     }
