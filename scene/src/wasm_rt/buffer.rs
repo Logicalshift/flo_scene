@@ -6,7 +6,8 @@ use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static BUFFERS: Lazy<Mutex<HashMap<BufferHandle, UnsafeCell<Vec<u8>>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-static NEXT_BUFFER: AtomicUsize = AtomicUsize::new(0);
+static FREE_BUFFERS: Lazy<Mutex<Vec<BufferHandle>>>                     = Lazy::new(|| Mutex::new(vec![]));
+static NEXT_BUFFER: AtomicUsize                                         = AtomicUsize::new(0);
 
 ///
 /// Handle to a buffer in a scene (these are used for transferring data to and from a webassembly module)
@@ -30,7 +31,11 @@ impl BufferHandle {
 ///
 #[no_mangle]
 pub unsafe extern "C" fn scene_new_buffer() -> BufferHandle {
-    BufferHandle::new()
+    if let Some(reused_handle) = FREE_BUFFERS.lock().unwrap().pop() {
+        reused_handle
+    } else {
+        BufferHandle::new()
+    }
 }
 
 ///
@@ -57,6 +62,19 @@ pub unsafe extern "C" fn scene_borrow_buffer(buffer_handle: BufferHandle, buffer
 }
 
 ///
+/// Releases a buffer from the host side, freeing the memory it's using and allowing the handle to be re-used
+///
+#[no_mangle]
+pub unsafe extern "C" fn scene_free_buffer(buffer_handle: BufferHandle) {
+    let mut buffers = BUFFERS.lock().unwrap();
+
+    if let Some(_) = buffers.remove(&buffer_handle) {
+        // Add to the set of free buffers so we'll re-use this handle
+        FREE_BUFFERS.lock().unwrap().push(buffer_handle);
+    }
+}
+
+///
 /// Claims a buffer from the native side
 ///
 pub fn claim_buffer(buffer_handle: BufferHandle) -> Vec<u8> {
@@ -64,6 +82,9 @@ pub fn claim_buffer(buffer_handle: BufferHandle) -> Vec<u8> {
 
     // Remove the buffer from the hashmap and return it after unwrapping it from its cell
     if let Some(buffer) = buffers.remove(&buffer_handle) {
+        // Add to the set of free buffers so we'll re-use this handle
+        FREE_BUFFERS.lock().unwrap().push(buffer_handle);
+
         buffer.into_inner()
     } else {
         vec![]
