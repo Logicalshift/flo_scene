@@ -44,8 +44,8 @@ impl WasmModule {
         let imports     = Self::bare_imports();
         let instance    = Instance::new(&mut store, &module, &imports)?;
 
-        let buffer      = BufferFunctions::from_instance(&instance).ok_or(WasmSubprogramError::MissingBufferFunctions)?;
-        let runtime     = RuntimeFunctions::from_instance(&instance, "postcard").ok_or(WasmSubprogramError::MissingRuntimeFunctions)?;
+        let buffer      = BufferFunctions::from_instance(&instance)?;
+        let runtime     = RuntimeFunctions::from_instance(&instance, "postcard")?;
 
         Ok(WasmModule { store, module, instance, buffer, runtime })
     }
@@ -62,12 +62,12 @@ impl BufferFunctions {
     ///
     /// Imports the buffer functions from the specified instance
     ///
-    pub fn from_instance(instance: &Instance) -> Option<BufferFunctions> {
-        let new_buffer      = instance.exports.get_function("scene_new_buffer").ok()?.clone();
-        let borrow_buffer   = instance.exports.get_function("scene_borrow_buffer").ok()?.clone();
-        let free_buffer     = instance.exports.get_function("scene_free_buffer").ok()?.clone();
+    pub fn from_instance(instance: &Instance) -> Result<BufferFunctions, WasmSubprogramError> {
+        let new_buffer      = instance.exports.get_function("scene_new_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_new_buffer".into()))?.clone();
+        let borrow_buffer   = instance.exports.get_function("scene_borrow_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_borrow_buffer".into()))?.clone();
+        let free_buffer     = instance.exports.get_function("scene_free_buffer").map_err(|_| WasmSubprogramError::MissingBufferFunction("scene_free_buffer".into()))?.clone();
 
-        Some(BufferFunctions { new_buffer, borrow_buffer, free_buffer })
+        Ok(BufferFunctions { new_buffer, borrow_buffer, free_buffer })
     }
 }
 
@@ -75,14 +75,14 @@ impl RuntimeFunctions {
     ///
     /// Imports the runtime functions from the specified instance, for the specified serialization format
     ///
-    pub fn from_instance(instance: &Instance, serialization_format: &str) -> Option<RuntimeFunctions> {
-        let send_message            = instance.exports.get_function(&format!("scene_guest_{}_send_message", serialization_format)).ok()?.clone();
-        let sink_ready              = instance.exports.get_function(&format!("scene_guest_{}_sink_ready", serialization_format)).ok()?.clone();
-        let sink_connection_error   = instance.exports.get_function(&format!("scene_guest_{}_sink_connection_error", serialization_format)).ok()?.clone();
-        let sink_send_error         = instance.exports.get_function(&format!("scene_guest_{}_sink_send_error", serialization_format)).ok()?.clone();
-        let poll_awake              = instance.exports.get_function(&format!("scene_guest_{}_poll_awake", serialization_format)).ok()?.clone();
+    pub fn from_instance(instance: &Instance, serialization_format: &str) -> Result<RuntimeFunctions, WasmSubprogramError> {
+        let send_message            = instance.exports.get_function(&format!("scene_guest_{}_send_message", serialization_format)).map_err(|_| WasmSubprogramError::MissingRuntimeFunction(format!("scene_guest_{}_send_message", serialization_format)))?.clone();
+        let sink_ready              = instance.exports.get_function(&format!("scene_guest_{}_sink_ready", serialization_format)).map_err(|_| WasmSubprogramError::MissingRuntimeFunction(format!("scene_guest_{}_sink_ready", serialization_format)))?.clone();
+        let sink_connection_error   = instance.exports.get_function(&format!("scene_guest_{}_sink_connection_error", serialization_format)).map_err(|_| WasmSubprogramError::MissingRuntimeFunction(format!("scene_guest_{}_sink_connection_error", serialization_format)))?.clone();
+        let sink_send_error         = instance.exports.get_function(&format!("scene_guest_{}_sink_send_error", serialization_format)).map_err(|_| WasmSubprogramError::MissingRuntimeFunction(format!("scene_guest_{}_sink_send_error", serialization_format)))?.clone();
+        let poll_awake              = instance.exports.get_function(&format!("scene_guest_{}_poll_awake", serialization_format)).map_err(|_| WasmSubprogramError::MissingRuntimeFunction(format!("scene_guest_{}_poll_awake", serialization_format)))?.clone();
 
-        Some(RuntimeFunctions { 
+        Ok(RuntimeFunctions { 
             send_message,
             sink_ready,
             sink_connection_error,

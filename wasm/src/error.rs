@@ -9,10 +9,10 @@ pub enum WasmSubprogramError {
     Description(String),
 
     /// The buffer functions are not in the wasm program
-    MissingBufferFunctions,
+    MissingBufferFunction(String),
 
     /// The runtime functions for the requested serialization format were missing
-    MissingRuntimeFunctions,
+    MissingRuntimeFunction(String),
 }
 
 impl From<wasmer::WasmError> for WasmSubprogramError {
