@@ -112,6 +112,23 @@ impl WasmModule {
 
         result
     }
+
+    ///
+    /// Sends a message to the runtime in the wasm module
+    ///
+    pub fn send_message(&mut self, runtime: GuestRuntimeHandle, target: GuestSubProgramHandle, data: Vec<u8>) {
+        // Send the data to the target
+        let data_handle = self.copy_buffer(data);
+
+        // Convert the runtime and target IDs to i32s
+        let runtime_id = runtime.0 as i32;
+        let target_id  = target.0 as i32;
+
+        // Tell the runtime to send the message
+        let store   = &mut self.store;
+        let runtime = &self.runtime;
+        runtime.send_message.call(store, runtime_id, target_id, data_handle).unwrap();
+    }
 }
 
 impl BufferFunctions {
