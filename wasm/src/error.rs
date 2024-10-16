@@ -13,6 +13,12 @@ pub enum WasmSubprogramError {
 
     /// The runtime functions for the requested serialization format were missing
     MissingRuntimeFunction(String),
+
+    /// The subprogram start function was missing
+    MissingStartFunction(String),
+
+    /// The start function could not be called
+    CouldNotCallStartFunction(String, String),
 }
 
 impl From<wasmer::WasmError> for WasmSubprogramError {
