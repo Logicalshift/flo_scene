@@ -1,6 +1,7 @@
 [workspace]
 members     = [
     "buffer_tests",
+    "subprogram_test",
 ]
 resolver    = "2"
 
