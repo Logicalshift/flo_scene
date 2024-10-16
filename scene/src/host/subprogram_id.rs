@@ -133,6 +133,18 @@ impl SubProgramId {
             SubProgramIdValue::GuidTask(parent, _)                      => Some(SubProgramId(SubProgramIdValue::Guid(*parent))),
         }
     }
+
+    ///
+    /// Creates a string name for this subprogram
+    ///
+    pub fn to_string(&self) -> String {
+        match &self.0 {
+            SubProgramIdValue::Guid(guid)                   => format!("{}", guid),
+            SubProgramIdValue::Named(name_idx)              => format!("{}", name_for_id(*name_idx).unwrap()),
+            SubProgramIdValue::GuidTask(guid, task_idx)     => format!("{}.task({})", guid, task_idx),
+            SubProgramIdValue::NamedTask(name_idx,task_idx) => format!("{}.task({})", name_for_id(*name_idx).unwrap(), task_idx),
+        }
+    }
 }
 
 impl Debug for SubProgramId {
