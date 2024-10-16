@@ -66,6 +66,7 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
 
                             // TODO: notify the update stream that we're running
                             // TODO: way to notify the update stream that we've finished running
+                            // TODO: way to use other encodings
                         }
 
                         Err(err) => {
