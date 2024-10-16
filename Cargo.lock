@@ -515,6 +515,7 @@ version = "0.2.0"
 dependencies = [
  "flo_scene",
  "futures",
+ "postcard",
  "serde",
  "uuid",
  "wasmer",

@@ -2,6 +2,7 @@ use crate::error::*;
 
 use flo_scene::guest::*;
 
+use postcard;
 use wasmer::*;
 
 ///
@@ -128,6 +129,72 @@ impl WasmModule {
         let store   = &mut self.store;
         let runtime = &self.runtime;
         runtime.send_message.call(store, runtime_id, target_id, data_handle).unwrap();
+    }
+
+    ///
+    /// Indicates that a sink is ready to the runtime
+    ///
+    pub fn sink_ready(&mut self, runtime: GuestRuntimeHandle, sink: HostSinkHandle) {
+        // Convert the runtime and target IDs to i32s
+        let runtime_id = runtime.0 as i32;
+        let sink_id    = sink.0 as i32;
+
+        // Tell the runtime that the sink is ready
+        let store   = &mut self.store;
+        let runtime = &self.runtime;
+        runtime.sink_ready.call(store, runtime_id, sink_id).unwrap();
+    }
+
+    ///
+    /// Indicates that an error occurred while connecting a sink
+    ///
+    pub fn sink_connection_error(&mut self, runtime: GuestRuntimeHandle, sink: HostSinkHandle, error: Vec<u8>) {
+        // Send the data to the target
+        let error_handle = self.copy_buffer(error);
+
+        // Convert the runtime and target IDs to i32s
+        let runtime_id = runtime.0 as i32;
+        let sink_id    = sink.0 as i32;
+
+        // Tell the runtime that the sink has a connection error
+        let store   = &mut self.store;
+        let runtime = &self.runtime;
+        runtime.sink_connection_error.call(store, runtime_id, sink_id, error_handle).unwrap();
+    }
+
+    ///
+    /// Indicates that an error occurred while sending to a sink
+    ///
+    pub fn sink_send_error(&mut self, runtime: GuestRuntimeHandle, sink: HostSinkHandle, error: Vec<u8>) {
+        // Send the data to the target
+        let error_handle = self.copy_buffer(error);
+
+        // Convert the runtime and target IDs to i32s
+        let runtime_id = runtime.0 as i32;
+        let sink_id    = sink.0 as i32;
+
+        // Tell the runtime that the sink has a send error
+        let store   = &mut self.store;
+        let runtime = &self.runtime;
+        runtime.sink_send_error.call(store, runtime_id, sink_id, error_handle).unwrap();
+    }
+
+    ///
+    /// Polls the runtime, and returns the actions to perform on the host side
+    ///
+    /// This needs to be called after sending any of the other actions as this will actually 
+    ///
+    pub fn poll_awake(&mut self, runtime: GuestRuntimeHandle) -> GuestResult {
+        let runtime_id = runtime.0 as i32;
+
+        // Poll the runtime
+        let store           = &mut self.store;
+        let runtime         = &self.runtime;
+        let result_buffer   = runtime.poll_awake.call(store, runtime_id).unwrap();
+
+        // Result will always use the postcard encoding (but may have messages wrapped in another encoding)
+        let result_buffer = self.receive_buffer(result_buffer);
+        postcard::from_bytes(&result_buffer).unwrap()
     }
 }
 
