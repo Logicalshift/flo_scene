@@ -1,7 +1,10 @@
-use super::module::*;
-use super::wasm_control::*;
+use crate::control_streams::*;
+use crate::module::*;
+use crate::wasm_control::*;
 
 use flo_scene::*;
+use flo_scene::guest::*;
+use flo_scene::programs::*;
 
 use futures::prelude::*;
 
@@ -60,13 +63,19 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
 
                     match runtime {
                         Ok(runtime) => {
-                            // TODO: Create streams to run the program
+                            // Create streams to run the program
+                            let (actions, results) = create_module_streams(module, runtime);
 
-                            // TODO: run as a subprogram via the streams
+                            // Run as a subprogram via the streams
+                            // TODO: way to set up the input stream properly here
+                            context.send_message(SceneControl::start_program(program_id, move |input: InputStream<()>, context| async move {
+                                run_host_subprogram(input, context, GuestPostcardEncoder, actions, results).await;
+                            }, 20)).await.unwrap();
 
                             // TODO: notify the update stream that we're running
                             // TODO: way to notify the update stream that we've finished running
                             // TODO: way to use other encodings
+                            // TODO: way to configure the input buffer size (we're just using 20 at the moment)
                         }
 
                         Err(err) => {
