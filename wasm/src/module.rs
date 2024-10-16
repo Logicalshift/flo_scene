@@ -185,7 +185,7 @@ impl WasmModule {
     ///
     /// This needs to be called after sending any of the other actions as this will actually 
     ///
-    pub fn poll_awake(&mut self, runtime: GuestRuntimeHandle) -> GuestResult {
+    pub fn poll_awake(&mut self, runtime: GuestRuntimeHandle) -> Vec<GuestResult> {
         let runtime_id = runtime.0 as i32;
 
         // Poll the runtime
@@ -196,6 +196,20 @@ impl WasmModule {
         // Result will always use the postcard encoding (but may have messages wrapped in another encoding)
         let result_buffer = self.receive_buffer(result_buffer);
         postcard::from_bytes(&result_buffer).unwrap()
+    }
+
+    ///
+    /// Processes a single action in this runtime (note that `poll_awake()` needs to be called after this to actually execute the runtime)
+    ///
+    pub fn process(&mut self, runtime: GuestRuntimeHandle, action: GuestAction) {
+        use GuestAction::*;
+
+        match action {
+            SendMessage(sub_program, message)       => { self.send_message(runtime, sub_program, message) }
+            Ready(sink_handle)                      => { self.sink_ready(runtime, sink_handle) },
+            SinkConnectionError(sink_handle, error) => { self.sink_connection_error(runtime, sink_handle, postcard::to_stdvec(&error).unwrap()) },
+            SinkError(sink_handle, error)           => { self.sink_send_error(runtime, sink_handle, postcard::to_stdvec(&error).unwrap()) }
+        }
     }
 
     ///
