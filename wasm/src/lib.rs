@@ -69,6 +69,7 @@
 // functions that match a particular name/type signature.
 //
 
+mod control_streams;
 mod control_subprogram;
 mod error;
 mod module;
