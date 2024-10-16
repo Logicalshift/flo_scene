@@ -25,6 +25,9 @@ pub enum WasmUpdate {
     /// Tried to load a module but there was a problem
     CouldNotLoadModule(WasmModuleId, WasmSubprogramError),
 
+    /// A subprogram could not be started for some reason
+    CouldNotStartSubProgram(WasmModuleId, SubProgramId, WasmSubprogramError),
+
     /// A `LoadModule` command was successful
     ModuleLoaded(WasmModuleId),
 

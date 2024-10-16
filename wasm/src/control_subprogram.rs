@@ -50,20 +50,30 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
             }
 
             RunModule(module_id, program_id) => {
-                if let (Some(module), Some(update_stream)) = (modules.get(&module_id), targets.get(&module_id)) {
+                if let (Some(module), Some(update_target)) = (modules.get(&module_id), targets.get(&module_id)) {
                     // Obtain our own copies of the module and the update stream
                     let module          = Arc::clone(module);
-                    let update_stream   = update_stream.clone();
+                    let update_stream   = update_target.clone().and_then(|target| context.send(target).ok());
 
                     // Start the module running
-                    // let runtime = module.start_runtime(program_id);
+                    let runtime = module.lock().unwrap().start_guest(program_id);
 
-                    // TODO: Create streams to run the program
+                    match runtime {
+                        Ok(runtime) => {
+                            // TODO: Create streams to run the program
 
-                    // TODO: run as a subprogram via the streams
+                            // TODO: run as a subprogram via the streams
 
-                    // TODO: notify the update stream that we're running
-                    // TODO: way to notify the update stream that we've finished running
+                            // TODO: notify the update stream that we're running
+                            // TODO: way to notify the update stream that we've finished running
+                        }
+
+                        Err(err) => {
+                            if let Some(mut update_stream) = update_stream {
+                                update_stream.send(WasmUpdate::CouldNotStartSubProgram(module_id, program_id, err)).await.ok();
+                            }
+                        }
+                    }
                 } else {
                     // Module is not loaded (TODO: need to send this as an error somewhere)
                 }
