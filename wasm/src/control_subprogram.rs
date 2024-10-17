@@ -66,16 +66,47 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
                             // Create streams to run the program
                             let (actions, results) = create_module_streams(module, runtime);
 
-                            // Run as a subprogram via the streams
-                            // TODO: way to set up the input stream properly here
-                            context.send_message(SceneControl::start_program(program_id, move |input: InputStream<()>, context| async move {
-                                run_host_subprogram(input, context, GuestPostcardEncoder, actions, results).await;
-                            }, 20)).await.unwrap();
+                            // Read results until we see the subprogram start
+                            let mut results         = results;
+                            let mut program_handle  = None;
+                            let mut stream_id       = None;
+                            while let Some(msg) = results.next().await {
+                                match msg {
+                                    GuestResult::CreateSubprogram(main_program_id, main_program_handle, host_stream_id) => {
+                                        if main_program_id != program_id {
+                                            // The program that started was different to the one we expected
+                                        }
 
-                            // TODO: notify the update stream that we're running
-                            // TODO: way to notify the update stream that we've finished running
-                            // TODO: way to use other encodings
-                            // TODO: way to configure the input buffer size (we're just using 20 at the moment)
+                                        program_handle  = Some(main_program_handle);
+                                        stream_id       = Some(host_stream_id);
+
+                                        break;
+                                    }
+
+                                    // Can't process any other messages
+                                    _ => { }
+                                }
+                            }
+
+                            if let (Some(program_handle), Some(stream_id)) = (program_handle, stream_id) {
+                                // Add the 'start' message back to the results stream
+                                let results = stream::once(future::ready(GuestResult::CreateSubprogram(program_id, program_handle, stream_id.clone())))
+                                    .chain(results);
+
+                                // Run as a subprogram via the streams
+                                // TODO: use the host stream ID to determine the input type here
+                                context.send_message(SceneControl::start_program(program_id, move |input: InputStream<()>, context| async move {
+                                    run_host_subprogram(input, context, GuestPostcardEncoder, actions, results).await;
+                                }, 20)).await.unwrap();
+
+                                // TODO: notify the update stream that we're running
+                                // TODO: way to notify the update stream that we've finished running
+                                // TODO: way to use other encodings
+                                // TODO: way to configure the input buffer size (we're just using 20 at the moment)
+                            } else {
+                                // The main program failed to start
+                                todo!();
+                            }
                         }
 
                         Err(err) => {
