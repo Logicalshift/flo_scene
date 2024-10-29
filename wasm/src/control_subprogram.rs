@@ -88,16 +88,25 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
                                 }
                             }
 
-                            if let (Some(program_handle), Some(stream_id)) = (program_handle, stream_id) {
+                            if let (Some(program_handle), Some(guest_stream_id)) = (program_handle, stream_id) {
                                 // Add the 'start' message back to the results stream
-                                let results = stream::once(future::ready(GuestResult::CreateSubprogram(program_id, program_handle, stream_id.clone())))
+                                let results = stream::once(future::ready(GuestResult::CreateSubprogram(program_id, program_handle, guest_stream_id.clone())))
                                     .chain(results);
 
                                 // Run as a subprogram via the streams
-                                // TODO: use the host stream ID to determine the input type here
-                                context.send_message(SceneControl::start_program(program_id, move |input: InputStream<()>, context| async move {
-                                    run_host_subprogram(input, context, GuestPostcardEncoder, actions, results).await;
-                                }, 20)).await.unwrap();
+                                let host_stream_id = StreamId::with_serialization_type(guest_stream_id.0);
+                                if let Some(host_stream_id) = host_stream_id {
+                                    if let Ok(start_message) = host_stream_id.run_host_subprogram_postcard(program_id, 20, actions, results) {
+                                        // TODO: it's possible that this will fail as well if the control program is not running
+                                        context.send_message(start_message).await.ok();
+                                    } else {
+                                        todo!("Could not create message for some reason");
+                                    }
+                                } else {
+                                    // TODO: we can still run the subprogram anonymously if we have a way to pass on encoded messages of the appropriate type (this needs a new way to identify streams though)
+                                    // TODO: alternatively, report an error
+                                    todo!("No known stream ID for this program")
+                                }
 
                                 // TODO: notify the update stream that we're running
                                 // TODO: way to notify the update stream that we've finished running
@@ -105,7 +114,7 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
                                 // TODO: way to configure the input buffer size (we're just using 20 at the moment)
                             } else {
                                 // The main program failed to start
-                                todo!();
+                                todo!("Program failed to start for some reason");
                             }
                         }
 
