@@ -44,15 +44,19 @@ pub fn send_and_receive_single_message() {
 
     // Start a WASM subprogram (there's a default WASM control program that will start if we use the message type, so we just need a program that makes a request to start it up)
     scene.add_subprogram(start_program_id, |_input: InputStream<()>, context| async move {
-        // Load the module and start the subprogram
-        context.send_message(WasmControl::LoadModule(wasm_module_id, (*SUBPROGRAM_TEST_WASM).into(), None)).await.unwrap();
+        // Load the module and start the subprogram (we have two messages here as this gives us a way to start many subprograms)
+        context.send_message(WasmControl::LoadModule(wasm_module_id, (*SUBPROGRAM_TEST_WASM).into(), Some(test_program_id.into()))).await.unwrap();
         context.send_message(WasmControl::RunModule(wasm_module_id, wasm_program_id)).await.unwrap();
+
+        println!("Started subprogram");
 
         // Should be able to send messages to it now (the program relays them to the default target, which is our test program)
         let mut wasm_target = context.send(wasm_program_id).unwrap();
 
         wasm_target.send(SampleMessage { value: "Hello".into() }).await.unwrap();
         wasm_target.send(SampleMessage { value: "Goodbyte".into() }).await.unwrap();
+
+        println!("Sent messages");
     }, 0);
 
     TestBuilder::new()
