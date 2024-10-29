@@ -34,7 +34,7 @@ type DefaultTargetFn            = Arc<dyn Send + Sync + Fn() -> StreamTarget>;
 type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>>;
 type ReconnectSinkFn            = Arc<dyn Send + Sync + Fn(&Arc<Mutex<SceneCore>>, &Arc<dyn Send + Sync + Any>, SubProgramId, StreamTarget) -> Result<Option<Waker>, ConnectionError>>;
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
-type RunHostSubProgramFn        = Arc<dyn Send + Sync + Fn(Sender<GuestAction>, BoxStream<'static, GuestResult>) -> SceneControl>;
+type RunHostSubProgramFn        = Arc<dyn Send + Sync + Fn(SubProgramId, usize, Sender<GuestAction>, BoxStream<'static, GuestResult>) -> SceneControl>;
 
 ///
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
@@ -66,6 +66,12 @@ struct StreamTypeFunctions {
 
     /// Reconnects an output sink core to an input stream
     reconnect_sink: ReconnectSinkFn,
+
+    /// Runs a host subprogram using this stream type as input and the postcard encoder
+    run_host_subprogram_postcard: RunHostSubProgramFn,
+
+    /// Runs a host subprogram using this stream type as input and the json encoder
+    run_host_subprogram_json: RunHostSubProgramFn,
 
     /// Initialises the message type inside a scene
     initialise: InitialiseFn,
@@ -234,6 +240,16 @@ impl StreamTypeFunctions {
 
                 Ok(waker)
             }),
+
+            run_host_subprogram_postcard: Arc::new(|program_id, max_waiting, actions, results| 
+                SceneControl::start_program(program_id, move |input: InputStream<TMessageType>, context| async move {
+                    run_host_subprogram(input, context, GuestPostcardEncoder, actions, results).await; 
+                }, max_waiting)),
+
+            run_host_subprogram_json: Arc::new(|program_id, max_waiting, actions, results| 
+                SceneControl::start_program(program_id, move |input: InputStream<TMessageType>, context| async move {
+                    run_host_subprogram(input, context, GuestJsonEncoder, actions, results).await; 
+                }, max_waiting)),
 
             initialise: Arc::new(move |scene| {
                 use std::mem;
