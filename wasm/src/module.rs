@@ -47,7 +47,7 @@ impl WasmModule {
     pub fn load_bare_module(module_bytes: &[u8]) -> Result<Self, WasmSubprogramError> {
         let mut store   = Store::default();
         let module      = Module::new(&store, &module_bytes)?;
-        let imports     = Self::bare_imports();
+        let imports     = Self::bare_imports(&mut store);
         let instance    = Instance::new(&mut store, &module, &imports)?;
         let memory      = instance.exports.get_memory("memory").unwrap().clone();
 
@@ -60,8 +60,14 @@ impl WasmModule {
     ///
     /// The default set of imports for a 'bare' module
     ///
-    fn bare_imports() -> Imports {
-        imports! { }
+    fn bare_imports(store: &mut Store) -> Imports {
+        imports! {
+            "env" => {
+                "scene_request_new_uuid" => Function::new_typed(store, |uid_adr: i32| {
+                    // TODO
+                }),
+            }
+        }
     }
 
     ///
