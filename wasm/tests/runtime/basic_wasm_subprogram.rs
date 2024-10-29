@@ -41,6 +41,7 @@ pub fn send_and_receive_single_message() {
 
     // Send any messages sent to the default target to the test subprogram
     scene.connect_programs((), test_program_id, StreamId::with_message_type::<SampleMessage>()).unwrap();
+    scene.connect_programs((), test_program_id, StreamId::with_message_type::<WasmUpdate>()).unwrap();
 
     // Start a WASM subprogram (there's a default WASM control program that will start if we use the message type, so we just need a program that makes a request to start it up)
     scene.add_subprogram(start_program_id, |_input: InputStream<()>, context| async move {
@@ -60,6 +61,7 @@ pub fn send_and_receive_single_message() {
     }, 0);
 
     TestBuilder::new()
+        .expect_message(|loaded_module: WasmUpdate| { if let WasmUpdate::ModuleLoaded(_) = loaded_module { Ok(()) } else { Err(format!("Unexpected update: {:?}", loaded_module)) } })
         .expect_message(|msg1: SampleMessage| { if &msg1.value == "Hello" { Ok(()) } else { Err(format!("Received wrong message ({})", msg1.value)) } })
         .expect_message(|msg2: SampleMessage| { if &msg2.value == "Goodbyte" { Ok(()) } else { Err(format!("Received wrong message ({})", msg2.value)) } })
         .run_in_scene(&scene, test_program_id);
