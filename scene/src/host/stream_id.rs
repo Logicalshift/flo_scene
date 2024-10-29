@@ -9,7 +9,11 @@ use crate::host::serialization::*;
 use crate::host::stream_source::*;
 use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
+use crate::programs::{SceneControl};
+use crate::guest::*;
 
+use futures::channel::mpsc::{Sender};
+use futures::stream::{BoxStream};
 use futures::task::{Waker};
 use once_cell::sync::{Lazy};
 
@@ -30,6 +34,7 @@ type DefaultTargetFn            = Arc<dyn Send + Sync + Fn() -> StreamTarget>;
 type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>>;
 type ReconnectSinkFn            = Arc<dyn Send + Sync + Fn(&Arc<Mutex<SceneCore>>, &Arc<dyn Send + Sync + Any>, SubProgramId, StreamTarget) -> Result<Option<Waker>, ConnectionError>>;
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
+type RunHostSubProgramFn        = Arc<dyn Send + Sync + Fn(Sender<GuestAction>, BoxStream<'static, GuestResult>) -> SceneControl>;
 
 ///
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
