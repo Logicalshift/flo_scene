@@ -1,5 +1,6 @@
 use crate::error::*;
 use crate::module_id::*;
+use crate::control_subprogram::*;
 
 use flo_scene::*;
 
@@ -36,6 +37,17 @@ pub enum WasmUpdate {
 }
 
 impl SceneMessage for WasmControl {
+    fn default_target() -> StreamTarget {
+        StreamTarget::Program(SubProgramId::called("flo_scene_wasm::control"))
+    }
+
+    fn initialise(scene: &Scene) {
+        // Connect to the default subprogram by default
+        scene.connect_programs((), Self::default_target(), StreamId::with_message_type::<Self>()).unwrap();
+
+        // Run the default subprogram at this location
+        scene.add_subprogram(Self::default_target().target_sub_program().unwrap(), |input, context| wasm_control_subprogram(input, context), 1);
+    }
 }
 
 impl SceneMessage for WasmUpdate {
