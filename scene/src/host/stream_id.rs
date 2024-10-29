@@ -12,6 +12,7 @@ use crate::host::subprogram_id::*;
 use crate::programs::{SceneControl};
 use crate::guest::*;
 
+use futures::prelude::*;
 use futures::channel::mpsc::{Sender};
 use futures::stream::{BoxStream};
 use futures::task::{Waker};
@@ -376,6 +377,20 @@ impl StreamTypeFunctions {
             .map(|all_functions| Arc::clone(&all_functions.reconnect_sink))
     }
 
+    pub fn run_host_subprogram_postcard(type_id: &TypeId) -> Option<RunHostSubProgramFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.run_host_subprogram_postcard))
+    }
+
+    pub fn run_host_subprogram_json(type_id: &TypeId) -> Option<RunHostSubProgramFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.run_host_subprogram_json))
+    }
+
     pub fn initialise(type_id: &TypeId) -> Option<InitialiseFn> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
@@ -610,6 +625,34 @@ impl StreamId {
 
         if let Some(reconnect_output_sink) = StreamTypeFunctions::reconnect_output_sink(&message_type) {
             (reconnect_output_sink)(scene_core, output_sink_core, source_program, new_target)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Returns the scene control message required to start a guest host subprogram using the postcard encoding for messages 
+    ///
+    pub fn run_host_subprogram_postcard(&self, program_id: SubProgramId, max_input_waiting: usize, actions: Sender<GuestAction>, results: impl 'static + Send + Stream<Item=GuestResult>) -> Result<SceneControl, ConnectionError> {
+        let message_type = self.message_type();
+
+        if let Some(run_host_subprogram_postcard) = StreamTypeFunctions::run_host_subprogram_postcard(&message_type) {
+            Ok((run_host_subprogram_postcard)(program_id, max_input_waiting, actions, results.boxed()))
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Returns the scene control message required to start a guest host subprogram using the JSON encoding for messages 
+    ///
+    pub fn run_host_subprogram_json(&self, program_id: SubProgramId, max_input_waiting: usize, actions: Sender<GuestAction>, results: impl 'static + Send + Stream<Item=GuestResult>) -> Result<SceneControl, ConnectionError> {
+        let message_type = self.message_type();
+
+        if let Some(run_host_subprogram_json) = StreamTypeFunctions::run_host_subprogram_json(&message_type) {
+            Ok((run_host_subprogram_json)(program_id, max_input_waiting, actions, results.boxed()))
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)
