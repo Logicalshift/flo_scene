@@ -229,7 +229,7 @@ impl WasmModule {
         let store       = &mut self.store;
 
         let program_name    = program.to_string();
-        let function_name   = format!("start_{}_program", program_name);
+        let function_name   = format!("start_{}_subprogram", program_name);
 
         let start_function  = instance.exports.get_typed_function::<(), i32>(store, &function_name).map_err(|_| WasmSubprogramError::MissingStartFunction(function_name.clone()))?;
         let guest_runtime   = start_function.call(store).map_err(|err| WasmSubprogramError::CouldNotCallStartFunction(function_name.clone(), format!("{:?}", err)))?;
