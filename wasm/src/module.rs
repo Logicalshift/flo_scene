@@ -5,6 +5,7 @@ use flo_scene::guest::*;
 
 use postcard;
 use wasmer::*;
+use uuid::{Uuid};
 
 ///
 /// Functions for manipulating buffers on the WASM guest side
@@ -28,6 +29,18 @@ pub struct RuntimeFunctions {
 }
 
 ///
+/// Environment passed in to functions (mainly used to make the memory accessible)
+///
+/// This isn't very well documented by wasmer itself: you can't get access to the memory from the instance when declaring the imports
+/// because the imports are needed to create the instance, so we need a way to set the memory later on, and environments are the 
+/// mechanism that's provided for this purpose.
+///
+struct ModuleEnvironment {
+    /// The memory declared by the wasm program
+    memory: Option<Memory>
+}
+
+///
 /// A WASM module loaded by the control subprogram
 ///
 pub struct WasmModule {
@@ -46,10 +59,13 @@ impl WasmModule {
     ///
     pub fn load_bare_module(module_bytes: &[u8]) -> Result<Self, WasmSubprogramError> {
         let mut store   = Store::default();
+        let environment = FunctionEnv::new(&mut store, ModuleEnvironment { memory: None });
         let module      = Module::new(&store, &module_bytes)?;
-        let imports     = Self::bare_imports(&mut store);
+        let imports     = Self::bare_imports(&mut store, &environment);
         let instance    = Instance::new(&mut store, &module, &imports)?;
         let memory      = instance.exports.get_memory("memory").unwrap().clone();
+
+        environment.as_mut(&mut store).memory = Some(memory.clone());
 
         let buffer      = BufferFunctions::from_instance(&instance, &mut store)?;
         let runtime     = RuntimeFunctions::from_instance(&instance, &mut store, "postcard")?;
@@ -60,11 +76,21 @@ impl WasmModule {
     ///
     /// The default set of imports for a 'bare' module
     ///
-    fn bare_imports(store: &mut Store) -> Imports {
+    fn bare_imports(store: &mut Store, environment: &FunctionEnv<ModuleEnvironment>) -> Imports {
         imports! {
             "env" => {
-                "scene_request_new_uuid" => Function::new_typed(store, |uid_adr: i32| {
-                    // TODO
+                // There's no RNG available in WASM so we 
+                "scene_request_new_uuid" => Function::new_typed_with_env(store, environment, |env: FunctionEnvMut<ModuleEnvironment>, uid_adr: i32| {
+                    // Create a new v4 UUID and convert to bytes
+                    let uuid        = Uuid::new_v4();
+                    let uuid_bytes  = uuid.as_bytes();
+
+                    // Copy the bytes into the WASM memory (the environment is used to pass the memory in)
+                    let mut env         = env;
+                    let (env, store)    = env.data_and_store_mut();
+                    let view            = env.memory.as_ref().unwrap().view(&store);
+
+                    view.write(uid_adr as _, uuid_bytes).unwrap();
                 }),
             }
         }
