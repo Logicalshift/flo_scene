@@ -6,7 +6,7 @@ use futures::prelude::*;
 use serde::*;
 
 /// All the test program does is re-send the sample messages sent to it, which gives a basic test of a running subprogram
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SampleMessage {
     value: String
 }
@@ -31,6 +31,34 @@ pub extern "C" fn start_test_subprogram() -> GuestRuntimeHandle {
             let msg: SampleMessage = msg;
 
             sender.send(msg).await.unwrap();
+        }
+    });
+
+    // Register using postcard as the encoding scheme
+    register_postcard_runtime(runtime)
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ProgramIdMessage {
+    id: SubProgramId
+}
+
+impl SceneMessage for ProgramIdMessage {
+    fn message_type_name() -> String {
+        "flo_scene_tests::guest_subprogram_tests::ProgramIdMessage".into()
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn start_uuid_subprogram() -> GuestRuntimeHandle {
+    // Start a runtime with a default subprogram that generates a UUID and sends it to whoever is listening
+    let runtime = GuestRuntime::with_default_subprogram(SubProgramId::new(), GuestPostcardEncoder, |input, context| async move {
+        let mut input = input;
+
+        context.send_message(ProgramIdMessage { id: SubProgramId::new() }).await.unwrap();
+
+        while let Some(msg) = input.next().await {
+            let msg: () = msg;
         }
     });
 
