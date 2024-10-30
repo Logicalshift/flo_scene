@@ -145,6 +145,28 @@ impl SubProgramId {
             SubProgramIdValue::NamedTask(name_idx,task_idx) => format!("{}.task({})", name_for_id(*name_idx).unwrap(), task_idx),
         }
     }
+
+    ///
+    /// If this is not a named program, returns the UUID of the owning subprogram
+    ///
+    pub fn to_uuid(&self) -> Option<Uuid> {
+        match &self.0 {
+            SubProgramIdValue::Guid(guid)           => Some(guid.clone()),
+            SubProgramIdValue::GuidTask(guid, _)    => Some(guid.clone()),
+            _                                       => None,
+        }
+    }
+
+    ///
+    /// If this is a named program, returns the name of the owning subprogram
+    ///
+    pub fn to_name(&self) -> Option<String> {
+        match &self.0 {
+            SubProgramIdValue::Named(name_idx)          |
+            SubProgramIdValue::NamedTask(name_idx, _)   => name_for_id(*name_idx),
+            _                                           => None,
+        }
+    }
 }
 
 impl Debug for SubProgramId {
