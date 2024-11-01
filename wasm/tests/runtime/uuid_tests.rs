@@ -2,7 +2,6 @@ use flo_scene::*;
 use flo_scene::programs::*;
 use flo_scene_wasm::*;
 
-use futures::prelude::*;
 use serde::*;
 
 /// Bytecode for the tests
