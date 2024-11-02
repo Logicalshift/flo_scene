@@ -46,7 +46,9 @@ pub fn send_and_receive_single_message() {
     // Start a WASM subprogram (there's a default WASM control program that will start if we use the message type, so we just need a program that makes a request to start it up)
     scene.add_subprogram(start_program_id, |_input: InputStream<()>, context| async move {
         // Load the module and start the subprogram (we have two messages here as this gives us a way to start many subprograms)
+        println!("Loading module...");
         context.send_message(WasmControl::LoadModule(wasm_module_id, (*SUBPROGRAM_TEST_WASM).into(), Some(test_program_id.into()))).await.unwrap();
+        println!("Running subprogram...");
         context.send_message(WasmControl::RunModule(wasm_module_id, wasm_program_id, WasmMaxInputWaiting(0))).await.unwrap();
 
         println!("Started subprogram");
@@ -61,8 +63,8 @@ pub fn send_and_receive_single_message() {
     }, 0);
 
     TestBuilder::new()
-        .expect_message(|loaded_module: WasmUpdate| { if let WasmUpdate::ModuleLoaded(_) = loaded_module { Ok(()) } else { Err(format!("Unexpected update: {:?}", loaded_module)) } })
-        .expect_message(|running_module: WasmUpdate| { if let WasmUpdate::RunningModule(_, _) = running_module { Ok(()) } else { Err(format!("Unexpected update: {:?}", running_module)) } })
+        .expect_message(|loaded_module: WasmUpdate| { if let WasmUpdate::ModuleLoaded(_) = loaded_module { println!("Module loaded"); Ok(()) } else { Err(format!("Unexpected update: {:?}", loaded_module)) } })
+        .expect_message(|running_module: WasmUpdate| { if let WasmUpdate::RunningModule(_, _) = running_module { println!("Module running");Ok(()) } else { Err(format!("Unexpected update: {:?}", running_module)) } })
         .expect_message(|msg1: SampleMessage| { if &msg1.value == "Hello" { Ok(()) } else { Err(format!("Received wrong message ({})", msg1.value)) } })
         .expect_message(|msg2: SampleMessage| { if &msg2.value == "Goodbyte" { Ok(()) } else { Err(format!("Received wrong message ({})", msg2.value)) } })
         .run_in_scene(&scene, test_program_id);
