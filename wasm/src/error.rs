@@ -1,3 +1,5 @@
+use flo_scene::error::*;
+
 use serde::*;
 
 ///
@@ -19,6 +21,18 @@ pub enum WasmSubprogramError {
 
     /// The start function could not be called
     CouldNotCallStartFunction(String, String),
+
+    /// The subprogram that was requested stopped before it could properly start up
+    SubProgramDidNotStart,
+
+    /// The 'start subprogram' message could not be generated
+    CouldNotCreateStartMessage(ConnectionError),
+
+    /// No type could be found that matches the specified guest stream ID
+    CouldNotCreateHostStream(String),
+
+    /// The request to start the 
+    StartRequestFailed(ConnectionError),
 }
 
 impl From<wasmer::WasmError> for WasmSubprogramError {

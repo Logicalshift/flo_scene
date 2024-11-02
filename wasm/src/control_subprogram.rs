@@ -1,4 +1,5 @@
 use crate::control_streams::*;
+use crate::error::*;
 use crate::module::*;
 use crate::wasm_control::*;
 
@@ -93,30 +94,49 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
                                     .chain(results);
 
                                 // Run as a subprogram via the streams
-                                let host_stream_id = StreamId::with_serialization_type(guest_stream_id.0);
+                                let host_stream_id = StreamId::with_serialization_type(guest_stream_id.0.clone());
                                 if let Some(host_stream_id) = host_stream_id {
-                                    if let Ok(start_message) = host_stream_id.run_host_subprogram_postcard(program_id, max_input_waiting, actions, results) {
-                                        // TODO: it's possible that this will fail as well if the control program is not running
-                                        context.send_message(start_message).await.ok();
-                                    } else {
-                                        todo!("Could not create message for some reason");
+                                    match host_stream_id.run_host_subprogram_postcard(program_id, max_input_waiting, actions, results) {
+                                        Ok(start_message) => {
+                                            // TODO: it's possible that this will fail as well if the control program is not running
+                                            match context.send_message(start_message).await {
+                                                Ok(()) => {
+                                                    // Notify the update stream that we're running
+                                                    if let Some(update_stream) = &mut update_stream {
+                                                        update_stream.send(WasmUpdate::RunningModule(module_id, program_id)).await.ok();
+                                                    }
+                                                }
+
+                                                Err(err) => {
+                                                    // Scene control program not receiving messages
+                                                    if let Some(update_stream) = &mut update_stream {
+                                                        update_stream.send(WasmUpdate::CouldNotStartSubProgram(module_id, program_id, WasmSubprogramError::StartRequestFailed(err))).await.ok();
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Err(err) => {
+                                            if let Some(update_stream) = &mut update_stream {
+                                                update_stream.send(WasmUpdate::CouldNotStartSubProgram(module_id, program_id, WasmSubprogramError::CouldNotCreateStartMessage(err))).await.ok();
+                                            }
+                                        }
                                     }
                                 } else {
                                     // TODO: we can still run the subprogram anonymously if we have a way to pass on encoded messages of the appropriate type (this needs a new way to identify streams though)
-                                    // TODO: alternatively, report an error
-                                    todo!("No known stream ID for this program")
-                                }
-
-                                // Notify the update stream that we're running
-                                if let Some(update_stream) = &mut update_stream {
-                                    update_stream.send(WasmUpdate::RunningModule(module_id, program_id)).await.unwrap();
+                                    // Alternatively, report an error
+                                    if let Some(update_stream) = &mut update_stream {
+                                        update_stream.send(WasmUpdate::CouldNotStartSubProgram(module_id, program_id, WasmSubprogramError::CouldNotCreateHostStream(guest_stream_id.0.clone()))).await.ok();
+                                    }
                                 }
 
                                 // TODO: way to notify the update stream that we've finished running
                                 // TODO: way to use other encodings
                             } else {
                                 // The main program failed to start
-                                todo!("Program failed to start for some reason");
+                                if let Some(update_stream) = &mut update_stream {
+                                    update_stream.send(WasmUpdate::CouldNotStartSubProgram(module_id, program_id, WasmSubprogramError::SubProgramDidNotStart)).await.ok();
+                                }
                             }
                         }
 
