@@ -42,6 +42,7 @@ pub fn receive_program_id() {
     // Should receive notification that the module loaded, then a subprogram ID
     TestBuilder::new()
         .expect_message(|loaded_module: WasmUpdate| { if let WasmUpdate::ModuleLoaded(_) = loaded_module { Ok(()) } else { Err(format!("Unexpected update: {:?}", loaded_module)) } })
+        .expect_message(|running_module: WasmUpdate| { if let WasmUpdate::RunningModule(_, _) = running_module { Ok(()) } else { Err(format!("Unexpected update: {:?}", running_module)) } })
         .expect_message(|program_id: ProgramIdMessage| {
             // The UUID is random so all we can really do is assert that it's a V4 UUID (corrupt UUIDs will likely produce other version numbers)
             println!("Received program ID {:?}", program_id.id);

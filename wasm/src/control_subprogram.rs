@@ -54,8 +54,8 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
             RunModule(module_id, program_id) => {
                 if let (Some(module), Some(update_target)) = (modules.get(&module_id), targets.get(&module_id)) {
                     // Obtain our own copies of the module and the update stream
-                    let module          = Arc::clone(module);
-                    let update_stream   = update_target.clone().and_then(|target| context.send(target).ok());
+                    let module              = Arc::clone(module);
+                    let mut update_stream   = update_target.clone().and_then(|target| context.send(target).ok());
 
                     // Start the module running
                     let runtime = module.lock().unwrap().start_guest(program_id);
@@ -107,7 +107,11 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
                                     todo!("No known stream ID for this program")
                                 }
 
-                                // TODO: notify the update stream that we're running
+                                // Notify the update stream that we're running
+                                if let Some(update_stream) = &mut update_stream {
+                                    update_stream.send(WasmUpdate::RunningModule(module_id, program_id)).await.unwrap();
+                                }
+
                                 // TODO: way to notify the update stream that we've finished running
                                 // TODO: way to use other encodings
                                 // TODO: way to configure the input buffer size (we're just using 20 at the moment)
