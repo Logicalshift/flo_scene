@@ -47,7 +47,7 @@ pub fn send_and_receive_single_message() {
     scene.add_subprogram(start_program_id, |_input: InputStream<()>, context| async move {
         // Load the module and start the subprogram (we have two messages here as this gives us a way to start many subprograms)
         context.send_message(WasmControl::LoadModule(wasm_module_id, (*SUBPROGRAM_TEST_WASM).into(), Some(test_program_id.into()))).await.unwrap();
-        context.send_message(WasmControl::RunModule(wasm_module_id, wasm_program_id)).await.unwrap();
+        context.send_message(WasmControl::RunModule(wasm_module_id, wasm_program_id, WasmMaxInputWaiting(0))).await.unwrap();
 
         println!("Started subprogram");
 

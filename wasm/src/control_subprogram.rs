@@ -51,7 +51,7 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
                 }
             }
 
-            RunModule(module_id, program_id) => {
+            RunModule(module_id, program_id, WasmMaxInputWaiting(max_input_waiting)) => {
                 if let (Some(module), Some(update_target)) = (modules.get(&module_id), targets.get(&module_id)) {
                     // Obtain our own copies of the module and the update stream
                     let module              = Arc::clone(module);
@@ -95,7 +95,7 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
                                 // Run as a subprogram via the streams
                                 let host_stream_id = StreamId::with_serialization_type(guest_stream_id.0);
                                 if let Some(host_stream_id) = host_stream_id {
-                                    if let Ok(start_message) = host_stream_id.run_host_subprogram_postcard(program_id, 20, actions, results) {
+                                    if let Ok(start_message) = host_stream_id.run_host_subprogram_postcard(program_id, max_input_waiting, actions, results) {
                                         // TODO: it's possible that this will fail as well if the control program is not running
                                         context.send_message(start_message).await.ok();
                                     } else {
@@ -114,7 +114,6 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
 
                                 // TODO: way to notify the update stream that we've finished running
                                 // TODO: way to use other encodings
-                                // TODO: way to configure the input buffer size (we're just using 20 at the moment)
                             } else {
                                 // The main program failed to start
                                 todo!("Program failed to start for some reason");

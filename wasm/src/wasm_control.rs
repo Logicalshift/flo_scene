@@ -7,6 +7,12 @@ use flo_scene::*;
 use serde::*;
 
 ///
+/// The maximum number of waiting messages allowed in the queue for a WASM subprogram
+///
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+pub struct WasmMaxInputWaiting(pub usize);
+
+///
 /// Control messages for loading WASM modules
 ///
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -15,7 +21,7 @@ pub enum WasmControl {
     LoadModule(WasmModuleId, Vec<u8>, Option<StreamTarget>),
 
     /// Runs the default subprogram contained within a WASM module as the specified subprogram ID
-    RunModule(WasmModuleId, SubProgramId),
+    RunModule(WasmModuleId, SubProgramId, WasmMaxInputWaiting),
 }
 
 ///

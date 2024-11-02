@@ -34,7 +34,7 @@ pub fn receive_program_id() {
     // Start a WASM subprogram that sends a UUID message
     scene.add_subprogram(start_program_id, |_input: InputStream<()>, context| async move {
         context.send_message(WasmControl::LoadModule(wasm_module_id, (*SUBPROGRAM_TEST_WASM).into(), Some(test_program_id.into()))).await.unwrap();
-        context.send_message(WasmControl::RunModule(wasm_module_id, wasm_program_id)).await.unwrap();
+        context.send_message(WasmControl::RunModule(wasm_module_id, wasm_program_id, WasmMaxInputWaiting(0))).await.unwrap();
 
         println!("Started subprogram");
     }, 0);
