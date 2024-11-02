@@ -173,7 +173,7 @@ impl Debug for SubProgramId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             SubProgramIdValue::Guid(guid)                   => write!(f, "SubProgramId({})", guid),
-            SubProgramIdValue::Named(name_idx)              => write!(f, "SubProgramId::called({:?})", name_for_id(*name_idx).unwrap()),
+            SubProgramIdValue::Named(name_idx)              => write!(f, "SubProgramId::called({:?} <{}>)", name_for_id(*name_idx).unwrap(), name_idx.0),
             SubProgramIdValue::GuidTask(guid, task_idx)     => write!(f, "SubProgramId({}).task({})", guid, task_idx),
             SubProgramIdValue::NamedTask(name_idx,task_idx) => write!(f, "SubProgramId::called({:?}).task({})", name_for_id(*name_idx), task_idx),
         }
