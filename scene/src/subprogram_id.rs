@@ -20,7 +20,7 @@ fn id_for_name(name: &str) -> SubProgramNameId {
         // ID already exists
         id
     } else {
-        // Create a new ID
+        // Create a new ID and associate it with this name
         let id = {
             let mut names_for_ids   = NAMES_FOR_IDS.write().unwrap();
             let id                  = names_for_ids.len();
@@ -32,9 +32,15 @@ fn id_for_name(name: &str) -> SubProgramNameId {
 
         // Store the mapping
         let mut ids_for_names = IDS_FOR_NAMES.write().unwrap();
-        ids_for_names.insert(name.into(), id);
+        if let Some(existing_id) = ids_for_names.get(name.into()).copied() {
+            // Lost a race: ID was previously assigned in another thread, so use the ID that was assigned first
+            // (We do assign an extra ID for this name, but we'll never use it)
+            existing_id
+        } else {
+            ids_for_names.insert(name.into(), id);
 
-        id
+            id
+        }
     }
 }
 
