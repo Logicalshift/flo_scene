@@ -45,7 +45,6 @@ struct ModuleEnvironment {
 ///
 pub struct WasmModule {
     store:      Store,
-    module:     Module,
     instance:   Instance,
     memory:     Memory,
 
@@ -70,7 +69,7 @@ impl WasmModule {
         let buffer      = BufferFunctions::from_instance(&instance, &mut store)?;
         let runtime     = RuntimeFunctions::from_instance(&instance, &mut store, "postcard")?;
 
-        Ok(WasmModule { store, module, instance, memory, buffer, runtime })
+        Ok(WasmModule { store, instance, memory, buffer, runtime })
     }
 
     ///

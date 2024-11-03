@@ -232,6 +232,3 @@ mod tokio_errors {
         }
     }
 }
-
-#[cfg(feature="tokio")]
-pub use tokio_errors::*;
