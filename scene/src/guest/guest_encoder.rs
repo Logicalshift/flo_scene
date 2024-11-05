@@ -57,7 +57,7 @@ impl GuestMessageEncoder for GuestJsonEncoder {
         let serialized_target = SerializedStreamTarget::from(stream_id);
         let serialized_target = match target {
             StreamTarget::None | StreamTarget::Any  => Ok(serialized_target),
-            StreamTarget::Program(program_id)       => todo!("Cannot map a target program to a specific stream ID at the moment"),
+            StreamTarget::Program(program_id)       => todo!("Cannot map a target program to a specific stream ID at the moment"),  // Aka, we *can* but we can't specify the type any more
             StreamTarget::Filtered(_, _)            => Err(ConnectionError::FilterMappingMissing)
         }?;
 
