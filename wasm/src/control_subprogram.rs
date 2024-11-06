@@ -98,7 +98,6 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
                                 if let Some(host_stream_id) = host_stream_id {
                                     match host_stream_id.run_host_subprogram_postcard(program_id, max_input_waiting, actions, results) {
                                         Ok(start_message) => {
-                                            // TODO: it's possible that this will fail as well if the control program is not running
                                             match context.send_message(start_message).await {
                                                 Ok(()) => {
                                                     // Notify the update stream that we're running
