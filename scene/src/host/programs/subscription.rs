@@ -156,6 +156,7 @@ where
                 Err(SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(returned_message))    |
                 Err(SceneSendError::TargetProgramEnded(returned_message))                       |
                 Err(SceneSendError::CannotDeserialize(returned_message))                        |
+                Err(SceneSendError::CannotSerialize(returned_message, _))                       |
                 Err(SceneSendError::StreamDisconnected(returned_message))                       => {
                     // Remove this subscriber as it errored out
                     self.receivers.remove(self.next_receiver);

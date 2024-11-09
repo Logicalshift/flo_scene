@@ -1,9 +1,17 @@
+use crate::host::error::*;
 use crate::host::filter::*;
 use crate::host::scene::*;
 use crate::host::serialization::*;
 use crate::host::stream_target::*;
 
+#[cfg(any(feature="json", feature="postcard"))]
 use serde::*;
+
+#[cfg(feature="json")]
+use serde_json;
+
+#[cfg(feature="postcard")]
+use postcard;
 
 ///
 /// Trait implemented by messages that can be sent via a scene
@@ -169,6 +177,30 @@ pub trait SceneMessage :
     /// to override this function to return a specific value.
     ///
     fn message_type_name() -> String { std::any::type_name::<Self>().into() }
+
+    ///
+    /// With the 'json' feature turned on, converts this message to JSON format
+    ///
+    #[cfg(feature="json")]
+    fn to_json(self) -> Result<serde_json::Value, SceneSendError<Self>> {
+        let serializer = serde_json::value::Serializer;
+        self.serialize(serializer)
+            .map_err(move |json_error| {
+                SceneSendError::CannotSerialize(self, format!("{:?}", json_error))
+            })
+    }
+
+    ///
+    /// With the 'json' feature turned on, creates an instance of this message from a JSON value
+    ///
+    #[cfg(feature="json")]
+    fn from_json(value: serde_json::Value) -> Result<Self, SceneSendError<Self>> {
+        Self::deserialize(value)
+            .map_err(move |json_error| {
+                todo!("This error is not right, need a way to specify the description of the deserialization problem too");
+                SceneSendError::ErrorAfterDeserialization
+            })
+    }
 }
 
 ///
