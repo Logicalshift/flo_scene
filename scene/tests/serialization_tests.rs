@@ -94,7 +94,7 @@ mod with_serde_support {
                 let mut input_stream = input_stream;
 
                 while let Some(message) = input_stream.next().await {
-                    let message: SerializedMessage<Postcard> = message;
+                    let message: SerializedMessage<GuestMessage> = message;
 
                     println!("Serialized: {:?}", message.0);
 
@@ -122,13 +122,13 @@ mod with_serde_support {
         }, 0);
 
         // Create a JSON serializer to allow test messages to be sent directly to the serialized_resender program
-        let json_serializer_filter = serializer_filter::<TestMessage, SerializedMessage<Postcard>>().unwrap();
+        let json_serializer_filter = serializer_filter::<TestMessage, SerializedMessage<GuestMessage>>().unwrap();
         json_serializer_filter.into_iter()
             .for_each(|filter|
                 { scene.connect_programs((), StreamTarget::Filtered(filter, serialized_resender), filter.source_stream_id_any().unwrap()).ok(); });
 
         // Create a deserializer to use with the test program
-        let json_deserializer_filter = serializer_filter::<SerializedMessage<Postcard>, TestMessage>().unwrap();
+        let json_deserializer_filter = serializer_filter::<SerializedMessage<GuestMessage>, TestMessage>().unwrap();
         json_deserializer_filter.into_iter()
             .for_each(|filter|
                 { scene.connect_programs((), StreamTarget::Filtered(filter, deserialized_receiver), filter.source_stream_id_any().unwrap()).ok(); });
@@ -321,8 +321,8 @@ mod with_postcard_support {
     fn round_trip_msg_postcard() {
         let msg     = SimpleResponseMessage { value: "Hello".into() };
 
-        let encoded = msg.to_postcard().unwrap();
-        let decoded = SimpleResponseMessage::from_postcard(&encoded).unwrap();
+        let encoded = msg.to_guest_message().unwrap();
+        let decoded = SimpleResponseMessage::from_guest_message(&encoded).unwrap();
 
         assert!(decoded.value == "Hello");
     }

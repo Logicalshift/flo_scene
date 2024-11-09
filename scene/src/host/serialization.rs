@@ -41,11 +41,11 @@ static TYPED_SERIALIZERS: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + S
 static FILTERS_FOR_TYPE: Lazy<Mutex<HashMap<(TypeId, TypeId), Vec<FilterHandle>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 ///
-/// Bytes in postcard format
+/// Bytes in the guest message serialized format (this is Postcard in v0.2)
 ///
 #[cfg(any(feature="postcard", target_family="wasm"))]
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct Postcard(pub Vec<u8>);
+pub struct GuestMessage(pub Vec<u8>);
 
 ///
 /// A message created by serializing another message

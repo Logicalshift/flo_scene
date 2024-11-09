@@ -200,21 +200,21 @@ pub trait SceneMessage :
     }
 
     ///
-    /// With the 'postcard' feature turned on, converts this message to postcard format
+    /// Converts this message to the serialization format used for guest messages
     ///
     #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
-    fn to_postcard(self) -> Result<Vec<u8>, SceneSendError<Self>> {
+    fn to_guest_message(self) -> Result<Vec<u8>, SceneSendError<Self>> {
         postcard::to_stdvec(&self)
             .map_err(move |postcard_error| SceneSendError::CannotSerialize(self, format!("{:?}", postcard_error)))
     }
 
     ///
-    /// With the 'postcard' feature turned on, creates an instance of this message from a postcard value
+    /// Converts this message from the serialization format used for guest messages
     ///
     #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
-    fn from_postcard(value: &Vec<u8>) -> Result<Self, SceneSendError<()>> {
+    fn from_guest_message(value: &Vec<u8>) -> Result<Self, SceneSendError<()>> {
         postcard::from_bytes(value)
             .map_err(move |postcard_error| SceneSendError::CannotDeserialize((), format!("{:?}", postcard_error)))
     }
@@ -256,8 +256,8 @@ pub fn create_default_serializer_filters<TMessage: SceneMessage>() -> Vec<Filter
     #[cfg(any(feature="postcard", target_family="wasm"))]
     let filters = {
         // Create the standard to/from postcard filters
-        let to_postcard     = serialization_function::<TMessage, SerializedMessage<Postcard>>().unwrap();
-        let from_postcard   = serialization_function::<SerializedMessage<Postcard>, TMessage>().unwrap();
+        let to_postcard     = serialization_function::<TMessage, SerializedMessage<GuestMessage>>().unwrap();
+        let from_postcard   = serialization_function::<SerializedMessage<GuestMessage>, TMessage>().unwrap();
 
         let to_postcard = FilterHandle::for_filter(move |input_messages| {
             let to_postcard = Arc::clone(&to_postcard);

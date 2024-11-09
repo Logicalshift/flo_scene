@@ -113,7 +113,7 @@ where
         match next_message {
             Poll::Pending               => Poll::Pending,
             Poll::Ready(None)           => Poll::Ready(None),
-            Poll::Ready(Some(bytes))    => Poll::Ready(Some(TMessageType::from_postcard(&bytes).unwrap())),
+            Poll::Ready(Some(bytes))    => Poll::Ready(Some(TMessageType::from_guest_message(&bytes).unwrap())),
         }
     }
 }

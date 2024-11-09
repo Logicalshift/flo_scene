@@ -262,7 +262,7 @@ impl StreamTypeFunctions {
                         install_serializable_type(|msg: TMessageType| msg.to_json(), |json| TMessageType::from_json(json)).unwrap();
 
                         #[cfg(any(feature="postcard", target_family="wasm"))]
-                        install_serializable_type(|msg: TMessageType| msg.to_postcard().map(|ok| Postcard(ok)), |postcard| TMessageType::from_postcard(&postcard.0)).unwrap();
+                        install_serializable_type(|msg: TMessageType| msg.to_guest_message().map(|ok| GuestMessage(ok)), |postcard| TMessageType::from_guest_message(&postcard.0)).unwrap();
 
                         // Create the filters for this type
                         let mut filters = (*FILTERS).write().unwrap();

@@ -199,7 +199,7 @@ where
 
                 // Encode the input stream and send it
                 // TODO: we probably want some better error handling here if we can't encode a message (do we ignore it? stop the program?)
-                let encoded_input = input.to_postcard().map_err(|_| ()).unwrap();
+                let encoded_input = input.to_guest_message().map_err(|_| ()).unwrap();
 
                 if message_actions.send(GuestAction::SendMessage(guest_program_handle, encoded_input)).await.is_err() {
                     // Just stop if there's any error sending to the guest program
@@ -223,13 +223,13 @@ fn connect(stream_id: StreamId, target: StreamTarget, context: &SceneContext) ->
     }?;
 
     // Send as a postcard stream
-    let postcard_stream = context.send_serialized::<Postcard>(serialized_target)?;
+    let postcard_stream = context.send_serialized::<GuestMessage>(serialized_target)?;
 
     // Put a postcard deserialzer in front of the stream
     let postcard_stream = postcard_stream
         .sink_map_err(|err| err.map(|msg| postcard::to_stdvec(&msg).unwrap_or_else(|_| vec![])))
         .with(|bytes: Vec<u8>| async move {
-            Ok(Postcard(bytes))
+            Ok(GuestMessage(bytes))
         });
 
     Ok(Box::pin(postcard_stream))
