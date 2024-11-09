@@ -27,7 +27,6 @@ mod stream_target;
 mod subprogram_handle;
 mod input_stream;
 mod host_subprogram;
-mod guest_streams;
 
 pub use traits::*;
 pub use poll_action::*;
@@ -41,4 +40,3 @@ pub use stream_target::*;
 pub use subprogram_handle::*;
 pub use input_stream::*;
 pub use host_subprogram::*;
-pub use guest_streams::*;

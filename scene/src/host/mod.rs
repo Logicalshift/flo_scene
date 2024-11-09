@@ -15,6 +15,7 @@ pub (crate) mod thread_stealer;
 pub (crate) mod command_trait;
 pub (crate) mod connect_result;
 pub (crate) mod serialization;
+pub (crate) mod serialization_context;
 
 pub mod error;
 pub mod programs;
@@ -34,3 +35,4 @@ pub use command_trait::*;
 pub use connect_result::*;
 pub use error::{ConnectionError, SceneSendError};
 pub use serialization::*;
+pub use serialization_context::*;
