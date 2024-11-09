@@ -23,7 +23,7 @@ impl SceneMessage for SampleMessage {
 #[no_mangle]
 pub extern "C" fn start_test_subprogram() -> GuestRuntimeHandle {
     // Start a runtime with a default subprogram that just echoes messages back again
-    let runtime = GuestRuntime::with_default_subprogram(SubProgramId::new(), GuestPostcardEncoder, |input, context| async move {
+    let runtime = GuestRuntime::with_default_subprogram(SubProgramId::new(), |input, context| async move {
         let mut input = input;
         let mut sender = context.send(()).unwrap();
 
@@ -52,7 +52,7 @@ impl SceneMessage for ProgramIdMessage {
 #[no_mangle]
 pub extern "C" fn start_uuid_subprogram() -> GuestRuntimeHandle {
     // Start a runtime with a default subprogram that generates a UUID and sends it to whoever is listening
-    let runtime = GuestRuntime::with_default_subprogram(SubProgramId::new(), GuestPostcardEncoder, |input, context| async move {
+    let runtime = GuestRuntime::with_default_subprogram(SubProgramId::new(), |input, context| async move {
         let mut input = input;
 
         context.send_message(ProgramIdMessage { id: SubProgramId::new() }).await.unwrap();
