@@ -202,7 +202,7 @@ pub trait SceneMessage :
     ///
     /// With the 'postcard' feature turned on, converts this message to postcard format
     ///
-    #[cfg(feature="postcard")]
+    #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
     fn to_postcard(self) -> Result<Vec<u8>, SceneSendError<Self>> {
         postcard::to_stdvec(&self)
@@ -212,7 +212,7 @@ pub trait SceneMessage :
     ///
     /// With the 'postcard' feature turned on, creates an instance of this message from a postcard value
     ///
-    #[cfg(feature="postcard")]
+    #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
     fn from_postcard(value: &Vec<u8>) -> Result<Self, SceneSendError<()>> {
         postcard::from_bytes(value)

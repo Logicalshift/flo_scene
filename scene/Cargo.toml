@@ -12,7 +12,7 @@ keywords        = [ "message-queue" ]
 
 [features]
 json            = [ "serde_json" ]
-guest_programs  = [ "json" ]
+guest_programs  = [ "json", "postcard" ]
 tokio_support   = [ "tokio" ]
 
 [dependencies]
