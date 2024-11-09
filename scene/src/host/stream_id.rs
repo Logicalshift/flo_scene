@@ -268,7 +268,7 @@ impl StreamTypeFunctions {
                         mem::drop(filters);
 
                         // Set up the serialization for this type if it's not already set up
-                        #[cfg(feature="serde_json")]
+                        #[cfg(feature="json")]
                         install_serializable_type(|msg: TMessageType| msg.to_json(), |json| TMessageType::from_json(json)).unwrap();
 
                         #[cfg(any(feature="postcard", target_family="wasm"))]

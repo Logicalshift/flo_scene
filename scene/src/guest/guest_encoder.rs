@@ -7,7 +7,7 @@ use crate::host::serialization::*;
 
 use futures::prelude::*;
 
-#[cfg(feature="serde_json")]
+#[cfg(feature="json")]
 use serde_json;
 
 #[cfg(any(feature="postcard", target_family="wasm"))]

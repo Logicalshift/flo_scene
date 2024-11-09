@@ -13,10 +13,10 @@ pub (super) fn allocate_handle() -> GuestRuntimeHandle {
     GuestRuntimeHandle(this_handle)
 }
 
-#[cfg(feature="serde_json")]
+#[cfg(feature="json")]
 pub use json_runtime::*;
 
-#[cfg(feature="serde_json")]
+#[cfg(feature="json")]
 mod json_runtime {
     use super::*;
     use crate::wasm_rt::buffer::*;
