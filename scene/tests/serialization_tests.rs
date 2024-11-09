@@ -22,7 +22,7 @@ mod with_serde_support {
         let serialized_resender     = SubProgramId::new();
         let deserialized_receiver   = SubProgramId::new();
 
-        install_serializable_type::<TestMessage, serde_json::Value>().unwrap();
+        install_serializable_type(|msg: TestMessage| msg.to_json(), |json| TestMessage::from_json(json)).unwrap();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         scene.add_subprogram(serialized_resender, 
@@ -86,7 +86,7 @@ mod with_serde_support {
         let serialized_resender     = SubProgramId::new();
         let deserialized_receiver   = SubProgramId::new();
 
-        install_serializable_type::<TestMessage, Postcard>().unwrap();
+        install_serializable_type(|msg: TestMessage| msg.to_json(), |json| TestMessage::from_json(json)).unwrap();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         scene.add_subprogram(serialized_resender, 
@@ -321,8 +321,8 @@ mod with_postcard_support {
     fn round_trip_msg_postcard() {
         let msg     = SimpleResponseMessage { value: "Hello".into() };
 
-        let encoded: Postcard   = msg.to_serialized().unwrap();
-        let decoded             = SimpleResponseMessage::from_serialized(&encoded).unwrap();
+        let encoded = msg.to_postcard().unwrap();
+        let decoded = SimpleResponseMessage::from_postcard(&encoded).unwrap();
 
         assert!(decoded.value == "Hello");
     }

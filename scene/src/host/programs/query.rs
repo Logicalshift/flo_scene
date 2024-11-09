@@ -62,7 +62,7 @@ impl<TResponseData: Send + Unpin + SceneMessage> SceneMessage for Query<TRespons
 
     fn initialise(_: &Scene) {
         #[cfg(feature="json")]
-        install_serializable_type::<TResponseData, serde_json::Value>().unwrap();
+        install_serializable_type(|msg: TResponseData| msg.to_json(), |json| TResponseData::from_json(json)).unwrap();
     }
 }
 
@@ -78,7 +78,7 @@ impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryRespons
         #[cfg(feature="json")]
         let filters = {
             // Ensure that TResponseData has serializers set up
-            install_serializable_type::<TResponseData, serde_json::Value>().unwrap();
+            install_serializable_type(|msg: TResponseData| msg.to_json(), |json| TResponseData::from_json(json)).unwrap();
 
             // Types for serializing and deserializing the response data
             let to_json     = serialization_function::<TResponseData, SerializedMessage<serde_json::Value>>().unwrap();

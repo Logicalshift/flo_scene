@@ -269,10 +269,10 @@ impl StreamTypeFunctions {
 
                         // Set up the serialization for this type if it's not already set up
                         #[cfg(feature="serde_json")]
-                        install_serializable_type::<TMessageType, serde_json::Value>().unwrap();
+                        install_serializable_type(|msg: TMessageType| msg.to_json(), |json| TMessageType::from_json(json)).unwrap();
 
                         #[cfg(any(feature="postcard", target_family="wasm"))]
-                        install_serializable_type::<TMessageType, Postcard>().unwrap();
+                        install_serializable_type(|msg: TMessageType| msg.to_postcard().map(|ok| Postcard(ok)), |postcard| TMessageType::from_postcard(&postcard.0)).unwrap();
 
                         // Create the filters for this type
                         let mut filters = (*FILTERS).write().unwrap();
