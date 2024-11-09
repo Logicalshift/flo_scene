@@ -72,7 +72,7 @@ impl GuestMessageEncoder for GuestJsonEncoder {
 
                 match value {
                     Ok(value)   => Ok(value),
-                    Err(_)      => Err(SceneSendError::CannotDeserialize(bytes))
+                    Err(err)    => Err(SceneSendError::CannotDeserialize(bytes, format!("{:?}", err)))
                 }
             });
 

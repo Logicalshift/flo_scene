@@ -120,7 +120,7 @@ pub enum SceneSendError<TMessage> {
     CannotSerialize(TMessage, String),
 
     /// The target cannot deserialize this message to a target type
-    CannotDeserialize(TMessage),
+    CannotDeserialize(TMessage, String),
 
     /// An error occurred after deserialization (and the original message was lost)
     ErrorAfterDeserialization,
@@ -144,7 +144,7 @@ impl<TMessage> SceneSendError<TMessage> {
             SceneSendError::CannotReEnterTargetProgram                  => None,
             SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(msg)  => Some(msg),
             SceneSendError::CannotSerialize(msg, _)                     => Some(msg),
-            SceneSendError::CannotDeserialize(msg)                      => Some(msg),
+            SceneSendError::CannotDeserialize(msg, _)                   => Some(msg),
             SceneSendError::ErrorAfterDeserialization                   => None,
         }
     }
@@ -166,7 +166,7 @@ impl<TMessage> SceneSendError<TMessage> {
             SceneSendError::StreamDisconnected(msg)                     => Some(msg),
             SceneSendError::CannotReEnterTargetProgram                  => None,
             SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(msg)  => Some(msg),
-            SceneSendError::CannotDeserialize(msg)                      => Some(msg),
+            SceneSendError::CannotDeserialize(msg, _)                   => Some(msg),
             SceneSendError::CannotSerialize(msg, _)                     => Some(msg),
             SceneSendError::ErrorAfterDeserialization                   => None,
         }
@@ -184,7 +184,7 @@ impl<TMessage> SceneSendError<TMessage> {
             SceneSendError::StreamDisconnected(msg)                     => SceneSendError::StreamDisconnected(map_fn(msg)),
             SceneSendError::CannotReEnterTargetProgram                  => SceneSendError::CannotReEnterTargetProgram,
             SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(msg)  => SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(map_fn(msg)),
-            SceneSendError::CannotDeserialize(msg)                      => SceneSendError::CannotDeserialize(map_fn(msg)),
+            SceneSendError::CannotDeserialize(msg, error)               => SceneSendError::CannotDeserialize(map_fn(msg), error),
             SceneSendError::CannotSerialize(msg, error)                 => SceneSendError::CannotSerialize(map_fn(msg), error),
             SceneSendError::ErrorAfterDeserialization                   => SceneSendError::ErrorAfterDeserialization,
         }
@@ -202,7 +202,7 @@ impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
             SceneSendError::CannotReEnterTargetProgram                  => ConnectionError::CannotStealThread,
             SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(_)    => ConnectionError::TargetNotReady,
             SceneSendError::CannotSerialize(_, _)                       => ConnectionError::TargetCannotSerialize,
-            SceneSendError::CannotDeserialize(_)                        => ConnectionError::TargetCannotDeserialize,
+            SceneSendError::CannotDeserialize(_, _)                     => ConnectionError::TargetCannotDeserialize,
             SceneSendError::ErrorAfterDeserialization                   => ConnectionError::TargetCannotDeserialize,
         }
     }
