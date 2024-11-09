@@ -194,7 +194,7 @@ pub trait SceneMessage :
     /// With the 'json' feature turned on, creates an instance of this message from a JSON value
     ///
     #[cfg(feature="json")]
-    fn from_json(value: serde_json::Value) -> Result<Self, SceneSendError<()>> {
+    fn from_json(value: &serde_json::Value) -> Result<Self, SceneSendError<()>> {
         Self::deserialize(value)
             .map_err(move |json_error| {
                 SceneSendError::CannotDeserialize((), format!("{:?}", json_error))
