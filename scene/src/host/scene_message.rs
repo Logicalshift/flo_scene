@@ -182,23 +182,42 @@ pub trait SceneMessage :
     /// With the 'json' feature turned on, converts this message to JSON format
     ///
     #[cfg(feature="json")]
+    #[inline]
     fn to_json(self) -> Result<serde_json::Value, SceneSendError<Self>> {
         let serializer = serde_json::value::Serializer;
         self.serialize(serializer)
-            .map_err(move |json_error| {
-                SceneSendError::CannotSerialize(self, format!("{:?}", json_error))
-            })
+            .map_err(move |json_error|
+                SceneSendError::CannotSerialize(self, format!("{:?}", json_error)))
     }
 
     ///
     /// With the 'json' feature turned on, creates an instance of this message from a JSON value
     ///
     #[cfg(feature="json")]
+    #[inline]
     fn from_json(value: &serde_json::Value) -> Result<Self, SceneSendError<()>> {
         Self::deserialize(value)
-            .map_err(move |json_error| {
-                SceneSendError::CannotDeserialize((), format!("{:?}", json_error))
-            })
+            .map_err(move |json_error| SceneSendError::CannotDeserialize((), format!("{:?}", json_error)))
+    }
+
+    ///
+    /// With the 'postcard' feature turned on, converts this message to postcard format
+    ///
+    #[cfg(feature="postcard")]
+    #[inline]
+    fn to_postcard(self) -> Result<Vec<u8>, SceneSendError<Self>> {
+        postcard::to_stdvec(&self)
+            .map_err(move |postcard_error| SceneSendError::CannotSerialize(self, format!("{:?}", postcard_error)))
+    }
+
+    ///
+    /// With the 'postcard' feature turned on, creates an instance of this message from a postcard value
+    ///
+    #[cfg(feature="postcard")]
+    #[inline]
+    fn from_postcard(value: &Vec<u8>) -> Result<Self, SceneSendError<()>> {
+        postcard::from_bytes(value)
+            .map_err(move |postcard_error| SceneSendError::CannotDeserialize((), format!("{:?}", postcard_error)))
     }
 }
 
