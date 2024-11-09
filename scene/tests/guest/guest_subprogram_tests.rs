@@ -68,6 +68,7 @@ fn test_without_guest() {
         .run_in_scene(&scene, test_subprogram_id);
 }
 
+/*
 #[test]
 fn run_basic_guest_subprogram_json() {
     let scene = Scene::default();
@@ -111,6 +112,7 @@ fn run_basic_guest_subprogram_json() {
         .expect_message(|msg: SimpleResponseMessage| { if msg.value == "Goodbyte" { Ok(()) } else { Err(format!("Value is {} (should be Goodbyte)", msg.value)) } })
         .run_in_scene(&scene, test_subprogram_id);
 }
+*/
 
 #[test]
 fn run_basic_guest_subprogram_postcard() {
@@ -122,7 +124,7 @@ fn run_basic_guest_subprogram_postcard() {
     let test_subprogram_id      = SubProgramId::called("Test subprogram");
 
     // Start a guest runtime that mirrors messages
-    let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, GuestPostcardEncoder, move |input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
+    let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, move |input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
         // Send responses to the defualt target for the scene
         let mut response = context.send::<SimpleResponseMessage>(()).unwrap();
 
@@ -138,7 +140,7 @@ fn run_basic_guest_subprogram_postcard() {
 
     // Run the guest in the scene, using the postcard encoder
     let (sender, receiver) = guest_runtime.as_streams();
-    scene.add_subprogram(guest_subprogram_id, move |input: InputStream<SimpleTestMessage>, context| run_host_subprogram(input, context, GuestPostcardEncoder, sender, receiver), 20);
+    scene.add_subprogram(guest_subprogram_id, move |input: InputStream<SimpleTestMessage>, context| run_host_subprogram(input, context, sender, receiver), 20);
 
     // Run another program to send messages to the first one
     scene.add_subprogram(sender_subprogram_id, move |_input: InputStream<()>, context| async move {
@@ -166,7 +168,7 @@ fn run_basic_guest_subprogram_using_specific_connection() {
     let test_subprogram_id      = SubProgramId::called("Test subprogram");
 
     // Start a guest runtime that mirrors messages
-    let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, GuestJsonEncoder, move |input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
+    let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, move |input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
         // Send responses to the defualt target for the scene
         let mut response = context.send::<SimpleResponseMessage>(()).unwrap();
 
@@ -182,7 +184,7 @@ fn run_basic_guest_subprogram_using_specific_connection() {
 
     // Run the guest in the scene, using the JSON encoder
     let (sender, receiver) = guest_runtime.as_streams();
-    scene.add_subprogram(guest_subprogram_id, move |input: InputStream<SimpleTestMessage>, context| run_host_subprogram(input, context, GuestJsonEncoder, sender, receiver), 20);
+    scene.add_subprogram(guest_subprogram_id, move |input: InputStream<SimpleTestMessage>, context| run_host_subprogram(input, context, sender, receiver), 20);
 
     // Run another program to send messages to the first one
     scene.add_subprogram(sender_subprogram_id, move |_input: InputStream<()>, context| async move {

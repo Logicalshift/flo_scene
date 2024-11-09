@@ -1,4 +1,3 @@
-use super::guest_encoder::*;
 use super::runtime::*;
 use super::stream_target::*;
 use crate::host::*;
@@ -10,21 +9,15 @@ use std::sync::*;
 ///
 /// A guest scene context relays requests from the guest side to the host side
 ///
-pub struct GuestSceneContext<TEncoder> {
+pub struct GuestSceneContext {
     /// The ID of the program running in this context
     pub (crate) subprogram_id: SubProgramId,
 
     /// The core of the runtime where this context is running
     pub (crate) core: Arc<Mutex<GuestRuntimeCore>>,
-
-    /// Used to encode messages
-    pub (crate) encoder: TEncoder,
 }
 
-impl<TEncoder> GuestSceneContext<TEncoder>
-where
-    TEncoder: 'static + GuestMessageEncoder,
-{
+impl GuestSceneContext {
     ///
     /// Returns the currently active subprogram, if there is one
     ///
@@ -53,9 +46,8 @@ where
         let connection  = None;
         let core        = Some(self.core.clone());
         let target      = Some(HostStreamTarget::from_stream_target::<TMessageType>(target)?);
-        let encoder     = self.encoder.clone();
 
-        Ok(sink::unfold((connection, core, target, encoder), move |(connection, core, target, encoder), item| {
+        Ok(sink::unfold((connection, core, target), move |(connection, core, target), item: TMessageType| {
             Box::pin(async move {
                 let mut connection = match connection {
                     None => {
@@ -81,13 +73,14 @@ where
                 };
 
                 // Encode the message
-                let encoded = encoder.encode(item);
+                let encoded = item.to_postcard()
+                    .map_err(move |err| err.map(move |_| vec![]))?;
 
                 // Send the encoded message
                 // TODO: Rust can't figure out the type (it should be able to because it can with just the above code, but apparently not... which is an issue because it's anonymous so we can't declare it)
                 connection.send(encoded).await?;
 
-                Ok((Some(connection), None, None, encoder))
+                Ok((Some(connection), None, None))
             })
         }))
     }

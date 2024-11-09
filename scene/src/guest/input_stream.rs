@@ -1,4 +1,3 @@
-use super::guest_encoder::*;
 use super::runtime::*;
 use super::subprogram_handle::*;
 use crate::host::scene_message::*;
@@ -40,9 +39,6 @@ pub struct GuestInputStream<TMessageType: SceneMessage> {
     /// The runtime core (we need this to signal 'ready')
     runtime_core: Arc<Mutex<GuestRuntimeCore>>,
 
-    /// The decoder turns an encoded message back into a TMessageType
-    decoder: Box<dyn 'static + Send + Fn(Vec<u8>) -> TMessageType>,
-
     /// Phantom data, what the waiting messages are decoded as
     decode_as: PhantomData<TMessageType>,
 }
@@ -52,7 +48,7 @@ where
     TMessageType: SceneMessage,
 {
     /// Creates a new guest input stream
-    pub (crate) fn new(program_handle: GuestSubProgramHandle, encoder: impl 'static + GuestMessageEncoder, runtime_core: &Arc<Mutex<GuestRuntimeCore>>) -> Self {
+    pub (crate) fn new(program_handle: GuestSubProgramHandle, runtime_core: &Arc<Mutex<GuestRuntimeCore>>) -> Self {
         // Create the core
         let core = GuestInputStreamCore {
             waiting:    VecDeque::new(),
@@ -62,12 +58,9 @@ where
         };
         let core            = Arc::new(Mutex::new(core));
         let runtime_core    = Arc::clone(runtime_core);
+        let decode_as       = PhantomData;
 
-        // Decoder is a function that calls the encoder that was passed in
-        let decoder     = Box::new(move |msg| encoder.decode(msg));
-        let decode_as   = PhantomData;
-
-        Self { core, program_handle, runtime_core, decoder, decode_as }
+        Self { core, program_handle, runtime_core, decode_as }
     }
 
     /// Retrieves the core of this input stream
@@ -120,7 +113,7 @@ where
         match next_message {
             Poll::Pending               => Poll::Pending,
             Poll::Ready(None)           => Poll::Ready(None),
-            Poll::Ready(Some(bytes))    => Poll::Ready(Some((self.decoder)(bytes))),
+            Poll::Ready(Some(bytes))    => Poll::Ready(Some(TMessageType::from_postcard(&bytes).unwrap())),
         }
     }
 }

@@ -1,6 +1,5 @@
 use super::poll_action::*;
 use super::poll_result::*;
-use super::guest_encoder::*;
 use super::stream_id::*;
 use crate::host::*;
 
@@ -18,7 +17,7 @@ use std::sync::*;
 ///
 /// The guest program should generate the supplied message type, it's an error if it does not.
 ///
-pub async fn run_host_subprogram<TMessageType>(input_stream: InputStream<TMessageType>, context: SceneContext, encoder: impl 'static + Send + GuestMessageEncoder, actions: mpsc::Sender<GuestAction>, results: impl 'static + Send + Unpin + Stream<Item=GuestResult>) 
+pub async fn run_host_subprogram<TMessageType>(input_stream: InputStream<TMessageType>, context: SceneContext, actions: mpsc::Sender<GuestAction>, results: impl 'static + Send + Unpin + Stream<Item=GuestResult>) 
 where
     TMessageType: 'static + SceneMessage
 {
@@ -67,8 +66,6 @@ where
     let wait_ready          = signal_ready.clone();
     let message_actions     = actions.clone();
     let control_actions     = actions;
-    let message_encoder     = encoder.clone();
-    let control_encoder     = encoder;
 
     // Main loop: relay messages and connect to sinks
     future::select(
@@ -122,8 +119,8 @@ where
                         if let Some(stream_id) = stream_id  {
                             let target      = stream_target.to_stream_target();
 
-                            // Ask the encoder to do the attachement
-                            match control_encoder.connect(stream_id, target, &context) {
+                            // Ask the encoder to do the attachment
+                            match connect(stream_id, target, &context) {
                                 Ok(sink) => {
                                     // Store this sink
                                     active_sinks.insert(sink_handle, sink);
@@ -201,7 +198,8 @@ where
                 }).await;
 
                 // Encode the input stream and send it
-                let encoded_input = message_encoder.encode(input);
+                // TODO: we probably want some better error handling here if we can't encode a message (do we ignore it? stop the program?)
+                let encoded_input = input.to_postcard().map_err(|_| ()).unwrap();
 
                 if message_actions.send(GuestAction::SendMessage(guest_program_handle, encoded_input)).await.is_err() {
                     // Just stop if there's any error sending to the guest program
@@ -210,4 +208,29 @@ where
             }
         })
     ).await;
+}
+
+///
+/// Creates a connection that sends to a host stream by decoding messages from a guest
+///
+fn connect(stream_id: StreamId, target: StreamTarget, context: &SceneContext) -> Result<impl Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError> {
+    // Create the stream target
+    let serialized_target = SerializedStreamTarget::from(stream_id);
+    let serialized_target = match target {
+        StreamTarget::None | StreamTarget::Any  => Ok(serialized_target),
+        StreamTarget::Program(program_id)       => todo!("Cannot map a target program to a specific stream ID at the moment"),
+        StreamTarget::Filtered(_, _)            => Err(ConnectionError::FilterMappingMissing)
+    }?;
+
+    // Send as a postcard stream
+    let postcard_stream = context.send_serialized::<Postcard>(serialized_target)?;
+
+    // Put a postcard deserialzer in front of the stream
+    let postcard_stream = postcard_stream
+        .sink_map_err(|err| err.map(|msg| postcard::to_stdvec(&msg).unwrap_or_else(|_| vec![])))
+        .with(|bytes: Vec<u8>| async move {
+            Ok(Postcard(bytes))
+        });
+
+    Ok(Box::pin(postcard_stream))
 }

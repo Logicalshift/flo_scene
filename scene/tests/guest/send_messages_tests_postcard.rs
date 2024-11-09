@@ -26,10 +26,9 @@ pub fn send_postcard_message_to_runtime() {
     let woken    = Arc::new(Mutex::new(false));
 
     // Create a runtime that receives messages using the postcard encoder
-    let encoder         = GuestPostcardEncoder;
     let messages        = Arc::clone(&received);
     let awake           = Arc::clone(&woken);
-    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), encoder, move |input_stream: GuestInputStream<SimpleTestMessage>, _context| async move {
+    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), move |input_stream: GuestInputStream<SimpleTestMessage>, _context| async move {
         (*awake.lock().unwrap()) = true;
 
         let mut input_stream = input_stream;
@@ -67,8 +66,7 @@ pub fn send_postcard_message_to_runtime() {
 #[test]
 pub fn receive_message_from_runtime() {
     // Create a runtime that sends a message to the host
-    let encoder         = GuestPostcardEncoder;
-    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), encoder, move |_input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
+    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), move |_input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
         // Send the message to the default target
         let mut message_sink = context.send::<SimpleTestMessage>(()).unwrap();
         message_sink.send(SimpleTestMessage { value: "From remote".into() }).await.unwrap();
@@ -107,15 +105,14 @@ pub fn receive_message_from_runtime() {
     };
 
     assert!(send_sink_handle == sink_handle);
-    let decoded = GuestPostcardEncoder.decode::<SimpleTestMessage>(data);
+    let decoded = SimpleTestMessage::from_postcard(&data).unwrap();
     assert!(decoded.value == "From remote");
 }
 
 #[test]
 pub fn receive_several_messages_from_runtime() {
     // Create a runtime that sends a message to the host
-    let encoder         = GuestPostcardEncoder;
-    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), encoder, move |_input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
+    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), move |_input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
         // Send the message to the default target
         let mut message_sink = context.send::<SimpleTestMessage>(()).unwrap();
         message_sink.send(SimpleTestMessage { value: "From remote".into() }).await.unwrap();
@@ -155,7 +152,7 @@ pub fn receive_several_messages_from_runtime() {
     };
 
     assert!(send_sink_handle == sink_handle);
-    let decoded = GuestPostcardEncoder.decode::<SimpleTestMessage>(data);
+    let decoded = SimpleTestMessage::from_postcard(&data).unwrap();
     assert!(decoded.value == "From remote");
 
     // Indicating 'ready' again should trigger the second message
@@ -173,6 +170,6 @@ pub fn receive_several_messages_from_runtime() {
     };
 
     assert!(send_sink_handle == sink_handle);
-    let decoded = GuestPostcardEncoder.decode::<SimpleTestMessage>(data);
+    let decoded = SimpleTestMessage::from_postcard(&data).unwrap();
     assert!(decoded.value == "Another message");
 }

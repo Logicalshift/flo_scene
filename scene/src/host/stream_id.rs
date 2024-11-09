@@ -72,10 +72,6 @@ struct StreamTypeFunctions {
     #[cfg(feature="postcard")]
     run_host_subprogram_postcard: RunHostSubProgramFn,
 
-    /// Runs a host subprogram using this stream type as input and the json encoder
-    #[cfg(feature="json")]
-    run_host_subprogram_json: RunHostSubProgramFn,
-
     /// Initialises the message type inside a scene
     initialise: InitialiseFn,
 }
@@ -247,13 +243,7 @@ impl StreamTypeFunctions {
             #[cfg(feature="postcard")]
             run_host_subprogram_postcard: Arc::new(|program_id, max_waiting, actions, results| 
                 SceneControl::start_program(program_id, move |input: InputStream<TMessageType>, context| async move {
-                    run_host_subprogram(input, context, GuestPostcardEncoder, actions, results).await; 
-                }, max_waiting)),
-
-            #[cfg(feature="json")]
-            run_host_subprogram_json: Arc::new(|program_id, max_waiting, actions, results| 
-                SceneControl::start_program(program_id, move |input: InputStream<TMessageType>, context| async move {
-                    run_host_subprogram(input, context, GuestJsonEncoder, actions, results).await; 
+                    run_host_subprogram(input, context, actions, results).await; 
                 }, max_waiting)),
 
             initialise: Arc::new(move |scene| {
@@ -387,14 +377,6 @@ impl StreamTypeFunctions {
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.run_host_subprogram_postcard))
-    }
-
-    #[cfg(feature="json")]
-    pub fn run_host_subprogram_json(type_id: &TypeId) -> Option<RunHostSubProgramFn> {
-        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
-
-        stream_type_functions.get(type_id)
-            .map(|all_functions| Arc::clone(&all_functions.run_host_subprogram_json))
     }
 
     pub fn initialise(type_id: &TypeId) -> Option<InitialiseFn> {
@@ -646,21 +628,6 @@ impl StreamId {
 
         if let Some(run_host_subprogram_postcard) = StreamTypeFunctions::run_host_subprogram_postcard(&message_type) {
             Ok((run_host_subprogram_postcard)(program_id, max_input_waiting, actions, results.boxed()))
-        } else {
-            // Shouldn't happen: the stream type was not registered correctly
-            Err(ConnectionError::UnexpectedConnectionType)
-        }
-    }
-
-    ///
-    /// Returns the scene control message required to start a guest host subprogram using the JSON encoding for messages 
-    ///
-    #[cfg(feature="json")]
-    pub fn run_host_subprogram_json(&self, program_id: SubProgramId, max_input_waiting: usize, actions: Sender<GuestAction>, results: impl 'static + Send + Stream<Item=GuestResult>) -> Result<SceneControl, ConnectionError> {
-        let message_type = self.message_type();
-
-        if let Some(run_host_subprogram_json) = StreamTypeFunctions::run_host_subprogram_json(&message_type) {
-            Ok((run_host_subprogram_json)(program_id, max_input_waiting, actions, results.boxed()))
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)

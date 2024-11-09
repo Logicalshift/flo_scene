@@ -16,7 +16,6 @@
 //!
 
 mod traits;
-mod guest_encoder;
 mod poll_action;
 mod poll_result;
 mod runtime;
@@ -31,7 +30,6 @@ mod host_subprogram;
 mod guest_streams;
 
 pub use traits::*;
-pub use guest_encoder::*;
 pub use poll_action::*;
 pub use poll_result::*;
 pub use runtime::*;

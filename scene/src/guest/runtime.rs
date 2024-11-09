@@ -1,5 +1,4 @@
 use super::guest_context::*;
-use super::guest_encoder::*;
 use super::poll_action::*;
 use super::poll_result::*;
 use super::input_stream::*;
@@ -64,18 +63,12 @@ struct CoreWaker(usize, Weak<Mutex<GuestRuntimeCore>>);
 /// and also supplies the functions that process GuestActions and generate GuestResults. From the point of view of
 /// the guest subprograms, it's a single-threaded futures executor.
 ///
-pub struct GuestRuntime<TEncoder: GuestMessageEncoder> {
+pub struct GuestRuntime {
     /// The core, which manages the runtime
     core: Arc<Mutex<GuestRuntimeCore>>,
-
-    /// The encoder, used for serializing and deserializing messages sent to and from the guest program
-    encoder: TEncoder,
 }
 
-impl<TEncoder> GuestRuntime<TEncoder>
-where
-    TEncoder: 'static + GuestMessageEncoder,
-{
+impl GuestRuntime {
     ///
     /// Creates a new guest runtime with the specified subprogram
     ///
@@ -83,7 +76,7 @@ where
     ///
     /// The subprogram ID here is only used to generate the initialisation message for this default subprogram.
     ///
-    pub fn with_default_subprogram<TMessageType, TFuture>(program_id: SubProgramId, encoder: TEncoder, subprogram: impl FnOnce(GuestInputStream<TMessageType>, GuestSceneContext<TEncoder>) -> TFuture) -> Self 
+    pub fn with_default_subprogram<TMessageType, TFuture>(program_id: SubProgramId, subprogram: impl FnOnce(GuestInputStream<TMessageType>, GuestSceneContext) -> TFuture) -> Self 
     where
         TMessageType:   SceneMessage,
         TFuture:        'static + Send + Future<Output=()>,
@@ -100,12 +93,11 @@ where
         let core = GuestRuntimeCore { futures, awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, pending_results };
         let core = Arc::new(Mutex::new(core));
 
-        let context_encoder = encoder.clone();
-        let runtime         = GuestRuntime { core: Arc::clone(&core), encoder };
+        let runtime = GuestRuntime { core: Arc::clone(&core) };
 
         // Initialise the initial subprogram
         let (_input_handle, input_stream)   = runtime.create_input_stream();
-        let context                         = GuestSceneContext { core: Arc::clone(&core), encoder: context_encoder, subprogram_id: program_id };
+        let context                         = GuestSceneContext { core: Arc::clone(&core), subprogram_id: program_id };
         let subprogram                      = subprogram(input_stream, context);
 
         core.lock().unwrap().futures.push(GuestFuture::Ready(subprogram.boxed()));
@@ -120,7 +112,7 @@ where
     ///
     #[inline]
     pub fn create_input_stream<TMessageType: SceneMessage>(&self) -> (usize, GuestInputStream<TMessageType>) {
-        GuestRuntimeCore::create_input_stream(&self.core, &self.encoder)
+        GuestRuntimeCore::create_input_stream(&self.core)
     }
 
     ///
@@ -341,7 +333,7 @@ impl GuestRuntimeCore {
     ///
     /// Creates a new input stream in a runtime core
     ///
-    pub (crate) fn create_input_stream<TMessageType: SceneMessage>(runtime_core: &Arc<Mutex<Self>>, encoder: &(impl 'static + GuestMessageEncoder)) -> (usize, GuestInputStream<TMessageType>) {
+    pub (crate) fn create_input_stream<TMessageType: SceneMessage>(runtime_core: &Arc<Mutex<Self>>) -> (usize, GuestInputStream<TMessageType>) {
         let mut core = runtime_core.lock().unwrap();
 
         // Assign a handle to the input stream
@@ -349,7 +341,7 @@ impl GuestRuntimeCore {
         core.next_stream_handle += 1;
 
         // Create a core for the new stream
-        let input_stream    = GuestInputStream::new(GuestSubProgramHandle(stream_handle), encoder.clone(), runtime_core);
+        let input_stream    = GuestInputStream::new(GuestSubProgramHandle(stream_handle), runtime_core);
         let input_core      = input_stream.core().clone();
 
         core.input_streams.insert(stream_handle, input_core);

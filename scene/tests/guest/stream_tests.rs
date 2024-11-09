@@ -5,7 +5,6 @@ use futures::prelude::*;
 use futures::executor;
 
 use serde::*;
-use serde_json;
 
 use std::sync::*;
 
@@ -21,16 +20,15 @@ impl SceneMessage for SimpleTestMessage {
 }
 
 #[test]
-pub fn send_json_message_to_runtime_using_stream() {
+pub fn send_postcard_message_to_runtime_using_stream() {
     // The results from the guest (we're not doing any isolation stuff so we can share variables this way)
     let received = Arc::new(Mutex::new(vec![]));
     let woken    = Arc::new(Mutex::new(false));
 
-    // Create a runtime that receives messages using the JSON encoder
-    let encoder         = GuestJsonEncoder;
+    // Create a guest runtime
     let messages        = Arc::clone(&received);
     let awake           = Arc::clone(&woken);
-    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), encoder, move |input_stream: GuestInputStream<SimpleTestMessage>, _context| async move {
+    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), move |input_stream: GuestInputStream<SimpleTestMessage>, _context| async move {
         (*awake.lock().unwrap()) = true;
 
         let mut input_stream = input_stream;
@@ -50,8 +48,7 @@ pub fn send_json_message_to_runtime_using_stream() {
     let mut actions = actions;
     executor::block_on(async {
         // Enqueue a message for the runtime (the default subprogram always has the same handle)
-        let data = SimpleTestMessage { value: "Test".into() }.serialize(serde_json::value::Serializer).unwrap();
-        let data = data.to_string().into_bytes();
+        let data = postcard::to_stdvec(&SimpleTestMessage { value: "Test".into() }).unwrap();
 
         println!("Send action");
         actions.send(GuestAction::SendMessage(GuestSubProgramHandle::default(), data)).await.unwrap();
