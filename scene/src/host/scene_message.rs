@@ -4,7 +4,6 @@ use crate::host::scene::*;
 use crate::host::serialization::*;
 use crate::host::stream_target::*;
 
-#[cfg(any(feature="json", feature="postcard"))]
 use serde::*;
 
 #[cfg(feature="json")]
