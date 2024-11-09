@@ -18,5 +18,5 @@ flo_scene       = { version = "0.2", features = [ "guest_programs", "postcard" ]
 serde           = { version = "1.0", features = [ "derive" ] }
 uuid            = { version = "1.0", features = [ "v4" ] }
 futures         = "0.3"
-wasmer          = "5.0"
+wasmer          = "4.4"
 postcard        = "1.0"
