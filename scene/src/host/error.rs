@@ -124,6 +124,9 @@ pub enum SceneSendError<TMessage> {
 
     /// An error occurred after deserialization (and the original message was lost)
     ErrorAfterDeserialization,
+
+    /// Cannot send/receive a stream or a function because there is no backing connection for the message
+    NoConnection(TMessage),
 }
 
 impl<TMessage> SceneSendError<TMessage> {
@@ -146,6 +149,7 @@ impl<TMessage> SceneSendError<TMessage> {
             SceneSendError::CannotSerialize(msg, _)                     => Some(msg),
             SceneSendError::CannotDeserialize(msg, _)                   => Some(msg),
             SceneSendError::ErrorAfterDeserialization                   => None,
+            SceneSendError::NoConnection(msg)                           => Some(msg),
         }
     }
 
@@ -169,6 +173,7 @@ impl<TMessage> SceneSendError<TMessage> {
             SceneSendError::CannotDeserialize(msg, _)                   => Some(msg),
             SceneSendError::CannotSerialize(msg, _)                     => Some(msg),
             SceneSendError::ErrorAfterDeserialization                   => None,
+            SceneSendError::NoConnection(msg)                           => Some(msg),
         }
     }
 
@@ -187,6 +192,7 @@ impl<TMessage> SceneSendError<TMessage> {
             SceneSendError::CannotDeserialize(msg, error)               => SceneSendError::CannotDeserialize(map_fn(msg), error),
             SceneSendError::CannotSerialize(msg, error)                 => SceneSendError::CannotSerialize(map_fn(msg), error),
             SceneSendError::ErrorAfterDeserialization                   => SceneSendError::ErrorAfterDeserialization,
+            SceneSendError::NoConnection(msg)                           => SceneSendError::NoConnection(map_fn(msg)),
         }
     }
 }
@@ -204,6 +210,7 @@ impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
             SceneSendError::CannotSerialize(_, _)                       => ConnectionError::TargetCannotSerialize,
             SceneSendError::CannotDeserialize(_, _)                     => ConnectionError::TargetCannotDeserialize,
             SceneSendError::ErrorAfterDeserialization                   => ConnectionError::TargetCannotDeserialize,
+            SceneSendError::NoConnection(msg)                           => ConnectionError::TargetCannotDeserialize,
         }
     }
 }
