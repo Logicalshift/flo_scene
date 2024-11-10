@@ -6,6 +6,7 @@ use crate::host::scene::*;
 use crate::host::scene_core::*;
 use crate::host::scene_message::*;
 use crate::host::serialization::*;
+use crate::host::serialization_context::*;
 use crate::host::stream_source::*;
 use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
@@ -262,7 +263,10 @@ impl StreamTypeFunctions {
                         install_serializable_type(|msg: TMessageType| msg.to_json(), |json| TMessageType::from_json(json)).unwrap();
 
                         #[cfg(any(feature="postcard", target_family="wasm"))]
-                        install_serializable_type(|msg: TMessageType| msg.to_guest_message().map(|ok| GuestMessage(ok)), |postcard| TMessageType::from_guest_message(&postcard.0)).unwrap();
+                        install_serializable_type(
+                            |msg: TMessageType| msg.to_guest_message(&DisconnectedSerializationContext).map(|ok| GuestMessage(ok)), 
+                            |postcard| TMessageType::from_guest_message(&postcard.0, &DisconnectedSerializationContext))
+                            .unwrap();
 
                         // Create the filters for this type
                         let mut filters = (*FILTERS).write().unwrap();

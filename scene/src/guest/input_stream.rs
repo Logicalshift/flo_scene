@@ -1,6 +1,7 @@
 use super::runtime::*;
 use super::subprogram_handle::*;
 use crate::host::scene_message::*;
+use crate::host::serialization_context::*;
 
 use futures::prelude::*;
 use futures::task::{Waker, Poll, Context};
@@ -113,7 +114,7 @@ where
         match next_message {
             Poll::Pending               => Poll::Pending,
             Poll::Ready(None)           => Poll::Ready(None),
-            Poll::Ready(Some(bytes))    => Poll::Ready(Some(TMessageType::from_guest_message(&bytes).unwrap())),
+            Poll::Ready(Some(bytes))    => Poll::Ready(Some(TMessageType::from_guest_message(&bytes, &DisconnectedSerializationContext).unwrap())),
         }
     }
 }

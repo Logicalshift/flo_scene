@@ -321,8 +321,8 @@ mod with_postcard_support {
     fn round_trip_msg_postcard() {
         let msg     = SimpleResponseMessage { value: "Hello".into() };
 
-        let encoded = msg.to_guest_message().unwrap();
-        let decoded = SimpleResponseMessage::from_guest_message(&encoded).unwrap();
+        let encoded = msg.to_guest_message(&DisconnectedSerializationContext).unwrap();
+        let decoded = SimpleResponseMessage::from_guest_message(&encoded, &DisconnectedSerializationContext).unwrap();
 
         assert!(decoded.value == "Hello");
     }

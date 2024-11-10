@@ -199,7 +199,7 @@ where
 
                 // Encode the input stream and send it
                 // TODO: we probably want some better error handling here if we can't encode a message (do we ignore it? stop the program?)
-                let encoded_input = input.to_guest_message().map_err(|_| ()).unwrap();
+                let encoded_input = input.to_guest_message(&DisconnectedSerializationContext).map_err(|_| ()).unwrap();
 
                 if message_actions.send(GuestAction::SendMessage(guest_program_handle, encoded_input)).await.is_err() {
                     // Just stop if there's any error sending to the guest program

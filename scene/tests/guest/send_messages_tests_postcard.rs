@@ -105,7 +105,7 @@ pub fn receive_message_from_runtime() {
     };
 
     assert!(send_sink_handle == sink_handle);
-    let decoded = SimpleTestMessage::from_guest_message(&data).unwrap();
+    let decoded = SimpleTestMessage::from_guest_message(&data, &DisconnectedSerializationContext).unwrap();
     assert!(decoded.value == "From remote");
 }
 
@@ -152,7 +152,7 @@ pub fn receive_several_messages_from_runtime() {
     };
 
     assert!(send_sink_handle == sink_handle);
-    let decoded = SimpleTestMessage::from_guest_message(&data).unwrap();
+    let decoded = SimpleTestMessage::from_guest_message(&data, &DisconnectedSerializationContext).unwrap();
     assert!(decoded.value == "From remote");
 
     // Indicating 'ready' again should trigger the second message
@@ -170,6 +170,6 @@ pub fn receive_several_messages_from_runtime() {
     };
 
     assert!(send_sink_handle == sink_handle);
-    let decoded = SimpleTestMessage::from_guest_message(&data).unwrap();
+    let decoded = SimpleTestMessage::from_guest_message(&data, &DisconnectedSerializationContext).unwrap();
     assert!(decoded.value == "Another message");
 }

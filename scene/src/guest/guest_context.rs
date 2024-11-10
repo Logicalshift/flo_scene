@@ -73,7 +73,7 @@ impl GuestSceneContext {
                 };
 
                 // Encode the message
-                let encoded = item.to_guest_message()
+                let encoded = item.to_guest_message(&DisconnectedSerializationContext)
                     .map_err(move |err| err.map(move |_| vec![]))?;
 
                 // Send the encoded message

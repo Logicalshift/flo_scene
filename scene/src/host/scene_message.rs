@@ -2,6 +2,7 @@ use crate::host::error::*;
 use crate::host::filter::*;
 use crate::host::scene::*;
 use crate::host::serialization::*;
+use crate::host::serialization_context::*;
 use crate::host::stream_target::*;
 
 use serde::*;
@@ -204,7 +205,8 @@ pub trait SceneMessage :
     ///
     #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
-    fn to_guest_message(self) -> Result<Vec<u8>, SceneSendError<Self>> {
+    fn to_guest_message(self, context: &impl SerializationContext) -> Result<Vec<u8>, SceneSendError<Self>> {
+        let _ = context;
         postcard::to_stdvec(&self)
             .map_err(move |postcard_error| SceneSendError::CannotSerialize(self, format!("{:?}", postcard_error)))
     }
@@ -214,7 +216,8 @@ pub trait SceneMessage :
     ///
     #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
-    fn from_guest_message(value: &Vec<u8>) -> Result<Self, SceneSendError<()>> {
+    fn from_guest_message(value: &Vec<u8>, context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
+        let _ = context;
         postcard::from_bytes(value)
             .map_err(move |postcard_error| SceneSendError::CannotDeserialize((), format!("{:?}", postcard_error)))
     }
