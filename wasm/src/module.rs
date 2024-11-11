@@ -240,6 +240,9 @@ impl WasmModule {
             Ready(sink_handle)                      => { self.sink_ready(runtime, sink_handle) },
             SinkConnectionError(sink_handle, error) => { self.sink_connection_error(runtime, sink_handle, postcard::to_stdvec(&error).unwrap()) },
             SinkError(sink_handle, error)           => { self.sink_send_error(runtime, sink_handle, postcard::to_stdvec(&error).unwrap()) }
+            SendStream(stream_id, msg)              => { todo!() },
+            ReadyStream(stream_id)                  => { todo!() },
+            CloseStream(stream_id)                  => { todo!() },
         }
     }
 

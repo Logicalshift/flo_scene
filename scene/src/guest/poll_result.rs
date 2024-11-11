@@ -3,6 +3,7 @@ use super::stream_id::*;
 use super::stream_target::*;
 use super::subprogram_handle::*;
 use crate::host::subprogram_id::*;
+use crate::host::serialization_context::*;
 
 use serde::*;
 
@@ -48,6 +49,15 @@ pub enum GuestResult {
 
     /// The guest still has more work to do and should be immediately polled again
     ContinuePolling,
+
+    /// Sends a message to a stream on the host
+    SendStream(SerializationId, Vec<u8>),
+
+    /// Indicates that a stream is ready to accept more messages from the host
+    ReadyStream(SerializationId),
+
+    /// Indicates that a stream has been closed on the host side
+    CloseStream(SerializationId),
 }
 
 impl GuestPollResult {

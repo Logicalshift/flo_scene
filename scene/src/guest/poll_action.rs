@@ -1,6 +1,7 @@
 use super::subprogram_handle::*;
 use super::sink_handle::*;
 use crate::host::error::*;
+use crate::host::serialization_context::*;
 
 ///
 /// Action requests sent from a host to a guest
@@ -31,7 +32,16 @@ pub enum GuestAction {
     SinkConnectionError(HostSinkHandle, ConnectionError),
 
     /// A message could not be sent to a sink
-    SinkError(HostSinkHandle, SceneSendError<Vec<u8>>)
+    SinkError(HostSinkHandle, SceneSendError<Vec<u8>>),
+
+    /// Sends a message to a stream on the guest
+    SendStream(SerializationId, Vec<u8>),
+
+    /// Indicates that a stream is ready to accept more messages from the guest
+    ReadyStream(SerializationId),
+
+    /// Indicates that a stream has been closed on the guest side
+    CloseStream(SerializationId),
 }
 
 impl GuestPollAction {

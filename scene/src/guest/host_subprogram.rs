@@ -173,6 +173,10 @@ where
                     ContinuePolling => { 
                         // Nothing for us to do, should be handled by the stream
                     }
+
+                    SendStream(stream_id, msg)              => { todo!() }
+                    ReadyStream(stream_id)                  => { todo!() }
+                    CloseStream(stream_id)                  => { todo!() }
                 }
             } 
         }),

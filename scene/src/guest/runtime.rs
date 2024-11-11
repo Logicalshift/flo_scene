@@ -217,6 +217,9 @@ impl GuestRuntime {
             Ready(sink_handle)                      => { self.sink_ready(sink_handle) },
             SinkConnectionError(sink_handle, error) => { self.sink_connection_error(sink_handle, error) },
             SinkError(sink_handle, error)           => { self.sink_send_error(sink_handle, error) }
+            SendStream(stream_id, msg)              => { todo!() },
+            ReadyStream(stream_id)                  => { todo!() },
+            CloseStream(stream_id)                  => { todo!() },
         }
     }
 
