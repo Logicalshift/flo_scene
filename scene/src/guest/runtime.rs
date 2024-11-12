@@ -1,4 +1,5 @@
 use super::guest_context::*;
+use super::guest_stream_core::*;
 use super::poll_action::*;
 use super::poll_result::*;
 use super::input_stream::*;
@@ -8,11 +9,12 @@ use super::stream_target::*;
 use super::subprogram_handle::*;
 use crate::host::error::*;
 use crate::host::scene_message::*;
+use crate::host::serialization_context::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
-use futures::task::{waker, ArcWake, Context, Poll};
+use futures::task::{waker, ArcWake, Context, Poll, Waker};
 use futures::channel::mpsc;
 
 use std::collections::{HashMap, HashSet};
@@ -53,6 +55,18 @@ pub (crate) struct GuestRuntimeCore {
 
     /// Actions and results that are waiting to be returned to the host
     pending_results: Vec<GuestResult>,
+
+    /// The streams that are marked as ready on the host side
+    ready_streams: HashSet<SerializationId>,
+
+    /// The streams that are marked closed (and which still exist on the guest side)
+    closed_streams: HashSet<SerializationId>,
+
+    /// Wakers to notify when a stream becomes ready or is closed
+    when_ready: HashMap<SerializationId, Waker>,
+
+    /// The streams with pending data from the host side
+    pending_streams: HashMap<SerializationId, Arc<Mutex<GuestStreamCore>>>,
 }
 
 /// Wakes up the future with the specified index in a guest runtime core
@@ -89,8 +103,12 @@ impl GuestRuntime {
         let next_stream_handle  = 0;
         let next_sink_handle    = 0;
         let pending_results     = vec![GuestResult::CreateSubprogram(program_id, GuestSubProgramHandle::default(), HostStreamId::for_message::<TMessageType>())];
+        let ready_streams       = HashSet::new();
+        let closed_streams      = HashSet::new();
+        let when_ready          = HashMap::new();
+        let pending_streams     = HashMap::new();
 
-        let core = GuestRuntimeCore { futures, awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, pending_results };
+        let core = GuestRuntimeCore { futures, awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
         let core = Arc::new(Mutex::new(core));
 
         let runtime = GuestRuntime { core: Arc::clone(&core) };
