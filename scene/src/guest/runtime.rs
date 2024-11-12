@@ -63,7 +63,7 @@ pub (crate) struct GuestRuntimeCore {
     closed_streams: HashSet<SerializationId>,
 
     /// Wakers to notify when a stream becomes ready or is closed
-    when_ready: HashMap<SerializationId, Waker>,
+    when_ready: HashMap<SerializationId, Option<Waker>>,
 
     /// The streams with pending data from the host side
     pending_streams: HashMap<SerializationId, Arc<Mutex<GuestStreamCore>>>,
@@ -225,6 +225,88 @@ impl GuestRuntime {
     }
 
     ///
+    /// Sends a message from the host to the guest
+    ///
+    pub fn send_stream(&self, stream_id: SerializationId, msg: Vec<u8>) {
+        // Fetch the stream we're sending to
+        let stream = {
+            let core = self.core.lock().unwrap();
+            core.pending_streams.get(&stream_id).cloned()
+        };
+
+        // If the stream still exists, then pass the message on
+        if let Some(stream) = stream {
+            let waker = {
+                let mut core = stream.lock().unwrap();
+
+                core.pending.push(msg);
+                core.waker.take()
+            };
+
+            if let Some(waker) = waker {
+                waker.wake();
+            }
+        } else {
+            // TODO: signal to the host that the stream is closed if it's trying to send data to a terminated stream
+        }
+    }
+
+    ///
+    /// A host stream is ready to receive more data
+    ///
+    pub fn ready_stream(&self, stream_id: SerializationId) {
+        // Add this stream ID to the list that's 'ready', and wake up anything that's waiting
+        let waker = {
+            let mut core = self.core.lock().unwrap();
+
+            core.ready_streams.insert(stream_id);
+            core.when_ready.get_mut(&stream_id)
+                .map(|waker| waker.take())
+                .unwrap_or(None)
+        };
+
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+    }
+
+    ///
+    /// A host or guest stream has been closed by the host
+    ///
+    /// If the stream ID refers to a guest stream, the host has closed the stream. If it's a guest stream, the receiver
+    /// has been dropped.
+    ///
+    pub fn close_stream(&self, stream_id: SerializationId) {
+        use std::mem;
+
+        // Add this stream ID to the list that's 'ready', and wake up anything that's waiting
+        let waker = {
+            let mut core = self.core.lock().unwrap();
+
+            if let Some(guest_stream) = core.pending_streams.get_mut(&stream_id).cloned() {
+                // Remove the guest stream and then mark it as closed
+                core.pending_streams.remove(&stream_id);
+                mem::drop(core);
+
+                // Need to lock the guest stream after releasing the core (which does create a window where the guest stream is not in the core and not closed)
+                let mut guest_stream = guest_stream.lock().unwrap();
+                guest_stream.closed = true;
+                guest_stream.waker.take()
+            } else {
+                // If it's not a guest stream, must be a host stream: mark it as deleted
+                core.closed_streams.insert(stream_id);
+                core.when_ready.get_mut(&stream_id)
+                    .map(|waker| waker.take())
+                    .unwrap_or(None)
+            }
+        };
+
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+    }
+
+    ///
     /// Processes a single action in this runtime (note that `poll_awake()` needs to be called after this to actually execute the runtime)
     ///
     pub fn process(&self, action: GuestAction) {
@@ -235,9 +317,9 @@ impl GuestRuntime {
             Ready(sink_handle)                      => { self.sink_ready(sink_handle) },
             SinkConnectionError(sink_handle, error) => { self.sink_connection_error(sink_handle, error) },
             SinkError(sink_handle, error)           => { self.sink_send_error(sink_handle, error) }
-            SendStream(stream_id, msg)              => { todo!() },
-            ReadyStream(stream_id)                  => { todo!() },
-            CloseStream(stream_id)                  => { todo!() },
+            SendStream(stream_id, msg)              => { self.send_stream(stream_id, msg) },
+            ReadyStream(stream_id)                  => { self.ready_stream(stream_id) },
+            CloseStream(stream_id)                  => { self.close_stream(stream_id) },
         }
     }
 

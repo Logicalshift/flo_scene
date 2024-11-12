@@ -5,8 +5,11 @@ use futures::task::{Waker};
 ///
 pub (crate) struct GuestStreamCore {
     /// The pending messages for this stream
-    pending: Vec<Vec<u8>>,
+    pub (crate) pending: Vec<Vec<u8>>,
 
     /// Waker to be signalled when new data is pending
-    waker: Waker,
+    pub (crate) waker: Option<Waker>,
+
+    /// True if this stream has been closed by the host
+    pub (crate) closed: bool,
 }
