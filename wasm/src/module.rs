@@ -101,6 +101,9 @@ impl WasmModule {
     ///
     /// Copies a buffer to the wasm side, and returns the buffer handle
     ///
+    /// On the webassembly side, this creates a buffer that can be retrieved using `claim_buffer` (so the host side is not
+    /// responsible for releasing it)
+    ///
     fn copy_buffer(&mut self, data: Vec<u8>) -> i32 {
         let buffer  = &self.buffer;
         let memory  = &self.memory;
