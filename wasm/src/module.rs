@@ -26,9 +26,9 @@ pub struct RuntimeFunctions {
     sink_connection_error:  TypedFunction<(i32, i32, i32), ()>,
     sink_send_error:        TypedFunction<(i32, i32, i32), ()>,
     poll_awake:             TypedFunction<i32, i32>,
-    send_stream:            TypedFunction<(i32, i32), ()>,
-    ready_stream:           TypedFunction<i32, ()>,
-    close_stream:           TypedFunction<i32, ()>,
+    send_stream:            TypedFunction<(i32, i32, i32), ()>,
+    ready_stream:           TypedFunction<(i32, i32), ()>,
+    close_stream:           TypedFunction<(i32, i32), ()>,
 }
 
 ///
@@ -254,37 +254,40 @@ impl WasmModule {
     ///
     /// Sends a message to a stream
     ///
-    pub fn send_stream(&mut self, stream_id: SerializationId, msg: Vec<u8>) {
+    pub fn send_stream(&mut self, runtime: GuestRuntimeHandle, stream_id: SerializationId, msg: Vec<u8>) {
         // Send the message to a buffer on the wasm side
+        let runtime_id  = runtime.0 as i32;
         let stream_id   = Self::serialization_id_to_i32(stream_id);
         let data_handle = self.copy_buffer(msg);
 
         // Finish sending the data
         let store       = &mut self.store;
         let runtime     = &self.runtime;
-        runtime.send_stream.call(store, stream_id, data_handle).unwrap();
+        runtime.send_stream.call(store, runtime_id, stream_id, data_handle).unwrap();
     }
 
     ///
     /// Indicates to the guest that a host stream is ready for more data
     ///
-    pub fn ready_stream(&mut self, stream_id: SerializationId) {
+    pub fn ready_stream(&mut self, runtime: GuestRuntimeHandle, stream_id: SerializationId) {
+        let runtime_id  = runtime.0 as i32;
         let stream_id   = Self::serialization_id_to_i32(stream_id);
 
         let store       = &mut self.store;
         let runtime     = &self.runtime;
-        runtime.ready_stream.call(store, stream_id).unwrap();
+        runtime.ready_stream.call(store, runtime_id, stream_id).unwrap();
     }
 
     ///
     /// Indicates to the guest that a stream has been closed
     ///
-    pub fn close_stream(&mut self, stream_id: SerializationId) {
+    pub fn close_stream(&mut self, runtime: GuestRuntimeHandle, stream_id: SerializationId) {
+        let runtime_id  = runtime.0 as i32;
         let stream_id   = Self::serialization_id_to_i32(stream_id);
 
         let store       = &mut self.store;
         let runtime     = &self.runtime;
-        runtime.close_stream.call(store, stream_id).unwrap();
+        runtime.close_stream.call(store, runtime_id, stream_id).unwrap();
     }
 
     ///
@@ -298,9 +301,9 @@ impl WasmModule {
             Ready(sink_handle)                      => { self.sink_ready(runtime, sink_handle) },
             SinkConnectionError(sink_handle, error) => { self.sink_connection_error(runtime, sink_handle, postcard::to_stdvec(&error).unwrap()) },
             SinkError(sink_handle, error)           => { self.sink_send_error(runtime, sink_handle, postcard::to_stdvec(&error).unwrap()) }
-            SendStream(stream_id, msg)              => { self.send_stream(stream_id, msg) },
-            ReadyStream(stream_id)                  => { self.ready_stream(stream_id) },
-            CloseStream(stream_id)                  => { self.close_stream(stream_id) },
+            SendStream(stream_id, msg)              => { self.send_stream(runtime, stream_id, msg) },
+            ReadyStream(stream_id)                  => { self.ready_stream(runtime, stream_id) },
+            CloseStream(stream_id)                  => { self.close_stream(runtime, stream_id) },
         }
     }
 
