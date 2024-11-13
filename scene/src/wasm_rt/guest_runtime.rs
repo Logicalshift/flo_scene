@@ -1,4 +1,5 @@
 use crate::guest::*;
+use crate::host::serialization_context::*;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -101,5 +102,42 @@ mod postcard_runtime {
         let serialized  = postcard::to_stdvec(&result).unwrap();
 
         buffer_store(serialized)
+    }
+
+    ///
+    /// Sends a message to a stream on a guest
+    ///
+    #[no_mangle]
+    pub extern "C" fn scene_guest_postcard_send_stream(runtime: GuestRuntimeHandle, stream_id: i32, message: BufferHandle) {
+        let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+        let message = claim_buffer(message);
+
+        let stream_id = if stream_id >= 0 { SerializationId::SimpleStream(stream_id as _) } else { SerializationId::SimpleFunction(-(stream_id+1) as _) };
+
+        runtime.send_stream(stream_id, message);
+    }
+
+    ///
+    /// Indicates that a host stream is ready to receive another message
+    ///
+    #[no_mangle]
+    pub extern "C" fn scene_guest_postcard_ready_stream(runtime: GuestRuntimeHandle, stream_id: i32) {
+        let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+
+        let stream_id = if stream_id >= 0 { SerializationId::SimpleStream(stream_id as _) } else { SerializationId::SimpleFunction(-(stream_id+1) as _) };
+
+        runtime.ready_stream(stream_id);
+    }
+
+    ///
+    /// Indicates that a stream has been closed on the host side
+    ///
+    #[no_mangle]
+    pub extern "C" fn scene_guest_postcard_close_stream(runtime: GuestRuntimeHandle, stream_id: i32) {
+        let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+
+        let stream_id = if stream_id >= 0 { SerializationId::SimpleStream(stream_id as _) } else { SerializationId::SimpleFunction(-(stream_id+1) as _) };
+
+        runtime.close_stream(stream_id);
     }
 }
