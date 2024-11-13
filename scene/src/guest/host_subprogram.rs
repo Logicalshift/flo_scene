@@ -7,8 +7,39 @@ use futures::prelude::*;
 use futures::task::{Poll, Waker};
 use futures::channel::mpsc;
 
-use std::collections::{HashMap};
+use std::collections::{VecDeque, HashMap, HashSet};
 use std::sync::*;
+
+///
+/// Data associated with a stream originating from the guest side of the connection
+///
+struct GuestStreamCore {
+    /// Messages that have been sent from the guest (there should only be one message here as we need to signal 'ready' to receive more, but we will cache anything we get)
+    pending: VecDeque<Vec<u8>>,
+
+    /// Flag that's set once the guest indicates it has closed the stream
+    closed: bool,
+
+    /// Waker for the stream
+    waker: Option<Waker>,
+}
+
+///
+/// Structure used to manage the streams in a host subprogram (guest/host)
+///
+struct HostStreams {
+    /// Streams that are ready
+    ready_streams: HashSet<SerializationId>,
+
+    // Streams that are closed
+    closed_streams: HashSet<SerializationId>,
+
+    /// Wakers for when a stream becomes ready or closed
+    stream_waker: HashMap<SerializationId, Option<Waker>>,
+
+    /// Targets for the streams from the guest
+    guest_streams: HashMap<SerializationId, Arc<Mutex<GuestStreamCore>>>,
+}
 
 ///
 /// Runs a guest subprogram as a subprogram in a scene
@@ -66,6 +97,7 @@ where
     let wait_ready          = signal_ready.clone();
     let message_actions     = actions.clone();
     let control_actions     = actions;
+    let streams             = Arc::new(Mutex::new(HostStreams { ready_streams: HashSet::new(), closed_streams: HashSet::new(), stream_waker: HashMap::new(), guest_streams: HashMap::new() }));
 
     // Main loop: relay messages and connect to sinks
     future::select(
@@ -174,9 +206,71 @@ where
                         // Nothing for us to do, should be handled by the stream
                     }
 
-                    SendStream(stream_id, msg)              => { todo!() }
-                    ReadyStream(stream_id)                  => { todo!() }
-                    CloseStream(stream_id)                  => { todo!() }
+                    SendStream(stream_id, msg) => {
+                        // Fetch the core for the stream that is being sent to
+                        let stream_core = {
+                            let streams = streams.lock().unwrap();
+                            streams.guest_streams.get(&stream_id).cloned()
+                        };
+
+                        if let Some(stream_core) = stream_core {
+                            // Stream exists: send the message and retrieve the waker
+                            let waker = {
+                                let mut stream_core = stream_core.lock().unwrap();
+                                stream_core.pending.push_back(msg);
+                                stream_core.waker.take()
+                            };
+
+                            // Wake the stream
+                            if let Some(waker) = waker { waker.wake() };
+                        }
+                    }
+
+                    ReadyStream(stream_id) => {
+                        let waker = {
+                            // Mark the stream as ready, then wake anything up that's waiting on it
+                            let mut streams = streams.lock().unwrap();
+
+                            streams.ready_streams.insert(stream_id);
+                            streams.stream_waker.get_mut(&stream_id)
+                                .map(|waker| waker.take())
+                                .unwrap_or(None)
+                        };
+
+                        if let Some(waker) = waker {
+                            waker.wake();
+                        }
+                    }
+
+                    CloseStream(stream_id) => {
+                        let waker = {
+                            // Mark the stream as closed, then wake anything up that's waiting on it
+                            let mut streams = streams.lock().unwrap();
+
+                            if let Some(stream_core) = streams.guest_streams.get(&stream_id).cloned() {
+                                // This is a stream that's receiving from the guest: mark it as closed and drop the core
+                                use std::mem;
+
+                                streams.guest_streams.remove(&stream_id);
+                                mem::drop(streams);
+
+                                let mut stream_core = stream_core.lock().unwrap();
+                                stream_core.closed = true;
+
+                                stream_core.waker.take()
+                            } else {
+                                // This is a stream sending to the guest: mark it as closed so it won't try to send any more messages
+                                streams.closed_streams.insert(stream_id);
+                                streams.stream_waker.get_mut(&stream_id)
+                                    .map(|waker| waker.take())
+                                    .unwrap_or(None)
+                            }
+                        };
+
+                        if let Some(waker) = waker {
+                            waker.wake();
+                        }
+                    }
                 }
             } 
         }),
