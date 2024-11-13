@@ -1,6 +1,6 @@
 use crate::error::*;
 
-use flo_scene::{SubProgramId};
+use flo_scene::{SubProgramId, SerializationId};
 use flo_scene::guest::*;
 
 use postcard;
@@ -26,6 +26,9 @@ pub struct RuntimeFunctions {
     sink_connection_error:  TypedFunction<(i32, i32, i32), ()>,
     sink_send_error:        TypedFunction<(i32, i32, i32), ()>,
     poll_awake:             TypedFunction<i32, i32>,
+    send_stream:            TypedFunction<(i32, i32), ()>,
+    ready_stream:           TypedFunction<i32, ()>,
+    close_stream:           TypedFunction<i32, ()>,
 }
 
 ///
@@ -230,6 +233,58 @@ impl WasmModule {
     }
 
     ///
+    /// Converts a serialization ID to an i32 value
+    ///
+    #[inline]
+    fn serialization_id_to_i32(id: SerializationId) -> i32 {
+        match id {
+            SerializationId::SimpleStream(id) => {
+                id as i32
+            },
+
+            SerializationId::SimpleFunction(id) => {
+                -(id as i32) - 1
+            }
+        }
+    }
+
+    ///
+    /// Sends a message to a stream
+    ///
+    pub fn send_stream(&mut self, stream_id: SerializationId, msg: Vec<u8>) {
+        // Send the message to a buffer on the wasm side
+        let stream_id   = Self::serialization_id_to_i32(stream_id);
+        let data_handle = self.copy_buffer(msg);
+
+        // Finish sending the data
+        let store       = &mut self.store;
+        let runtime     = &self.runtime;
+        runtime.send_stream.call(store, stream_id, data_handle).unwrap();
+    }
+
+    ///
+    /// Indicates to the guest that a host stream is ready for more data
+    ///
+    pub fn ready_stream(&mut self, stream_id: SerializationId) {
+        let stream_id   = Self::serialization_id_to_i32(stream_id);
+
+        let store       = &mut self.store;
+        let runtime     = &self.runtime;
+        runtime.ready_stream.call(store, stream_id).unwrap();
+    }
+
+    ///
+    /// Indicates to the guest that a stream has been closed
+    ///
+    pub fn close_stream(&mut self, stream_id: SerializationId) {
+        let stream_id   = Self::serialization_id_to_i32(stream_id);
+
+        let store       = &mut self.store;
+        let runtime     = &self.runtime;
+        runtime.close_stream.call(store, stream_id).unwrap();
+    }
+
+    ///
     /// Processes a single action in this runtime (note that `poll_awake()` needs to be called after this to actually execute the runtime)
     ///
     pub fn process(&mut self, runtime: GuestRuntimeHandle, action: GuestAction) {
@@ -240,9 +295,9 @@ impl WasmModule {
             Ready(sink_handle)                      => { self.sink_ready(runtime, sink_handle) },
             SinkConnectionError(sink_handle, error) => { self.sink_connection_error(runtime, sink_handle, postcard::to_stdvec(&error).unwrap()) },
             SinkError(sink_handle, error)           => { self.sink_send_error(runtime, sink_handle, postcard::to_stdvec(&error).unwrap()) }
-            SendStream(stream_id, msg)              => { todo!() },
-            ReadyStream(stream_id)                  => { todo!() },
-            CloseStream(stream_id)                  => { todo!() },
+            SendStream(stream_id, msg)              => { self.send_stream(stream_id, msg) },
+            ReadyStream(stream_id)                  => { self.ready_stream(stream_id) },
+            CloseStream(stream_id)                  => { self.close_stream(stream_id) },
         }
     }
 
@@ -290,13 +345,19 @@ impl RuntimeFunctions {
         let sink_connection_error   = instance.exports.get_function(&format!("scene_guest_{}_sink_connection_error", serialization_format)).map_err(|_| WasmSubprogramError::MissingRuntimeFunction(format!("scene_guest_{}_sink_connection_error", serialization_format)))?.typed(store).unwrap();
         let sink_send_error         = instance.exports.get_function(&format!("scene_guest_{}_sink_send_error", serialization_format)).map_err(|_| WasmSubprogramError::MissingRuntimeFunction(format!("scene_guest_{}_sink_send_error", serialization_format)))?.typed(store).unwrap();
         let poll_awake              = instance.exports.get_function(&format!("scene_guest_{}_poll_awake", serialization_format)).map_err(|_| WasmSubprogramError::MissingRuntimeFunction(format!("scene_guest_{}_poll_awake", serialization_format)))?.typed(store).unwrap();
+        let send_stream             = instance.exports.get_function(&format!("scene_guest_{}_send_stream", serialization_format)).map_err(|_| WasmSubprogramError::MissingRuntimeFunction(format!("scene_guest_{}_poll_awake", serialization_format)))?.typed(store).unwrap();
+        let ready_stream            = instance.exports.get_function(&format!("scene_guest_{}_ready_stream", serialization_format)).map_err(|_| WasmSubprogramError::MissingRuntimeFunction(format!("scene_guest_{}_poll_awake", serialization_format)))?.typed(store).unwrap();
+        let close_stream            = instance.exports.get_function(&format!("scene_guest_{}_close_stream", serialization_format)).map_err(|_| WasmSubprogramError::MissingRuntimeFunction(format!("scene_guest_{}_poll_awake", serialization_format)))?.typed(store).unwrap();
 
         Ok(RuntimeFunctions { 
             send_message,
             sink_ready,
             sink_connection_error,
             sink_send_error,
-            poll_awake
+            poll_awake,
+            send_stream,
+            ready_stream,
+            close_stream,
         })
     }
 }
