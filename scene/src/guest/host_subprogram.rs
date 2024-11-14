@@ -4,8 +4,9 @@ use super::stream_id::*;
 use crate::host::*;
 
 use futures::prelude::*;
-use futures::task::{Poll, Waker};
 use futures::channel::mpsc;
+use futures::stream::{BoxStream};
+use futures::task::{Poll, Waker};
 
 use std::collections::{VecDeque, HashMap, HashSet};
 use std::sync::*;
@@ -39,6 +40,9 @@ struct HostStreams {
 
     /// Targets for the streams from the guest
     guest_streams: HashMap<SerializationId, Arc<Mutex<GuestStreamCore>>>,
+
+    /// The next ID to assign to a stream
+    next_stream_id: usize,
 }
 
 ///
@@ -97,7 +101,7 @@ where
     let wait_ready          = signal_ready.clone();
     let message_actions     = actions.clone();
     let control_actions     = actions;
-    let streams             = Arc::new(Mutex::new(HostStreams { ready_streams: HashSet::new(), closed_streams: HashSet::new(), stream_waker: HashMap::new(), guest_streams: HashMap::new() }));
+    let streams             = Arc::new(Mutex::new(HostStreams { ready_streams: HashSet::new(), closed_streams: HashSet::new(), stream_waker: HashMap::new(), guest_streams: HashMap::new(), next_stream_id: 0 }));
 
     // Main loop: relay messages and connect to sinks
     future::select(
@@ -331,4 +335,96 @@ fn connect(stream_id: StreamId, target: StreamTarget, context: &SceneContext) ->
         });
 
     Ok(Box::pin(postcard_stream))
+}
+
+impl HostStreams {
+    /// Retrieves a unique stream ID for a new stream
+    pub fn next_stream_id(&mut self) -> SerializationId {
+        let id = self.next_stream_id;
+        self.next_stream_id += 1;
+
+        SerializationId::SimpleStream(id)
+    }
+}
+
+///
+/// The host serialization context can be used to create streams to exchange data with the guest side
+///
+#[derive(Clone)]
+struct HostSerializationContext(Arc<Mutex<HostStreams>>, mpsc::Sender<GuestAction>);
+
+impl SerializationContext for HostSerializationContext {
+    fn send_stream(&self, stream: BoxStream<'static, Vec<u8>>) -> Result<SerializationId, SceneSendError<BoxStream<'static, Vec<u8>>>> {
+        // TODO: Need to store the stream away and run as a parallel future in the host
+        todo!()
+    }
+
+    fn receive_stream(&self, stream_id: SerializationId) -> Result<BoxStream<'static, Vec<u8>>, SceneSendError<SerializationId>> {
+        // Create an ID for this tream
+        let new_stream_id = self.0.lock().unwrap().next_stream_id();
+
+        // Create a guest stream for this stream
+        let new_stream_core = GuestStreamCore {
+            pending:    VecDeque::new(),
+            closed:     false,
+            waker:      None
+        };
+        let new_stream_core = Arc::new(Mutex::new(new_stream_core));
+
+        // Add to the guest streams so the host can wake us once the 
+        self.0.lock().unwrap().guest_streams.insert(new_stream_id, new_stream_core.clone());
+
+        // Create a results stream
+        let actions = self.1.clone();
+
+        let stream = stream::unfold((actions, new_stream_core), move |(actions, stream_core)| async move {
+            use std::mem;
+            use futures::task::{Poll};
+
+            // TODO: arrange for a 'closed' message to be sent if this is ever dropped
+            let mut actions = actions;
+
+            loop {
+                // Return the next message if there are messages waiting
+                {
+                    let mut locked_core = stream_core.lock().unwrap();
+
+                    if let Some(next_message) = locked_core.pending.pop_front() {
+                        // There is a pending message
+                        mem::drop(locked_core);
+                        return Some((next_message, (actions, stream_core)));
+                    } else if locked_core.closed {
+                        // The stream has closed and there are no remaining messages to deliver
+                        return None;
+                    }
+                }
+
+                // Stream is ready, we're waiting for a new message
+                actions.send(GuestAction::ReadyStream(new_stream_id)).await.ok();
+
+                // Wait for something to wake us up
+                let stream_core = stream_core.clone();
+                future::poll_fn(move |ctxt| {
+                    let mut locked_core = stream_core.lock().unwrap();
+
+                    if !locked_core.closed && locked_core.pending.is_empty() {
+                        locked_core.waker = Some(ctxt.waker().clone());
+                        Poll::Pending
+                    } else {
+                        Poll::Ready(())
+                    }
+                }).await;
+            }
+        });
+
+        Ok(stream.boxed())
+    }
+
+    fn send_function(&self, callback: RemoteCallbackFn) -> Result<SerializationId, SceneSendError<RemoteCallbackFn>> {
+        todo!()
+    }
+
+    fn receive_function(&self, callback_id: SerializationId) -> Result<RemoteCallbackFn, SceneSendError<SerializationId>> {
+        todo!()
+    }
 }
