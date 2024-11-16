@@ -178,6 +178,7 @@
 #![allow(clippy::redundant_field_names)]            // I prefer this to be consistent across the struct when initialising
 
 pub mod uuid_impl;
+mod util;
 
 #[cfg(not(target_family="wasm"))]
 mod host;
