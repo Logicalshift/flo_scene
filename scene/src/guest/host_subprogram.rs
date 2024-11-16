@@ -356,18 +356,73 @@ impl HostStreams {
 /// The host serialization context can be used to create streams to exchange data with the guest side
 ///
 #[derive(Clone)]
-struct HostSerializationContext(Arc<Mutex<HostStreams>>, mpsc::Sender<GuestAction>);
+struct HostSerializationContext(Arc<Mutex<HostStreams>>, mpsc::Sender<GuestAction>, FuturePile);
 
 impl SerializationContext for HostSerializationContext {
     fn send_stream(&self, stream: BoxStream<'static, Vec<u8>>) -> Result<SerializationId, SceneSendError<BoxStream<'static, Vec<u8>>>> {
-        // TODO: Need to store the stream away and run as a parallel future in the host
-        todo!()
+        // Create a stream ID, and create a copy of the host streams and action sender
+        let host_streams    = self.0.clone();
+        let guest_actions   = self.1.clone();
+        let new_stream_id   = host_streams.lock().unwrap().next_stream_id();
+
+        // State from polling the stream
+        enum State {
+            Closed,
+            Ready
+        }
+
+        // Create a future that runs the stream
+        let run_stream = async move {
+            let mut stream          = stream;
+            let mut guest_actions   = guest_actions;
+
+            // Wait for a message to arrive from the host stream (TODO: or for the stream to close)
+            while let Some(msg) = stream.next().await {
+                // Wait for the guest to signal that it's ready
+                let state = future::poll_fn(|context| {
+                    let mut host_streams = host_streams.lock().unwrap();
+
+                    if host_streams.closed_streams.contains(&new_stream_id) {
+                        // Stream has closed
+                        host_streams.closed_streams.remove(&new_stream_id);
+                        host_streams.ready_streams.remove(&new_stream_id);
+
+                        Poll::Ready(State::Closed)
+                    } else if host_streams.ready_streams.contains(&new_stream_id) {
+                        // Stream is ready for more data
+                        host_streams.ready_streams.remove(&new_stream_id);
+
+                        Poll::Ready(State::Ready)
+                    } else {
+                        // Wake us up when the stream state changes
+                        host_streams.stream_waker.insert(new_stream_id, Some(context.waker().clone()));
+
+                        Poll::Pending
+                    }
+                }).await;
+
+                match state {
+                    State::Closed => { break; }
+
+                    State::Ready => {
+                        // Guest is ready to receive the message, send it on via the actions
+                        if guest_actions.send(GuestAction::SendStream(new_stream_id, msg)).await.is_err() {
+                            // Can no longer send guest actions to anything
+                            break;
+                        }
+                    }
+                }
+            }
+        };
+
+        // Add our future to the pile to start it running
+        self.2.add_future(run_stream);
+
+        // Result is this new stream ID
+        Ok(new_stream_id)
     }
 
     fn receive_stream(&self, stream_id: SerializationId) -> Result<BoxStream<'static, Vec<u8>>, SceneSendError<SerializationId>> {
-        // Create an ID for this tream
-        let new_stream_id = self.0.lock().unwrap().next_stream_id();
-
         // Create a guest stream for this stream
         let new_stream_core = GuestStreamCore {
             pending:    VecDeque::new(),
@@ -377,7 +432,7 @@ impl SerializationContext for HostSerializationContext {
         let new_stream_core = Arc::new(Mutex::new(new_stream_core));
 
         // Add to the guest streams so the host can wake us once the 
-        self.0.lock().unwrap().guest_streams.insert(new_stream_id, new_stream_core.clone());
+        self.0.lock().unwrap().guest_streams.insert(stream_id, new_stream_core.clone());
 
         // Create a results stream
         let actions = self.1.clone();
@@ -405,7 +460,7 @@ impl SerializationContext for HostSerializationContext {
                 }
 
                 // Stream is ready, we're waiting for a new message
-                actions.send(GuestAction::ReadyStream(new_stream_id)).await.ok();
+                actions.send(GuestAction::ReadyStream(stream_id)).await.ok();
 
                 // Wait for something to wake us up
                 let stream_core = stream_core.clone();
