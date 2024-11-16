@@ -2,6 +2,7 @@ use super::poll_action::*;
 use super::poll_result::*;
 use super::stream_id::*;
 use crate::host::*;
+use crate::util::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
@@ -97,15 +98,16 @@ where
     }
 
     // Signal used to indicate when we can send a message we've received that's destined for this program. This is basically just a semaphore we can poll for
-    let signal_ready        = Arc::new(Mutex::new((None, false)));
-    let wait_ready          = signal_ready.clone();
-    let message_actions     = actions.clone();
-    let control_actions     = actions;
-    let streams             = Arc::new(Mutex::new(HostStreams { ready_streams: HashSet::new(), closed_streams: HashSet::new(), stream_waker: HashMap::new(), guest_streams: HashMap::new(), next_stream_id: 0 }));
+    let signal_ready                = Arc::new(Mutex::new((None, false)));
+    let wait_ready                  = signal_ready.clone();
+    let message_actions             = actions.clone();
+    let control_actions             = actions;
+    let streams                     = Arc::new(Mutex::new(HostStreams { ready_streams: HashSet::new(), closed_streams: HashSet::new(), stream_waker: HashMap::new(), guest_streams: HashMap::new(), next_stream_id: 0 }));
+    let (future_pile, pile_runner)  = FuturePile::new();
 
     // Main loop: relay messages and connect to sinks
-    future::select(
-        Box::pin(async move {
+    future::select_all(vec![
+        async move {
             use GuestResult::*;
 
             let mut control_actions = control_actions;
@@ -277,9 +279,9 @@ where
                     }
                 }
             } 
-        }),
+        }.boxed(),
 
-        Box::pin(async move {
+        async move {
             let mut message_actions = message_actions;
 
             // Loop 2: read from the input stream
@@ -308,7 +310,10 @@ where
                     break;
                 }
             }
-        })
+        }.boxed(),
+
+        pile_runner.run_forever().boxed()
+        ]
     ).await;
 }
 
