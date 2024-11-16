@@ -104,6 +104,8 @@ where
     let control_actions             = actions;
     let streams                     = Arc::new(Mutex::new(HostStreams { ready_streams: HashSet::new(), closed_streams: HashSet::new(), stream_waker: HashMap::new(), guest_streams: HashMap::new(), next_stream_id: 0 }));
     let (future_pile, pile_runner)  = FuturePile::new();
+    let message_streams             = streams.clone();
+    let message_future_pile         = future_pile.clone();
 
     // Main loop: relay messages and connect to sinks
     future::select_all(vec![
@@ -304,7 +306,7 @@ where
 
                 // Encode the input stream and send it
                 // TODO: we probably want some better error handling here if we can't encode a message (do we ignore it? stop the program?)
-                let encoded_input = input.to_guest_message(&DisconnectedSerializationContext).map_err(|_| ()).unwrap();
+                let encoded_input = input.to_guest_message(&HostSerializationContext(message_streams.clone(), message_actions.clone(), message_future_pile.clone())).map_err(|_| ()).unwrap();
 
                 if message_actions.send(GuestAction::SendMessage(guest_program_handle, encoded_input)).await.is_err() {
                     // Just stop if there's any error sending to the guest program
