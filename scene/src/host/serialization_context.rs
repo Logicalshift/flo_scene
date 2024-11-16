@@ -62,3 +62,25 @@ impl SerializationContext for DisconnectedSerializationContext {
         Err(SceneSendError::NoConnection(callback_id))
     }
 }
+
+impl SerializationContext for Box<dyn SerializationContext> {
+    #[inline]
+    fn send_stream(&self, stream: BoxStream<'static, Vec<u8>>) -> Result<SerializationId, SceneSendError<BoxStream<'static, Vec<u8>>>> {
+        (**self).send_stream(stream)
+    }
+
+    #[inline]
+    fn receive_stream(&self, stream_id: SerializationId) -> Result<BoxStream<'static, Vec<u8>>, SceneSendError<SerializationId>> {
+        (**self).receive_stream(stream_id)
+    }
+
+    #[inline]
+    fn send_function(&self, callback: RemoteCallbackFn) -> Result<SerializationId, SceneSendError<RemoteCallbackFn>> {
+        (**self).send_function(callback)
+    }
+
+    #[inline]
+    fn receive_function(&self, callback_id: SerializationId) -> Result<RemoteCallbackFn, SceneSendError<SerializationId>> {
+        (**self).receive_function(callback_id)
+    }
+}
