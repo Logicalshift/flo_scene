@@ -3,6 +3,7 @@ use crate::host::filter::*;
 use crate::host::input_stream::*;
 use crate::host::output_sink::*;
 use crate::host::scene::*;
+use crate::host::scene_context::*;
 use crate::host::scene_core::*;
 use crate::host::scene_message::*;
 use crate::host::serialization::*;
@@ -37,6 +38,7 @@ type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync 
 type ReconnectSinkFn            = Arc<dyn Send + Sync + Fn(&Arc<Mutex<SceneCore>>, &Arc<dyn Send + Sync + Any>, SubProgramId, StreamTarget) -> Result<Option<Waker>, ConnectionError>>;
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
 type RunHostSubProgramFn        = Arc<dyn Send + Sync + Fn(SubProgramId, usize, Sender<GuestAction>, BoxStream<'static, GuestResult>) -> SceneControl>;
+type SendGuestMessagesFn        = Arc<dyn Send + Sync + Fn(StreamTarget, &SceneContext, Box<dyn SerializationContext>) -> Result<Box<dyn 'static + Send + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>, ConnectionError>>;
 
 ///
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
@@ -72,6 +74,10 @@ struct StreamTypeFunctions {
     /// Runs a host subprogram using this stream type as input and the postcard encoder
     #[cfg(feature="postcard")]
     run_host_subprogram_postcard: RunHostSubProgramFn,
+
+    /// Sends deserialized guest messages from a Vec<u8> sink
+    #[cfg(feature="postcard")]
+    send_guest_messages: SendGuestMessagesFn,
 
     /// Initialises the message type inside a scene
     initialise: InitialiseFn,
@@ -246,6 +252,26 @@ impl StreamTypeFunctions {
                 SceneControl::start_program(program_id, move |input: InputStream<TMessageType>, context| async move {
                     run_host_subprogram(input, context, actions, results).await; 
                 }, max_waiting)),
+
+            #[cfg(feature="postcard")]
+            send_guest_messages: Arc::new(|target, context, serialization_context| {
+                // Send to the target
+                let sink = context.send::<TMessageType>(target)?;
+
+                // Deserialize the messages
+                let sink = sink
+                    .sink_map_err(|_| SceneSendError::<Vec<u8>>::ErrorAfterDeserialization)            // The error doesn't preserve the input value, so we can't return it
+                    .with(move |msg: Vec<u8>| {
+                        let deserialized = TMessageType::from_guest_message(&msg, &serialization_context)
+                            .map_err(move |err| err.map(move |_| msg));
+
+                        async move {
+                            deserialized
+                        }
+                    });
+
+                Ok(Box::new(sink))
+            }),
 
             initialise: Arc::new(move |scene| {
                 use std::mem;
@@ -636,6 +662,16 @@ impl StreamId {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)
         }
+    }
+
+    ///
+    /// Creates a sink connected to the specified target that deserializes guest messages
+    ///
+    #[cfg(feature="postcard")]
+    pub fn send_guest_messages(&self, target: StreamTarget, context: &SceneContext, serialization_context: impl 'static + SerializationContext) -> Result<Box<dyn 'static + Send + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>, ConnectionError> {
+        let serialization_context = Box::new(serialization_context);
+
+        todo!()
     }
 }
 
