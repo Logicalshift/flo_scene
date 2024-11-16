@@ -155,10 +155,11 @@ where
                         let stream_id   = stream_target.stream_id();
 
                         if let Some(stream_id) = stream_id  {
-                            let target      = stream_target.to_stream_target();
+                            let target                  = stream_target.to_stream_target();
+                            let serialization_context   = HostSerializationContext(streams.clone(), control_actions.clone(), future_pile.clone());
 
                             // Ask the encoder to do the attachment
-                            match connect(stream_id, target, &context) {
+                            match connect(stream_id, target, &context, serialization_context) {
                                 Ok(sink) => {
                                     // Store this sink
                                     active_sinks.insert(sink_handle, sink);
@@ -320,7 +321,7 @@ where
 ///
 /// Creates a connection that sends to a host stream by decoding messages from a guest
 ///
-fn connect(stream_id: StreamId, target: StreamTarget, context: &SceneContext) -> Result<impl Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError> {
+fn connect(stream_id: StreamId, target: StreamTarget, context: &SceneContext, serialization_context: HostSerializationContext) -> Result<impl Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError> {
     // Create the stream target
     let serialized_target = SerializedStreamTarget::from(stream_id);
     let serialized_target = match target {
