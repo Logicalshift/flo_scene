@@ -409,6 +409,14 @@ impl StreamTypeFunctions {
             .map(|all_functions| Arc::clone(&all_functions.run_host_subprogram_postcard))
     }
 
+    #[cfg(feature="postcard")]
+    pub fn send_guest_messages(type_id: &TypeId) -> Option<SendGuestMessagesFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.send_guest_messages))
+    }
+
     pub fn initialise(type_id: &TypeId) -> Option<InitialiseFn> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
@@ -671,7 +679,14 @@ impl StreamId {
     pub fn send_guest_messages(&self, target: StreamTarget, context: &SceneContext, serialization_context: impl 'static + SerializationContext) -> Result<Box<dyn 'static + Send + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>, ConnectionError> {
         let serialization_context = Box::new(serialization_context);
 
-        todo!()
+        let message_type = self.message_type();
+
+        if let Some(send_guest_messages) = StreamTypeFunctions::send_guest_messages(&message_type) {
+            (send_guest_messages)(target, context, serialization_context)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
     }
 }
 

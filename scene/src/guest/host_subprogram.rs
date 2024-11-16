@@ -324,25 +324,9 @@ where
 /// Creates a connection that sends to a host stream by decoding messages from a guest
 ///
 fn connect(stream_id: StreamId, target: StreamTarget, context: &SceneContext, serialization_context: HostSerializationContext) -> Result<impl Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError> {
-    // Create the stream target
-    let serialized_target = SerializedStreamTarget::from(stream_id);
-    let serialized_target = match target {
-        StreamTarget::None | StreamTarget::Any  => Ok(serialized_target),
-        StreamTarget::Program(program_id)       => todo!("Cannot map a target program to a specific stream ID at the moment"),
-        StreamTarget::Filtered(_, _)            => Err(ConnectionError::FilterMappingMissing)
-    }?;
+    let raw_stream = stream_id.send_guest_messages(target, context, serialization_context)?;
 
-    // Send as a postcard stream
-    let postcard_stream = context.send_serialized::<GuestMessage>(serialized_target)?;
-
-    // Put a postcard deserialzer in front of the stream
-    let postcard_stream = postcard_stream
-        .sink_map_err(|err| err.map(|msg| postcard::to_stdvec(&msg).unwrap_or_else(|_| vec![])))
-        .with(|bytes: Vec<u8>| async move {
-            Ok(GuestMessage(bytes))
-        });
-
-    Ok(Box::pin(postcard_stream))
+    Ok(Box::into_pin(raw_stream))
 }
 
 impl HostStreams {
