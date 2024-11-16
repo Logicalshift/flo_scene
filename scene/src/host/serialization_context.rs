@@ -25,7 +25,7 @@ pub enum SerializationId {
 /// protocol being the main one that's used), as these are effectively ways to generate new
 /// connections or cause callbacks in a remote environment.
 ///
-pub trait SerializationContext : Send + Sync + Clone {
+pub trait SerializationContext : Send + Sync {
     /// Converts a stream to a serialization ID that can be retrieved by the other side of a connection to read the stream (the stream is cached until the other side drops it)
     fn send_stream(&self, stream: BoxStream<'static, Vec<u8>>) -> Result<SerializationId, SceneSendError<BoxStream<'static, Vec<u8>>>>;
 
