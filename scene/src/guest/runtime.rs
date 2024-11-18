@@ -7,6 +7,7 @@ use super::sink_handle::*;
 use super::stream_id::*;
 use super::stream_target::*;
 use super::subprogram_handle::*;
+use crate::guest::guest_serialization_context::GuestSerializationContext;
 use crate::host::error::*;
 use crate::host::scene_message::*;
 use crate::host::serialization_context::*;
@@ -107,6 +108,7 @@ impl GuestRuntime {
         let closed_streams      = HashSet::new();
         let when_ready          = HashMap::new();
         let pending_streams     = HashMap::new();
+        let serialization_ctxt  = GuestSerializationContext::new();
 
         let core = GuestRuntimeCore { futures, awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
         let core = Arc::new(Mutex::new(core));
@@ -115,7 +117,7 @@ impl GuestRuntime {
 
         // Initialise the initial subprogram
         let (_input_handle, input_stream)   = runtime.create_input_stream();
-        let context                         = GuestSceneContext { core: Arc::clone(&core), subprogram_id: program_id };
+        let context                         = GuestSceneContext { core: Arc::clone(&core), subprogram_id: program_id, serialization_context: serialization_ctxt };
         let subprogram                      = subprogram(input_stream, context);
 
         core.lock().unwrap().futures.push(GuestFuture::Ready(subprogram.boxed()));
@@ -443,8 +445,11 @@ impl GuestRuntimeCore {
         let stream_handle = core.next_stream_handle;
         core.next_stream_handle += 1;
 
+        // Create a new serialization context for the core
+        let serialization_context = GuestSerializationContext::new();
+
         // Create a core for the new stream
-        let input_stream    = GuestInputStream::new(GuestSubProgramHandle(stream_handle), runtime_core);
+        let input_stream    = GuestInputStream::new(GuestSubProgramHandle(stream_handle), runtime_core, serialization_context);
         let input_core      = input_stream.core().clone();
 
         core.input_streams.insert(stream_handle, input_core);

@@ -8,6 +8,15 @@ pub (super) struct GuestSerializationContext {
 
 }
 
+impl GuestSerializationContext {
+    ///
+    /// Creates a new serialization context for this guest
+    ///
+    pub fn new() -> Self {
+        GuestSerializationContext { }
+    }
+}
+
 impl SerializationContext for GuestSerializationContext {
     fn send_stream(&self, stream: futures::stream::BoxStream<'static, Vec<u8>>) -> Result<SerializationId, crate::SceneSendError<futures::stream::BoxStream<'static, Vec<u8>>>> {
         todo!()

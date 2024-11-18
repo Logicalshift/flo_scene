@@ -1,7 +1,7 @@
+use super::guest_serialization_context::*;
 use super::runtime::*;
 use super::subprogram_handle::*;
 use crate::host::scene_message::*;
-use crate::host::serialization_context::*;
 
 use futures::prelude::*;
 use futures::task::{Waker, Poll, Context};
@@ -40,6 +40,9 @@ pub struct GuestInputStream<TMessageType: SceneMessage> {
     /// The runtime core (we need this to signal 'ready')
     runtime_core: Arc<Mutex<GuestRuntimeCore>>,
 
+    /// The serialization context to use when decoding messages
+    serialization_context: GuestSerializationContext,
+
     /// Phantom data, what the waiting messages are decoded as
     decode_as: PhantomData<TMessageType>,
 }
@@ -49,7 +52,7 @@ where
     TMessageType: SceneMessage,
 {
     /// Creates a new guest input stream
-    pub (crate) fn new(program_handle: GuestSubProgramHandle, runtime_core: &Arc<Mutex<GuestRuntimeCore>>) -> Self {
+    pub (crate) fn new(program_handle: GuestSubProgramHandle, runtime_core: &Arc<Mutex<GuestRuntimeCore>>, serialization_context: GuestSerializationContext) -> Self {
         // Create the core
         let core = GuestInputStreamCore {
             waiting:    VecDeque::new(),
@@ -61,7 +64,7 @@ where
         let runtime_core    = Arc::clone(runtime_core);
         let decode_as       = PhantomData;
 
-        Self { core, program_handle, runtime_core, decode_as }
+        Self { core, program_handle, runtime_core, decode_as, serialization_context }
     }
 
     /// Retrieves the core of this input stream
@@ -114,7 +117,7 @@ where
         match next_message {
             Poll::Pending               => Poll::Pending,
             Poll::Ready(None)           => Poll::Ready(None),
-            Poll::Ready(Some(bytes))    => Poll::Ready(Some(TMessageType::from_guest_message(&bytes, &DisconnectedSerializationContext).unwrap())),
+            Poll::Ready(Some(bytes))    => Poll::Ready(Some(TMessageType::from_guest_message(&bytes, &self.serialization_context).unwrap())),
         }
     }
 }

@@ -1,3 +1,4 @@
+use super::guest_serialization_context::*;
 use super::runtime::*;
 use super::stream_target::*;
 use crate::host::*;
@@ -15,6 +16,9 @@ pub struct GuestSceneContext {
 
     /// The core of the runtime where this context is running
     pub (crate) core: Arc<Mutex<GuestRuntimeCore>>,
+
+    /// The serialization context, used for decoding messages
+    pub (crate) serialization_context: GuestSerializationContext,
 }
 
 impl GuestSceneContext {
@@ -43,11 +47,12 @@ impl GuestSceneContext {
         TMessageType: 'static + SceneMessage,
     {
         // Set up the state
-        let connection  = None;
-        let core        = Some(self.core.clone());
-        let target      = Some(HostStreamTarget::from_stream_target::<TMessageType>(target)?);
+        let connection              = None;
+        let core                    = Some(self.core.clone());
+        let target                  = Some(HostStreamTarget::from_stream_target::<TMessageType>(target)?);
+        let serialization_context   = self.serialization_context.clone();
 
-        Ok(sink::unfold((connection, core, target), move |(connection, core, target), item: TMessageType| {
+        Ok(sink::unfold((connection, core, target, serialization_context), move |(connection, core, target, serialization_context), item: TMessageType| {
             Box::pin(async move {
                 let mut connection = match connection {
                     None => {
@@ -73,14 +78,14 @@ impl GuestSceneContext {
                 };
 
                 // Encode the message
-                let encoded = item.to_guest_message(&DisconnectedSerializationContext)
+                let encoded = item.to_guest_message(&serialization_context)
                     .map_err(move |err| err.map(move |_| vec![]))?;
 
                 // Send the encoded message
                 // TODO: Rust can't figure out the type (it should be able to because it can with just the above code, but apparently not... which is an issue because it's anonymous so we can't declare it)
                 connection.send(encoded).await?;
 
-                Ok((Some(connection), None, None))
+                Ok((Some(connection), None, None, serialization_context))
             })
         }))
     }
