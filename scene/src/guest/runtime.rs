@@ -12,6 +12,7 @@ use crate::host::error::*;
 use crate::host::scene_message::*;
 use crate::host::serialization_context::*;
 use crate::host::subprogram_id::*;
+use crate::util::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
@@ -21,26 +22,15 @@ use futures::channel::mpsc;
 use std::collections::{HashMap, HashSet};
 use std::sync::*;
 
-///
-/// Enum representing the state of a future in the guest runtime
-///
-enum GuestFuture {
-    /// Future is ready to run
-    Ready(BoxFuture<'static, ()>),
-
-    /// Future is being polled elsewhere
-    Busy,
-
-    /// Future is finished (and can be replaced by another future if needed)
-    Finished
-}
-
 pub (crate) struct GuestRuntimeCore {
-    /// The futures that are running in the guest
-    futures: Vec<GuestFuture>,
+    /// The runner for the futures in this core (None while we're polling it)
+    future_runner: Option<BoxFuture<'static, ()>>,
 
-    /// Indices of the futures that are awake
-    awake: HashSet<usize>,
+    /// The future pile, which can be used to schedule new futures on this core
+    future_pile: FuturePile,
+
+    /// Set to true if the waker has been triggered for anything in the future pile
+    pile_is_awake: bool,
 
     /// The input stream cores used in the runtime
     input_streams: HashMap<usize, Arc<Mutex<GuestInputStreamCore>>>,
@@ -70,9 +60,6 @@ pub (crate) struct GuestRuntimeCore {
     pending_streams: HashMap<SerializationId, Arc<Mutex<GuestStreamCore>>>,
 }
 
-/// Wakes up the future with the specified index in a guest runtime core
-struct CoreWaker(usize, Weak<Mutex<GuestRuntimeCore>>);
-
 ///
 /// The guest runtime runs a set of guest subprograms (providing GuestInputStream and GuestSceneContext functions),
 /// and also supplies the functions that process GuestActions and generate GuestResults. From the point of view of
@@ -97,8 +84,10 @@ impl GuestRuntime {
         TFuture:        'static + Send + Future<Output=()>,
     {
         // Create the runtime
-        let futures             = vec![];
-        let awake               = HashSet::new();
+        let (pile, runner)      = FuturePile::new();
+        let future_pile         = pile.clone();
+        let pile_is_awake       = true;
+        let future_runner       = Some(runner.run_forever().boxed());
         let input_streams       = HashMap::new();
         let sink_handles        = HashMap::new();
         let next_stream_handle  = 0;
@@ -109,7 +98,7 @@ impl GuestRuntime {
         let when_ready          = HashMap::new();
         let pending_streams     = HashMap::new();
 
-        let core = GuestRuntimeCore { futures, awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
+        let core = GuestRuntimeCore { future_runner, future_pile, pile_is_awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
         let core = Arc::new(Mutex::new(core));
 
         let runtime             = GuestRuntime { core: Arc::clone(&core) };
@@ -120,8 +109,7 @@ impl GuestRuntime {
         let context                         = GuestSceneContext { core: Arc::clone(&core), subprogram_id: program_id, serialization_context: serialization_ctxt };
         let subprogram                      = subprogram(input_stream, context);
 
-        core.lock().unwrap().futures.push(GuestFuture::Ready(subprogram.boxed()));
-        core.lock().unwrap().awake.insert(0);
+        pile.add_future(subprogram);
         debug_assert!(_input_handle == 0);
 
         runtime
@@ -397,39 +385,14 @@ impl GuestRuntime {
     }
 }
 
-impl GuestFuture {
-    ///
-    /// If this future is in the ready state, returns Some(future) and leaves this in the busy state 
-    ///
-    #[inline]
-    pub fn take(&mut self) -> Option<BoxFuture<'static, ()>> {
-        use std::mem;
-
-        match self {
-            GuestFuture::Ready(_) => {
-                let mut taken_future = GuestFuture::Busy;
-                mem::swap(self, &mut taken_future);
-
-                match taken_future {
-                    GuestFuture::Ready(taken_future)    => Some(taken_future),
-                    _                                   => unreachable!()
-                }
-            }
-
-            _ => None
-        }
-    }
-}
+struct CoreWaker(Weak<Mutex<GuestRuntimeCore>>);
 
 impl ArcWake for CoreWaker {
     fn wake_by_ref(arc_self: &Arc<Self>) {
-        let CoreWaker(future_idx, weak_runtime_core) = &**arc_self;
-        let future_idx = *future_idx;
-
-        if let Some(runtime_core) = weak_runtime_core.upgrade() {
+        if let Some(runtime_core) = arc_self.0.upgrade() {
             // If the core still exists, add this future to the awake list
             let mut core = runtime_core.lock().unwrap();
-            core.awake.insert(future_idx);
+            core.pile_is_awake = true;
         }
     }
 }
@@ -460,69 +423,43 @@ impl GuestRuntimeCore {
     ///
     /// Polls any awake futures in this core
     ///
+    #[inline]
     pub (crate) fn poll_awake(core: &Arc<Mutex<Self>>) -> Vec<GuestResult> {
         use std::mem;
 
+        // TODO: need to mark the futures as stopped and finished
         loop {
-            // Pick the futures to poll
-            let ready_to_poll = {
-                // Take all of the futures that are ready out of the core (and mark them as asleep again)
-                let mut core    = core.lock().unwrap();
-                let core        = &mut *core;
+            // Fetch the runner from the core (we borrow it while it's active)
+            let future_runner = {
+                let mut core = core.lock().unwrap();
 
-                let awake   = &mut core.awake;
-                let futures = &mut core.futures;
-
-                awake.drain()
-                    .flat_map(|idx| {
-                        futures[idx].take().map(|future| (idx, future))
-                    })
-                    .collect::<Vec<_>>()
+                if core.pile_is_awake {
+                    core.pile_is_awake = false;
+                    core.future_runner.take()
+                } else {
+                    None
+                }
             };
 
-            // Return the actions that were generated when there are no more futures ready to run
-            if ready_to_poll.is_empty() {
-                // Take the pending results out of the core
-                let results = {
+            if let Some(mut future_runner) = future_runner {
+                // The waker sets the core as 'awake' if it's woken (main reason for it is to go through this loop again if we get re-awoken while polling)
+                let core_waker  = CoreWaker(Arc::downgrade(core));
+                let core_waker  = waker(Arc::new(core_waker));
+                let mut context = Context::from_waker(&core_waker);
+
+                // Run the futures that are awake (we ignore the result because we know we use poll_forever)
+                let _ = future_runner.poll_unpin(&mut context);
+
+                // Return the runner to the core so we're ready for the next pass through the loop
+                (*core.lock().unwrap()).future_runner = Some(future_runner);
+            } else {
+                // Return the results if there's nothing to poll
+                if future_runner.is_none() {
                     let mut core    = core.lock().unwrap();
                     let mut results = vec![];
                     mem::swap(&mut results, &mut core.pending_results);
 
-                    results
-                };
-
-                // Finished polling the futures
-                return results;
-            }
-
-            // Poll the futures
-            // TODO: (stopping if we build up enough results)
-            for (future_idx, ready_future) in ready_to_poll.into_iter() {
-                // Create a context to poll in (will wake the attached future if hit)
-                let core_waker  = CoreWaker(future_idx, Arc::downgrade(core));
-                let core_waker  = waker(Arc::new(core_waker));
-                let mut context = Context::from_waker(&core_waker);
-
-                // Poll the future
-                let mut ready_future = ready_future;
-                let poll_result = ready_future.poll_unpin(&mut context);
-
-                // Return the future to the list (or mark it as finished)
-                match poll_result {
-                    Poll::Pending => { 
-                        core.lock().unwrap().futures[future_idx] = GuestFuture::Ready(ready_future);
-                    }
-
-                    Poll::Ready(_) => { 
-                        let mut core = core.lock().unwrap();
-                        core.futures[future_idx] = GuestFuture::Finished; 
-                        core.pending_results.push(GuestResult::EndedSubprogram(GuestSubProgramHandle(future_idx)));
-
-                        if core.futures.iter().all(|future| matches!(future, GuestFuture::Finished)) {
-                            // No more running futures in the guest
-                            core.pending_results.push(GuestResult::Stopped);
-                        }
-                    }
+                    return results;
                 }
             }
         }
