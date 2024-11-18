@@ -76,7 +76,7 @@ struct StreamTypeFunctions {
     run_host_subprogram_postcard: RunHostSubProgramFn,
 
     /// Sends deserialized guest messages from a Vec<u8> sink
-    #[cfg(feature="postcard")]
+    #[cfg(any(feature="postcard", target_family="wasm"))]
     send_guest_messages: SendGuestMessagesFn,
 
     /// Initialises the message type inside a scene
@@ -253,7 +253,7 @@ impl StreamTypeFunctions {
                     run_host_subprogram(input, context, actions, results).await; 
                 }, max_waiting)),
 
-            #[cfg(feature="postcard")]
+            #[cfg(any(feature="postcard", target_family="wasm"))]
             send_guest_messages: Arc::new(|target, context, serialization_context| {
                 // Send to the target
                 let sink = context.send::<TMessageType>(target)?;
@@ -409,7 +409,7 @@ impl StreamTypeFunctions {
             .map(|all_functions| Arc::clone(&all_functions.run_host_subprogram_postcard))
     }
 
-    #[cfg(feature="postcard")]
+    #[cfg(any(feature="postcard", target_family="wasm"))]
     pub fn send_guest_messages(type_id: &TypeId) -> Option<SendGuestMessagesFn> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
@@ -675,7 +675,7 @@ impl StreamId {
     ///
     /// Creates a sink connected to the specified target that deserializes guest messages
     ///
-    #[cfg(feature="postcard")]
+    #[cfg(any(feature="postcard", target_family="wasm"))]
     pub fn send_guest_messages(&self, target: StreamTarget, context: &SceneContext, serialization_context: impl 'static + SerializationContext) -> Result<Box<dyn 'static + Send + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>, ConnectionError> {
         let serialization_context = Box::new(serialization_context);
 
