@@ -28,6 +28,7 @@ mod subprogram_handle;
 mod input_stream;
 mod host_subprogram;
 mod guest_stream_core;
+mod guest_serialization_context;
 
 pub use traits::*;
 pub use poll_action::*;
