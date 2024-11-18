@@ -108,12 +108,12 @@ impl GuestRuntime {
         let closed_streams      = HashSet::new();
         let when_ready          = HashMap::new();
         let pending_streams     = HashMap::new();
-        let serialization_ctxt  = GuestSerializationContext::new();
 
         let core = GuestRuntimeCore { futures, awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
         let core = Arc::new(Mutex::new(core));
 
-        let runtime = GuestRuntime { core: Arc::clone(&core) };
+        let runtime             = GuestRuntime { core: Arc::clone(&core) };
+        let serialization_ctxt  = GuestSerializationContext::new();
 
         // Initialise the initial subprogram
         let (_input_handle, input_stream)   = runtime.create_input_stream();
