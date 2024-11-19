@@ -92,7 +92,8 @@ impl GuestRuntime {
         let sink_handles        = HashMap::new();
         let next_stream_handle  = 0;
         let next_sink_handle    = 0;
-        let pending_results     = vec![GuestResult::CreateSubprogram(program_id, GuestSubProgramHandle::default(), HostStreamId::for_message::<TMessageType>())];
+        let program_handle      = GuestSubProgramHandle::default();
+        let pending_results     = vec![GuestResult::CreateSubprogram(program_id, program_handle, HostStreamId::for_message::<TMessageType>())];
         let ready_streams       = HashSet::new();
         let closed_streams      = HashSet::new();
         let when_ready          = HashMap::new();
@@ -108,6 +109,16 @@ impl GuestRuntime {
         let (_input_handle, input_stream)   = runtime.create_input_stream();
         let context                         = GuestSceneContext { core: Arc::clone(&core), subprogram_id: program_id, serialization_context: serialization_ctxt };
         let subprogram                      = subprogram(input_stream, context);
+        let subprogram                      = async move {
+            // Run the program
+            subprogram.await;
+
+            // Notify that it has finished (adding to the results means that the runtime will pick up the message later on)
+            core.lock().unwrap().pending_results.push(GuestResult::EndedSubprogram(program_handle));
+
+            // TODO: we don't know for sure the core has stopped here, except that there's currently no way to create another subprogram
+            core.lock().unwrap().pending_results.push(GuestResult::Stopped);
+        };
 
         pile.add_future(subprogram);
         debug_assert!(_input_handle == 0);
