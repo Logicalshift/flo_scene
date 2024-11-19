@@ -1,22 +1,30 @@
+use super::runtime::*;
 use crate::host::error::*;
 use crate::host::serialization_context::*;
+use crate::util::*;
 
 use futures::stream::{BoxStream};
+
+use std::sync::*;
 
 ///
 /// Serialization context used for guest subprograms
 ///
 #[derive(Clone)]
 pub (super) struct GuestSerializationContext {
-
+    core:           Weak<Mutex<GuestRuntimeCore>>,
+    future_pile:    FuturePile,
 }
 
 impl GuestSerializationContext {
     ///
     /// Creates a new serialization context for this guest
     ///
-    pub fn new() -> Self {
-        GuestSerializationContext { }
+    pub fn new(core: &Arc<Mutex<GuestRuntimeCore>>, pile: &FuturePile) -> Self {
+        GuestSerializationContext {
+            core:           Arc::downgrade(core),
+            future_pile:    pile.clone(),
+        }
     }
 }
 

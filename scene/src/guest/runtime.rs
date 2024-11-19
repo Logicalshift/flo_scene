@@ -103,7 +103,7 @@ impl GuestRuntime {
         let core = Arc::new(Mutex::new(core));
 
         let runtime             = GuestRuntime { core: Arc::clone(&core) };
-        let serialization_ctxt  = GuestSerializationContext::new();
+        let serialization_ctxt  = GuestSerializationContext::new(&core, &pile);
 
         // Initialise the initial subprogram
         let (_input_handle, input_stream)   = runtime.create_input_stream();
@@ -420,7 +420,7 @@ impl GuestRuntimeCore {
         core.next_stream_handle += 1;
 
         // Create a new serialization context for the core
-        let serialization_context = GuestSerializationContext::new();
+        let serialization_context = GuestSerializationContext::new(&runtime_core, &core.future_pile);
 
         // Create a core for the new stream
         let input_stream    = GuestInputStream::new(GuestSubProgramHandle(stream_handle), runtime_core, serialization_context);
