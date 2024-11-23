@@ -216,23 +216,28 @@ where
                     }
 
                     SendStream(stream_id, msg) => {
-                        // Fetch the core for the stream that is being sent to
+                        // Fetch or create the core for the stream that is being sent to
+                        // We create the core in case messages start arriving before the stream has been deserialized
                         let stream_core = {
-                            let streams = streams.lock().unwrap();
-                            streams.guest_streams.get(&stream_id).cloned()
+                            let mut streams = streams.lock().unwrap();
+                            streams.guest_streams.entry(stream_id)
+                                .or_insert_with(|| Arc::new(Mutex::new(GuestStreamCore {
+                                    pending:    VecDeque::new(),
+                                    closed:     false,
+                                    waker:      None
+                                })))
+                                .clone()
                         };
 
-                        if let Some(stream_core) = stream_core {
-                            // Stream exists: send the message and retrieve the waker
-                            let waker = {
-                                let mut stream_core = stream_core.lock().unwrap();
-                                stream_core.pending.push_back(msg);
-                                stream_core.waker.take()
-                            };
+                        // Send the message and retrieve the waker
+                        let waker = {
+                            let mut stream_core = stream_core.lock().unwrap();
+                            stream_core.pending.push_back(msg);
+                            stream_core.waker.take()
+                        };
 
-                            // Wake the stream
-                            if let Some(waker) = waker { waker.wake() };
-                        }
+                        // Wake the stream
+                        if let Some(waker) = waker { waker.wake() };
                     }
 
                     ReadyStream(stream_id) => {
@@ -418,8 +423,11 @@ impl SerializationContext for HostSerializationContext {
         };
         let new_stream_core = Arc::new(Mutex::new(new_stream_core));
 
-        // Add to the guest streams so the host can wake us once the 
-        self.0.lock().unwrap().guest_streams.insert(stream_id, new_stream_core.clone());
+        // Add to the guest streams so the host can wake us once data starts arriving. The stream may already be created if data was sent before this stream was deserialized
+        let new_stream_core = self.0.lock().unwrap().guest_streams
+            .entry(stream_id)
+            .or_insert(new_stream_core)
+            .clone();
 
         // Create a results stream
         let actions = self.1.clone();
