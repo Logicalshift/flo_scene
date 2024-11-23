@@ -28,7 +28,7 @@ pub (crate) struct GuestRuntimeCore {
     future_runner: Option<BoxFuture<'static, ()>>,
 
     /// The future pile, which can be used to schedule new futures on this core
-    future_pile: FuturePile,
+    pub (super) future_pile: FuturePile,
 
     /// Set to true if the waker has been triggered for anything in the future pile
     pile_is_awake: bool,
@@ -39,23 +39,26 @@ pub (crate) struct GuestRuntimeCore {
     /// Sink handles
     sink_handles: HashMap<usize, GuestSink>,
 
-    /// The handle to assign to the next input stream we assign (which doubles as the )
+    /// The handle to assign to the next input stream we assign
     next_stream_handle: usize,
 
-    /// The handle to assign to the next
+    /// The handle to assign to the next sink that we create
     next_sink_handle: usize,
 
     /// Actions and results that are waiting to be returned to the host
-    pending_results: Vec<GuestResult>,
+    pub (super) pending_results: Vec<GuestResult>,
+
+    /// The next ID to assign to a serializatble stream on the guest side
+    next_serialization_id: usize,
 
     /// The streams that are marked as ready on the host side
-    ready_streams: HashSet<SerializationId>,
+    pub (super) ready_streams: HashSet<SerializationId>,
 
     /// The streams that are marked closed (and which still exist on the guest side)
-    closed_streams: HashSet<SerializationId>,
+    pub (super) closed_streams: HashSet<SerializationId>,
 
     /// Wakers to notify when a stream becomes ready or is closed
-    when_ready: HashMap<SerializationId, Option<Waker>>,
+    pub (super) when_ready: HashMap<SerializationId, Option<Waker>>,
 
     /// The streams with pending data from the host side
     pending_streams: HashMap<SerializationId, Arc<Mutex<GuestStreamCore>>>,
@@ -93,6 +96,7 @@ impl GuestRuntime {
         let sink_handles        = HashMap::new();
         let next_stream_handle  = 0;
         let next_sink_handle    = 0;
+        let next_serialization_id = 0;
         let program_handle      = GuestSubProgramHandle::default();
         let pending_results     = vec![GuestResult::CreateSubprogram(program_id, program_handle, HostStreamId::for_message::<TMessageType>())];
         let ready_streams       = HashSet::new();
@@ -100,7 +104,7 @@ impl GuestRuntime {
         let when_ready          = HashMap::new();
         let pending_streams     = HashMap::new();
 
-        let core = GuestRuntimeCore { future_runner, future_pile, pile_is_awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
+        let core = GuestRuntimeCore { future_runner, future_pile, pile_is_awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, next_serialization_id, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
         let core = Arc::new(Mutex::new(core));
 
         let runtime             = GuestRuntime { core: Arc::clone(&core) };
@@ -671,5 +675,16 @@ impl GuestRuntimeCore {
         core.lock().unwrap().pending_streams.entry(stream_id)
             .or_insert(stream_core)
             .clone()
+    }
+
+    ///
+    /// Creates a serialization ID for a stream on the guest side
+    ///
+    pub (crate) fn next_serialization_id(core: &Arc<Mutex<Self>>) -> SerializationId {
+        let mut core    = core.lock().unwrap();
+        let next_id     = core.next_serialization_id;
+        core.next_serialization_id += 1;
+
+        SerializationId::SimpleStream(next_id)
     }
 }
