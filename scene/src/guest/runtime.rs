@@ -19,6 +19,7 @@ use futures::future::{BoxFuture};
 use futures::task::{waker, ArcWake, Context, Poll, Waker};
 use futures::channel::mpsc;
 
+use std::collections::VecDeque;
 use std::collections::{HashMap, HashSet};
 use std::sync::*;
 
@@ -240,7 +241,7 @@ impl GuestRuntime {
             let waker = {
                 let mut core = stream.lock().unwrap();
 
-                core.pending.push(msg);
+                core.pending.push_back(msg);
                 core.waker.take()
             };
 
@@ -649,5 +650,23 @@ impl GuestRuntimeCore {
             // Use unfold to send messages
             Ok(sink::unfold((), move |_, data| GuestRuntimeCore::send_to_host_sink(&core, sink_handle, data)))
         }
+    }
+
+    ///
+    /// Creates a guest stream core for reading data for a stream located on the host
+    ///
+    pub (crate) fn create_stream_from_host(core: &Arc<Mutex<Self>>, stream_id: SerializationId) -> Arc<Mutex<GuestStreamCore>> {
+        // Create a guest core to represent this stream
+        let stream_core = GuestStreamCore {
+            pending:    VecDeque::new(),
+            waker:      None,
+            closed:     false,
+        };
+        let stream_core = Arc::new(Mutex::new(stream_core));
+
+        // Store in the core so messages will be routed to it
+        core.lock().unwrap().pending_streams.insert(stream_id, stream_core.clone());
+
+        stream_core
     }
 }
