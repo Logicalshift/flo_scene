@@ -230,26 +230,29 @@ impl GuestRuntime {
     /// Sends a message from the host to the guest
     ///
     pub fn send_stream(&self, stream_id: SerializationId, msg: Vec<u8>) {
-        // Fetch the stream we're sending to
+        // Fetch the stream we're sending to, or create a new one (assuming that the stream will get created later on: we rely on the host not to send more data to a stream once it is woken up)
         let stream = {
-            let core = self.core.lock().unwrap();
-            core.pending_streams.get(&stream_id).cloned()
+            let mut core = self.core.lock().unwrap();
+
+            core.pending_streams.entry(stream_id)
+                .or_insert_with(|| Arc::new(Mutex::new(GuestStreamCore { 
+                    pending:    VecDeque::new(), 
+                    waker:      None, 
+                    closed:     false 
+                })))
+                .clone()
         };
 
-        // If the stream still exists, then pass the message on
-        if let Some(stream) = stream {
-            let waker = {
-                let mut core = stream.lock().unwrap();
+        // Push data to it and wake it up
+        let waker = {
+            let mut core = stream.lock().unwrap();
 
-                core.pending.push_back(msg);
-                core.waker.take()
-            };
+            core.pending.push_back(msg);
+            core.waker.take()
+        };
 
-            if let Some(waker) = waker {
-                waker.wake();
-            }
-        } else {
-            // TODO: signal to the host that the stream is closed if it's trying to send data to a terminated stream
+        if let Some(waker) = waker {
+            waker.wake();
         }
     }
 
@@ -664,9 +667,9 @@ impl GuestRuntimeCore {
         };
         let stream_core = Arc::new(Mutex::new(stream_core));
 
-        // Store in the core so messages will be routed to it
-        core.lock().unwrap().pending_streams.insert(stream_id, stream_core.clone());
-
-        stream_core
+        // Store the new stream in the core (or if an exising one is already present, substitute that one)
+        core.lock().unwrap().pending_streams.entry(stream_id)
+            .or_insert(stream_core)
+            .clone()
     }
 }
