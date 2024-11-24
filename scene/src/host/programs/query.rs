@@ -1,7 +1,9 @@
+use crate::host::error::*;
 use crate::host::filter::*;
 use crate::host::scene::*;
 use crate::host::scene_message::*;
 use crate::host::serialization::*;
+use crate::host::serialization_context::*;
 use crate::host::stream_target::*;
 
 use futures::prelude::*;
@@ -66,6 +68,10 @@ impl<TResponseData: Send + Unpin + SceneMessage> SceneMessage for Query<TRespons
     }
 }
 
+/// How a query response is sent to and from guest programs
+#[derive(Serialize, Deserialize)]
+struct SerializedQueryResponse(SerializationId);
+
 impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryResponse<TResponseData> {
     fn serializable() -> bool { false }
 
@@ -114,6 +120,41 @@ impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryRespons
 
     #[inline]
     fn message_type_name() -> String { format!("flo_scene::QueryResponse<{}>", std::any::type_name::<TResponseData>()) }
+
+    #[cfg(any(feature="postcard", target_family="wasm"))]
+    #[inline]
+    fn to_guest_message(self, context: &impl SerializationContext) -> Result<Vec<u8>, SceneSendError<Self>> {
+        // TODO: we lose the original stream if there's an error, so the caller can't recover it. Would be better to keep it intact if possible
+
+        // Create a serialized stream of messages from the stream, and use the context to pass it to the guest
+        let QueryResponse(query_stream) = self;
+        let serialized_stream           = query_stream.flat_map(|val| stream::iter(postcard::to_stdvec(&val)));
+        let serialized_stream           = context.send_stream(serialized_stream.boxed()).map_err(|err| err.map(|_| QueryResponse(stream::empty().boxed())))?;
+
+        // Serialize the response itself
+        let serialized_response         = SerializedQueryResponse(serialized_stream);
+        let serialized_response         = postcard::to_stdvec(&serialized_response).map_err(|err| SceneSendError::CannotSerialize(QueryResponse(stream::empty().boxed()), format!("{:?}", err)))?;
+
+        // Created a guest message
+        Ok(serialized_response)
+    }
+
+    #[cfg(any(feature="postcard", target_family="wasm"))]
+    #[inline]
+    fn from_guest_message(value: &Vec<u8>, context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
+        // Deserialize as a serailized query response
+        let serialized_stream = postcard::from_bytes::<SerializedQueryResponse>(value)
+            .map_err(move |postcard_error| SceneSendError::CannotDeserialize((), format!("{:?}", postcard_error)))?;
+
+        // Receive the stream from the guest side
+        let stream = context.receive_stream(serialized_stream.0).map_err(|err| err.map(|_| ()))?;
+
+        // Deserialize it
+        let stream = stream.flat_map(|msg| stream::iter(postcard::from_bytes(&msg)));
+
+        // Return the resulting stream
+        Ok(QueryResponse(stream.boxed()))
+    }
 }
 
 impl<TResponseData: Send> Serialize for QueryResponse<TResponseData> {
