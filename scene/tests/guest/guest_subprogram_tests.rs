@@ -3,6 +3,7 @@ use flo_scene::programs::*;
 use flo_scene::guest::*;
 
 use futures::prelude::*;
+use futures::channel::mpsc;
 
 use serde::*;
 
@@ -200,5 +201,53 @@ fn run_basic_guest_subprogram_using_specific_connection() {
     TestBuilder::new()
         .expect_message(|msg: SimpleResponseMessage| { if msg.value == "Hello" { Ok(()) } else { Err(format!("Value is {} (should be Hello)", msg.value)) } })
         .expect_message(|msg: SimpleResponseMessage| { if msg.value == "Goodbyte" { Ok(()) } else { Err(format!("Value is {} (should be Goodbyte)", msg.value)) } })
+        .run_in_scene(&scene, test_subprogram_id);
+}
+
+#[test]
+fn send_query_response_from_guest() {
+    let scene = Scene::default();
+
+    let guest_subprogram_id     = SubProgramId::called("Guest subprogram");
+    let receiver_subprogam_id   = SubProgramId::called("Receiver subprogram");
+    let test_subprogram_id      = SubProgramId::called("Test subprogram");
+
+    // Start a guest runtime that mirrors messages
+    let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, move |_: GuestInputStream<SimpleTestMessage>, context| async move {
+        // Send responses to the defualt target for the scene
+        let mut response = context.send::<QueryResponse<String>>(()).unwrap();
+        let (send, recv) = mpsc::channel(0);
+
+        response.send(QueryResponse::with_stream(recv)).await.unwrap();
+
+        let mut send = send;
+        send.send("Hello".into()).await.unwrap();
+        send.send("Goodbyte".into()).await.unwrap();
+    });
+
+    // Run a receiver that receives the query from the guest and sends it on as test messages
+    scene.add_subprogram(receiver_subprogam_id, move |input: InputStream<QueryResponse<String>>, context| async move {
+        let mut input           = input;
+        let mut query_response  = input.next().await.unwrap();
+        let mut test_messages   = context.send(test_subprogram_id).unwrap();
+
+        while let Some(msg) = query_response.next().await {
+            test_messages.send(SimpleTestMessage { value: msg }).await.unwrap();
+        }
+
+        test_messages.send(SimpleTestMessage { value: "Finished".into() }).await.unwrap();
+    }, 0);
+
+    // Run the guest in the scene, using the JSON encoder
+    let (sender, receiver) = guest_runtime.as_streams();
+    scene.add_subprogram(guest_subprogram_id, move |input: InputStream<SimpleTestMessage>, context| run_host_subprogram(input, context, sender, receiver), 20);
+
+    // Connect the programs
+    scene.connect_programs(receiver_subprogam_id, test_subprogram_id, StreamId::with_message_type::<SimpleTestMessage>()).unwrap();
+    scene.connect_programs(guest_subprogram_id, receiver_subprogam_id, StreamId::with_message_type::<QueryResponse<String>>()).unwrap();
+
+    TestBuilder::new()
+        .expect_message(|msg: SimpleTestMessage| { if msg.value == "Hello" { Ok(()) } else { Err(format!("Value is {} (should be Hello)", msg.value)) } })
+        .expect_message(|msg: SimpleTestMessage| { if msg.value == "Goodbyte" { Ok(()) } else { Err(format!("Value is {} (should be Goodbyte)", msg.value)) } })
         .run_in_scene(&scene, test_subprogram_id);
 }
