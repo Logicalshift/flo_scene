@@ -1,4 +1,3 @@
-use super::guest_stream_core::*;
 use super::poll_result::*;
 use super::runtime::*;
 use crate::host::error::*;
