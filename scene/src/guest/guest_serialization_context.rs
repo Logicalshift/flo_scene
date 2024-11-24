@@ -101,7 +101,10 @@ impl SerializationContext for GuestSerializationContext {
             let stream_core = GuestRuntimeCore::create_stream_from_host(&core, stream_id);
 
             // Use an unfold to generate the messages for the stream
-            let stream = stream::unfold(stream_core, move |stream_core| async move { 
+            let stream = stream::unfold((core, stream_core), move |(core, stream_core)| async move { 
+                // Stream is ready to receive a message
+                core.lock().unwrap().pending_results.push(GuestResult::ReadyStream(stream_id));
+
                 // Wait for a message to arrive
                 let next_msg = future::poll_fn(|ctxt| {
                     use futures::task::*;
@@ -123,7 +126,7 @@ impl SerializationContext for GuestSerializationContext {
 
                 // Return messages until the stream is closed
                 match next_msg {
-                    Some(msg) => Some((msg, stream_core)),
+                    Some(msg) => Some((msg, (core, stream_core))),
                     None      => None,
                 }
             });
