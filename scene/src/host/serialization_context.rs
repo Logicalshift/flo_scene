@@ -70,7 +70,7 @@ impl SerializationId {
     ///
     pub fn to_theirs(&self) -> Self {
         match self {
-            Self::MyStream(id) | Self::TheirStream(id) => Self::MyStream(*id)
+            Self::MyStream(id) | Self::TheirStream(id) => Self::TheirStream(*id)
         }
     }
 }
