@@ -326,9 +326,9 @@ impl GuestRuntime {
             Ready(sink_handle)                      => { self.sink_ready(sink_handle) },
             SinkConnectionError(sink_handle, error) => { self.sink_connection_error(sink_handle, error) },
             SinkError(sink_handle, error)           => { self.sink_send_error(sink_handle, error) }
-            SendStream(stream_id, msg)              => { self.send_stream(stream_id, msg) },
-            ReadyStream(stream_id)                  => { self.ready_stream(stream_id) },
-            CloseStream(stream_id)                  => { self.close_stream(stream_id) },
+            SendStream(stream_id, msg)              => { self.send_stream(stream_id.invert(), msg) },
+            ReadyStream(stream_id)                  => { self.ready_stream(stream_id.invert()) },
+            CloseStream(stream_id)                  => { self.close_stream(stream_id.invert()) },
         }
     }
 

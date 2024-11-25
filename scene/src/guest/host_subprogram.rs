@@ -216,6 +216,8 @@ where
                     }
 
                     SendStream(stream_id, msg) => {
+                        let stream_id = stream_id.invert();
+
                         // Fetch or create the core for the stream that is being sent to
                         // We create the core in case messages start arriving before the stream has been deserialized
                         let stream_core = {
@@ -241,6 +243,8 @@ where
                     }
 
                     ReadyStream(stream_id) => {
+                        let stream_id = stream_id.invert();
+
                         let waker = {
                             // Mark the stream as ready, then wake anything up that's waiting on it
                             let mut streams = streams.lock().unwrap();
@@ -257,6 +261,8 @@ where
                     }
 
                     CloseStream(stream_id) => {
+                        let stream_id = stream_id.invert();
+                        
                         let waker = {
                             // Mark the stream as closed, then wake anything up that's waiting on it
                             let mut streams = streams.lock().unwrap();
