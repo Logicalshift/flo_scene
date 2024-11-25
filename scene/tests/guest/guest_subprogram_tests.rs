@@ -221,8 +221,11 @@ fn send_query_response_from_guest() {
         response.send(QueryResponse::with_stream(recv)).await.unwrap();
 
         let mut send = send;
+        println!("Send: Hello");
         send.send("Hello".into()).await.unwrap();
+        println!("Send: Goodbyte");
         send.send("Goodbyte".into()).await.unwrap();
+        println!("Finished");
     });
 
     // Run a receiver that receives the query from the guest and sends it on as test messages
@@ -232,9 +235,11 @@ fn send_query_response_from_guest() {
         let mut test_messages   = context.send(test_subprogram_id).unwrap();
 
         while let Some(msg) = query_response.next().await {
+            println!("Received {:?}", msg);
             test_messages.send(SimpleTestMessage { value: msg }).await.unwrap();
         }
 
+        println!("Response closed");
         test_messages.send(SimpleTestMessage { value: "Finished".into() }).await.unwrap();
     }, 0);
 

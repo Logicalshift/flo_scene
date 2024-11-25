@@ -60,19 +60,48 @@ impl SerializationContext for GuestSerializationContext {
                 let mut stream = stream;
 
                 loop {
-                    // Wait for the stream to become ready (or closed, in which case we end this future)
-                    let is_closed = future::poll_fn(|ctxt| {
+                    // End state of the polling request
+                    enum ReadyMessage {
+                        Ready(Option<Vec<u8>>),
+                        ClosedOnOtherSide
+                    }
+
+                    // Wait for the stream to become ready and a message to be available (or closed, in which case we end this future)
+                    let mut poll_message        = Some(stream.next());
+                    let mut received_message    = None;
+
+                    let next_message = future::poll_fn(|ctxt| {
                         use futures::task::*;
+
+                        // Poll for the next message from the stream
+                        if received_message.is_none() {
+                            if let Poll::Ready(message) = poll_message.as_mut().unwrap().poll_unpin(ctxt) {
+                                if message.is_none() {
+                                    // Don't need the other side to be ready if the stream is closed
+                                    return Poll::Ready(ReadyMessage::Ready(None));
+                                }
+
+                                // The source side has generated a message (we can return it once the target side is ready)
+                                received_message    = Some(message);
+                                poll_message        = None;
+                            }
+                        }
 
                         let mut locked_core = core.lock().unwrap();
 
                         if locked_core.closed_streams.contains(&stream_id) {
                             // Stream is closed (return true, the stream is closed)
-                            Poll::Ready(true)
+                            Poll::Ready(ReadyMessage::ClosedOnOtherSide)
                         } else if locked_core.ready_streams.contains(&stream_id) {
                             // Stream is ready (return false, the stream is not closed)
-                            locked_core.ready_streams.remove(&stream_id);
-                            Poll::Ready(false)
+                            if let Some(message) = received_message.take() {
+                                // Received a message from the source stream and the other side is ready to receive it
+                                locked_core.ready_streams.remove(&stream_id);
+                                Poll::Ready(ReadyMessage::Ready(message))
+                            } else {
+                                // Waiting for the next message to arrive from the stream
+                                Poll::Pending
+                            }
                         } else {
                             // Stream is not ready, wait for it
                             locked_core.when_ready.insert(stream_id, Some(ctxt.waker().clone()));
@@ -80,21 +109,23 @@ impl SerializationContext for GuestSerializationContext {
                         }
                     }).await;
 
-                    // Stop when the stream is closed
-                    if is_closed {
-                        break;
-                    }
+                    // We can either get a message that's ready to send to the other side, or the other side can indicate we're closed, or our own side can close the stream
+                    match next_message {
+                        ReadyMessage::ClosedOnOtherSide => {
+                            // Stop when the stream is closed
+                            break;
+                        }
 
-                    // Receive a message from the source stream
-                    let next_message = stream.next().await;
+                        ReadyMessage::Ready(None) => {
+                            // No more messages from the source stream
+                            break;
+                        }
 
-                    if let Some(next_message) = next_message {
-                        // Send as an action to the host (the host will re-ready the stream after this event)
-                        // These messages are picked up later on by the callback from the host
-                        core.lock().unwrap().pending_results.push(GuestResult::SendStream(stream_id, next_message));
-                    } else {
-                        // No more messages in the stream
-                        break;
+                        ReadyMessage::Ready(Some(next_message)) => {
+                            // Send as an action to the host (the host will re-ready the stream after this event)
+                            // These messages are picked up later on by the callback from the host
+                            core.lock().unwrap().pending_results.push(GuestResult::SendStream(stream_id, next_message));
+                        }
                     }
                 }
 
