@@ -685,6 +685,6 @@ impl GuestRuntimeCore {
         let next_id     = core.next_serialization_id;
         core.next_serialization_id += 1;
 
-        SerializationId::SimpleStream(next_id)
+        SerializationId::MyStream(next_id)
     }
 }

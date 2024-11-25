@@ -340,7 +340,7 @@ impl HostStreams {
         let id = self.next_stream_id;
         self.next_stream_id += 1;
 
-        SerializationId::SimpleStream(id)
+        SerializationId::MyStream(id)
     }
 }
 

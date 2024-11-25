@@ -34,7 +34,7 @@ impl SerializationContext for GuestSerializationContext {
     fn send_stream(&self, stream: BoxStream<'static, Vec<u8>>) -> Result<SerializationId, SceneSendError<BoxStream<'static, Vec<u8>>>> {
         if let Some(core) = self.core.upgrade() {
             // Create a serialization ID for this stream
-            let stream_id = GuestRuntimeCore::next_serialization_id(&core);
+            let stream_id = GuestRuntimeCore::next_serialization_id(&core).to_mine();
 
             // Add a future to the pile to follow the stream and send messages via the core
             let pile = core.lock().unwrap().future_pile.clone();
@@ -89,6 +89,7 @@ impl SerializationContext for GuestSerializationContext {
                 locked_core.when_ready.remove(&stream_id);
             });
 
+            // Serialize the stream to be sent to the guest as 'theirs'
             Ok(stream_id)
         } else {
             Err(SceneSendError::TargetProgramEndedBeforeReady)

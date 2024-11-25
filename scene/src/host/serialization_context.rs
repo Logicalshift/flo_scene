@@ -12,11 +12,11 @@ pub type RemoteCallbackFn = Box<dyn 'static + Send + Sync + Fn(Vec<u8>) -> BoxFu
 ///
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
 pub enum SerializationId {
-    /// Identifies a stream. These values are assigned monotonically, so this reveals information about the state of the guest/host and is likely guessable
-    SimpleStream(usize),
+    /// Identifies a stream whose source is on this side of the connection
+    MyStream(usize),
 
-    /// Identifies a function callback. These values are assigned monotonically, so this reveals some state for the guest/host and is likely guessable
-    SimpleFunction(usize),
+    /// Idenitifies a stream whose source is on the target side of the connection
+    TheirStream(usize),
 }
 
 ///
@@ -44,6 +44,36 @@ pub trait SerializationContext : Send + Sync {
 ///
 #[derive(Clone, Debug)]
 pub struct DisconnectedSerializationContext;
+
+impl SerializationId {
+    ///
+    /// Returns the 'opposite' of the current stream (converts 'MyStream' to 'TheirStream' and vice-vera)
+    ///
+    pub fn invert(&self) -> Self {
+        match self {
+            Self::MyStream(id)      => Self::TheirStream(*id),
+            Self::TheirStream(id)   => Self::MyStream(*id),
+        }
+    }
+
+    ///
+    /// Converts a serialization ID to one that's owned on 'this side' of the connection
+    ///
+    pub fn to_mine(&self) -> Self {
+        match self {
+            Self::MyStream(id) | Self::TheirStream(id) => Self::MyStream(*id)
+        }
+    }
+
+    ///
+    /// Converts a serialization ID to one that's owned on the 'other side' of the connection
+    ///
+    pub fn to_theirs(&self) -> Self {
+        match self {
+            Self::MyStream(id) | Self::TheirStream(id) => Self::MyStream(*id)
+        }
+    }
+}
 
 impl SerializationContext for DisconnectedSerializationContext {
     fn send_stream(&self, stream: BoxStream<'static, Vec<u8>>) -> Result<SerializationId, SceneSendError<BoxStream<'static, Vec<u8>>>> {

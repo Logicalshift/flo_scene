@@ -112,7 +112,7 @@ mod postcard_runtime {
         let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
         let message = claim_buffer(message);
 
-        let stream_id = if stream_id >= 0 { SerializationId::SimpleStream(stream_id as _) } else { SerializationId::SimpleFunction(-(stream_id+1) as _) };
+        let stream_id = if stream_id >= 0 { SerializationId::MyStream(stream_id as _) } else { SerializationId::TheirStream(-(stream_id+1) as _) };
 
         runtime.send_stream(stream_id, message);
     }
@@ -124,7 +124,7 @@ mod postcard_runtime {
     pub extern "C" fn scene_guest_postcard_ready_stream(runtime: GuestRuntimeHandle, stream_id: i32) {
         let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
 
-        let stream_id = if stream_id >= 0 { SerializationId::SimpleStream(stream_id as _) } else { SerializationId::SimpleFunction(-(stream_id+1) as _) };
+        let stream_id = if stream_id >= 0 { SerializationId::MyStream(stream_id as _) } else { SerializationId::TheirStream(-(stream_id+1) as _) };
 
         runtime.ready_stream(stream_id);
     }
@@ -136,7 +136,7 @@ mod postcard_runtime {
     pub extern "C" fn scene_guest_postcard_close_stream(runtime: GuestRuntimeHandle, stream_id: i32) {
         let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
 
-        let stream_id = if stream_id >= 0 { SerializationId::SimpleStream(stream_id as _) } else { SerializationId::SimpleFunction(-(stream_id+1) as _) };
+        let stream_id = if stream_id >= 0 { SerializationId::MyStream(stream_id as _) } else { SerializationId::TheirStream(-(stream_id+1) as _) };
 
         runtime.close_stream(stream_id);
     }

@@ -241,11 +241,11 @@ impl WasmModule {
     #[inline]
     fn serialization_id_to_i32(id: SerializationId) -> i32 {
         match id {
-            SerializationId::SimpleStream(id) => {
+            SerializationId::MyStream(id) => {
                 id as i32
             },
 
-            SerializationId::SimpleFunction(id) => {
+            SerializationId::TheirStream(id) => {
                 -(id as i32) - 1
             }
         }
