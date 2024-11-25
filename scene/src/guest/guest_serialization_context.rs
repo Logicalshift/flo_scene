@@ -30,6 +30,19 @@ impl GuestSerializationContext {
     }
 }
 
+/// Sends a close event for a serialization ID when dropped
+struct CloseStream(SerializationId, Weak<Mutex<GuestRuntimeCore>>);
+
+impl Drop for CloseStream {
+    fn drop(&mut self) {
+        let CloseStream(stream_id, core) = self;
+
+        if let Some(core) = core.upgrade() {
+            core.lock().unwrap().pending_results.push(GuestResult::CloseStream(*stream_id));
+        }
+    }
+}
+
 impl SerializationContext for GuestSerializationContext {
     fn send_stream(&self, stream: BoxStream<'static, Vec<u8>>) -> Result<SerializationId, SceneSendError<BoxStream<'static, Vec<u8>>>> {
         if let Some(core) = self.core.upgrade() {
@@ -40,6 +53,10 @@ impl SerializationContext for GuestSerializationContext {
             let pile = core.lock().unwrap().future_pile.clone();
 
             pile.add_future(async move {
+                // Ensure that the stream is closed if this future is ever dropped
+                use std::mem;
+                let close_stream = CloseStream(stream_id, Arc::downgrade(&core));
+
                 let mut stream = stream;
 
                 loop {
@@ -87,6 +104,9 @@ impl SerializationContext for GuestSerializationContext {
                 locked_core.closed_streams.remove(&stream_id);
                 locked_core.ready_streams.remove(&stream_id);
                 locked_core.when_ready.remove(&stream_id);
+
+                mem::drop(locked_core);
+                mem::drop(close_stream);
             });
 
             // Serialize the stream to be sent to the guest as 'theirs' (we always assume it'll be sent over the connection)
@@ -101,8 +121,11 @@ impl SerializationContext for GuestSerializationContext {
             // Create a core for this stream
             let stream_core = GuestRuntimeCore::create_stream_from_host(&core, stream_id);
 
+            // This is dropped when the stream is finished with and generates a 'close stream' event
+            let close_stream = CloseStream(stream_id, Arc::downgrade(&core));
+
             // Use an unfold to generate the messages for the stream
-            let stream = stream::unfold((core, stream_core), move |(core, stream_core)| async move { 
+            let stream = stream::unfold((core, stream_core, close_stream), move |(core, stream_core, close_stream)| async move { 
                 // Stream is ready to receive a message
                 core.lock().unwrap().pending_results.push(GuestResult::ReadyStream(stream_id));
 
@@ -127,7 +150,7 @@ impl SerializationContext for GuestSerializationContext {
 
                 // Return messages until the stream is closed
                 match next_msg {
-                    Some(msg) => Some((msg, (core, stream_core))),
+                    Some(msg) => Some((msg, (core, stream_core, close_stream))),
                     None      => None,
                 }
             });

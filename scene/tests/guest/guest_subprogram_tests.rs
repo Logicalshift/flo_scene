@@ -249,6 +249,7 @@ fn send_query_response_from_guest() {
     TestBuilder::new()
         .expect_message(|msg: SimpleTestMessage| { if msg.value == "Hello" { Ok(()) } else { Err(format!("Value is {} (should be Hello)", msg.value)) } })
         .expect_message(|msg: SimpleTestMessage| { if msg.value == "Goodbyte" { Ok(()) } else { Err(format!("Value is {} (should be Goodbyte)", msg.value)) } })
+        .expect_message(|msg: SimpleTestMessage| { if msg.value == "Finished" { Ok(()) } else { Err(format!("Value is {} (should be Finished)", msg.value)) } })
         .run_in_scene(&scene, test_subprogram_id);
 }
 
@@ -305,5 +306,6 @@ fn send_query_response_from_host() {
     TestBuilder::new()
         .expect_message(|msg: SimpleTestMessage| { if msg.value == "Hello" { Ok(()) } else { Err(format!("Value is {} (should be Hello)", msg.value)) } })
         .expect_message(|msg: SimpleTestMessage| { if msg.value == "Goodbyte" { Ok(()) } else { Err(format!("Value is {} (should be Goodbyte)", msg.value)) } })
+        // .expect_message(|msg: SimpleTestMessage| { if msg.value == "Finished" { Ok(()) } else { Err(format!("Value is {} (should be Finished)", msg.value)) } })
         .run_in_scene(&scene, test_subprogram_id);
 }
