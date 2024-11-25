@@ -89,8 +89,8 @@ impl SerializationContext for GuestSerializationContext {
                 locked_core.when_ready.remove(&stream_id);
             });
 
-            // Serialize the stream to be sent to the guest as 'theirs'
-            Ok(stream_id)
+            // Serialize the stream to be sent to the guest as 'theirs' (we always assume it'll be sent over the connection)
+            Ok(stream_id.to_theirs())
         } else {
             Err(SceneSendError::TargetProgramEndedBeforeReady)
         }

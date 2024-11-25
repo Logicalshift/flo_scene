@@ -262,7 +262,7 @@ where
 
                     CloseStream(stream_id) => {
                         let stream_id = stream_id.invert();
-                        
+
                         let waker = {
                             // Mark the stream as closed, then wake anything up that's waiting on it
                             let mut streams = streams.lock().unwrap();
@@ -361,7 +361,7 @@ impl SerializationContext for HostSerializationContext {
         // Create a stream ID, and create a copy of the host streams and action sender
         let host_streams    = self.0.clone();
         let guest_actions   = self.1.clone();
-        let new_stream_id   = host_streams.lock().unwrap().next_stream_id();
+        let new_stream_id   = host_streams.lock().unwrap().next_stream_id().to_mine();
 
         // State from polling the stream
         enum State {
@@ -417,7 +417,7 @@ impl SerializationContext for HostSerializationContext {
         self.2.add_future(run_stream);
 
         // Result is this new stream ID
-        Ok(new_stream_id)
+        Ok(new_stream_id.to_theirs())
     }
 
     fn receive_stream(&self, stream_id: SerializationId) -> Result<BoxStream<'static, Vec<u8>>, SceneSendError<SerializationId>> {
