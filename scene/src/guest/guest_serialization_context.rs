@@ -49,6 +49,8 @@ impl SerializationContext for GuestSerializationContext {
             // Create a serialization ID for this stream
             let stream_id = GuestRuntimeCore::next_serialization_id(&core).to_mine();
 
+            let pile = self.future_pile.clone();
+
             self.future_pile.add_future(async move {
                 // Ensure that the stream is closed if this future is ever dropped
                 use std::mem;
@@ -66,6 +68,7 @@ impl SerializationContext for GuestSerializationContext {
                     // Wait for the stream to become ready and a message to be available (or closed, in which case we end this future)
                     let mut poll_message        = Some(stream.next());
                     let mut received_message    = None;
+                    let mut busy_with_message   = None;
 
                     let next_message = future::poll_fn(|ctxt| {
                         use futures::task::*;
@@ -79,6 +82,7 @@ impl SerializationContext for GuestSerializationContext {
                                 }
 
                                 // The source side has generated a message (we can return it once the target side is ready)
+                                busy_with_message   = Some(pile.make_busy());
                                 received_message    = Some(message);
                                 poll_message        = None;
                             }
@@ -124,6 +128,9 @@ impl SerializationContext for GuestSerializationContext {
                             core.lock().unwrap().pending_results.push(GuestResult::SendStream(stream_id, next_message));
                         }
                     }
+
+                    // Message is sent, so we're not busy any more
+                    mem::drop(busy_with_message);
                 }
 
                 // Remove the status for this stream before shutting down
