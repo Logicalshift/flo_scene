@@ -201,7 +201,9 @@ impl FuturePileRunner {
                 // Go to sleep once there are no more awake futures
                 if awake_futures.is_empty() {
                     // Wake up anything that's waiting for us to become idle (which might re-enter the core)
-                    if let Some(idle_waker) = self.core.lock().unwrap().when_idle.take() {
+                    let idle_waker = self.core.lock().unwrap().when_idle.take();
+
+                    if let Some(idle_waker) = idle_waker {
                         idle_waker.wake();
                     }
                 }
