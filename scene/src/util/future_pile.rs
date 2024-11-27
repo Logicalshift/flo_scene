@@ -178,7 +178,7 @@ impl FuturePileRunner {
 
             loop {
                 // Fetch the futures that are awake from the core
-                let awake_futures = {
+                let (awake_futures, is_busy) = {
                     let mut core            = self.core.lock().unwrap();
                     let core                = &mut *core;
                     let mut awake_futures   = Vec::with_capacity(core.awake_futures.len());
@@ -195,11 +195,11 @@ impl FuturePileRunner {
                         }
                     }
 
-                    awake_futures
+                    (awake_futures, core.busy_count != 0)
                 };
 
                 // Go to sleep once there are no more awake futures
-                if awake_futures.is_empty() {
+                if awake_futures.is_empty() && !is_busy {
                     // Wake up anything that's waiting for us to become idle (which might re-enter the core)
                     let idle_waker = self.core.lock().unwrap().when_idle.take();
 
