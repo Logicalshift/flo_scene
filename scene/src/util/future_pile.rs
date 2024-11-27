@@ -126,7 +126,7 @@ impl FuturePile {
             if let Some(core) = self.core.upgrade() {
                 let mut core = core.lock().unwrap();
 
-                if core.awake_futures.is_empty() {
+                if core.awake_futures.is_empty() && core.busy_count == 0 {
                     // No more futures are awake, so we're idle
                     Poll::Ready(())
                 } else {
