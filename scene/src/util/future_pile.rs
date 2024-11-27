@@ -18,11 +18,26 @@ struct FuturePileCore {
     /// The futures that have been woken up and need to be polled
     awake_futures: HashSet<usize>,
 
+    /// Number of futures that consider themselves 'busy'
+    busy_count: usize,
+
     /// Waker that is called when the future pile is idle
     when_idle: Option<Waker>,
 
     /// Waker that is used to wake up the runner whenever a new future is added
     waker: Option<Waker>,
+}
+
+/// Value whose lifetime represents a 'busy' period with the future pile. Decreases the 'busy' count when dropped
+pub struct FuturePileBusy(Weak<Mutex<FuturePileCore>>);
+
+impl Drop for FuturePileBusy {
+    fn drop(&mut self) {
+        if let Some(core) = self.0.upgrade() {
+            // Decrease the busy count, core will be idle at next poll (we don't need to trigger the waker if this is used in a core future, which is the intention)
+            core.lock().unwrap().busy_count -= 1;
+        }
+    }
 }
 
 ///
@@ -54,6 +69,7 @@ impl FuturePile {
             next_id:        0,
             futures:        HashMap::new(),
             awake_futures:  HashSet::new(),
+            busy_count:     0,
             when_idle:      None,
             waker:          None,
         };
@@ -89,6 +105,17 @@ impl FuturePile {
                 waker.wake();
             }
         }
+    }
+
+    ///
+    /// Marks this pile as 'busy' (so the 'idle()' callback will wait)
+    ///
+    pub fn make_busy(&self) -> FuturePileBusy {
+        if let Some(core) = self.core.upgrade() {
+            core.lock().unwrap().busy_count += 1;
+        }
+
+        FuturePileBusy(self.core.clone())
     }
 
     ///
