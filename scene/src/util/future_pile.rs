@@ -18,6 +18,9 @@ struct FuturePileCore {
     /// The futures that have been woken up and need to be polled
     awake_futures: HashSet<usize>,
 
+    /// Waker that is called when the future pile is idle
+    when_idle: Option<Waker>,
+
     /// Waker that is used to wake up the runner whenever a new future is added
     waker: Option<Waker>,
 }
@@ -51,6 +54,7 @@ impl FuturePile {
             next_id:        0,
             futures:        HashMap::new(),
             awake_futures:  HashSet::new(),
+            when_idle:      None,
             waker:          None,
         };
         let core = Arc::new(Mutex::new(core));
@@ -85,6 +89,28 @@ impl FuturePile {
                 waker.wake();
             }
         }
+    }
+
+    ///
+    /// Returns a future that waits until there is nothing left waiting in the pile
+    ///
+    pub fn idle<'a>(&'a self) -> impl 'a + Send + Future<Output=()> {
+        future::poll_fn(|ctxt| {
+            if let Some(core) = self.core.upgrade() {
+                let mut core = core.lock().unwrap();
+
+                if core.awake_futures.is_empty() {
+                    // No more futures are awake, so we're idle
+                    Poll::Ready(())
+                } else {
+                    // Wake up this thread when we're ready
+                    core.when_idle = Some(ctxt.waker().clone());
+                    Poll::Pending
+                }
+            } else {
+                Poll::Ready(())
+            }
+        })
     }
 }
 
@@ -147,6 +173,13 @@ impl FuturePileRunner {
 
                 // Go to sleep once there are no more awake futures
                 if awake_futures.is_empty() {
+                    // Wake up anything that's waiting for us to become idle (which might re-enter the core)
+                    if let Some(idle_waker) = self.core.lock().unwrap().when_idle.take() {
+                        idle_waker.wake();
+                    }
+                }
+
+                if awake_futures.is_empty() {
                     return Poll::Pending;
                 }
 
@@ -169,7 +202,7 @@ impl FuturePileRunner {
                     }
                 }
 
-                // Return the futures that were still running after polling to th core
+                // Return the futures that were still running after polling to the core
                 {
                     let mut core = self.core.lock().unwrap();
 

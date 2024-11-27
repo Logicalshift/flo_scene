@@ -118,6 +118,10 @@ impl GuestRuntime {
             // Run the program
             subprogram.await;
 
+            // Wait for anything else in the future pile to become idle (in particular, to ensure that any streams finish processing)
+            let future_pile = core.lock().unwrap().future_pile.clone();
+            future_pile.idle().await;
+
             // Notify that it has finished (adding to the results means that the runtime will pick up the message later on)
             core.lock().unwrap().pending_results.push(GuestResult::EndedSubprogram(program_handle));
 
