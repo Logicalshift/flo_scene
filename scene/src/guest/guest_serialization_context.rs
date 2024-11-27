@@ -49,10 +49,7 @@ impl SerializationContext for GuestSerializationContext {
             // Create a serialization ID for this stream
             let stream_id = GuestRuntimeCore::next_serialization_id(&core).to_mine();
 
-            // Add a future to the pile to follow the stream and send messages via the core
-            let pile = core.lock().unwrap().future_pile.clone();
-
-            pile.add_future(async move {
+            self.future_pile.add_future(async move {
                 // Ensure that the stream is closed if this future is ever dropped
                 use std::mem;
                 let close_stream = CloseStream(stream_id, Arc::downgrade(&core));
