@@ -285,7 +285,7 @@ fn send_query_response_from_host() {
 
     // Run a receiver that receives the query from the guest and sends it on as test messages
     scene.add_subprogram(sender_subprogram_id, move |_: InputStream<()>, context| async move {
-        // Send responses to the defualt target for the scene
+        // Send responses to the default target for the scene
         let mut response = context.send::<QueryResponse<String>>(()).unwrap();
         let (send, recv) = mpsc::channel(0);
 
@@ -311,6 +311,6 @@ fn send_query_response_from_host() {
     TestBuilder::new()
         .expect_message(|msg: SimpleTestMessage| { if msg.value == "Hello" { Ok(()) } else { Err(format!("Value is {} (should be Hello)", msg.value)) } })
         .expect_message(|msg: SimpleTestMessage| { if msg.value == "Goodbyte" { Ok(()) } else { Err(format!("Value is {} (should be Goodbyte)", msg.value)) } })
-        // .expect_message(|msg: SimpleTestMessage| { if msg.value == "Finished" { Ok(()) } else { Err(format!("Value is {} (should be Finished)", msg.value)) } })
+        .expect_message(|msg: SimpleTestMessage| { if msg.value == "Finished" { Ok(()) } else { Err(format!("Value is {} (should be Finished)", msg.value)) } })
         .run_in_scene(&scene, test_subprogram_id);
 }
