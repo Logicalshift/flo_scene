@@ -356,6 +356,27 @@ impl HostStreams {
 #[derive(Clone)]
 struct HostSerializationContext(Arc<Mutex<HostStreams>>, mpsc::Sender<GuestAction>, FuturePile);
 
+///
+/// Sends the 'close' action for a stream when dropped
+///
+struct CloseStream(SerializationId, mpsc::Sender<GuestAction>, FuturePile);
+
+impl Drop for CloseStream {
+    fn drop(&mut self) {
+        let CloseStream(stream_id, actions, future_pile) = self;
+
+        let stream_id   = *stream_id;
+        let mut actions = actions.clone();
+
+        // Try sending immediately to the actions stream. If that fails for any reason, assume it's because the sink is full and send using a future instead
+        if actions.try_send(GuestAction::CloseStream(stream_id)).is_err() {
+            future_pile.add_future(async move {
+                actions.send(GuestAction::CloseStream(stream_id)).await.ok();
+            });
+        }
+    }
+}
+
 impl SerializationContext for HostSerializationContext {
     fn send_stream(&self, stream: BoxStream<'static, Vec<u8>>) -> Result<SerializationId, SceneSendError<BoxStream<'static, Vec<u8>>>> {
         // Create a stream ID, and create a copy of the host streams and action sender
@@ -374,7 +395,7 @@ impl SerializationContext for HostSerializationContext {
             let mut stream          = stream;
             let mut guest_actions   = guest_actions;
 
-            // Wait for a message to arrive from the host stream (TODO: or for the stream to close)
+            // Wait for a message to arrive from the host stream
             while let Some(msg) = stream.next().await {
                 // Wait for the guest to signal that it's ready
                 let state = future::poll_fn(|context| {
@@ -411,6 +432,9 @@ impl SerializationContext for HostSerializationContext {
                     }
                 }
             }
+
+            // Indicate that the stream has been closed
+            guest_actions.send(GuestAction::CloseStream(new_stream_id)).await.ok();
         };
 
         // Add our future to the pile to start it running
@@ -438,11 +462,13 @@ impl SerializationContext for HostSerializationContext {
         // Create a results stream
         let actions = self.1.clone();
 
-        let stream = stream::unfold((actions, new_stream_core), move |(actions, stream_core)| async move {
+        // This will mark the stream as closed when it's dropped
+        let close_stream = CloseStream(stream_id, actions.clone(), self.2.clone());
+
+        let stream = stream::unfold((actions, new_stream_core, close_stream), move |(actions, stream_core, close_stream)| async move {
             use std::mem;
             use futures::task::{Poll};
 
-            // TODO: arrange for a 'closed' message to be sent if this is ever dropped
             let mut actions = actions;
 
             loop {
@@ -453,7 +479,7 @@ impl SerializationContext for HostSerializationContext {
                     if let Some(next_message) = locked_core.pending.pop_front() {
                         // There is a pending message
                         mem::drop(locked_core);
-                        return Some((next_message, (actions, stream_core)));
+                        return Some((next_message, (actions, stream_core, close_stream)));
                     } else if locked_core.closed {
                         // The stream has closed and there are no remaining messages to deliver
                         return None;
