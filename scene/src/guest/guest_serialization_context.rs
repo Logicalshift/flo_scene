@@ -198,10 +198,60 @@ impl SerializationContext for GuestSerializationContext {
     }
 
     fn send_function(&self, callback: RemoteCallbackFn) -> Result<SerializationId, SceneSendError<RemoteCallbackFn>> {
-        todo!()
+        if let Some(core) = self.core.upgrade() {
+            // Functions calls are made by writing to a stream, except the 'source' of the function is the receiver
+            let new_stream_id   = GuestRuntimeCore::next_serialization_id(&core).to_mine();
+
+            // Receive a stream with this ID
+            let call_stream = match self.receive_stream(new_stream_id) {
+                Ok(stream)  => stream,
+                Err(err)    => { return Err(err.map(|_| callback)); }
+            };
+
+            // Create a future that calls the function on request
+            self.future_pile.add_future(async move {
+                let mut call_stream = call_stream;
+
+                while let Some(next_message) = call_stream.next().await {
+                    callback(next_message).await;
+                }
+            });
+
+            // The stream ID is the ID that can be used to call the function
+            Ok(new_stream_id.to_theirs())
+        } else {
+            // Core is no longer running
+            Err(SceneSendError::TargetProgramEndedBeforeReady)
+        }
     }
 
     fn receive_function(&self, callback_id: SerializationId) -> Result<RemoteCallbackFn, SceneSendError<SerializationId>> {
-        todo!()
+        if let Some(core) = self.core.upgrade() {
+            // Create a CloseStream to close the stream when the functioin is dropped
+            let close_stream    = CloseStream(callback_id, Arc::downgrade(&core));
+            let close_stream    = Arc::new(close_stream);
+
+            // Callback function just adds to the pending results
+            let core        = Arc::downgrade(&core);
+            let callback_fn = move |arg| {
+                // Tie the 'CloseStream' to the function callback (so that the stream is closed when it's dropped)
+                let close_stream = close_stream.clone();
+                let core         = core.clone();
+
+                async move {
+                    let _close_stream = close_stream.clone();
+
+                    // Add the request to the pending results (so long as we're awaited from the guest runtime this will get sent)
+                    if let Some(core) = core.upgrade() {
+                        core.lock().unwrap().pending_results.push(GuestResult::SendStream(callback_id, arg));
+                    }
+                }.boxed()
+            };
+
+            Ok(Box::new(callback_fn))
+        } else {
+            // Core is no longer running
+            Err(SceneSendError::TargetProgramEndedBeforeReady)
+        }
     }
 }
