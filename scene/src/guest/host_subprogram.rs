@@ -508,10 +508,49 @@ impl SerializationContext for HostSerializationContext {
     }
 
     fn send_function(&self, callback: RemoteCallbackFn) -> Result<SerializationId, SceneSendError<RemoteCallbackFn>> {
-        todo!()
+        // Functions calls are made by writing to a stream, except the 'source' of the function is the receiver
+        let host_streams    = self.0.clone();
+        let new_stream_id   = host_streams.lock().unwrap().next_stream_id().to_mine();
+
+        // Receive a stream with this ID
+        let call_stream = match self.receive_stream(new_stream_id) {
+            Ok(stream)  => stream,
+            Err(err)    => { return Err(err.map(|_| callback)); }
+        };
+
+        // Create a future that calls the function on request
+        self.2.add_future(async move {
+            let mut call_stream = call_stream;
+
+            while let Some(next_message) = call_stream.next().await {
+                callback(next_message).await;
+            }
+        });
+
+        // The stream ID is the ID that can be used to call the function
+        Ok(new_stream_id.to_theirs())
     }
 
     fn receive_function(&self, callback_id: SerializationId) -> Result<RemoteCallbackFn, SceneSendError<SerializationId>> {
-        todo!()
+        // Actions to send requests to call the function, and a CloseStream to shut the function down when it's dropped
+        let guest_actions   = self.1.clone();
+        let close_stream    = CloseStream(callback_id, self.1.clone(), self.2.clone());
+        let close_stream    = Arc::new(close_stream);
+
+        let callback_fn     = move |arg| {
+            // Tie the 'CloseStream' to the function callback (so that the stream is closed when it's dropped)
+            let close_stream = close_stream.clone();
+
+            let mut guest_actions   = guest_actions.clone();
+
+            async move {
+                let _close_stream = close_stream;
+
+                // Finish sending the request
+                guest_actions.send(GuestAction::SendStream(callback_id, arg)).await.ok();
+            }.boxed()
+        };
+
+        Ok(Box::new(callback_fn))
     }
 }
