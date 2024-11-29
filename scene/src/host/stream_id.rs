@@ -741,8 +741,16 @@ mod serialization {
                 }
 
                 SerializedStreamId::RustType { type_name, target } => {
-                    // TODO: store, look up this type
-                    todo!()
+                    if let Some(stream_id) = StreamId::with_rust_type(type_name) {
+                        if let Some(target) = target {
+                            Ok(stream_id.for_target(target))
+                        } else {
+                            Ok(stream_id)
+                        }
+                    } else {
+                        // TODO: generate an error
+                        todo!()
+                    }
                 }
             }
         }

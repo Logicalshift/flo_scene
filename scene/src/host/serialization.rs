@@ -31,6 +31,9 @@ static TYPE_ID_FOR_NAME: Lazy<RwLock<HashMap<String, TypeId>>> = Lazy::new(|| Rw
 /// The stream ID for a known serializable type
 static STREAM_ID_FOR_SERIALIZABLE_TYPE: Lazy<RwLock<HashMap<String, StreamId>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
+/// The stream ID for a rust type name
+static STREAM_ID_FOR_RUST_TYPE: Lazy<RwLock<HashMap<String, StreamId>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
 /// Calls the 'send()' call and then deserializes the result
 static SEND_DESERIALIZED: Lazy<RwLock<HashMap<(TypeId, TypeId), Arc<dyn Send + Sync + Fn(StreamTarget, &SceneContext) -> Result<Box<dyn Send + Any>, ConnectionError>>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
@@ -193,6 +196,7 @@ where
 
     {
         (*STREAM_ID_FOR_SERIALIZABLE_TYPE).write().unwrap().insert(type_name.clone(), StreamId::with_message_type::<TMessageType>());
+        (*STREAM_ID_FOR_RUST_TYPE).write().unwrap().insert(std::any::type_name::<TMessageType>().into(), StreamId::with_message_type::<TMessageType>());
     }
 
     {
@@ -392,5 +396,12 @@ impl StreamId {
     ///
     pub fn with_serialization_type(type_name: impl Into<String>) -> Option<Self> {
         (*STREAM_ID_FOR_SERIALIZABLE_TYPE).read().unwrap().get(&type_name.into()).cloned()
+    }
+
+    ///
+    /// Changes a serialization name into a stream ID
+    ///
+    pub fn with_rust_type(type_name: impl Into<String>) -> Option<Self> {
+        (*STREAM_ID_FOR_RUST_TYPE).read().unwrap().get(&type_name.into()).cloned()
     }
 }
