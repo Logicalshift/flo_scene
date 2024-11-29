@@ -87,7 +87,7 @@ impl<'a> Deserialize<'a> for TestFunctionMessage {
 }
 
 #[test]
-fn send_function_guest() {
+fn send_function_from_guest() {
     let scene = Scene::default();
 
     let guest_subprogram_id     = SubProgramId::called("Guest subprogram");
@@ -138,6 +138,60 @@ fn send_function_guest() {
     // Connect the programs
     scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleTestMessage>()).unwrap();
     scene.connect_programs(guest_subprogram_id, receiver_subprogram_id, StreamId::with_message_type::<TestFunctionMessage>()).unwrap();
+
+    TestBuilder::new()
+        .expect_message(|msg: SimpleTestMessage| { if msg.value == "hello" { Ok(()) } else { Err(format!("Value is {} (should be Hello)", msg.value)) } })
+        .expect_message(|msg: SimpleTestMessage| { if msg.value == "goodbyte" { Ok(()) } else { Err(format!("Value is {} (should be Goodbyte)", msg.value)) } })
+        .run_in_scene(&scene, test_subprogram_id);
+}
+
+#[test]
+fn send_function_from_host() {
+    let scene = Scene::default();
+
+    let guest_subprogram_id     = SubProgramId::called("Guest subprogram");
+    let receiver_subprogram_id  = SubProgramId::called("Receiver subprogram");
+    let test_subprogram_id      = SubProgramId::called("Test subprogram");
+
+    // Start a guest runtime that mirrors messages
+    let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, move |input: GuestInputStream<TestFunctionMessage>, context| async move {
+        let mut input = input;
+        while let Some(next_function) = input.next().await {
+            // Call the function with some test messages
+            let hello       = postcard::to_stdvec(&"hello".to_string()).unwrap();
+            let goodbyte    = postcard::to_stdvec(&"goodbyte".to_string()).unwrap();
+
+            println!("Calling with 'hello'");
+            (next_function.0)(hello).await;
+            println!("Calling with 'goodbyte'");
+            (next_function.0)(goodbyte).await;
+        }
+    });
+
+    // Run a receiver that receives the query from the guest and sends it on as test messages
+    scene.add_subprogram(receiver_subprogram_id, move |_: InputStream<()>, context| async move {
+        let function_context = context.clone();
+
+        // Send a function to the host
+        context.send_message(TestFunctionMessage(Arc::new(move |msg| { 
+            let mut results = function_context.send::<SimpleTestMessage>(()).unwrap();
+
+            async move {
+                println!("Guest function called: {:?}", msg);
+
+                let msg = postcard::from_bytes::<String>(&msg).unwrap();
+                results.send(SimpleTestMessage { value: msg }).await.unwrap();
+            }.boxed()
+        }))).await.unwrap();
+    }, 0);
+
+    // Run the guest in the scene, using the JSON encoder
+    let (sender, receiver) = guest_runtime.as_streams();
+    scene.add_subprogram(guest_subprogram_id, move |input: InputStream<TestFunctionMessage>, context| run_host_subprogram(input, context, sender, receiver), 20);
+
+    // Connect the programs
+    scene.connect_programs(receiver_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleTestMessage>()).unwrap();
+    scene.connect_programs(receiver_subprogram_id, guest_subprogram_id, StreamId::with_message_type::<TestFunctionMessage>()).unwrap();
 
     TestBuilder::new()
         .expect_message(|msg: SimpleTestMessage| { if msg.value == "hello" { Ok(()) } else { Err(format!("Value is {} (should be Hello)", msg.value)) } })
