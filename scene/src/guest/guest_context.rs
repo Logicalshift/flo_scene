@@ -13,13 +13,13 @@ use std::sync::*;
 #[derive(Clone)]
 pub struct GuestSceneContext {
     /// The ID of the program running in this context
-    pub (crate) subprogram_id: SubProgramId,
+    pub (super) subprogram_id: SubProgramId,
 
     /// The core of the runtime where this context is running
-    pub (crate) core: Arc<Mutex<GuestRuntimeCore>>,
+    pub (super) core: Arc<Mutex<GuestRuntimeCore>>,
 
     /// The serialization context, used for decoding messages
-    pub (crate) serialization_context: GuestSerializationContext,
+    pub (super) serialization_context: GuestSerializationContext,
 }
 
 impl GuestSceneContext {

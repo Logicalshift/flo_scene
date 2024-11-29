@@ -42,4 +42,3 @@ pub use stream_target::*;
 pub use subprogram_handle::*;
 pub use input_stream::*;
 pub use host_subprogram::*;
-pub use guest_stream_core::*;

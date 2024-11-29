@@ -210,7 +210,7 @@ impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
             SceneSendError::CannotSerialize(_, _)                       => ConnectionError::TargetCannotSerialize,
             SceneSendError::CannotDeserialize(_, _)                     => ConnectionError::TargetCannotDeserialize,
             SceneSendError::ErrorAfterDeserialization                   => ConnectionError::TargetCannotDeserialize,
-            SceneSendError::NoConnection(msg)                           => ConnectionError::TargetCannotDeserialize,
+            SceneSendError::NoConnection(_)                             => ConnectionError::TargetCannotDeserialize,
         }
     }
 }

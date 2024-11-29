@@ -52,7 +52,7 @@ where
     TMessageType: SceneMessage,
 {
     /// Creates a new guest input stream
-    pub (crate) fn new(program_handle: GuestSubProgramHandle, runtime_core: &Arc<Mutex<GuestRuntimeCore>>, serialization_context: GuestSerializationContext) -> Self {
+    pub (super) fn new(program_handle: GuestSubProgramHandle, runtime_core: &Arc<Mutex<GuestRuntimeCore>>, serialization_context: GuestSerializationContext) -> Self {
         // Create the core
         let core = GuestInputStreamCore {
             waiting:    VecDeque::new(),
