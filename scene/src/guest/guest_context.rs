@@ -10,6 +10,7 @@ use std::sync::*;
 ///
 /// A guest scene context relays requests from the guest side to the host side
 ///
+#[derive(Clone)]
 pub struct GuestSceneContext {
     /// The ID of the program running in this context
     pub (crate) subprogram_id: SubProgramId,
