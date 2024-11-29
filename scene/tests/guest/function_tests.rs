@@ -154,7 +154,7 @@ fn send_function_from_host() {
     let test_subprogram_id      = SubProgramId::called("Test subprogram");
 
     // Start a guest runtime that mirrors messages
-    let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, move |input: GuestInputStream<TestFunctionMessage>, context| async move {
+    let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, move |input: GuestInputStream<TestFunctionMessage>, _| async move {
         let mut input = input;
         while let Some(next_function) = input.next().await {
             // Call the function with some test messages
