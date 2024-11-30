@@ -1,2 +1,5 @@
 /target
 /wasm-examples/**/target
+/wasm-examples/**/pkg
+/wasm-tests/**/target
+/wasm-tests/**/pkg

@@ -1,0 +1,251 @@
+use serde::*;
+
+///
+/// The name of the message type that is accepted by a subprogram
+///
+/// Output streams from subprograms must be connected to the input of a program that accepts that message type
+///
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Serialize, Deserialize)]
+pub struct TargetInputMessageType(pub String);
+
+///
+/// The name of the message type that is being connected to a target
+///
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Serialize, Deserialize)]
+pub struct SourceStreamMessageType(pub String);
+
+///
+/// Errors that can occur when trying to connect two subprograms in a scene
+///
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Serialize, Deserialize)]
+pub enum ConnectionError {
+    // Something cancelled the connection
+    Cancelled,
+
+    /// The subprogram a context belongs to is no longer running
+    SubProgramNotRunning,
+
+    /// The input type of the target of a connection does not match the source
+    WrongInputType(SourceStreamMessageType, TargetInputMessageType),
+
+    /// The requested stream is not available
+    StreamNotKnown,
+
+    /// The target subprogram of a connection is not in the scene (has not been started, or has finished)
+    TargetNotInScene,
+
+    /// The target input stream is not available
+    TargetNotAvailable,
+
+    /// The target cannot accept a message because it's not ready
+    TargetNotReady,
+
+    /// The input to a filter does not match what was expected
+    FilterInputDoesNotMatch,
+
+    /// The output to a filter does not match what was expected
+    FilterOutputDoesNotMatch,
+
+    /// The filter handle was not found
+    FilterHandleNotFound,
+
+    /// A filter to map from one stream to another was expected to be defined but could not be found
+    FilterMappingMissing,
+
+    /// The input for the filter to a filter source must match the stream ID being connected
+    FilterSourceInputMustMatchStream,
+
+    /// The input for the filter to a filter target must match the stream ID being connected
+    FilterTargetInputMustMatchStream,
+
+    /// The filter supplied is not supported
+    FilterNotSupported,
+
+    /// A stream target had an unexpected value
+    UnexpectedConnectionType,
+
+    /// The `OUTSIDE_SCENE_PROGRAM` subprogram is not running and a sink for sending messages into the scene was requested
+    NoOutsideSceneSubProgram,
+
+    /// An attempt was made to 'steal' the current thread to expedite a message, which could not be completed (for example, because the subprogram was already running on the current thread)
+    CannotStealThread,
+
+    /// The connection is denied due to a permissions error
+    TargetPermissionRefused,
+
+    /// The target refused the connection
+    TargetConnectionRefused,
+
+    /// The target doesn't support serializing this message type
+    TargetCannotSerialize,
+
+    /// The target doesn't support receiving serialized messages
+    TargetCannotDeserialize,
+
+    /// An operation could not be completed because of an I/O problem
+    IoError(String),
+}
+
+///
+/// Error that occurs while sending to a stream
+///
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Serialize, Deserialize)]
+pub enum SceneSendError<TMessage> {
+    /// A message could not be sent because the connection failed
+    CouldNotConnect(ConnectionError),
+
+    /// The target program ended while waiting for it to become ready (or after sending the message but before it could be flushed)
+    TargetProgramEndedBeforeReady,
+
+    /// The target stream was closed when the message was sent (eg, because the target program is not listening for input)
+    StreamClosed(TMessage),
+
+    /// The target for the stream stopped before the message could be sent (can be treated as the same as StreamClosed)
+    TargetProgramEnded(TMessage),
+
+    /// The stream is disconnected, so messages cannot currently be sent to it
+    StreamDisconnected(TMessage),
+
+    /// The target program supports thread stealing, but it is already running on the current thread's callstack and can't re-enter
+    CannotReEnterTargetProgram,
+
+    /// The target program is waiting for the scene to become idle and its input queue is full
+    CannotAcceptMoreInputUntilSceneIsIdle(TMessage),
+
+    /// The message could not be serialized
+    CannotSerialize(TMessage, String),
+
+    /// The target cannot deserialize this message to a target type
+    CannotDeserialize(TMessage, String),
+
+    /// An error occurred after deserialization (and the original message was lost)
+    ErrorAfterDeserialization,
+
+    /// Cannot send/receive a stream or a function because there is no backing connection for the message
+    NoConnection(TMessage),
+}
+
+impl<TMessage> SceneSendError<TMessage> {
+    ///
+    /// Returns `Some(message)` if this error contains the message that failed to send
+    ///
+    /// A message might not be returned if the failure occurred after the message was added to the input queue for the
+    /// target program. Additionally, no message is provided for failures that occur while waiting for the input stream
+    /// to become ready.
+    ///
+    pub fn message(&self) -> Option<&TMessage> {
+        match self {
+            SceneSendError::CouldNotConnect(_)                          => None,
+            SceneSendError::TargetProgramEndedBeforeReady               => None,
+            SceneSendError::StreamClosed(msg)                           => Some(msg),
+            SceneSendError::TargetProgramEnded(msg)                     => Some(msg),
+            SceneSendError::StreamDisconnected(msg)                     => Some(msg),
+            SceneSendError::CannotReEnterTargetProgram                  => None,
+            SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(msg)  => Some(msg),
+            SceneSendError::CannotSerialize(msg, _)                     => Some(msg),
+            SceneSendError::CannotDeserialize(msg, _)                   => Some(msg),
+            SceneSendError::ErrorAfterDeserialization                   => None,
+            SceneSendError::NoConnection(msg)                           => Some(msg),
+        }
+    }
+
+    ///
+    /// Returns `Some(message)` if this error contains the message that failed to send. This version extract the message
+    /// and discards this object. `message()` will return a reference to the message contained within the object.
+    ///
+    /// A message might not be returned if the failure occurred after the message was added to the input queue for the
+    /// target program. Additionally, no message is provided for failures that occur while waiting for the input stream
+    /// to become ready.
+    ///
+    pub fn to_message(self) -> Option<TMessage> {
+        match self {
+            SceneSendError::CouldNotConnect(_)                          => None,
+            SceneSendError::TargetProgramEndedBeforeReady               => None,
+            SceneSendError::StreamClosed(msg)                           => Some(msg),
+            SceneSendError::TargetProgramEnded(msg)                     => Some(msg),
+            SceneSendError::StreamDisconnected(msg)                     => Some(msg),
+            SceneSendError::CannotReEnterTargetProgram                  => None,
+            SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(msg)  => Some(msg),
+            SceneSendError::CannotDeserialize(msg, _)                   => Some(msg),
+            SceneSendError::CannotSerialize(msg, _)                     => Some(msg),
+            SceneSendError::ErrorAfterDeserialization                   => None,
+            SceneSendError::NoConnection(msg)                           => Some(msg),
+        }
+    }
+
+    ///
+    /// Maps the content of this error to another message type
+    ///
+    pub fn map<TTarget>(self, map_fn: impl FnOnce(TMessage) -> TTarget) -> SceneSendError<TTarget> {
+        match self {
+            SceneSendError::CouldNotConnect(msg)                        => SceneSendError::CouldNotConnect(msg),
+            SceneSendError::TargetProgramEndedBeforeReady               => SceneSendError::TargetProgramEndedBeforeReady,
+            SceneSendError::StreamClosed(msg)                           => SceneSendError::StreamClosed(map_fn(msg)),
+            SceneSendError::TargetProgramEnded(msg)                     => SceneSendError::TargetProgramEnded(map_fn(msg)),
+            SceneSendError::StreamDisconnected(msg)                     => SceneSendError::StreamDisconnected(map_fn(msg)),
+            SceneSendError::CannotReEnterTargetProgram                  => SceneSendError::CannotReEnterTargetProgram,
+            SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(msg)  => SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(map_fn(msg)),
+            SceneSendError::CannotDeserialize(msg, error)               => SceneSendError::CannotDeserialize(map_fn(msg), error),
+            SceneSendError::CannotSerialize(msg, error)                 => SceneSendError::CannotSerialize(map_fn(msg), error),
+            SceneSendError::ErrorAfterDeserialization                   => SceneSendError::ErrorAfterDeserialization,
+            SceneSendError::NoConnection(msg)                           => SceneSendError::NoConnection(map_fn(msg)),
+        }
+    }
+}
+
+impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
+    fn from(err: SceneSendError<TMessage>) -> ConnectionError {
+        match err {
+            SceneSendError::CouldNotConnect(err)                        => err,
+            SceneSendError::TargetProgramEndedBeforeReady               => ConnectionError::TargetNotInScene,
+            SceneSendError::StreamClosed(_)                             => ConnectionError::TargetNotAvailable,
+            SceneSendError::TargetProgramEnded(_)                       => ConnectionError::TargetNotInScene,
+            SceneSendError::StreamDisconnected(_)                       => ConnectionError::TargetNotAvailable,
+            SceneSendError::CannotReEnterTargetProgram                  => ConnectionError::CannotStealThread,
+            SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(_)    => ConnectionError::TargetNotReady,
+            SceneSendError::CannotSerialize(_, _)                       => ConnectionError::TargetCannotSerialize,
+            SceneSendError::CannotDeserialize(_, _)                     => ConnectionError::TargetCannotDeserialize,
+            SceneSendError::ErrorAfterDeserialization                   => ConnectionError::TargetCannotDeserialize,
+            SceneSendError::NoConnection(_)                             => ConnectionError::TargetCannotDeserialize,
+        }
+    }
+}
+
+#[cfg(feature="tokio")]
+mod tokio_errors {
+    use super::*;
+    use tokio::io::{Error, ErrorKind};
+
+    impl From<Error> for ConnectionError {
+        fn from(err: Error) -> ConnectionError {
+            match err.kind() {
+                ErrorKind::NotFound             => ConnectionError::TargetNotAvailable,
+                ErrorKind::PermissionDenied     => ConnectionError::TargetPermissionRefused,
+                ErrorKind::ConnectionRefused    => ConnectionError::TargetConnectionRefused,
+                ErrorKind::ConnectionReset      |
+                ErrorKind::BrokenPipe           |
+                ErrorKind::ConnectionAborted    => ConnectionError::Cancelled,
+                ErrorKind::NotConnected         => ConnectionError::IoError(format!("{}", err)),
+                ErrorKind::AddrInUse            |
+                ErrorKind::AddrNotAvailable     |
+                ErrorKind::AlreadyExists        |
+                ErrorKind::WouldBlock           |
+                ErrorKind::InvalidInput         |
+                ErrorKind::InvalidData          |
+                ErrorKind::TimedOut             |
+                ErrorKind::WriteZero            |
+                ErrorKind::Interrupted          |
+                ErrorKind::Unsupported          |
+                ErrorKind::UnexpectedEof        |
+                ErrorKind::OutOfMemory          |
+                ErrorKind::Other                |
+                _                               => ConnectionError::IoError(err.to_string()),
+
+            }
+        }
+    }
+}

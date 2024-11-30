@@ -158,8 +158,8 @@ fn error_from_command_with_object_parameter_without_closing_socket() {
     run_expected_error_command_without_closing("test { \"test\": 2 }\n");
 }
 
+#[test]
 fn read_from_background_stream_iteration() {
-    // TODO: race condition between the launcher starting and the command being sent
     let test_commands   = "test\n".to_string();
 
     let scene           = Scene::default();

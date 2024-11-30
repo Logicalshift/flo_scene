@@ -1,0 +1,14 @@
+[package]
+name    = "flo_scene_wasm_wasi_test"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+flo_scene               = { version = "0.2", features = [ "json" ], default-features = false }
+futures                 = "0.3"
+wasi                    = "0.13"
+wit-bindgen             = "0.30.0"
+getrandom               = { version = "0.2", features = ["js"] }

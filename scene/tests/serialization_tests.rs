@@ -22,7 +22,7 @@ mod with_serde_support {
         let serialized_resender     = SubProgramId::new();
         let deserialized_receiver   = SubProgramId::new();
 
-        install_serializable_type::<TestMessage, serde_json::Value>().unwrap();
+        install_serializable_type(|msg: TestMessage| msg.to_json(), |json| TestMessage::from_json(json)).unwrap();
 
         // Add a serialized_resender program that sends whatever serialized message it gets to the test program
         scene.add_subprogram(serialized_resender, 
@@ -65,6 +65,70 @@ mod with_serde_support {
 
         // Create a deserializer to use with the test program
         let json_deserializer_filter = serializer_filter::<SerializedMessage<serde_json::Value>, TestMessage>().unwrap();
+        json_deserializer_filter.into_iter()
+            .for_each(|filter|
+                { scene.connect_programs((), StreamTarget::Filtered(filter, deserialized_receiver), filter.source_stream_id_any().unwrap()).ok(); });
+
+        // Run some tests with a message that gets serialized and deserialized
+        TestBuilder::new()
+            .send_message_to_target(serialized_resender, TestMessage::StringValue(format!("Test")))
+            .expect_message(|msg: TestMessage| {
+                if msg != TestMessage::StringValue(format!("Test")) { Err(format!("Expected 'Test' (got {:?})", msg)) } else { Ok(()) }
+            })
+            .run_in_scene(&scene, test_program);
+    }
+
+    #[test]
+    fn serialize_deserialize_postcard() {
+        let scene = Scene::default();
+
+        let test_program            = SubProgramId::new();
+        let serialized_resender     = SubProgramId::new();
+        let deserialized_receiver   = SubProgramId::new();
+
+        install_serializable_type(|msg: TestMessage| msg.to_json(), |json| TestMessage::from_json(json)).unwrap();
+
+        // Add a serialized_resender program that sends whatever serialized message it gets to the test program
+        scene.add_subprogram(serialized_resender, 
+            move |input_stream, context| async move {
+                let mut input_stream = input_stream;
+
+                while let Some(message) = input_stream.next().await {
+                    let message: SerializedMessage<GuestMessage> = message;
+
+                    println!("Serialized: {:?}", message.0);
+
+                    context.send(deserialized_receiver).unwrap()
+                        .send(message)
+                        .await
+                        .unwrap();
+                }
+            }, 0);
+
+        // The deserialized receiver takes TestMessages and passes them back to the test program
+        scene.add_subprogram(deserialized_receiver, move |input_stream, context| async move {
+            let mut input_stream = input_stream;
+
+            while let Some(message) = input_stream.next().await {
+                let message: TestMessage = message;
+
+                println!("Deserialized: {:?}", message);
+
+                context.send(test_program).unwrap()
+                    .send(message)
+                    .await
+                    .unwrap();
+            }
+        }, 0);
+
+        // Create a JSON serializer to allow test messages to be sent directly to the serialized_resender program
+        let json_serializer_filter = serializer_filter::<TestMessage, SerializedMessage<GuestMessage>>().unwrap();
+        json_serializer_filter.into_iter()
+            .for_each(|filter|
+                { scene.connect_programs((), StreamTarget::Filtered(filter, serialized_resender), filter.source_stream_id_any().unwrap()).ok(); });
+
+        // Create a deserializer to use with the test program
+        let json_deserializer_filter = serializer_filter::<SerializedMessage<GuestMessage>, TestMessage>().unwrap();
         json_deserializer_filter.into_iter()
             .for_each(|filter|
                 { scene.connect_programs((), StreamTarget::Filtered(filter, deserialized_receiver), filter.source_stream_id_any().unwrap()).ok(); });
@@ -234,5 +298,32 @@ mod with_serde_support {
                 if msg != TestMessage::StringValue(format!("Test")) { Err(format!("Expected 'Test' (got {:?})", msg)) } else { Ok(()) }
             })
             .run_in_scene(&scene, test_program);
+    }
+}
+
+mod with_postcard_support {
+    use flo_scene::*;
+
+    use serde::*;
+
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    pub struct SimpleResponseMessage {
+        value: String,
+    }
+
+    impl SceneMessage for SimpleResponseMessage {
+        fn message_type_name() -> String {
+            "flo_scene_tests::encoder_tests::SimpleResponseMessage".into()
+        }
+    }
+
+    #[test]
+    fn round_trip_msg_postcard() {
+        let msg     = SimpleResponseMessage { value: "Hello".into() };
+
+        let encoded = msg.to_guest_message(&DisconnectedSerializationContext).unwrap();
+        let decoded = SimpleResponseMessage::from_guest_message(&encoded, &DisconnectedSerializationContext).unwrap();
+
+        assert!(decoded.value == "Hello");
     }
 }

@@ -1,0 +1,5 @@
+package basictest:host;
+
+world host {
+    export test: func() -> u32;
+}

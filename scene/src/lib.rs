@@ -177,39 +177,24 @@
 
 #![allow(clippy::redundant_field_names)]            // I prefer this to be consistent across the struct when initialising
 
-mod scene;
-mod scene_core;
-mod subprogram_core;
-mod process_core;
-mod scene_context;
-mod subprogram_id;
-mod stream_id;
-mod stream_source;
-mod stream_target;
-mod input_stream;
-mod output_sink;
-mod filter;
-mod scene_message;
-mod thread_stealer;
-mod command_trait;
-mod connect_result;
-mod serialization;
+pub mod uuid_impl;
+mod util;
 
-pub mod error;
-pub mod programs;
-pub mod commands;
+#[cfg(not(target_family="wasm"))]
+mod host;
 
-pub use scene::*;
-pub use scene_context::*;
-pub use subprogram_id::*;
-pub use stream_id::*;
-pub use stream_source::*;
-pub use stream_target::*;
-pub use input_stream::*;
-pub use output_sink::*;
-pub use filter::*;
-pub use scene_message::*;
-pub use command_trait::*;
-pub use connect_result::*;
-pub use error::{ConnectionError, SceneSendError};
-pub use serialization::*;
+#[cfg(target_family="wasm")]
+pub mod host;
+
+#[cfg(not(target_family="wasm"))]
+pub use host::*;
+
+#[cfg(any(feature="guest_programs", target_family="wasm"))]
+pub mod guest;
+
+#[cfg(target_family="wasm")]
+pub use guest::*;
+
+// #[cfg(target_family="wasm")]
+#[cfg(any(feature="postcard", target_family="wasm"))]
+pub mod wasm_rt;
