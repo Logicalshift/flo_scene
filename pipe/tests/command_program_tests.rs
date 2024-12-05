@@ -9,6 +9,92 @@ use futures::channel::mpsc;
 use futures::channel::oneshot;
 
 use serde::*;
+use serde_json::json;
+use tokio::io::*;
+
+///
+/// Creates an internal socket program in a scene that can be used to send commands
+///
+fn create_internal_command_socket(scene: &Scene, internal_socket_id: SubProgramId) {
+    // The command connection program receives connections from sockets
+    let command_program = SubProgramId::new();
+    scene.add_subprogram(command_program, |input, context| command_connection_program(input, context, ()), 0);
+
+    // The internal socket program lets us receive connections and send messages to the command program as streams of data
+    start_internal_socket_program(scene, internal_socket_id, read_command_data, write_command_data).unwrap();
+
+    // Connect the internal socket program to the command program
+    scene.connect_programs(internal_socket_id, command_program, StreamId::with_message_type::<CommandProgramSocketMessage>()).unwrap();
+}
+
+///
+/// Adds a subprogram that runs some commands using the internal socket program
+///
+fn add_command_runner<TFuture>(scene: &Scene, internal_socket_id: SubProgramId, commands: impl Into<String>, process_results: impl 'static + Send + Fn(String, SceneContext) -> TFuture) 
+where
+    TFuture: 'static + Send + Future<Output=()>
+{
+    // Create an arbitrary program ID
+    let program_id  = SubProgramId::called("command_runner");
+    let commands    = commands.into();
+
+    scene.add_subprogram(program_id, move |_: InputStream<()>, context| async move {
+        context.wait_for_idle(100).await;
+
+        // Create a connection via the internal socket
+        let (our_side, their_side)          = duplex(1024);
+        let (command_input, command_output) = split(their_side);
+        let (read_result, write_command)    = split(our_side);
+
+        let mut socket_program = context.send(internal_socket_id).unwrap();
+        socket_program.send(InternalSocketMessage::CreateInternalSocket(Box::new(command_input), Box::new(command_output))).await.ok().unwrap();
+
+        let context = &context;
+
+        // Future that writes the commands
+        let write_side = async move {
+            println!("In: {}", commands);
+
+            // Send the commands to the write side and then stop
+            let mut write_command = write_command;
+
+            write_command.write_all(&commands.bytes().collect::<Vec<u8>>()).await.unwrap();
+
+            println!("Sent all");
+
+            context.wait_for_idle(100).await;
+
+            write_command.flush().await.unwrap();
+            write_command.shutdown().await.unwrap();
+
+            println!("Finished sending");
+        };
+
+        // Future that reads the results and processes them
+        let read_side = async move {
+            let mut bytes = vec![];
+
+            let mut read_result = read_result;
+            let mut buf = vec![];
+            while let Ok(len) = read_result.read_buf(&mut buf).await {
+                println!("{:?}", String::from_utf8_lossy(&buf));
+                bytes.extend(&buf);
+                buf.drain(..);
+
+                if len == 0 {
+                    break;
+                }
+            }
+
+            let string_result = String::from_utf8_lossy(&bytes);
+            println!("\nOut: {}", string_result);
+            process_results(string_result.into(), context.clone()).await;
+        };
+
+        // Wait for both futures together to run the socket
+        future::join(write_side, read_side).await;
+    }, 0)
+}
 
 #[test]
 pub fn send_error_command() {
@@ -112,5 +198,52 @@ pub fn declare_and_run_json_command() {
 
             Ok(())
         })
+        .run_in_scene(&scene, test_subprogram);
+}
+
+#[test]
+pub fn pipe_command_background_stream() {
+    let scene               = Scene::default().with_standard_json_commands();
+    let test_subprogram     = SubProgramId::called("test");
+    let command_subprogram  = SubProgramId::called("command");
+    let internal_socket     = SubProgramId::called("send_internal_socket");
+
+    // Create a launcher with a command we can pipe from and one we can pipe to
+    let launcher = CommandLauncher::json()
+        .with_json_command("::pipe_from", |param: (), _context| async move {
+            CommandResponse::BackgroundStream(stream::iter(vec![json![1], json![2], json![3], json![42]]).boxed())
+        })
+        .with_json_command("::pipe_to", |param: (), context| async move {
+            CommandResponse::IoStream(Box::new(|input_values| {
+                use serde_json::{Value};
+
+                input_values.map(|value| {
+                    match value {
+                        Value::Number(num) => json![num.as_f64().unwrap() + 1.0],
+                        _ => json!["Unexpected value"]
+                    }
+                }).boxed()
+            }))
+        });
+    scene.add_subprogram(command_subprogram, launcher.to_subprogram(), 1);
+
+    // Pipe between the two commands using the interpreter
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#"::pipe_from | ::pipe_to
+        "#, 
+        |msg, _| async move {
+            // We're hard-coding the JSON formatting here which might not always be consistent (many formats can communicate the same message)
+            println!("Msg is {:?}", msg);
+            assert!(msg.contains(r#"[
+  2,
+  3,
+  4,
+  43
+]"#));
+        });
+
+    // Pipe from one command to another and check the results
+    TestBuilder::new()
         .run_in_scene(&scene, test_subprogram);
 }
