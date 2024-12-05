@@ -366,10 +366,11 @@ where
 ///
 /// Parses a command, at the point where the lookahead contains the 'Command' token
 ///
-async fn command_parse_command<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), CommandParseError>
+fn command_parse_command<'a, TStream>(parser: &'a mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &'a mut Tokenizer<CommandToken, TStream>) -> BoxFuture<'a, Result<(), CommandParseError>>
 where
     TStream: Send + Stream<Item=Vec<u8>>,
  {
+    async move {
     // Lookahead must be a 'Command'
     let command_name = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await.ok_or(CommandParseError::ExpectedMoreInput)?;
     if !matches!(command_name.token, Some(CommandToken::Command) | Some(CommandToken::Variable)) { return Err(command_name.into()); }
@@ -408,7 +409,28 @@ where
                 })?;
             }
 
-            // TODO: command can have no arguments and be followed by a pipe
+            Some(CommandToken::Pipe) => {
+                // 'command | ...'
+                parser.accept_token()?;
+
+                command_parse_command(parser, tokenizer).await?;
+
+                parser.reduce(3, |cmd| {
+                    // Stack should be our command name + the following command
+                    let mut cmd             = cmd;
+                    let target_command      = cmd.pop().unwrap().to_node().unwrap();
+                    cmd.pop();
+                    let source_command_name = cmd.pop().unwrap().token().unwrap().fragment.clone();
+
+                    // Create the source command
+                    let source_command = CommandRequest::Command { command: CommandName(source_command_name), argument: serde_json::Value::Null.into() };
+
+                    // Build into a pipe command
+                    let pipe_command = CommandRequest::Pipe { from: Box::new(source_command), to: Box::new(target_command) };
+
+                    pipe_command
+                })?;
+            }
 
             _ => { return Err(maybe_argument.into()); }
         }
@@ -421,6 +443,7 @@ where
     }
 
     Ok(())
+    }.boxed()
 }
 
 ///
@@ -844,7 +867,7 @@ mod test {
 
     #[test]
     fn parse_pipe_2() {
-        let json            = stream::iter(r#"::command_1 1 | ::command_2 2"#.bytes()).ready_chunks(2);
+        let json            = stream::iter(r#"::command_1 | ::command_2 2"#.bytes()).ready_chunks(2);
         let mut tokenizer   = Tokenizer::new(json);
         let mut parser      = Parser::new();
 
@@ -856,7 +879,26 @@ mod test {
 
             assert!(result == CommandRequest::Pipe { 
                 from:   Box::new(CommandRequest::Command { command: CommandName("::command_1".into()), argument: serde_json::Value::Null.into() }),
-                to:     Box::new(CommandRequest::Command { command: CommandName("::command_2".into()), argument: serde_json::Value::Null.into() })
+                to:     Box::new(CommandRequest::Command { command: CommandName("::command_2".into()), argument: json![2].into() })
+            }, "{:?}", result);
+        });
+    }
+
+    #[test]
+    fn parse_pipe_3() {
+        let json            = stream::iter(r#"::command_1 1 | ::command_2 2"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(json);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Pipe { 
+                from:   Box::new(CommandRequest::Command { command: CommandName("::command_1".into()), argument: json![1].into() }),
+                to:     Box::new(CommandRequest::Command { command: CommandName("::command_2".into()), argument: json![2].into() })
             }, "{:?}", result);
         });
     }
