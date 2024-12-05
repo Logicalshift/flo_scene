@@ -328,6 +328,11 @@ impl CommandSession {
                                         }
                                     }
                                 }
+
+                                if sent_json {
+                                    yield_value(CommandResponse::Error("Background streams must be sent first to use with a pipe".into())).await;
+                                    break;
+                                }
                             }
 
                             // Everything else goes to the output
