@@ -371,78 +371,78 @@ where
     TStream: Send + Stream<Item=Vec<u8>>,
  {
     async move {
-    // Lookahead must be a 'Command'
-    let command_name = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await.ok_or(CommandParseError::ExpectedMoreInput)?;
-    if !matches!(command_name.token, Some(CommandToken::Command) | Some(CommandToken::Variable)) { return Err(command_name.into()); }
+        // Lookahead must be a 'Command'
+        let command_name = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await.ok_or(CommandParseError::ExpectedMoreInput)?;
+        if !matches!(command_name.token, Some(CommandToken::Command) | Some(CommandToken::Variable)) { return Err(command_name.into()); }
 
-    parser.accept_token()?;
+        parser.accept_token()?;
 
-    // Next lookahead determines the type of command
-    let maybe_argument = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
-    if let Some(maybe_argument) = maybe_argument {
-        match maybe_argument.token {
-            Some(CommandToken::Json(_)) | Some(CommandToken::Variable) => {
-                // Argument is a JSON value which may be followed by a pipe or an equals
-                command_parse_argument(parser, tokenizer).await?;
+        // Next lookahead determines the type of command
+        let maybe_argument = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
+        if let Some(maybe_argument) = maybe_argument {
+            match maybe_argument.token {
+                Some(CommandToken::Json(_)) | Some(CommandToken::Variable) => {
+                    // Argument is a JSON value which may be followed by a pipe or an equals
+                    command_parse_argument(parser, tokenizer).await?;
 
-                parser.reduce(2, |cmd| {
-                    let name        = cmd[0].token().unwrap().fragment.clone();
-                    let argument    = cmd[1].node().unwrap().clone();
+                    parser.reduce(2, |cmd| {
+                        let name        = cmd[0].token().unwrap().fragment.clone();
+                        let argument    = cmd[1].node().unwrap().clone();
 
-                    match argument {
-                        CommandRequest::Command { argument, .. }    => CommandRequest::Command { command: CommandName(name), argument: argument },
-                        _                                           => { unreachable!() }
-                    }
-                })?;
+                        match argument {
+                            CommandRequest::Command { argument, .. }    => CommandRequest::Command { command: CommandName(name), argument: argument },
+                            _                                           => { unreachable!() }
+                        }
+                    })?;
 
-                // TODO: command can use pipe or an equals here
+                    // TODO: command can use pipe or an equals here
+                }
+
+                Some(CommandToken::Newline)     |
+                Some(CommandToken::SemiColon)   => {
+                    // Command has no argument
+                    parser.accept_token()?;
+
+                    parser.reduce(2, |cmd| {
+                        let name = cmd[0].token().unwrap().fragment.clone();
+                        CommandRequest::Command { command: CommandName(name), argument: ParsedJson::Null }
+                    })?;
+                }
+
+                Some(CommandToken::Pipe) => {
+                    // 'command | ...'
+                    parser.accept_token()?;
+
+                    command_parse_command(parser, tokenizer).await?;
+
+                    parser.reduce(3, |cmd| {
+                        // Stack should be our command name + the following command
+                        let mut cmd             = cmd;
+                        let target_command      = cmd.pop().unwrap().to_node().unwrap();
+                        cmd.pop();
+                        let source_command_name = cmd.pop().unwrap().token().unwrap().fragment.clone();
+
+                        // Create the source command
+                        let source_command = CommandRequest::Command { command: CommandName(source_command_name), argument: serde_json::Value::Null.into() };
+
+                        // Build into a pipe command
+                        let pipe_command = CommandRequest::Pipe { from: Box::new(source_command), to: Box::new(target_command) };
+
+                        pipe_command
+                    })?;
+                }
+
+                _ => { return Err(maybe_argument.into()); }
             }
-
-            Some(CommandToken::Newline)     |
-            Some(CommandToken::SemiColon)   => {
-                // Command has no argument
-                parser.accept_token()?;
-
-                parser.reduce(2, |cmd| {
-                    let name = cmd[0].token().unwrap().fragment.clone();
-                    CommandRequest::Command { command: CommandName(name), argument: ParsedJson::Null }
-                })?;
-            }
-
-            Some(CommandToken::Pipe) => {
-                // 'command | ...'
-                parser.accept_token()?;
-
-                command_parse_command(parser, tokenizer).await?;
-
-                parser.reduce(3, |cmd| {
-                    // Stack should be our command name + the following command
-                    let mut cmd             = cmd;
-                    let target_command      = cmd.pop().unwrap().to_node().unwrap();
-                    cmd.pop();
-                    let source_command_name = cmd.pop().unwrap().token().unwrap().fragment.clone();
-
-                    // Create the source command
-                    let source_command = CommandRequest::Command { command: CommandName(source_command_name), argument: serde_json::Value::Null.into() };
-
-                    // Build into a pipe command
-                    let pipe_command = CommandRequest::Pipe { from: Box::new(source_command), to: Box::new(target_command) };
-
-                    pipe_command
-                })?;
-            }
-
-            _ => { return Err(maybe_argument.into()); }
+        } else {
+            // No argument, so just a command
+            parser.reduce(1, |cmd| {
+                let name = cmd[0].token().unwrap().fragment.clone();
+                CommandRequest::Command { command: CommandName(name), argument: ParsedJson::Null }
+            })?;
         }
-    } else {
-        // No argument, so just a command
-        parser.reduce(1, |cmd| {
-            let name = cmd[0].token().unwrap().fragment.clone();
-            CommandRequest::Command { command: CommandName(name), argument: ParsedJson::Null }
-        })?;
-    }
 
-    Ok(())
+        Ok(())
     }.boxed()
 }
 
