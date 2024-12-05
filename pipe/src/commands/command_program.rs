@@ -297,7 +297,10 @@ impl CommandSession {
             let mut send                    = send;
             let mut piped_output            = piped_output;
 
-            future::select(async {
+            future::join(
+                async {
+                    // TODO: we should stop reading from the input if the pipe output is closed (as there'll be nowhere to send it)
+                    // (Although, provided that the following 'send' fails we'll generally stop at the next message anyway)
                     while let Some(in_response) = in_responses.next().await {
                         match in_response {
                             CommandResponse::Json(json_value) => {
