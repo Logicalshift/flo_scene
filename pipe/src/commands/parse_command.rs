@@ -822,4 +822,42 @@ mod test {
             assert!(result == CommandRequest::RawJson { value: json!{{"test": 1}}.into() }, "{:?}", result);
         });
     }
+
+    #[test]
+    fn parse_pipe_1() {
+        let json            = stream::iter(r#"::command_1 | ::command_2"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(json);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Pipe { 
+                from:   Box::new(CommandRequest::Command { command: CommandName("::command_1".into()), argument: serde_json::Value::Null.into() }),
+                to:     Box::new(CommandRequest::Command { command: CommandName("::command_2".into()), argument: serde_json::Value::Null.into() })
+            }, "{:?}", result);
+        });
+    }
+
+    #[test]
+    fn parse_pipe_2() {
+        let json            = stream::iter(r#"::command_1 1 | ::command_2 2"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(json);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Pipe { 
+                from:   Box::new(CommandRequest::Command { command: CommandName("::command_1".into()), argument: serde_json::Value::Null.into() }),
+                to:     Box::new(CommandRequest::Command { command: CommandName("::command_2".into()), argument: serde_json::Value::Null.into() })
+            }, "{:?}", result);
+        });
+    }
 }
