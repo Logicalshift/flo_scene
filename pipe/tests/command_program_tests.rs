@@ -210,10 +210,10 @@ pub fn pipe_command_background_stream() {
 
     // Create a launcher with a command we can pipe from and one we can pipe to
     let launcher = CommandLauncher::json()
-        .with_json_command("::pipe_from", |param: (), _context| async move {
+        .with_json_command("::pipe_from", |_param: (), _context| async move {
             CommandResponse::BackgroundStream(stream::iter(vec![json![1], json![2], json![3], json![42]]).boxed())
         })
-        .with_json_command("::pipe_to", |param: (), context| async move {
+        .with_json_command("::pipe_to", |_param: (), _context| async move {
             CommandResponse::IoStream(Box::new(|input_values| {
                 use serde_json::{Value};
 
