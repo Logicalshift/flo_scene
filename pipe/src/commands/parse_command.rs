@@ -364,6 +364,43 @@ where
 }
 
 ///
+/// With a command already on the stack, checks to see if the lookahead contains a '|' and if so parses the following pipe command
+///
+fn command_parse_pipe<'a, TStream>(parser: &'a mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &'a mut Tokenizer<CommandToken, TStream>) -> BoxFuture<'a, Result<(), CommandParseError>>
+where
+    TStream: Send + Stream<Item=Vec<u8>>,
+{
+    async move {
+        // Look ahead to see if there's a '|'
+        let maybe_pipe = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
+
+        if let Some(maybe_pipe) = maybe_pipe {
+            if let Some(CommandToken::Pipe) = maybe_pipe.token {
+                // Lookahead is '|', so we should accept a pipe command
+                parser.accept_token()?;
+
+                command_parse_command(parser, tokenizer).await?;
+
+                parser.reduce(3, |cmd| {
+                    // Stack should be the preceding command, the pipe, and the following command
+                    let mut cmd             = cmd;
+                    let target_command      = cmd.pop().unwrap().to_node().unwrap();
+                    cmd.pop();
+                    let source_command      = cmd.pop().unwrap().to_node().unwrap();
+
+                    // Build into a pipe command
+                    let pipe_command = CommandRequest::Pipe { from: Box::new(source_command), to: Box::new(target_command) };
+
+                    pipe_command
+                })?;
+            }
+        }
+
+        Ok(())
+    }.boxed()
+}
+
+///
 /// Parses a command, at the point where the lookahead contains the 'Command' token
 ///
 fn command_parse_command<'a, TStream>(parser: &'a mut Parser<TokenMatch<CommandToken>, CommandRequest>, tokenizer: &'a mut Tokenizer<CommandToken, TStream>) -> BoxFuture<'a, Result<(), CommandParseError>>
@@ -395,7 +432,10 @@ where
                         }
                     })?;
 
-                    // TODO: command can use pipe or an equals here
+                    // Might be followed by a pipe
+                    command_parse_pipe(parser, tokenizer).await?;
+
+                    // TODO: command can also use an equals here
                 }
 
                 Some(CommandToken::Newline)     |
@@ -411,25 +451,14 @@ where
 
                 Some(CommandToken::Pipe) => {
                     // 'command | ...'
-                    parser.accept_token()?;
-
-                    command_parse_command(parser, tokenizer).await?;
-
-                    parser.reduce(3, |cmd| {
-                        // Stack should be our command name + the following command
-                        let mut cmd             = cmd;
-                        let target_command      = cmd.pop().unwrap().to_node().unwrap();
-                        cmd.pop();
-                        let source_command_name = cmd.pop().unwrap().token().unwrap().fragment.clone();
-
-                        // Create the source command
-                        let source_command = CommandRequest::Command { command: CommandName(source_command_name), argument: serde_json::Value::Null.into() };
-
-                        // Build into a pipe command
-                        let pipe_command = CommandRequest::Pipe { from: Box::new(source_command), to: Box::new(target_command) };
-
-                        pipe_command
+                    parser.reduce(1, |cmd| {
+                        // Reduce the initial command
+                        let source_command_name = cmd[0].token().unwrap().fragment.clone();
+                        CommandRequest::Command { command: CommandName(source_command_name), argument: serde_json::Value::Null.into() }
                     })?;
+
+                    // Finish parsing the pipe command
+                    command_parse_pipe(parser, tokenizer).await?;
                 }
 
                 _ => { return Err(maybe_argument.into()); }
@@ -899,6 +928,28 @@ mod test {
             assert!(result == CommandRequest::Pipe { 
                 from:   Box::new(CommandRequest::Command { command: CommandName("::command_1".into()), argument: json![1].into() }),
                 to:     Box::new(CommandRequest::Command { command: CommandName("::command_2".into()), argument: json![2].into() })
+            }, "{:?}", result);
+        });
+    }
+
+    #[test]
+    fn parse_pipe_4() {
+        let json            = stream::iter(r#"::command_1 1 | ::command_2 2 | ::command_3 3"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(json);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Pipe { 
+                from:   Box::new(CommandRequest::Command { command: CommandName("::command_1".into()), argument: json![1].into() }),
+                to:     Box::new(CommandRequest::Pipe {
+                    from:   Box::new(CommandRequest::Command { command: CommandName("::command_2".into()), argument: json![2].into() }),
+                    to:     Box::new(CommandRequest::Command { command: CommandName("::command_3".into()), argument: json![3].into() })
+                })
             }, "{:?}", result);
         });
     }
