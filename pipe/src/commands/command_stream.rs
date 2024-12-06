@@ -54,7 +54,7 @@ pub enum CommandRequest {
     /// Sets a variable to the JSON output of a command
     Assign      { variable: VariableName, from: Box<CommandRequest> },
 
-    /// Sends the JSON output of a command to a stream target
+    /// Sends the JSON output of a command to a stream target as a query response
     ForTarget   { target: StreamTarget, request: Box<CommandRequest> },
 }
 
