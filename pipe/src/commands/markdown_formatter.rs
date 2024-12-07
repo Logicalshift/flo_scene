@@ -5,6 +5,7 @@ struct Formatter {
 
     width:          usize,
     indentation:    usize,
+    indent_stack:   Vec<usize>,
     x_pos:          usize,
     preceding_ws:   Option<char>,
     current_word:   String,
@@ -178,6 +179,7 @@ pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> Str
         formatted_text: (0..indentation).map(|_| ' ').collect(),
         width:          width,
         indentation:    indentation,
+        indent_stack:   vec![],
         x_pos:          indentation,
         preceding_ws:   None,
         current_word:   String::new(),
