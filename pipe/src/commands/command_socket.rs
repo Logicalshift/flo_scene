@@ -1,6 +1,7 @@
 use crate::parser::*;
 use crate::socket::*;
 use crate::commands::command_stream::*;
+use crate::commands::markdown_formatter::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
@@ -287,8 +288,8 @@ impl CommandSocket {
             },
 
             Markdown(message)            => {
-                let msg = message.replace("\n", "\n   ");
-                self.output_stream.send(format!("   {}\n", msg).into()).await?;
+                let msg = markdown_to_ansi(&message, 78, 3);
+                self.output_stream.send(format!("{}\n", msg).into()).await?;
             },
 
             Error(message)              => {
