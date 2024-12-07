@@ -235,10 +235,16 @@ pub fn pipe_command_background_stream() {
         |msg, _| async move {
             // We're hard-coding the JSON formatting here which might not always be consistent (many formats can communicate the same message)
             println!("Msg is {:?}", msg);
-            assert!(msg.contains(r#"2.0
+            assert!(msg.contains(r#"<< JSON <<
+
+2.0
+
 3.0
+
 4.0
+
 43.0
+== JSON ==
 "#));
         });
 
