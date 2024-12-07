@@ -145,7 +145,7 @@ pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> Str
     for node in markdown_root.descendants() {
         use comrak::nodes::{NodeValue};
 
-        match &node.data.borrow_mut().value {
+        match &node.data.borrow().value {
             NodeValue::Document                                         => { },
             NodeValue::FrontMatter(_)                                   => { },
             NodeValue::BlockQuote                                       => { },
