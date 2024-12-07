@@ -278,6 +278,7 @@ impl CommandSession {
                     CommandResponse::BackgroundStream(stream)   => in_background_stream = Some(stream),
                     CommandResponse::Json(json)                 => in_json.push(json),
                     CommandResponse::Message(msg)               => yield_value(CommandResponse::Message(msg)).await,
+                    CommandResponse::Markdown(msg)              => yield_value(CommandResponse::Markdown(msg)).await,
                     CommandResponse::InteractiveStream(stream)  => yield_value(CommandResponse::InteractiveStream(stream)).await,
                     CommandResponse::Error(err)                 => in_error.push(err)
                 }
@@ -301,6 +302,7 @@ impl CommandSession {
                     CommandResponse::BackgroundStream(stream)   => yield_value(CommandResponse::BackgroundStream(stream)).await,
                     CommandResponse::Json(json)                 => yield_value(CommandResponse::Json(json)).await,
                     CommandResponse::Message(msg)               => yield_value(CommandResponse::Message(msg)).await,
+                    CommandResponse::Markdown(msg)              => yield_value(CommandResponse::Markdown(msg)).await,
                     CommandResponse::InteractiveStream(stream)  => yield_value(CommandResponse::InteractiveStream(stream)).await,
                     CommandResponse::Error(err)                 => out_error.push(err)
                 }

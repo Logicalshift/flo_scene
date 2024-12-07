@@ -325,6 +325,10 @@ impl CommandSocket {
                 self.notify(CommandNotification::Message(msg)).await.map_err(|_| ())
             }
 
+            CommandResponse::Markdown(msg) => {
+                self.notify(CommandNotification::Message(msg)).await.map_err(|_| ())
+            }
+
             CommandResponse::Json(json) => {
                 self.notify(CommandNotification::JsonResponse(json)).await.map_err(|_| ())
             },

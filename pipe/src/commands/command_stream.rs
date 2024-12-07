@@ -77,6 +77,9 @@ pub enum CommandResponse {
     /// A commentary message, written as '  <message>'
     Message(String),
 
+    /// A commentary message with markdown formatting, written as '  <message>' with added ANSI formatting
+    Markdown(String),
+
     /// A stream of values that can be outputted at any time, used for receiving monitored events
     /// A new stream is given a number in the initial response using a message of format '<<< <n>' (eg, '<<< 8')
     /// Events from that stream are displayed as '<<n> <json>', eg '<8 [ 1, 2, 3, 4 ]' - note that the JSON can
@@ -209,6 +212,7 @@ impl Debug for CommandResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             CommandResponse::Message(msg)           => write!(f, "Message({:?})", msg),
+            CommandResponse::Markdown(msg)          => write!(f, "Markdown({:?})", msg),
             CommandResponse::Json(json)             => write!(f, "Json({:?})", json),
             CommandResponse::BackgroundStream(_)    => write!(f, "BackgroundStream(...)"),
             CommandResponse::IoStream(_)            => write!(f, "IoStream(...)"),
@@ -288,6 +292,7 @@ pub fn write_command_data(input: impl 'static + Send + Unpin + Stream<Item=Comma
 enum SerializedCommandResponse {
     Json(serde_json::Value),
     Message(String),
+    Markdown(String),
 
     BackgroundStreamNotSupported,
     IoStreamNotSupported,
@@ -304,6 +309,7 @@ impl Serialize for CommandResponse {
         match self {
             CommandResponse::Json(json)             => SerializedCommandResponse::Json(json.clone()),
             CommandResponse::Message(msg)           => SerializedCommandResponse::Message(msg.clone()),
+            CommandResponse::Markdown(msg)          => SerializedCommandResponse::Markdown(msg.clone()),
             CommandResponse::Error(err)             => SerializedCommandResponse::Error(err.clone()),
 
             CommandResponse::BackgroundStream(_)    => SerializedCommandResponse::BackgroundStreamNotSupported,
@@ -319,9 +325,10 @@ impl<'de> Deserialize<'de> for CommandResponse {
         D: serde::Deserializer<'de>
     {
         match SerializedCommandResponse::deserialize(deserializer)? {
-            SerializedCommandResponse::Json(json)   => Ok(CommandResponse::Json(json)),
-            SerializedCommandResponse::Message(msg) => Ok(CommandResponse::Message(msg)),
-            SerializedCommandResponse::Error(err)   => Ok(CommandResponse::Error(err)),
+            SerializedCommandResponse::Json(json)       => Ok(CommandResponse::Json(json)),
+            SerializedCommandResponse::Message(msg)     => Ok(CommandResponse::Message(msg)),
+            SerializedCommandResponse::Markdown(msg)    => Ok(CommandResponse::Markdown(msg)),
+            SerializedCommandResponse::Error(err)       => Ok(CommandResponse::Error(err)),
 
             SerializedCommandResponse::BackgroundStreamNotSupported     => Ok(CommandResponse::Error("Background stream not supported".into())),
             SerializedCommandResponse::IoStreamNotSupported             => Ok(CommandResponse::Error("I/O stream not supported".into())),
