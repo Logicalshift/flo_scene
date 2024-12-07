@@ -1,5 +1,7 @@
 use comrak;
 
+use std::cell::{RefCell};
+
 struct Formatter {
     formatted_text: String,
 
@@ -81,10 +83,10 @@ impl Formatter {
     ///
     /// Renders a comrak node value
     ///
-    pub fn node_value(&mut self, node_value: &comrak::nodes::NodeValue) {
+    pub fn node(&mut self, node: &comrak::arena_tree::Node<'_, RefCell<comrak::nodes::Ast>>) {
         use comrak::nodes::{NodeValue};
 
-        match &node_value {
+        match &node.data.borrow().value {
             NodeValue::Document                                         => { },
             NodeValue::FrontMatter(_)                                   => { },
             NodeValue::BlockQuote                                       => { },
@@ -193,7 +195,7 @@ pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> Str
 
     // Render by iterating over the text
     for node in markdown_root.descendants() {
-        rendered.node_value(&node.data.borrow().value);
+        rendered.node(node);
     }
 
     // Result is rendered
