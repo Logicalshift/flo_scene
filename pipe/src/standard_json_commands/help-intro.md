@@ -15,8 +15,10 @@ Another type of command is a JSON string: this just returns its own value, for e
 `{ "number": 42 }`. This is useful when combined with some other features of the command
 interpreter.
 
-Variables can be assigned to the JSON results of commands by using the `:my_var = command`.
-These can be substituted into any JSON value: `echo { "number": :my_var }`.
+Variables can be assigned to the JSON results of commands by using the `:my_var = command` 
+syntax. These can be substituted into any JSON value: `echo { "number": :my_var }`.
+
+## Output
 
 Commands can produce several different types of output:
 

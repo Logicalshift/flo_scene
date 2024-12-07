@@ -89,7 +89,7 @@ impl Formatter {
     ///
     /// Renders a comrak node value
     ///
-    pub fn node(&mut self, node: &comrak::arena_tree::Node<'_, RefCell<comrak::nodes::Ast>>) {
+    pub fn node<'a>(&mut self, node: &'a comrak::arena_tree::Node<'a, RefCell<comrak::nodes::Ast>>) {
         use comrak::nodes::{NodeValue};
 
         match &node.data.borrow().value {
@@ -104,8 +104,8 @@ impl Formatter {
             NodeValue::DescriptionDetails                               => { },
             NodeValue::CodeBlock(_node_code_block)                      => { },
             NodeValue::HtmlBlock(_node_html_block)                      => { },
-            NodeValue::Paragraph                                        => { self.paragraph(); },
-            NodeValue::Heading(_node_heading)                           => { self.heading(); },
+            NodeValue::Paragraph                                        => { self.paragraph(node.children()); },
+            NodeValue::Heading(_node_heading)                           => { self.heading(node.children()); },
             NodeValue::ThematicBreak                                    => { },
             NodeValue::FootnoteDefinition(_node_footnote_definition)    => { },
             NodeValue::Table(_node_table)                               => { },
@@ -159,7 +159,7 @@ impl Formatter {
     ///
     /// Ends a paragraph
     ///
-    pub fn paragraph(&mut self) {
+    pub fn paragraph(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
         let whitespace = self.preceding_ws.take();
         self.commit_current_word(whitespace);
 
@@ -169,14 +169,33 @@ impl Formatter {
 
         self.newline();
         self.newline();
+
+        for node in children {
+            self.node(node);
+        }
     }
 
     ///
     /// Switches to heading mode
     ///
-    pub fn heading(&mut self) {
+    pub fn heading(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
+        let whitespace = self.preceding_ws.take();
+        self.commit_current_word(whitespace);
+
+        while let Some(unformat) = self.format_stack.pop() {
+            self.formatted_text.extend(unformat.chars());
+        }
+
         self.current_word.extend(HEADING_FORMAT.chars());
         self.format_stack.push(HEADING_UNFORMAT.into());
+
+        self.newline();
+        self.newline();
+        self.newline();
+
+        for node in children {
+            self.node(node);
+        }
     }
 
     ///
@@ -230,7 +249,7 @@ pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> Str
     let markdown_root   = comrak::parse_document(&arena, markdown, &options);
 
     // Render by iterating over the text
-    for node in markdown_root.descendants() {
+    for node in markdown_root.children() {
         rendered.node(node);
     }
 
