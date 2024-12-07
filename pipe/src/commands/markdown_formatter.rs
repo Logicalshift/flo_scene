@@ -158,6 +158,10 @@ impl Formatter {
         let whitespace = self.preceding_ws.take();
         self.commit_current_word(whitespace);
 
+        while let Some(unformat) = self.format_stack.pop() {
+            self.formatted_text.extend(unformat.chars());
+        }
+
         self.newline();
         self.newline();
     }
