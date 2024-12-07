@@ -78,6 +78,55 @@ impl Formatter {
     }
 
     ///
+    /// Renders a comrak node value
+    ///
+    pub fn node_value(&mut self, node_value: &comrak::nodes::NodeValue) {
+        use comrak::nodes::{NodeValue};
+
+        match &node_value {
+            NodeValue::Document                                         => { },
+            NodeValue::FrontMatter(_)                                   => { },
+            NodeValue::BlockQuote                                       => { },
+            NodeValue::List(_node_list)                                 => { },
+            NodeValue::Item(_node_list)                                 => { },
+            NodeValue::DescriptionList                                  => { },
+            NodeValue::DescriptionItem(_node_description_item)          => { },
+            NodeValue::DescriptionTerm                                  => { },
+            NodeValue::DescriptionDetails                               => { },
+            NodeValue::CodeBlock(_node_code_block)                      => { },
+            NodeValue::HtmlBlock(_node_html_block)                      => { },
+            NodeValue::Paragraph                                        => { self.paragraph(); },
+            NodeValue::Heading(_node_heading)                           => { },
+            NodeValue::ThematicBreak                                    => { },
+            NodeValue::FootnoteDefinition(_node_footnote_definition)    => { },
+            NodeValue::Table(_node_table)                               => { },
+            NodeValue::TableRow(_)                                      => { },
+            NodeValue::TableCell                                        => { },
+            NodeValue::Text(text)                                       => { self.text(&text) },
+            NodeValue::TaskItem(_)                                      => { },
+            NodeValue::SoftBreak                                        => { },
+            NodeValue::LineBreak                                        => { },
+            NodeValue::Code(_node_code)                                 => { },
+            NodeValue::HtmlInline(_)                                    => { },
+            NodeValue::Emph                                             => { },
+            NodeValue::Strong                                           => { },
+            NodeValue::Strikethrough                                    => { },
+            NodeValue::Superscript                                      => { },
+            NodeValue::Link(_node_link)                                 => { },
+            NodeValue::Image(_node_link)                                => { },
+            NodeValue::FootnoteReference(_node_footnote_reference)      => { },
+            NodeValue::Math(_node_math)                                 => { },
+            NodeValue::MultilineBlockQuote(_node_multiline_block_quote) => { },
+            NodeValue::Escaped                                          => { },
+            NodeValue::WikiLink(_node_wiki_link)                        => { },
+            NodeValue::Underline                                        => { },
+            NodeValue::Subscript                                        => { },
+            NodeValue::SpoileredText                                    => { },
+            NodeValue::EscapedTag(_)                                    => { },
+        }
+    }
+
+    ///
     /// Appends text to the formatter
     ///
     pub fn text(&mut self, text: &str) {
@@ -141,51 +190,8 @@ pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> Str
     let markdown_root   = comrak::parse_document(&arena, markdown, &options);
 
     // Render by iterating over the text
-
     for node in markdown_root.descendants() {
-        use comrak::nodes::{NodeValue};
-
-        match &node.data.borrow().value {
-            NodeValue::Document                                         => { },
-            NodeValue::FrontMatter(_)                                   => { },
-            NodeValue::BlockQuote                                       => { },
-            NodeValue::List(_node_list)                                 => { },
-            NodeValue::Item(_node_list)                                 => { },
-            NodeValue::DescriptionList                                  => { },
-            NodeValue::DescriptionItem(_node_description_item)          => { },
-            NodeValue::DescriptionTerm                                  => { },
-            NodeValue::DescriptionDetails                               => { },
-            NodeValue::CodeBlock(_node_code_block)                      => { },
-            NodeValue::HtmlBlock(_node_html_block)                      => { },
-            NodeValue::Paragraph                                        => { rendered.paragraph(); },
-            NodeValue::Heading(_node_heading)                           => { },
-            NodeValue::ThematicBreak                                    => { },
-            NodeValue::FootnoteDefinition(_node_footnote_definition)    => { },
-            NodeValue::Table(_node_table)                               => { },
-            NodeValue::TableRow(_)                                      => { },
-            NodeValue::TableCell                                        => { },
-            NodeValue::Text(text)                                       => { rendered.text(&text) },
-            NodeValue::TaskItem(_)                                      => { },
-            NodeValue::SoftBreak                                        => { },
-            NodeValue::LineBreak                                        => { },
-            NodeValue::Code(_node_code)                                 => { },
-            NodeValue::HtmlInline(_)                                    => { },
-            NodeValue::Emph                                             => { },
-            NodeValue::Strong                                           => { },
-            NodeValue::Strikethrough                                    => { },
-            NodeValue::Superscript                                      => { },
-            NodeValue::Link(_node_link)                                 => { },
-            NodeValue::Image(_node_link)                                => { },
-            NodeValue::FootnoteReference(_node_footnote_reference)      => { },
-            NodeValue::Math(_node_math)                                 => { },
-            NodeValue::MultilineBlockQuote(_node_multiline_block_quote) => { },
-            NodeValue::Escaped                                          => { },
-            NodeValue::WikiLink(_node_wiki_link)                        => { },
-            NodeValue::Underline                                        => { },
-            NodeValue::Subscript                                        => { },
-            NodeValue::SpoileredText                                    => { },
-            NodeValue::EscapedTag(_)                                    => { },
-        }
+        rendered.node_value(&node.data.borrow().value);
     }
 
     // Result is rendered
