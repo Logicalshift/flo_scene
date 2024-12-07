@@ -2,6 +2,11 @@ use comrak;
 
 use std::cell::{RefCell};
 
+const HEADING_FORMAT: &'static str      = "\x1b[36;1;4m";
+const HEADING_UNFORMAT: &'static str    = "\x1b[39;22;24m";
+const CODE_FORMAT: &'static str         = "\x1b[33m";
+const CODE_UNFORMAT: &'static str       = "\x1b[39m";
+
 struct Formatter {
     formatted_text: String,
 
@@ -100,7 +105,7 @@ impl Formatter {
             NodeValue::CodeBlock(_node_code_block)                      => { },
             NodeValue::HtmlBlock(_node_html_block)                      => { },
             NodeValue::Paragraph                                        => { self.paragraph(); },
-            NodeValue::Heading(_node_heading)                           => { },
+            NodeValue::Heading(_node_heading)                           => { self.heading(); },
             NodeValue::ThematicBreak                                    => { },
             NodeValue::FootnoteDefinition(_node_footnote_definition)    => { },
             NodeValue::Table(_node_table)                               => { },
@@ -110,7 +115,7 @@ impl Formatter {
             NodeValue::TaskItem(_)                                      => { },
             NodeValue::SoftBreak                                        => { },
             NodeValue::LineBreak                                        => { },
-            NodeValue::Code(_node_code)                                 => { },
+            NodeValue::Code(node_code)                                  => { self.inline_code(&node_code.literal) },
             NodeValue::HtmlInline(_)                                    => { },
             NodeValue::Emph                                             => { },
             NodeValue::Strong                                           => { },
@@ -164,6 +169,31 @@ impl Formatter {
 
         self.newline();
         self.newline();
+    }
+
+    ///
+    /// Switches to heading mode
+    ///
+    pub fn heading(&mut self) {
+        self.current_word.extend(HEADING_FORMAT.chars());
+        self.format_stack.push(HEADING_UNFORMAT.into());
+    }
+
+    ///
+    /// Adds an inline code item
+    ///
+    pub fn inline_code(&mut self, literal: &str) {
+        // Write out whatever the current word is
+        let preceding_whitespace = self.preceding_ws.take();
+        self.commit_current_word(preceding_whitespace);
+        self.preceding_ws = Some(' ');
+
+        // Make the current word the code literal
+        self.current_word.extend(CODE_FORMAT.chars());
+        self.current_word.extend(literal.chars());
+        self.current_word.extend(CODE_UNFORMAT.chars());
+
+        self.word_length = literal.chars().count();
     }
 
     ///
