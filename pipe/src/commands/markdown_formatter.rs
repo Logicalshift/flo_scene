@@ -6,7 +6,7 @@ struct Formatter {
     width:          usize,
     indentation:    usize,
     x_pos:          usize,
-    initial_ws:     Option<char>,
+    preceding_ws:   Option<char>,
     current_word:   String,
     word_length:    usize,
 }
@@ -17,7 +17,7 @@ impl Formatter {
     ///
     #[inline]
     pub fn newline(&mut self) {
-        self.initial_ws = None;
+        self.preceding_ws = None;
         self.formatted_text.push('\n');
         self.formatted_text.extend((0..self.indentation).map(|_| ' '));
         self.x_pos = self.indentation;
@@ -67,9 +67,9 @@ impl Formatter {
     pub fn append_text(&mut self, text: &str) {
         for chr in text.chars() {
             if chr.is_whitespace() {
-                let initial_ws = self.initial_ws.take();
-                self.commit_current_word(initial_ws);
-                self.initial_ws = Some(chr);
+                let preceding_ws = self.preceding_ws.take();
+                self.commit_current_word(preceding_ws);
+                self.preceding_ws = Some(chr);
             } else {
                 self.current_word.push(chr);
                 self.word_length += 1;
@@ -132,18 +132,18 @@ impl Formatter {
     pub fn text(&mut self, text: &str) {
         // Assume every piece of text starts at a new word
         if self.word_length > 0 {
-            let preceding_whitespace = self.initial_ws.take();
+            let preceding_whitespace = self.preceding_ws.take();
             self.commit_current_word(preceding_whitespace);
 
-            self.initial_ws = Some(' ');
+            self.preceding_ws = Some(' ');
         }
 
         // Append to the existing formatted string
         self.append_text(text);
 
         // The newline separating lines isn't returned, or turned into whitespace by comrak
-        if self.initial_ws.is_none() {
-            self.initial_ws = Some(' ');
+        if self.preceding_ws.is_none() {
+            self.preceding_ws = Some(' ');
         }
     }
 
@@ -151,7 +151,7 @@ impl Formatter {
     /// Ends a paragraph
     ///
     pub fn paragraph(&mut self) {
-        let whitespace = self.initial_ws.take();
+        let whitespace = self.preceding_ws.take();
         self.commit_current_word(whitespace);
 
         self.newline();
@@ -179,7 +179,7 @@ pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> Str
         width:          width,
         indentation:    indentation,
         x_pos:          indentation,
-        initial_ws:     None,
+        preceding_ws:   None,
         current_word:   String::new(),
         word_length:    0,
     };
