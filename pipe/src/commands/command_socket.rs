@@ -49,6 +49,9 @@ pub enum CommandNotification {
     /// Informational message
     Message(String),
 
+    /// Informational message, formatted using markdown
+    Markdown(String),
+
     /// Error message
     Error(String),
 
@@ -283,6 +286,11 @@ impl CommandSocket {
                 self.output_stream.send(format!("   {}\n", msg).into()).await?;
             },
 
+            Markdown(message)            => {
+                let msg = message.replace("\n", "\n   ");
+                self.output_stream.send(format!("   {}\n", msg).into()).await?;
+            },
+
             Error(message)              => {
                 self.output_stream.send(format!("\n!!! {}\n", message).into()).await?;
             },
@@ -326,7 +334,7 @@ impl CommandSocket {
             }
 
             CommandResponse::Markdown(msg) => {
-                self.notify(CommandNotification::Message(msg)).await.map_err(|_| ())
+                self.notify(CommandNotification::Markdown(msg)).await.map_err(|_| ())
             }
 
             CommandResponse::Json(json) => {
