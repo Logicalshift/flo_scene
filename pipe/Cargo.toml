@@ -26,6 +26,7 @@ tokio           = { version = "1.37", features = [ "net", "io-util" ] }
 desync          = "0.8"
 flo_stream      = "0.7"
 itertools       = "0.13"
+comrak          = "0.31"
 
 [dev-dependencies]
 tokio           = { version = "1.37", features = [ "net", "io-util", "rt", "rt-multi-thread", "macros" ] }
