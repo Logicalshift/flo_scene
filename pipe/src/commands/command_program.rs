@@ -14,7 +14,6 @@ use futures::prelude::*;
 use futures::{pin_mut};
 use futures::future::{BoxFuture};
 use futures::stream::{BoxStream};
-use futures::channel::mpsc;
 use once_cell::sync::{Lazy};
 use serde::*;
 
@@ -248,7 +247,11 @@ impl CommandSession {
     }
 
     ///
-    /// Pipes the output of one command to the input of another
+    /// Pipes the IoStream output of the 'from' command to the IoStream output of the 'to' command, combining the streams into
+    /// a single IoStream
+    ///
+    /// For the 'from' command, if there's no IO stream, will use a background stream or the JSON results as the input to the 'to'
+    /// command. 'to' commands must always supply an IoStream so we can connect the input
     ///
     async fn pipe<'a>(&'a self, from: Box<CommandRequest>, to: Box<CommandRequest>, context: &'a SceneContext) -> BoxStream<'a, CommandResponse> {
         // Run both commands
@@ -260,97 +263,116 @@ impl CommandSession {
 
         // Result is a generator stream
         generator_stream(move |yield_value| async move {
-            // From the 'in' stream we either want the JSON value or the background stream, if there is one
             let mut in_responses    = in_responses;
             let mut out_responses   = out_responses;
 
-            // Process the 'output' command responses first, looking for a stream to send the output of the first command
-            let mut io_stream = None;
-            while let Some(out_response) = out_responses.next().await {
-                match out_response {
-                    CommandResponse::IoStream(new_io_stream) => {
-                        // Keep the IO stream to use with the results from the input
-                        io_stream = Some(new_io_stream);
-                    }
+            // Scan through the responses to figure out the IO stream
+            let mut in_iostream             = None;
+            let mut in_background_stream    = None;
+            let mut in_json                 = vec![];
+            let mut in_error                = vec![];
 
-                    // Other values are sent to the output
-                    other => yield_value(other).await
+            while let Some(in_response) = in_responses.next().await {
+                match in_response {
+                    CommandResponse::IoStream(stream)           => in_iostream = Some(stream),
+                    CommandResponse::BackgroundStream(stream)   => in_background_stream = Some(stream),
+                    CommandResponse::Json(json)                 => in_json.push(json),
+                    CommandResponse::Message(msg)               => yield_value(CommandResponse::Message(msg)).await,
+                    CommandResponse::InteractiveStream(stream)  => yield_value(CommandResponse::InteractiveStream(stream)).await,
+                    CommandResponse::Error(err)                 => in_error.push(err)
                 }
             }
 
-            let io_stream = if let Some(io_stream) = io_stream { 
-                io_stream 
+            // Report errors, and don't connect the pipe if there are any
+            if !in_error.is_empty() {
+                for err in in_error.into_iter() {
+                    yield_value(CommandResponse::Error(err)).await;
+                }
+                return;
+            }
+
+            // Scan through the responses to figure out the 'output' IO stream
+            let mut out_iostream    = None;
+            let mut out_error       = vec![];
+
+            while let Some(out_response) = out_responses.next().await {
+                match out_response {
+                    CommandResponse::IoStream(stream)           => out_iostream = Some(stream),
+                    CommandResponse::BackgroundStream(stream)   => yield_value(CommandResponse::BackgroundStream(stream)).await,
+                    CommandResponse::Json(json)                 => yield_value(CommandResponse::Json(json)).await,
+                    CommandResponse::Message(msg)               => yield_value(CommandResponse::Message(msg)).await,
+                    CommandResponse::InteractiveStream(stream)  => yield_value(CommandResponse::InteractiveStream(stream)).await,
+                    CommandResponse::Error(err)                 => out_error.push(err)
+                }
+            }
+
+            // Report errors, stop if there are any
+            if !out_error.is_empty() {
+                for err in in_error.into_iter() {
+                    yield_value(CommandResponse::Error(err)).await;
+                }
+                return;
+            }
+
+            // There must be an IO stream on the output side, or we generate an error
+            let out_iostream = if let Some(out_iostream) = out_iostream { 
+                out_iostream
             } else {
-                // Stop processing if no IO stream is generated (responses from the first command are lost)
-                yield_value(CommandResponse::Message(format!("Pipe target command has no input stream"))).await;
+                yield_value(CommandResponse::Error("Output side of a pipe must provide an IoStream".into())).await;
                 return;
             };
 
-            // Start the IO stream
-            let (send, recv) = mpsc::channel(1);
-            let piped_output = io_stream(recv.boxed());
+            // Create a new IO stream that passes through from the input
+            if let Some(in_iostream) = in_iostream {
+                // Use the IO stream as the source for preference
+                let pipe_iostream = Box::new(move |in_stream| {
+                    let pipe_stream = in_iostream(in_stream);
+                    let out_stream  = out_iostream(pipe_stream);
 
-            // Behaviour of the 'input' command depends on if there's a JSON response or a background stream first
-            // (We send from the background stream if that's first, or just JSON responses otherwise, so either style of commands can be piped)
-            let mut sent_json               = false;
-            let mut sent_from_background    = false;
-            let mut send                    = send;
-            let mut piped_output            = piped_output;
+                    out_stream
+                });
 
-            future::join(
-                async {
-                    // TODO: we should stop reading from the input if the pipe output is closed (as there'll be nowhere to send it)
-                    // (Although, provided that the following 'send' fails we'll generally stop at the next message anyway)
-                    while let Some(in_response) = in_responses.next().await {
-                        match in_response {
-                            CommandResponse::Json(json_value) => {
-                                // We send JSON data if there's no background stream
-                                // (If a background stream follows the first JSON message, it's swallowed)
-                                if !sent_from_background {
-                                    sent_json = true;
+                yield_value(CommandResponse::IoStream(pipe_iostream)).await;
+            } else {
+                // Either use the background stream if there is one or the JSON from the input command if there's nothing else
+                let alternative_stream = if let Some(in_background_stream) = in_background_stream {
+                    in_background_stream
+                } else {
+                    stream::iter(in_json).boxed()
+                };
 
-                                    if send.send(json_value).await.is_err() {
-                                        // Stop processing if there's an error sending to the output
-                                        break;
-                                    }
+                // We generate an IO stream, input is ignored
+                let pipe_iostream = Box::new(move |in_stream: BoxStream<'static, serde_json::Value>| {
+                    let out_stream = out_iostream(alternative_stream);
+
+                    stream::unfold((Some(in_stream), out_stream), |(maybe_in_stream, out_stream)| async move {
+                        let mut maybe_in_stream = maybe_in_stream;
+                        let mut out_stream      = out_stream;
+
+                        loop {
+                            if let Some(in_stream) = &mut maybe_in_stream {
+                                use future::Either;
+                                match future::select(in_stream.next(), out_stream.next()).await {
+                                    Either::Left((Some(_in), _))            => { }
+                                    Either::Left((None, _))                 => { maybe_in_stream = None; }
+                                    Either::Right((Some(next_value), _))    => { return Some((next_value, (maybe_in_stream, out_stream))); }
+                                    Either::Right((None, _))                => { return None; }
+                                }
+                            } else {
+                                // No more in stream, so just poll the out stream
+                                if let Some(next_value) = out_stream.next().await {
+                                    return Some((next_value, (None, out_stream)));
+                                } else {
+                                    // Stop once the out stream is exhausted
+                                    return None;
                                 }
                             }
-
-                            CommandResponse::BackgroundStream(background_stream) => {
-                                // Background streams are swallowed if we've already sent any data
-                                if !sent_json && !sent_from_background {
-                                    // Send the data from the stream to the pipe
-                                    sent_from_background = true;
-
-                                    let mut background_stream = background_stream;
-                                    while let Some(json_value) = background_stream.next().await {
-                                        if send.send(json_value).await.is_err() {
-                                            // Stop processing if there's an error sending to the output
-                                            // (We'll keep processing the rest of the output from the 'in' side)
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if sent_json {
-                                    yield_value(CommandResponse::Error("Background streams must be sent first to use with a pipe".into())).await;
-                                    break;
-                                }
-                            }
-
-                            // Everything else goes to the output
-                            other => yield_value(other).await,
                         }
-                    }
-                }.boxed(),
-                async {
-                    // Output anything the pipe target produces as a JSON value in the response
-                    while let Some(output) = piped_output.next().await {
-                        yield_value(CommandResponse::Json(output)).await;
-                    }
-                }.boxed()).await;
+                    }).boxed()
+                });
 
-            // We need an IoStream from the 'out' stream
+                yield_value(CommandResponse::IoStream(pipe_iostream)).await;
+            }
         }).boxed()
     }
 
