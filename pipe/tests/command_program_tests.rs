@@ -202,6 +202,106 @@ pub fn declare_and_run_json_command() {
 }
 
 #[test]
+pub fn pipe_command_io_stream() {
+    let scene               = Scene::default().with_standard_json_commands();
+    let test_subprogram     = SubProgramId::called("test");
+    let command_subprogram  = SubProgramId::called("command");
+    let internal_socket     = SubProgramId::called("send_internal_socket");
+
+    // Create a launcher with a command we can pipe from and one we can pipe to
+    let launcher = CommandLauncher::json()
+        .with_json_command("::add_one", |_param: (), _context| async move {
+            CommandResponse::IoStream(Box::new(|input_values| {
+                use serde_json::{Value};
+
+                input_values.map(|value| {
+                    match value {
+                        Value::Number(num) => json![num.as_f64().unwrap() + 1.0],
+                        _ => json!["Unexpected value"]
+                    }
+                }).boxed()
+            }))
+        });
+    scene.add_subprogram(command_subprogram, launcher.to_subprogram(), 1);
+
+    // Pipe between the two commands using the interpreter
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#"::add_one | ::add_one
+1.0
+2.0
+3.0
+42.0
+.
+        "#, 
+        |msg, _| async move {
+            // We're hard-coding the JSON formatting here which might not always be consistent (many formats can communicate the same message)
+            println!("Msg is {:?}", msg);
+            assert!(msg.contains(r#"<< JSON <<
+
+3.0
+
+4.0
+
+5.0
+
+44.0
+== JSON ==
+"#));
+        });
+
+    // Pipe from one command to another and check the results
+    TestBuilder::new()
+        .run_in_scene(&scene, test_subprogram);
+}
+
+#[test]
+pub fn pipe_command_json_output() {
+    let scene               = Scene::default().with_standard_json_commands();
+    let test_subprogram     = SubProgramId::called("test");
+    let command_subprogram  = SubProgramId::called("command");
+    let internal_socket     = SubProgramId::called("send_internal_socket");
+
+    // Create a launcher with a command we can pipe from and one we can pipe to
+    let launcher = CommandLauncher::json()
+        .with_json_command("::pipe_from", |_param: (), _context| async move {
+            CommandResponse::Json(json![42])
+        })
+        .with_json_command("::pipe_to", |_param: (), _context| async move {
+            CommandResponse::IoStream(Box::new(|input_values| {
+                use serde_json::{Value};
+
+                input_values.map(|value| {
+                    match value {
+                        Value::Number(num) => json![num.as_f64().unwrap() + 1.0],
+                        _ => json!["Unexpected value"]
+                    }
+                }).boxed()
+            }))
+        });
+    scene.add_subprogram(command_subprogram, launcher.to_subprogram(), 1);
+
+    // Pipe between the two commands using the interpreter
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#"::pipe_from | ::pipe_to
+        "#, 
+        |msg, _| async move {
+            // We're hard-coding the JSON formatting here which might not always be consistent (many formats can communicate the same message)
+            println!("Msg is {:?}", msg);
+            assert!(msg.contains(r#"<< JSON <<
+
+43.0
+== JSON ==
+"#));
+        });
+
+    // Pipe from one command to another and check the results
+    TestBuilder::new()
+        .run_in_scene(&scene, test_subprogram);
+}
+
+#[test]
 pub fn pipe_command_background_stream() {
     let scene               = Scene::default().with_standard_json_commands();
     let test_subprogram     = SubProgramId::called("test");
@@ -244,6 +344,71 @@ pub fn pipe_command_background_stream() {
 4.0
 
 43.0
+== JSON ==
+"#));
+        });
+
+    // Pipe from one command to another and check the results
+    TestBuilder::new()
+        .run_in_scene(&scene, test_subprogram);
+}
+
+#[test]
+pub fn pipe_command_chain() {
+    let scene               = Scene::default().with_standard_json_commands();
+    let test_subprogram     = SubProgramId::called("test");
+    let command_subprogram  = SubProgramId::called("command");
+    let internal_socket     = SubProgramId::called("send_internal_socket");
+
+    // Create a launcher with a command we can pipe from and one we can pipe to
+    let launcher = CommandLauncher::json()
+        .with_json_command("::add_one", |_param: (), _context| async move {
+            CommandResponse::IoStream(Box::new(|input_values| {
+                use serde_json::{Value};
+
+                input_values.map(|value| {
+                    match value {
+                        Value::Number(num) => json![num.as_f64().unwrap() + 1.0],
+                        _ => json!["Unexpected value"]
+                    }
+                }).boxed()
+            }))
+        }).with_json_command("::double", |_param: (), _context| async move {
+            CommandResponse::IoStream(Box::new(|input_values| {
+                use serde_json::{Value};
+
+                input_values.map(|value| {
+                    match value {
+                        Value::Number(num) => json![num.as_f64().unwrap() * 2.0],
+                        _ => json!["Unexpected value"]
+                    }
+                }).boxed()
+            }))
+        });
+    scene.add_subprogram(command_subprogram, launcher.to_subprogram(), 1);
+
+    // Pipe between the two commands using the interpreter
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#"::add_one | ::add_one | ::double
+1.0
+2.0
+3.0
+42.0
+.
+        "#, 
+        |msg, _| async move {
+            // We're hard-coding the JSON formatting here which might not always be consistent (many formats can communicate the same message)
+            println!("Msg is {:?}", msg);
+            assert!(msg.contains(r#"<< JSON <<
+
+6.0
+
+8.0
+
+10.0
+
+88.0
 == JSON ==
 "#));
         });
