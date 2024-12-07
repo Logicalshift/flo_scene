@@ -27,9 +27,14 @@ impl Formatter {
     /// Appends the current word to the formatter (separated from the previous word by the specified whitespace)
     ///
     #[inline]
-    pub fn commit_current_word(&mut self, whitespace: Option<char>) {
-        let mut whitespace  = whitespace;
+    pub fn commit_current_word(&mut self, preceding_whitespace: Option<char>) {
+        let mut whitespace  = preceding_whitespace;
         let mut ws_len      = if whitespace.is_some() { 1 } else { 0 };
+
+        if self.word_length == 0 {
+            whitespace  = None;
+            ws_len      = 0;
+        }
 
         // Decide whether or not to start a newline or not
         if whitespace == Some('\n') || whitespace == Some('\r') {
@@ -69,6 +74,27 @@ impl Formatter {
                 self.current_word.push(chr);
                 self.word_length += 1;
             }
+        }
+    }
+
+    ///
+    /// Appends text to the formatter
+    ///
+    pub fn text(&mut self, text: &str) {
+        // Assume every piece of text starts at a new word
+        if self.word_length > 0 {
+            let preceding_whitespace = self.initial_ws.take();
+            self.commit_current_word(preceding_whitespace);
+
+            self.initial_ws = Some(' ');
+        }
+
+        // Append to the existing formatted string
+        self.append_text(text);
+
+        // The newline separating lines isn't returned, or turned into whitespace by comrak
+        if self.initial_ws.is_none() {
+            self.initial_ws = Some(' ');
         }
     }
 
@@ -138,7 +164,7 @@ pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> Str
             NodeValue::Table(_node_table)                               => { },
             NodeValue::TableRow(_)                                      => { },
             NodeValue::TableCell                                        => { },
-            NodeValue::Text(text)                                       => { rendered.append_text(&text) },
+            NodeValue::Text(text)                                       => { rendered.text(&text) },
             NodeValue::TaskItem(_)                                      => { },
             NodeValue::SoftBreak                                        => { },
             NodeValue::LineBreak                                        => { },
