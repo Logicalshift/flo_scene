@@ -18,6 +18,8 @@ const BLOCKQUOTE_FORMAT: &'static str       = "\x1b[33m";
 const BLOCKQUOTE_UNFORMAT: &'static str     = "\x1b[39m";
 const BLOCKQUOTE_INDENT: &'static str       = " \u{2503} ";
 const LIST_BULLET: &'static str             = " \u{2022} ";
+const TASK_UNCHECKED: &'static str          = " \u{2610} ";
+const TASK_CHECKED: &'static str            = " \u{2612} ";
 
 struct Formatter {
     formatted_text:     String,
@@ -125,7 +127,7 @@ impl Formatter {
             NodeValue::TableRow(_)                                      => { },
             NodeValue::TableCell                                        => { },
             NodeValue::Text(text)                                       => { self.text(&text) },
-            NodeValue::TaskItem(_)                                      => { },
+            NodeValue::TaskItem(task_item)                              => { self.task_item(task_item.is_some(), node.children()); },
             NodeValue::SoftBreak                                        => { self.soft_break(); },
             NodeValue::LineBreak                                        => { self.newline(); },
             NodeValue::Code(node_code)                                  => { self.inline_code(&node_code.literal) },
@@ -215,6 +217,35 @@ impl Formatter {
         // Add a bullet point before the list item
         self.formatted_text.extend(LIST_BULLET.chars());
         self.x_pos += LIST_BULLET.chars().count();
+
+        // There is a paragraph inisde the list item that we don't want to generate
+        self.at_paragraph_start = true;
+
+        for node in children {
+            self.node(node);
+        }
+
+        self.unindent();
+    }
+
+    ///
+    /// Adds a task item to a list
+    ///
+    pub fn task_item(&mut self, checked: bool, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
+        // Finish the current word
+        self.commit_current_word();
+
+        // Start on a new line
+        self.newline();
+
+        // Indent future lines
+        self.indent("   ");
+
+        // Add a bullet point before the list item
+        let bullet = if checked { TASK_CHECKED } else { TASK_UNCHECKED };
+
+        self.formatted_text.extend(bullet.chars());
+        self.x_pos += bullet.chars().count();
 
         // There is a paragraph inisde the list item that we don't want to generate
         self.at_paragraph_start = true;
