@@ -19,8 +19,8 @@ struct Formatter {
     formatted_text: String,
 
     width:          usize,
-    indentation:    usize,
-    indent_stack:   Vec<usize>,
+    indentation:    (usize, String),
+    indent_stack:   Vec<(usize, String)>,
     x_pos:          usize,
     preceding_ws:   Option<char>,
     current_word:   String,
@@ -35,8 +35,8 @@ impl Formatter {
     pub fn newline(&mut self) {
         self.preceding_ws = None;
         self.formatted_text.push('\n');
-        self.formatted_text.extend((0..self.indentation).map(|_| ' '));
-        self.x_pos = self.indentation;
+        self.formatted_text.extend(self.indentation.1.chars());
+        self.x_pos = self.indentation.0;
     }
 
     ///
@@ -278,12 +278,14 @@ impl Formatter {
 /// of spaces
 ///
 pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> String {
+    let indentation = (indentation, (0..indentation).map(|_| ' ').collect::<String>());
+
     let mut rendered = Formatter {
-        formatted_text: (0..indentation).map(|_| ' ').collect(),
+        formatted_text: indentation.1.clone(),
+        x_pos:          indentation.0,
         width:          width,
         indentation:    indentation,
         indent_stack:   vec![],
-        x_pos:          indentation,
         preceding_ws:   None,
         current_word:   String::new(),
         word_length:    0,
