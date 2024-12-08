@@ -112,7 +112,7 @@ impl Formatter {
             NodeValue::DescriptionItem(_node_description_item)          => { },
             NodeValue::DescriptionTerm                                  => { },
             NodeValue::DescriptionDetails                               => { },
-            NodeValue::CodeBlock(_node_code_block)                      => { },
+            NodeValue::CodeBlock(node_code_block)                       => { self.code_block(node_code_block); },
             NodeValue::HtmlBlock(_node_html_block)                      => { },
             NodeValue::Paragraph                                        => { self.paragraph(node.children()); },
             NodeValue::Heading(_node_heading)                           => { self.heading(node.children()); },
@@ -191,9 +191,7 @@ impl Formatter {
         self.newline();
 
         // Extend the indentation stack
-        self.indent_stack.push(self.indentation.clone());
-        self.indentation.1.extend(BLOCKQUOTE_INDENT.chars());
-        self.indentation.0 += BLOCKQUOTE_INDENT.chars().count();
+        self.indent(&BLOCKQUOTE_INDENT);
         self.current_word.extend(BLOCKQUOTE_FORMAT.chars());
 
         // Process the child elements
@@ -207,8 +205,8 @@ impl Formatter {
         let whitespace = self.preceding_ws.take();
         self.commit_current_word(whitespace);
 
-        self.indentation = self.indent_stack.pop().unwrap();
         self.current_word.extend(BLOCKQUOTE_UNFORMAT.chars());
+        self.unindent();
     }
 
     ///
@@ -230,6 +228,22 @@ impl Formatter {
         }
 
         self.current_word.extend(HEADING_UNFORMAT.chars());
+    }
+
+    ///
+    /// Adds an indentation prefix for the following lines
+    ///
+    pub fn indent(&mut self, indent_text: &str) {
+        self.indent_stack.push(self.indentation.clone());
+        self.indentation.1.extend(indent_text.chars());
+        self.indentation.0 += indent_text.chars().count();
+    }
+
+    ///
+    /// Removes the last level of indentation
+    ///
+    pub fn unindent(&mut self) {
+        self.indentation = self.indent_stack.pop().unwrap();
     }
 
     ///
@@ -263,6 +277,42 @@ impl Formatter {
         self.current_word.extend(CODE_UNFORMAT.chars());
 
         self.word_length = literal.chars().count();
+    }
+
+    ///
+    /// Adds an inline code item
+    ///
+    pub fn code_block(&mut self, node_code: &comrak::nodes::NodeCodeBlock) {
+        // Write out whatever the current word is
+        let preceding_whitespace = self.preceding_ws.take();
+        self.commit_current_word(preceding_whitespace);
+        self.preceding_ws = None;
+
+        // Create a new paragraph and indent
+        self.newline();
+        self.indent("   ");
+        self.newline();
+
+        self.formatted_text.extend(CODE_FORMAT.chars());
+
+        // Don't want to write the trailing '\n'
+        let mut num_chrs = node_code.literal.chars().count();
+        if node_code.literal.ends_with('\n') {
+            num_chrs -= 1;
+        }
+
+        // Write the code as a literal to the formatted text
+        for chr in node_code.literal.chars().take(num_chrs) {
+            self.formatted_text.push(chr);
+
+            if chr == '\n' {
+                // Indent when there's a newline in the code block
+                self.formatted_text.extend(self.indentation.1.chars());
+            }
+        }
+
+        self.formatted_text.extend(CODE_UNFORMAT.chars());
+        self.unindent();
     }
 
     ///

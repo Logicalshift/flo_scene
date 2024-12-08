@@ -22,7 +22,7 @@ Code block:
 
 ```
 This is a multi-line code block
-With this being the second line of block
+With this being the second line of the block
 ```
 
 List:
