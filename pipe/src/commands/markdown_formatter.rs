@@ -189,6 +189,7 @@ impl Formatter {
         self.current_word.extend(HEADING_FORMAT.chars());
         self.format_stack.push(HEADING_UNFORMAT.into());
 
+        // TODO: get rid of weird extra space for some headings
         self.newline();
         self.newline();
         self.newline();
@@ -219,8 +220,38 @@ impl Formatter {
     /// Converts the contents of this formatter to its final result
     ///
     pub fn to_string(mut self) -> String {
-        self.commit_current_word(None);
-        self.formatted_text
+        // Finish any word that's remaining in the buffer
+        let preceding_ws = self.preceding_ws.take();
+        self.commit_current_word(preceding_ws);
+
+        // Trim extra whitespace from the start and end (count complete lines that are only whitespace)
+        let mut preceding_whitespace_count = 0;
+        for (idx, chr) in self.formatted_text.chars().enumerate() {
+            if !chr.is_whitespace() {
+                break;
+            }
+
+            if chr == '\n' {
+                preceding_whitespace_count = idx + 1;
+            }
+        }
+
+        let mut trailing_whitespace_count = 0;
+        for (idx, chr) in self.formatted_text.chars().rev().enumerate() {
+            if !chr.is_whitespace() {
+                break;
+            }
+
+            if chr == '\n' {
+                trailing_whitespace_count = idx;
+            }
+        }
+
+        // Remove the formatted text from this object
+        self.formatted_text.chars()
+            .take(self.formatted_text.len() - trailing_whitespace_count)
+            .skip(preceding_whitespace_count)
+            .collect()
     }
 }
 
