@@ -49,13 +49,13 @@ impl Formatter {
     ///
     #[inline]
     pub fn commit_current_word(&mut self) {
+        if self.word_length == 0 {
+            // Nothing to do if the current word has no characters in it
+            return;
+        }
+
         let mut whitespace  = self.preceding_ws.take();
         let mut ws_len      = if whitespace.is_some() { 1 } else { 0 };
-
-        if self.word_length == 0 {
-            whitespace  = None;
-            ws_len      = 0;
-        }
 
         // Decide whether or not to start a newline or not
         if whitespace == Some('\n') || whitespace == Some('\r') {
