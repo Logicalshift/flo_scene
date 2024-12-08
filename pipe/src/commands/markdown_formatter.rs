@@ -2,10 +2,18 @@ use comrak;
 
 use std::cell::{RefCell};
 
-const HEADING_FORMAT: &'static str      = "\x1b[36;1;4m";
-const HEADING_UNFORMAT: &'static str    = "\x1b[39;22;24m";
-const CODE_FORMAT: &'static str         = "\x1b[33m";
-const CODE_UNFORMAT: &'static str       = "\x1b[39m";
+const HEADING_FORMAT: &'static str          = "\x1b[36;1;4m";
+const HEADING_UNFORMAT: &'static str        = "\x1b[39;22;24m";
+const CODE_FORMAT: &'static str             = "\x1b[33m";
+const CODE_UNFORMAT: &'static str           = "\x1b[39m";
+const EMPH_FORMAT: &'static str             = "\x1b[1m";
+const EMPH_UNFORMAT: &'static str           = "\x1b[22m";
+const UNDERLINE_FORMAT: &'static str        = "\x1b[4m";
+const UNDERLINE_UNFORMAT: &'static str      = "\x1b[24m";
+const STRONG_FORMAT: &'static str           = "\x1b[36;1m";
+const STRONG_UNFORMAT: &'static str         = "\x1b[39;22m";
+const STRIKETHROUGH_FORMAT: &'static str    = "\x1b[9m";
+const STRIKETHROUGH_UNFORMAT: &'static str  = "\x1b[29m";
 
 struct Formatter {
     formatted_text: String,
@@ -113,12 +121,13 @@ impl Formatter {
             NodeValue::Text(text)                                       => { self.text(&text) },
             NodeValue::TaskItem(_)                                      => { },
             NodeValue::SoftBreak                                        => { },
-            NodeValue::LineBreak                                        => { },
+            NodeValue::LineBreak                                        => { self.newline(); },
             NodeValue::Code(node_code)                                  => { self.inline_code(&node_code.literal) },
             NodeValue::HtmlInline(_)                                    => { },
-            NodeValue::Emph                                             => { },
-            NodeValue::Strong                                           => { },
-            NodeValue::Strikethrough                                    => { },
+            NodeValue::Emph                                             => { self.format(EMPH_FORMAT, EMPH_UNFORMAT, node.children()); },
+            NodeValue::Underline                                        => { self.format(UNDERLINE_FORMAT, UNDERLINE_UNFORMAT, node.children()); },
+            NodeValue::Strong                                           => { self.format(STRONG_FORMAT, STRONG_UNFORMAT, node.children()); },
+            NodeValue::Strikethrough                                    => { self.format(STRIKETHROUGH_FORMAT, STRIKETHROUGH_UNFORMAT, node.children()); },
             NodeValue::Superscript                                      => { },
             NodeValue::Link(_node_link)                                 => { },
             NodeValue::Image(_node_link)                                => { },
@@ -127,7 +136,6 @@ impl Formatter {
             NodeValue::MultilineBlockQuote(_node_multiline_block_quote) => { },
             NodeValue::Escaped                                          => { },
             NodeValue::WikiLink(_node_wiki_link)                        => { },
-            NodeValue::Underline                                        => { },
             NodeValue::Subscript                                        => { },
             NodeValue::SpoileredText                                    => { },
             NodeValue::EscapedTag(_)                                    => { },
@@ -189,6 +197,22 @@ impl Formatter {
         }
 
         self.current_word.extend(HEADING_UNFORMAT.chars());
+    }
+
+    ///
+    /// Formats a set of nodes using the specified lead-in and lead-out strings
+    ///
+    pub fn format(&mut self, format: &str, unformat: &str, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
+        let whitespace = self.preceding_ws.take();
+        self.commit_current_word(whitespace);
+
+        self.current_word.extend(format.chars());
+
+        for node in children {
+            self.node(node);
+        }
+
+        self.current_word.extend(unformat.chars());
     }
 
     ///
