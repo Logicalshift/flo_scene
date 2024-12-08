@@ -286,6 +286,9 @@ impl Formatter {
         }
 
         self.current_word.extend(HEADING_UNFORMAT.chars());
+
+        let preceding_whitespace = self.preceding_ws.take();
+        self.commit_current_word(preceding_whitespace);
     }
 
     ///
