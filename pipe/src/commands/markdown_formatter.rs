@@ -301,6 +301,9 @@ impl Formatter {
     /// Removes the last level of indentation
     ///
     pub fn unindent(&mut self) {
+        let whitespace = self.preceding_ws.take();
+        self.commit_current_word(whitespace);
+
         self.indentation = self.indent_stack.pop().unwrap();
     }
 
