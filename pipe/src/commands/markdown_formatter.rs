@@ -20,15 +20,16 @@ const BLOCKQUOTE_INDENT: &'static str       = " \u{2503} ";
 const LIST_BULLET: &'static str             = " \u{2022} ";
 
 struct Formatter {
-    formatted_text: String,
+    formatted_text:     String,
 
-    width:          usize,
-    indentation:    (usize, String),
-    indent_stack:   Vec<(usize, String)>,
-    x_pos:          usize,
-    preceding_ws:   Option<char>,
-    current_word:   String,
-    word_length:    usize,
+    width:              usize,
+    indentation:        (usize, String),
+    indent_stack:       Vec<(usize, String)>,
+    x_pos:              usize,
+    preceding_ws:       Option<char>,
+    current_word:       String,
+    word_length:        usize,
+    at_paragraph_start: bool,
 }
 
 impl Formatter {
@@ -85,6 +86,8 @@ impl Formatter {
     /// Appends text to this formatter
     ///
     pub fn append_text(&mut self, text: &str) {
+        self.at_paragraph_start = false;
+
         for chr in text.chars() {
             if chr.is_whitespace() {
                 let preceding_ws = self.preceding_ws.take();
@@ -174,8 +177,13 @@ impl Formatter {
         let whitespace = self.preceding_ws.take();
         self.commit_current_word(whitespace);
 
-        self.newline();
-        self.newline();
+        if !self.at_paragraph_start {
+            self.newline();
+            self.newline();
+        }
+
+        // ('At paragraph start' prevents us from adding a new paragraph: we actually want this here)
+        self.at_paragraph_start = false;
 
         for node in children {
             self.node(node);
@@ -204,12 +212,22 @@ impl Formatter {
     /// Adds an item to a list
     ///
     pub fn list_item(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
+        // Finish the current word
         let whitespace = self.preceding_ws.take();
         self.commit_current_word(whitespace);
 
+        // Start on a new line
         self.newline();
+
+        // Indent future lines
         self.indent("   ");
-        self.append_text(LIST_BULLET);
+
+        // Add a bullet point before the list item
+        self.formatted_text.extend(LIST_BULLET.chars());
+        self.x_pos += LIST_BULLET.chars().count();
+
+        // There is a paragraph inisde the list item that we don't want to generate
+        self.at_paragraph_start = true;
 
         for node in children {
             self.node(node);
@@ -229,7 +247,10 @@ impl Formatter {
 
         // Extend the indentation stack
         self.indent(&BLOCKQUOTE_INDENT);
-        self.current_word.extend(BLOCKQUOTE_FORMAT.chars());
+        self.formatted_text.extend(BLOCKQUOTE_FORMAT.chars());
+
+        // The tree goes block quote -> paragraph so we need to suppress generating a new paragraph at this point
+        self.at_paragraph_start = true;
 
         // Process the child elements
         self.newline();
@@ -401,14 +422,15 @@ pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> Str
     let indentation = (indentation, (0..indentation).map(|_| ' ').collect::<String>());
 
     let mut rendered = Formatter {
-        formatted_text: indentation.1.clone(),
-        x_pos:          indentation.0,
-        width:          width,
-        indentation:    indentation,
-        indent_stack:   vec![],
-        preceding_ws:   None,
-        current_word:   String::new(),
-        word_length:    0,
+        formatted_text:     indentation.1.clone(),
+        x_pos:              indentation.0,
+        width:              width,
+        indentation:        indentation,
+        indent_stack:       vec![],
+        preceding_ws:       None,
+        current_word:       String::new(),
+        word_length:        0,
+        at_paragraph_start: false,
     };
 
     // Parse the markdown
