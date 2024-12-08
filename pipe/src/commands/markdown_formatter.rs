@@ -48,8 +48,8 @@ impl Formatter {
     /// Appends the current word to the formatter (separated from the previous word by the specified whitespace)
     ///
     #[inline]
-    pub fn commit_current_word(&mut self, preceding_whitespace: Option<char>) {
-        let mut whitespace  = preceding_whitespace;
+    pub fn commit_current_word(&mut self) {
+        let mut whitespace  = self.preceding_ws.take();
         let mut ws_len      = if whitespace.is_some() { 1 } else { 0 };
 
         if self.word_length == 0 {
@@ -90,8 +90,7 @@ impl Formatter {
 
         for chr in text.chars() {
             if chr.is_whitespace() {
-                let preceding_ws = self.preceding_ws.take();
-                self.commit_current_word(preceding_ws);
+                self.commit_current_word();
                 self.preceding_ws = Some(chr);
             } else {
                 self.current_word.push(chr);
@@ -154,8 +153,7 @@ impl Formatter {
     ///
     pub fn soft_break(&mut self) {
         if self.word_length > 0 {
-            let whitespace = self.preceding_ws.take();
-            self.commit_current_word(whitespace);
+            self.commit_current_word();
 
             self.preceding_ws = Some(' ');
         }
@@ -173,8 +171,7 @@ impl Formatter {
     /// Adds a paragraph to the result
     ///
     pub fn paragraph(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
-        let whitespace = self.preceding_ws.take();
-        self.commit_current_word(whitespace);
+        self.commit_current_word();
 
         if !self.at_paragraph_start {
             self.newline();
@@ -193,8 +190,7 @@ impl Formatter {
     /// Starts a new list
     ///
     pub fn list(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
-        let whitespace = self.preceding_ws.take();
-        self.commit_current_word(whitespace);
+        self.commit_current_word();
 
         self.newline();
         self.indent(" ");
@@ -212,8 +208,7 @@ impl Formatter {
     ///
     pub fn list_item(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
         // Finish the current word
-        let whitespace = self.preceding_ws.take();
-        self.commit_current_word(whitespace);
+        self.commit_current_word();
 
         // Start on a new line
         self.newline();
@@ -240,8 +235,7 @@ impl Formatter {
     ///
     pub fn block_quote(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
         // Finish the current word
-        let whitespace = self.preceding_ws.take();
-        self.commit_current_word(whitespace);
+        self.commit_current_word();
         self.newline();
 
         // Extend the indentation stack
@@ -259,8 +253,7 @@ impl Formatter {
         }
 
         // Finish the quote and remove the formatting/indentation
-        let whitespace = self.preceding_ws.take();
-        self.commit_current_word(whitespace);
+        self.commit_current_word();
 
         self.current_word.extend(BLOCKQUOTE_UNFORMAT.chars());
         self.unindent();
@@ -270,8 +263,7 @@ impl Formatter {
     /// Switches to heading mode
     ///
     pub fn heading(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
-        let whitespace = self.preceding_ws.take();
-        self.commit_current_word(whitespace);
+        self.commit_current_word();
 
         self.current_word.extend(HEADING_FORMAT.chars());
 
@@ -285,8 +277,7 @@ impl Formatter {
 
         self.current_word.extend(HEADING_UNFORMAT.chars());
 
-        let preceding_whitespace = self.preceding_ws.take();
-        self.commit_current_word(preceding_whitespace);
+        self.commit_current_word();
     }
 
     ///
@@ -302,8 +293,7 @@ impl Formatter {
     /// Removes the last level of indentation
     ///
     pub fn unindent(&mut self) {
-        let whitespace = self.preceding_ws.take();
-        self.commit_current_word(whitespace);
+        self.commit_current_word();
 
         self.indentation = self.indent_stack.pop().unwrap();
     }
@@ -312,8 +302,7 @@ impl Formatter {
     /// Formats a set of nodes using the specified lead-in and lead-out strings
     ///
     pub fn format(&mut self, format: &str, unformat: &str, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
-        let whitespace = self.preceding_ws.take();
-        self.commit_current_word(whitespace);
+        self.commit_current_word();
 
         self.current_word.extend(format.chars());
 
@@ -329,8 +318,7 @@ impl Formatter {
     ///
     pub fn inline_code(&mut self, literal: &str) {
         // Write out whatever the current word is
-        let preceding_whitespace = self.preceding_ws.take();
-        self.commit_current_word(preceding_whitespace);
+        self.commit_current_word();
         self.preceding_ws = Some(' ');
 
         // Make the current word the code literal
@@ -346,8 +334,7 @@ impl Formatter {
     ///
     pub fn code_block(&mut self, node_code: &comrak::nodes::NodeCodeBlock) {
         // Write out whatever the current word is
-        let preceding_whitespace = self.preceding_ws.take();
-        self.commit_current_word(preceding_whitespace);
+        self.commit_current_word();
         self.preceding_ws = None;
 
         // Create a new paragraph and indent
@@ -382,8 +369,7 @@ impl Formatter {
     ///
     pub fn to_string(mut self) -> String {
         // Finish any word that's remaining in the buffer
-        let preceding_ws = self.preceding_ws.take();
-        self.commit_current_word(preceding_ws);
+        self.commit_current_word();
 
         // Trim extra whitespace from the start and end (count complete lines that are only whitespace)
         let mut preceding_whitespace_count = 0;
