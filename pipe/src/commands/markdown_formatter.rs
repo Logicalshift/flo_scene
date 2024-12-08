@@ -291,7 +291,13 @@ pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> Str
 
     // Parse the markdown
     let arena           = comrak::Arena::new();
-    let options         = comrak::Options::default();
+    let mut options     = comrak::Options::default();
+
+    options.extension.strikethrough = true;
+    options.extension.underline     = true;
+    options.extension.table         = true;
+    options.extension.tasklist      = true;
+
     let markdown_root   = comrak::parse_document(&arena, markdown, &options);
 
     // Render by iterating over the text

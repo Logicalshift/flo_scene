@@ -1,7 +1,7 @@
 # Test formatting
 
-This is some *bold* text, and some _underlined_ text, also some **strong** text. This is a `code block`.
-Here's some -strikeout-. This is an escaped character: \*.
+This is some *bold* text, and some __underlined__ text, also some **strong** text. This is a `code block`.
+Here's some ~strikethrough~. This is an escaped character: \*.
 
 Block quote:
 
