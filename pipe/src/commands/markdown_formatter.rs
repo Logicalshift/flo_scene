@@ -14,6 +14,9 @@ const STRONG_FORMAT: &'static str           = "\x1b[36;1m";
 const STRONG_UNFORMAT: &'static str         = "\x1b[39;22m";
 const STRIKETHROUGH_FORMAT: &'static str    = "\x1b[9m";
 const STRIKETHROUGH_UNFORMAT: &'static str  = "\x1b[29m";
+const BLOCKQUOTE_FORMAT: &'static str       = "\x1b[33m";
+const BLOCKQUOTE_UNFORMAT: &'static str     = "\x1b[39m";
+const BLOCKQUOTE_INDENT: &'static str       = " \u{2503} ";
 
 struct Formatter {
     formatted_text: String,
@@ -102,7 +105,7 @@ impl Formatter {
         match &node.data.borrow().value {
             NodeValue::Document                                         => { },
             NodeValue::FrontMatter(_)                                   => { },
-            NodeValue::BlockQuote                                       => { },
+            NodeValue::BlockQuote                                       => { self.block_quote(node.children()); },
             NodeValue::List(_node_list)                                 => { },
             NodeValue::Item(_node_list)                                 => { },
             NodeValue::DescriptionList                                  => { },
@@ -164,7 +167,7 @@ impl Formatter {
     }
 
     ///
-    /// Ends a paragraph
+    /// Adds a paragraph to the result
     ///
     pub fn paragraph(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
         let whitespace = self.preceding_ws.take();
@@ -176,6 +179,36 @@ impl Formatter {
         for node in children {
             self.node(node);
         }
+    }
+
+    ///
+    /// Adds a block quote to the result
+    ///
+    pub fn block_quote(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
+        // Finish the current word
+        let whitespace = self.preceding_ws.take();
+        self.commit_current_word(whitespace);
+        self.newline();
+
+        // Extend the indentation stack
+        self.indent_stack.push(self.indentation.clone());
+        self.indentation.1.extend(BLOCKQUOTE_INDENT.chars());
+        self.indentation.0 += BLOCKQUOTE_INDENT.chars().count();
+        self.current_word.extend(BLOCKQUOTE_FORMAT.chars());
+
+        // Process the child elements
+        self.newline();
+
+        for node in children {
+            self.node(node);
+        }
+
+        // Finish the quote and remove the formatting/indentation
+        let whitespace = self.preceding_ws.take();
+        self.commit_current_word(whitespace);
+
+        self.indentation = self.indent_stack.pop().unwrap();
+        self.current_word.extend(BLOCKQUOTE_UNFORMAT.chars());
     }
 
     ///
