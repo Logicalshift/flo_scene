@@ -139,7 +139,7 @@ impl Formatter {
             NodeValue::Image(_node_link)                                => { },
             NodeValue::FootnoteReference(_node_footnote_reference)      => { },
             NodeValue::Math(_node_math)                                 => { },
-            NodeValue::MultilineBlockQuote(_node_multiline_block_quote) => { },
+            NodeValue::MultilineBlockQuote(_node_multiline_block_quote) => { self.block_quote(node.children()); },
             NodeValue::Escaped                                          => { },
             NodeValue::WikiLink(_node_wiki_link)                        => { },
             NodeValue::Subscript                                        => { },
