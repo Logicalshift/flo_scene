@@ -127,7 +127,7 @@ impl Formatter {
             NodeValue::TableCell                                        => { },
             NodeValue::Text(text)                                       => { self.text(&text) },
             NodeValue::TaskItem(_)                                      => { },
-            NodeValue::SoftBreak                                        => { },
+            NodeValue::SoftBreak                                        => { self.soft_break(); },
             NodeValue::LineBreak                                        => { self.newline(); },
             NodeValue::Code(node_code)                                  => { self.inline_code(&node_code.literal) },
             NodeValue::HtmlInline(_)                                    => { },
@@ -150,24 +150,23 @@ impl Formatter {
     }
 
     ///
+    /// A soft break ends the current word
+    ///
+    pub fn soft_break(&mut self) {
+        if self.word_length > 0 {
+            let whitespace = self.preceding_ws.take();
+            self.commit_current_word(whitespace);
+
+            self.preceding_ws = Some(' ');
+        }
+    }
+
+    ///
     /// Appends text to the formatter
     ///
     pub fn text(&mut self, text: &str) {
-        // Assume every piece of text starts at a new word
-        if self.word_length > 0 {
-            let preceding_whitespace = self.preceding_ws.take();
-            self.commit_current_word(preceding_whitespace);
-
-            self.preceding_ws = Some(' ');
-        }
-
         // Append to the existing formatted string
         self.append_text(text);
-
-        // The newline separating lines isn't returned, or turned into whitespace by comrak
-        if self.preceding_ws.is_none() {
-            self.preceding_ws = Some(' ');
-        }
     }
 
     ///
@@ -276,7 +275,6 @@ impl Formatter {
 
         self.current_word.extend(HEADING_FORMAT.chars());
 
-        // TODO: get rid of weird extra space for some headings
         self.newline();
         self.newline();
         self.newline();
