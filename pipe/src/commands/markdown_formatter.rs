@@ -13,7 +13,6 @@ struct Formatter {
     width:          usize,
     indentation:    usize,
     indent_stack:   Vec<usize>,
-    format_stack:   Vec<String>,
     x_pos:          usize,
     preceding_ws:   Option<char>,
     current_word:   String,
@@ -163,10 +162,6 @@ impl Formatter {
         let whitespace = self.preceding_ws.take();
         self.commit_current_word(whitespace);
 
-        while let Some(unformat) = self.format_stack.pop() {
-            self.formatted_text.extend(unformat.chars());
-        }
-
         self.newline();
         self.newline();
 
@@ -182,12 +177,7 @@ impl Formatter {
         let whitespace = self.preceding_ws.take();
         self.commit_current_word(whitespace);
 
-        while let Some(unformat) = self.format_stack.pop() {
-            self.formatted_text.extend(unformat.chars());
-        }
-
         self.current_word.extend(HEADING_FORMAT.chars());
-        self.format_stack.push(HEADING_UNFORMAT.into());
 
         // TODO: get rid of weird extra space for some headings
         self.newline();
@@ -197,6 +187,8 @@ impl Formatter {
         for node in children {
             self.node(node);
         }
+
+        self.current_word.extend(HEADING_UNFORMAT.chars());
     }
 
     ///
@@ -267,7 +259,6 @@ pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> Str
         width:          width,
         indentation:    indentation,
         indent_stack:   vec![],
-        format_stack:   vec![],
         x_pos:          indentation,
         preceding_ws:   None,
         current_word:   String::new(),
