@@ -193,14 +193,10 @@ impl Formatter {
         self.commit_current_word();
 
         self.newline();
-        self.indent(" ");
-        self.newline();
 
         for node in children {
             self.node(node);
         }
-
-        self.unindent();
     }
 
     ///
