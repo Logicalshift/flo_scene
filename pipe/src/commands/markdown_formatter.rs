@@ -17,6 +17,7 @@ const STRIKETHROUGH_UNFORMAT: &'static str  = "\x1b[29m";
 const BLOCKQUOTE_FORMAT: &'static str       = "\x1b[33m";
 const BLOCKQUOTE_UNFORMAT: &'static str     = "\x1b[39m";
 const BLOCKQUOTE_INDENT: &'static str       = " \u{2503} ";
+const LIST_BULLET: &'static str             = " \u{2022} ";
 
 struct Formatter {
     formatted_text: String,
@@ -106,8 +107,8 @@ impl Formatter {
             NodeValue::Document                                         => { },
             NodeValue::FrontMatter(_)                                   => { },
             NodeValue::BlockQuote                                       => { self.block_quote(node.children()); },
-            NodeValue::List(_node_list)                                 => { },
-            NodeValue::Item(_node_list)                                 => { },
+            NodeValue::List(_node_list)                                 => { self.list(node.children()); },
+            NodeValue::Item(_node_list)                                 => { self.list_item(node.children()); },
             NodeValue::DescriptionList                                  => { },
             NodeValue::DescriptionItem(_node_description_item)          => { },
             NodeValue::DescriptionTerm                                  => { },
@@ -179,6 +180,42 @@ impl Formatter {
         for node in children {
             self.node(node);
         }
+    }
+
+    ///
+    /// Starts a new list
+    ///
+    pub fn list(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
+        let whitespace = self.preceding_ws.take();
+        self.commit_current_word(whitespace);
+
+        self.newline();
+        self.indent(" ");
+        self.newline();
+
+        for node in children {
+            self.node(node);
+        }
+
+        self.unindent();
+    }
+
+    ///
+    /// Adds an item to a list
+    ///
+    pub fn list_item(&mut self, children: comrak::arena_tree::Children<'_, RefCell<comrak::nodes::Ast>>) {
+        let whitespace = self.preceding_ws.take();
+        self.commit_current_word(whitespace);
+
+        self.newline();
+        self.indent("   ");
+        self.append_text(LIST_BULLET);
+
+        for node in children {
+            self.node(node);
+        }
+
+        self.unindent();
     }
 
     ///
