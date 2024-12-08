@@ -1,3 +1,54 @@
+# Test formatting
+
+This is some *bold* text, and some _underlined_ text, also some **strong** text. This is a `code block`.
+Here's some -strikeout-. This is an escaped character: \*.
+
+Block quote:
+
+> This is a block quote
+> So is this
+
+Multiline block quote:
+
+>>>
+Some stuff
+
+Some more stuff
+>>>
+
+Code block:
+
+```
+This is a multi-line code block
+With this being the second line of block
+```
+
+List:
+
+ * Item 1
+ * Item 2
+ * Item 3
+
+## Subheading
+
+Table:
+
+| stuff | other stuff  |
+| ----- | ------------ |
+| row   | another row  |
+| things | also things |
+
+Task list:
+
+ - [ ] not selected
+ - [x] selected
+
+Hard line break\
+next line
+
+
+
+
 # Command interpreter
 
 This is the command interpreter provided by the `flo_scene_pipe` extension to the `flo_scene`
