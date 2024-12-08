@@ -129,7 +129,7 @@ impl Formatter {
             NodeValue::Text(text)                                       => { self.text(&text) },
             NodeValue::TaskItem(task_item)                              => { self.task_item(task_item.is_some(), node.children()); },
             NodeValue::SoftBreak                                        => { self.soft_break(); },
-            NodeValue::LineBreak                                        => { self.newline(); },
+            NodeValue::LineBreak                                        => { self.commit_current_word(); self.newline(); },
             NodeValue::Code(node_code)                                  => { self.inline_code(&node_code.literal) },
             NodeValue::HtmlInline(_)                                    => { },
             NodeValue::Emph                                             => { self.format(EMPH_FORMAT, EMPH_UNFORMAT, node.children()); },
