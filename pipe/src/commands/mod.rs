@@ -5,6 +5,7 @@ pub (crate) mod parse_command;
 mod json_command;
 mod json_command_launcher;
 mod markdown_formatter;
+mod markdown_table_formatter;
 
 pub use command_program::*;
 pub use command_stream::*;

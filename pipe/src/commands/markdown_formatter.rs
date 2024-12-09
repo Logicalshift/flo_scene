@@ -152,7 +152,7 @@ impl Formatter {
             NodeValue::Heading(_node_heading)                           => { self.heading(node.children()); },
             NodeValue::ThematicBreak                                    => { },
             NodeValue::FootnoteDefinition(_node_footnote_definition)    => { },
-            NodeValue::Table(_node_table)                               => { },
+            NodeValue::Table(node_table)                                => { table_format(self, node_table, node.children()); },
             NodeValue::TableRow(_)                                      => { },
             NodeValue::TableCell                                        => { },
             NodeValue::Text(text)                                       => { self.text(&text) },
