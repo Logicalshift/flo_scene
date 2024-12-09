@@ -34,6 +34,7 @@ pub (super) struct Formatter {
     current_word:       String,
     word_length:        usize,
     at_paragraph_start: bool,
+    pad_to_width:       bool,
 }
 
 impl Formatter {
@@ -53,6 +54,7 @@ impl Formatter {
             current_word:       String::new(),
             word_length:        0,
             at_paragraph_start: false,
+            pad_to_width:       false,
         }
     }
 
@@ -65,10 +67,22 @@ impl Formatter {
     }
 
     ///
+    /// Sets whether or not the next newline adds spaces to the maximum width or not
+    ///
+    pub fn set_pad_to_width(&mut self, pad_to_width: bool) {
+        self.pad_to_width = pad_to_width;
+    }
+
+    ///
     /// Appends a newline to this formatter
     ///
     #[inline]
     pub fn newline(&mut self) {
+        if self.pad_to_width {
+            // Add spaces until this is the correct width
+            self.formatted_text.extend((0..(self.width-self.x_pos)).map(|_| ' '));
+        }
+
         self.preceding_ws = None;
         self.formatted_text.push('\n');
         self.formatted_text.extend(self.indentation.1.chars());
