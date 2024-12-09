@@ -1,6 +1,8 @@
+use super::markdown_table_formatter::*;
+
 use comrak;
 
-use std::cell::{RefCell};
+use std::{cell::RefCell, convert::identity};
 
 const HEADING_FORMAT: &'static str          = "\x1b[36;1;4m";
 const HEADING_UNFORMAT: &'static str        = "\x1b[39;22;24m";
@@ -21,7 +23,7 @@ const LIST_BULLET: &'static str             = " \u{2022} ";
 const TASK_UNCHECKED: &'static str          = " \u{2610} ";
 const TASK_CHECKED: &'static str            = " \u{2612} ";
 
-struct Formatter {
+pub (super) struct Formatter {
     formatted_text:     String,
 
     width:              usize,
@@ -35,6 +37,25 @@ struct Formatter {
 }
 
 impl Formatter {
+    ///
+    /// Creates a new formatter
+    ///
+    pub fn new(width: usize, indentation: usize) -> Self {
+        let indentation = (indentation, (0..indentation).map(|_| ' ').collect::<String>());
+
+        Formatter {
+            formatted_text:     indentation.1.clone(),
+            x_pos:              indentation.0,
+            width:              width,
+            indentation:        indentation,
+            indent_stack:       vec![],
+            preceding_ws:       None,
+            current_word:       String::new(),
+            word_length:        0,
+            at_paragraph_start: false,
+        }
+    }
+
     ///
     /// Appends a newline to this formatter
     ///
@@ -436,19 +457,7 @@ impl Formatter {
 /// of spaces
 ///
 pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> String {
-    let indentation = (indentation, (0..indentation).map(|_| ' ').collect::<String>());
-
-    let mut rendered = Formatter {
-        formatted_text:     indentation.1.clone(),
-        x_pos:              indentation.0,
-        width:              width,
-        indentation:        indentation,
-        indent_stack:       vec![],
-        preceding_ws:       None,
-        current_word:       String::new(),
-        word_length:        0,
-        at_paragraph_start: false,
-    };
+    let mut rendered = Formatter::new(width, indentation);
 
     // Parse the markdown
     let arena           = comrak::Arena::new();
