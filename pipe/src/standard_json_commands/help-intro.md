@@ -43,6 +43,8 @@ Table:
 | ----- | ------------ |
 | row   | another row  |
 | things | also things |
+|       | empty cell |
+| also empty |   |
 
 Task list:
 
