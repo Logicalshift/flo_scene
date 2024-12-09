@@ -156,6 +156,20 @@ impl Formatter {
     }
 
     ///
+    /// Appends some text without doing the normal processing for word breaks or line wrapping.
+    ///
+    /// chr_length should be the number of printable characters in the text (used to update the x position)
+    ///
+    pub fn append_raw(&mut self, text: &str, chr_length: usize) {
+        self.commit_current_word();
+
+        self.formatted_text.extend(text.chars());
+        self.x_pos += chr_length;
+
+        if self.x_pos > self.max_xpos { self.max_xpos = self.x_pos; }
+    }
+
+    ///
     /// Renders a comrak node value
     ///
     pub fn node<'a>(&mut self, node: &'a comrak::arena_tree::Node<'a, RefCell<comrak::nodes::Ast>>) {
