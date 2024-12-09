@@ -2,7 +2,7 @@ use super::markdown_table_formatter::*;
 
 use comrak;
 
-use std::{cell::RefCell, convert::identity};
+use std::cell::{RefCell};
 
 const HEADING_FORMAT: &'static str          = "\x1b[36;1;4m";
 const HEADING_UNFORMAT: &'static str        = "\x1b[39;22;24m";
