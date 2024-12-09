@@ -100,9 +100,51 @@ pub fn table_format<'a>(target: &mut Formatter, table_node: &'a comrak::arena_tr
                     cell_formatter.format("", "", column.children());
                     cell_formatter.commit_current_word();
 
+                    // Terminating newline is required
+                    cell_formatter.newline();
+
                     // Add to the formatted cells for the current row
                     formatted_cells.push(cell_formatter.to_string());
                 }
+            }
+
+            // Render the lines in each of the formatted cells (relying on the padding + newlines, last newline is ignored)
+            let mut cell_readers = formatted_cells.iter().map(|cell| Some(cell.chars())).collect::<Vec<_>>();
+
+            loop {
+                // Each reader is just before the first character of the cell (or is None). We're done with this table row once all the cells are rendered
+                let mut line = String::new();
+
+                for (column_idx, maybe_reader) in cell_readers.iter_mut().enumerate() {
+                    line.push('\u{2502}');
+                    line.push(' ');
+
+                    if let Some(reader) = maybe_reader {
+                        loop {
+                            // Add to the line until we hit a newline or the end of the reader
+                            match reader.next() {
+                                Some('\n')  => { break; }
+                                Some(chr)   => { line.push(chr); },
+                                None        => { *maybe_reader = None; break; }
+                            }
+                        }
+                    } else {
+                        // Cell is finished, pad out with spaces
+                        line.extend((0..column_widths[column_idx]).map(|_| ' '));
+                    }
+
+                    line.push(' ');
+                }
+                line.push('\u{2502}');
+
+                // Stop once all the readers have finished
+                if cell_readers.iter().all(|reader| reader.is_none()) {
+                    break;
+                }
+
+                // Append the line
+                target.append_raw(&line, available_width);
+                target.newline();
             }
         }
     }
