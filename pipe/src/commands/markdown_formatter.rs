@@ -30,6 +30,7 @@ pub (super) struct Formatter {
     indentation:        (usize, String),
     indent_stack:       Vec<(usize, String)>,
     x_pos:              usize,
+    max_xpos:           usize,
     preceding_ws:       Option<char>,
     current_word:       String,
     word_length:        usize,
@@ -47,6 +48,7 @@ impl Formatter {
         Formatter {
             formatted_text:     indentation.1.clone(),
             x_pos:              indentation.0,
+            max_xpos:           0,
             width:              width,
             indentation:        indentation,
             indent_stack:       vec![],
@@ -71,6 +73,13 @@ impl Formatter {
     ///
     pub fn set_pad_to_width(&mut self, pad_to_width: bool) {
         self.pad_to_width = pad_to_width;
+    }
+
+    ///
+    /// Retrieves the maximum x position reached while formatting this text
+    ///
+    pub fn max_xpos(&self) -> usize {
+        self.max_xpos
     }
 
     ///
@@ -125,6 +134,8 @@ impl Formatter {
 
         self.x_pos          += self.word_length + ws_len;
         self.word_length    = 0;
+
+        if self.x_pos > self.max_xpos { self.max_xpos = self.x_pos; }
     }
 
     ///
