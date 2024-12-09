@@ -104,7 +104,7 @@ pub fn table_format<'a>(target: &mut Formatter, table_node: &'a comrak::arena_tr
                     cell_formatter.newline();
 
                     // Add to the formatted cells for the current row
-                    formatted_cells.push(cell_formatter.to_string());
+                    formatted_cells.push(cell_formatter.to_string(false));
                 }
             }
 

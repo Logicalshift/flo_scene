@@ -462,38 +462,42 @@ impl Formatter {
     ///
     /// Converts the contents of this formatter to its final result
     ///
-    pub fn to_string(mut self) -> String {
+    pub fn to_string(mut self, trim: bool) -> String {
         // Finish any word that's remaining in the buffer
         self.commit_current_word();
 
-        // Trim extra whitespace from the start and end (count complete lines that are only whitespace)
-        let mut preceding_whitespace_count = 0;
-        for (idx, chr) in self.formatted_text.chars().enumerate() {
-            if !chr.is_whitespace() {
-                break;
+        if trim {
+            // Trim extra whitespace from the start and end (count complete lines that are only whitespace)
+            let mut preceding_whitespace_count = 0;
+            for (idx, chr) in self.formatted_text.chars().enumerate() {
+                if !chr.is_whitespace() {
+                    break;
+                }
+
+                if chr == '\n' {
+                    preceding_whitespace_count = idx + 1;
+                }
             }
 
-            if chr == '\n' {
-                preceding_whitespace_count = idx + 1;
+            let mut trailing_whitespace_count = 0;
+            for (idx, chr) in self.formatted_text.chars().rev().enumerate() {
+                if !chr.is_whitespace() {
+                    break;
+                }
+
+                if chr == '\n' {
+                    trailing_whitespace_count = idx;
+                }
             }
+
+            // Remove the formatted text from this object
+            self.formatted_text.chars()
+                .take(self.formatted_text.len() - trailing_whitespace_count)
+                .skip(preceding_whitespace_count)
+                .collect()
+        } else {
+            self.formatted_text
         }
-
-        let mut trailing_whitespace_count = 0;
-        for (idx, chr) in self.formatted_text.chars().rev().enumerate() {
-            if !chr.is_whitespace() {
-                break;
-            }
-
-            if chr == '\n' {
-                trailing_whitespace_count = idx;
-            }
-        }
-
-        // Remove the formatted text from this object
-        self.formatted_text.chars()
-            .take(self.formatted_text.len() - trailing_whitespace_count)
-            .skip(preceding_whitespace_count)
-            .collect()
     }
 }
 
@@ -523,6 +527,6 @@ pub fn markdown_to_ansi(markdown: &str, width: usize, indentation: usize) -> Str
         rendered.node(node);
     }
 
-    // Result is rendered
-    rendered.to_string()
+    // Finished rendering the markdown, trim & extract the final string
+    rendered.to_string(true)
 }
