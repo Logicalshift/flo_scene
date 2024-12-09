@@ -55,7 +55,7 @@ impl Formatter {
             preceding_ws:       None,
             current_word:       String::new(),
             word_length:        0,
-            at_paragraph_start: false,
+            at_paragraph_start: true,
             pad_to_width:       false,
         }
     }
