@@ -57,6 +57,14 @@ impl Formatter {
     }
 
     ///
+    /// Retrieves the available width for this formatter from the current indentation level
+    ///
+    #[inline]
+    pub fn available_width(&self) -> usize {
+        self.width - self.indentation.0
+    }
+
+    ///
     /// Appends a newline to this formatter
     ///
     #[inline]
