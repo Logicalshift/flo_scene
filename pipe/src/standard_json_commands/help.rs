@@ -93,10 +93,10 @@ impl SceneMessage for CommandHelp {
                         CommandHelp::Query(target, topic) => {
                             let markdown = if let Some(command) = commands.get(&topic) {
                                 // If there's a command, this takes priority over the topic, if there's one that matches
-                                command.markdown.clone()
+                                command.markdown.to_string()
                             } else if let Some(markdown) = topics.get(&topic) {
                                 // Otherwise look up topics
-                                markdown.markdown.clone()
+                                markdown.markdown.to_string()
                             } else {
                                 // If a request is made for a topic with no data, we produce a list of all the non-hidden topics
                                 format!("# Help topic '{}' not known\n\nThis topic is not in the list of topics known about by this help system.\n\nAvailable topics are:\n\n{}",
@@ -127,7 +127,7 @@ impl SceneMessage for HelpQueryTopic {
 }
 
 impl QueryRequest for HelpQueryTopic {
-    type ResponseData = Cow<'static, str>;
+    type ResponseData = String;
 
     fn with_new_target(self, new_target: StreamTarget) -> Self {
         HelpQueryTopic(new_target, self.1)
