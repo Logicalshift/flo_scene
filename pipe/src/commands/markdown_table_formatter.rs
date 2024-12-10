@@ -53,7 +53,7 @@ pub fn table_format<'a>(target: &mut Formatter, table_node: &'a comrak::arena_tr
     }
 
     // Figure out the actual column widths to use
-    // 3 chars between each column, + 2 chars on the end points
+    // 3 chars between each column + 2 chars on the end points
     let total_width = column_widths.iter().sum::<usize>() + ((column_widths.len()-1) * 3) + 4;
     let mut last_row_was_header = false;
 
@@ -149,7 +149,10 @@ pub fn table_format<'a>(target: &mut Formatter, table_node: &'a comrak::arena_tr
                             match reader.next() {
                                 Some('\n')  => { break; }
                                 Some(chr)   => { line.push(chr); },
-                                None        => { *maybe_reader = None; break; }
+                                None        => { 
+                                    line.extend((0..column_widths[column_idx]).map(|_| ' '));
+                                    *maybe_reader = None; break;
+                                }
                             }
                         }
                     } else {
