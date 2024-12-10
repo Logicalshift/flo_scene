@@ -1,6 +1,7 @@
 use crate::commands::*;
 
 use flo_scene::*;
+use flo_scene::commands::*;
 use flo_scene::programs::*;
 
 use futures::prelude::*;
@@ -145,8 +146,25 @@ impl HelpQueryTopic {
 ///
 /// The 'help' command, which generates some help text
 ///
-pub fn command_help(input: Option<String>, _context: SceneContext) -> impl Future<Output=CommandResponse> {
+pub fn command_help(input: Option<String>, context: SceneContext) -> impl Future<Output=CommandResponse> {
     async move {
-        CommandResponse::Markdown(String::from_utf8(DEFAULT_MSG.into()).unwrap())
+        let input = input.unwrap_or_else(|| "".into());
+
+        match context.spawn_query(ReadCommand::default(), HelpQueryTopic::with_topic(input.clone()), ()) {
+            Ok(markdown) => {
+                // Send the resulting markdown to the target
+                let mut markdown = markdown;
+                while let Some(markdown) = markdown.next().await {
+                    return CommandResponse::Markdown(markdown.into());
+                }
+            }
+
+            Err(err) => {
+                // The help program is not running
+                return CommandResponse::Error(format!("Help is not available: {:?}", err));
+            }
+        }
+
+        CommandResponse::Error(format!("Topic '{}' returned no help", input))
     }
 }
