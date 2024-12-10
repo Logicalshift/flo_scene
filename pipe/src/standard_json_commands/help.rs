@@ -21,10 +21,10 @@ pub enum CommandHelp {
     Query(StreamTarget, String),
 
     /// Sets the markdown to return for a particular topic
-    AddTopic { topic: String, markdown: Cow<'static, str> },
+    AddTopic { topic: String, description: String, markdown: Cow<'static, str> },
 
     /// Adds a topic that can be retrieved but isn't listed in the index
-    AddHiddenTopic { topic: String, markdown: Cow<'static, str> },
+    AddHiddenTopic { topic: String, description: String, markdown: Cow<'static, str> },
 
     /// Sets the markdown and description of a command
     AddCommand { command_name: String, description: String, markdown: Cow<'static, str>}
@@ -41,8 +41,9 @@ impl SceneMessage for CommandHelp {
             "flo_scene_pipe::CommandHelp"), 
             |input, context| async move {
                 struct Topic { 
-                    hidden:     bool,
-                    markdown:   Cow<'static, str>
+                    hidden:         bool,
+                    description:    String,
+                    markdown:       Cow<'static, str>
                 }
 
                 struct Command {
@@ -54,19 +55,19 @@ impl SceneMessage for CommandHelp {
                 let mut topics      = HashMap::new();
                 let mut commands    = HashMap::new();
 
-                topics.insert("".to_string(), Topic { hidden: true, markdown: String::from_utf8_lossy(DEFAULT_MSG) });
-                topics.insert("about".to_string(), Topic { hidden: false, markdown: format!("flo_scene {}", env!("CARGO_PKG_VERSION")).into() });
+                topics.insert("".to_string(), Topic { hidden: true, description: "Default help topic".into(), markdown: String::from_utf8_lossy(DEFAULT_MSG) });
+                topics.insert("about".to_string(), Topic { hidden: false, description: "Some information about flo_scene, which this is built on".into(), markdown: format!("flo_scene {}", env!("CARGO_PKG_VERSION")).into() });
 
                 // Process CommandHelp requests
                 let mut input = input;
                 while let Some(command_help) = input.next().await {
                     match command_help {
-                        CommandHelp::AddTopic { topic, markdown } => {
-                            topics.insert(topic, Topic { hidden: false, markdown: markdown } );
+                        CommandHelp::AddTopic { topic, description, markdown } => {
+                            topics.insert(topic, Topic { hidden: false, description: description, markdown: markdown } );
                         }
 
-                        CommandHelp::AddHiddenTopic { topic, markdown } => {
-                            topics.insert(topic, Topic { hidden: true, markdown: markdown } );
+                        CommandHelp::AddHiddenTopic { topic, description, markdown } => {
+                            topics.insert(topic, Topic { hidden: true, description: description, markdown: markdown } );
                         }
 
                         CommandHelp::AddCommand { command_name, description, markdown } => {
@@ -86,9 +87,8 @@ impl SceneMessage for CommandHelp {
                                     topic,
                                     topics.iter()
                                         .filter(|(_, topic_description)| !topic_description.hidden)
-                                        .map(|topic| topic.0)
-                                        .sorted()
-                                        .map(|topic| format!("| {} |\n", topic))
+                                        .sorted_by_key(|(topic, _)| *topic)
+                                        .map(|(topic, topic_description)| format!("| {} | {} |\n", topic, topic_description.description))
                                         .collect::<String>()
                                     ).into()
                             };
