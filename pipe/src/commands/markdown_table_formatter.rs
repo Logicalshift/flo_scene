@@ -52,10 +52,34 @@ pub fn table_format<'a>(target: &mut Formatter, table_node: &'a comrak::arena_tr
         return;
     }
 
-    // TODO: Figure out the actual column widths to use
+    // Figure out the actual column widths to use
     // 3 chars between each column, + 2 chars on the end points
     let total_width = column_widths.iter().sum::<usize>() + ((column_widths.len()-1) * 3) + 4;
     let mut last_row_was_header = false;
+
+    if total_width > available_width {
+        // Total size available across all columns (allowing for 2 chars at the start & end + 3 between columns)
+        let available_for_columns   = available_width - 4 - ((column_widths.len() - 1) * 3);
+
+        // Adjusted widths are made to fit the whole table
+        let mut remaining_width     = available_for_columns;
+        let mut adjusted_widths     = vec![];
+
+        for (column_idx, column_width) in column_widths.iter().enumerate() {
+            // We try to resize all columns to use an even amount of space, but allow them to be smaller than this
+            let num_remaining_columns   = (column_widths.len()-1) - column_idx;
+            let max_column_width        = remaining_width / (num_remaining_columns + 1);
+
+            // Use the existing width if it's already smaller than what's needed
+            let new_width = if *column_width > max_column_width { max_column_width } else { *column_width };
+
+            // Add the adjusted width
+            adjusted_widths.push(new_width);
+            remaining_width -= new_width;
+        }
+
+        column_widths = adjusted_widths;
+    }
 
     //
     // PASS 2: format the table
