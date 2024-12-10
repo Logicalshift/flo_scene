@@ -46,6 +46,12 @@ Table:
 |       | empty cell |
 | also empty |   |
 
+| things | more things | other things |
+| ------ | ----------- | ------------ |
+| short  | this is a long piece of text that is intended to force the column to be resized to fit and wrap to more than one line. This is only for where a table has very long items | also short |
+| short  | shorter this time | this is a long piece of text that is intended to force the column to be resized to fit and wrap to more than one line. This is only for where a table has very long items |
+
+
 Task list:
 
  - [ ] not selected
