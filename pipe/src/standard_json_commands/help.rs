@@ -6,9 +6,15 @@ use flo_scene::programs::*;
 use futures::prelude::*;
 use serde::*;
 use itertools::Itertools;
+use once_cell::sync::{Lazy};
 
 use std::borrow::{Cow};
 use std::collections::{HashMap};
+
+/// Filter that maps the 'HelpQueryTopic' message to a CommandHelp
+static HELP_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| 
+    FilterHandle::for_filter(|stream: InputStream<HelpQueryTopic>| 
+        stream.map(|HelpQueryTopic(target, topic): HelpQueryTopic| CommandHelp::Query(target, topic))));
 
 static DEFAULT_MSG: &'static [u8] = include_bytes!("help-intro.md");
 
@@ -30,12 +36,21 @@ pub enum CommandHelp {
     AddCommand { command_name: String, description: String, markdown: Cow<'static, str>}
 }
 
+///
+/// Request sent to query a help topic
+///
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HelpQueryTopic(pub StreamTarget, pub String);
+
 impl SceneMessage for CommandHelp {
     fn default_target() -> StreamTarget {
         StreamTarget::Program(SubProgramId::called("flo_scene_pipe::CommandHelp"))
     }
 
     fn initialise(scene: &Scene) {
+        // Convert help queries to CommandHelp requests
+        scene.connect_programs(StreamSource::Filtered(*HELP_QUERY_FILTER), (), StreamId::with_message_type::<CommandHelp>()).unwrap();
+
         // Default behaviour for the CommandHelp subprogram
         scene.add_subprogram(SubProgramId::called(
             "flo_scene_pipe::CommandHelp"), 
@@ -56,7 +71,7 @@ impl SceneMessage for CommandHelp {
                 let mut commands    = HashMap::new();
 
                 topics.insert("".to_string(), Topic { hidden: true, description: "Default help topic".into(), markdown: String::from_utf8_lossy(DEFAULT_MSG) });
-                topics.insert("about".to_string(), Topic { hidden: false, description: "Some information about flo_scene, which this is built on".into(), markdown: format!("flo_scene {}", env!("CARGO_PKG_VERSION")).into() });
+                topics.insert("flo_scene_version".to_string(), Topic { hidden: false, description: "Describe the version number of flo_scene that this was built on".into(), markdown: format!("flo_scene {}", env!("CARGO_PKG_VERSION")).into() });
 
                 // Process CommandHelp requests
                 let mut input = input;
@@ -101,6 +116,29 @@ impl SceneMessage for CommandHelp {
                 }
             },
             20);
+    }
+}
+
+impl SceneMessage for HelpQueryTopic {
+    fn default_target() -> StreamTarget {
+        StreamTarget::Program(SubProgramId::called("flo_scene_pipe::CommandHelp"))
+    }
+}
+
+impl QueryRequest for HelpQueryTopic {
+    type ResponseData = Cow<'static, str>;
+
+    fn with_new_target(self, new_target: StreamTarget) -> Self {
+        HelpQueryTopic(new_target, self.1)
+    }
+}
+
+impl HelpQueryTopic {
+    ///
+    /// Creates a new query for the specified help topic
+    ///
+    pub fn with_topic(topic: impl Into<String>) -> Self {
+        Self(StreamTarget::Any, topic.into())
     }
 }
 
