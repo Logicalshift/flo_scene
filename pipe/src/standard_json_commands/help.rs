@@ -50,7 +50,7 @@ impl SceneMessage for CommandHelp {
 
     fn initialise(scene: &Scene) {
         // Convert help queries to CommandHelp requests
-        scene.connect_programs(StreamSource::Filtered(*HELP_QUERY_FILTER), (), StreamId::with_message_type::<CommandHelp>()).unwrap();
+        scene.connect_programs(StreamSource::Filtered(*HELP_QUERY_FILTER), (), StreamId::with_message_type::<HelpQueryTopic>()).unwrap();
 
         // Default behaviour for the CommandHelp subprogram
         scene.add_subprogram(SubProgramId::called(
@@ -99,7 +99,7 @@ impl SceneMessage for CommandHelp {
                                 markdown.markdown.to_string()
                             } else {
                                 // If a request is made for a topic with no data, we produce a list of all the non-hidden topics
-                                format!("# Help topic '{}' not known\n\nThis topic is not in the list of topics known about by this help system.\n\nAvailable topics are:\n\n{}",
+                                format!("# Help topic '{}' not known\n\nThis topic is not in the list of topics known about by this help system.\n\nAvailable topics are:\n\n| | |\n| -- | -- |\n{}",
                                     topic,
                                     topics.iter()
                                         .filter(|(_, topic_description)| !topic_description.hidden)
