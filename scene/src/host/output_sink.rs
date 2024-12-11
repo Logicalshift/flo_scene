@@ -151,8 +151,14 @@ where
     pub (crate) fn set_new_target(core: &Arc<Mutex<Self>>, new_target: OutputSinkTarget<TMessage>) -> Option<Waker> {
         let mut core = core.lock().unwrap();
 
-        core.target = new_target;
-        core.when_target_changed.take()
+        if let OutputSinkTarget::FixedInput(_) = &core.target {
+            // Do nothing: this target is fixed and should not be changed
+            None
+        } else {
+            // Change the target
+            core.target = new_target;
+            core.when_target_changed.take()
+        }
     }
 }
 
