@@ -334,11 +334,32 @@ impl SceneCore {
     }
 
     ///
+    /// Ensures that the source and target of a filter are initialised
+    ///
+    fn initialise_filter(core: &Arc<Mutex<SceneCore>>, filter_handle: FilterHandle) {
+        if let Ok(source_stream) = filter_handle.source_stream_id_any() {
+            Self::initialise_message_type(core, source_stream);
+        }
+
+        if let Ok(target_stream) = filter_handle.target_stream_id_any() {
+            Self::initialise_message_type(core, target_stream);
+        }
+    }
+
+    ///
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectionResult, ConnectionError> {
         // Make sure the target stream ID type  is initialised
         Self::initialise_message_type(core, stream_id.clone());
+
+        if let StreamSource::Filtered(filter) = &source {
+            Self::initialise_filter(core, *filter);
+        }
+
+        if let StreamTarget::Filtered(filter, _) = &target {
+            Self::initialise_filter(core, *filter);
+        }
 
         // Check source/target filter streams
         match (&source, &target) {
