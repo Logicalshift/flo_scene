@@ -3,6 +3,7 @@ use flo_scene::programs::*;
 use flo_scene::commands::*;
 
 use futures::prelude::*;
+use serde::*;
 
 #[test]
 fn simple_command() {
@@ -81,5 +82,49 @@ fn query_command() {
         .send_message(IdleRequest::WhenIdle(test_program))
         .expect_message(|_: IdleNotification| { Ok(()) })
         .run_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), *SCENE_CONTROL_PROGRAM, |output| if output.len() == 0 { Err(format!("Unexpected command output: {:?}", output)) } else { Ok(()) })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
+fn connect_filter_source_in_command() {
+    let scene = Scene::default();
+
+    #[derive(Serialize, Deserialize)]
+    struct TestMessage { }
+
+    impl SceneMessage for TestMessage { }
+
+    let filter_handle = FilterHandle::for_filter::<String, _>(|src| src.map(|_| TestMessage { }));
+
+    // Create a test command that sends some usize values to its output
+    let cmd_scene = scene.clone();
+    let test_command = FnCommand::<(), usize>::new(move |_input, context| {
+        let cmd_scene = cmd_scene.clone();
+        async move {
+            // Connect the usize output
+            let mut output = context.send::<usize>(()).unwrap();
+
+            // Send some output data
+            println!("Sending initial values");
+            output.send(1).await.unwrap();
+            output.send(2).await.unwrap();
+
+            // Create a new connection
+            // The command output connects to an input stream that doesn't belong to a program, so if it gets reconnected as a side-effect, the messages can end up going nowhere
+            println!("Reconnecting");
+            cmd_scene.connect_programs(StreamSource::Filtered(filter_handle), StreamTarget::Any, StreamId::with_message_type::<String>()).unwrap();
+
+            // Finish sending
+            println!("Sending remaining values");            
+            output.send(3).await.unwrap();
+            output.send(4).await.unwrap();
+            println!("Done");
+        }
+    });
+
+    // Run the command using the test builder
+    let test_program = SubProgramId::new();
+    TestBuilder::new()
+        .run_command(test_command.clone(), vec![], |output| if &output != &vec![1, 2, 3, 4] { Err(format!("Unexpected command output: {:?}", output)) } else { Ok(()) })
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
