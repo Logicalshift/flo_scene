@@ -26,6 +26,11 @@ pub (crate) enum OutputSinkTarget<TMessage: 'static + Send> {
 
     /// Same as 'Input', except the stream is closed when this output sink target is dropped
     CloseWhenDropped(Weak<Mutex<InputStreamCore<TMessage>>>),
+
+    /// Like 'Input' but not affected by reconnection requests
+    ///
+    /// This is mainly used for the output sink for a command, which must not be reconnected (as it connects to a temporary input stream)
+    FixedInput(Weak<Mutex<InputStreamCore<TMessage>>>),
 }
 
 ///
@@ -74,6 +79,7 @@ where
             Disconnected                => Disconnected,
             Discard                     => Discard,
             Input(input)                => Input(Weak::clone(input)),
+            FixedInput(input)           => FixedInput(Weak::clone(input)),
             CloseWhenDropped(input)     => Input(Weak::clone(input)),           // Only the original output sink target will close when dropped
         }
     }
@@ -119,9 +125,11 @@ where
     /// Returns the ID of the target of this core
     ///
     pub fn target_program_id(core: &Arc<Mutex<Self>>) -> Option<SubProgramId> {
+        use OutputSinkTarget::*;
+
         let input_core = match &core.lock().unwrap().target {
-            OutputSinkTarget::Disconnected      | OutputSinkTarget::Discard                         => None,
-            OutputSinkTarget::Input(input_core) | OutputSinkTarget::CloseWhenDropped(input_core)    => input_core.upgrade(),
+            Disconnected      | Discard                                                 => None,
+            Input(input_core) | FixedInput(input_core) | CloseWhenDropped(input_core)   => input_core.upgrade(),
         }?;
 
         let program_id = input_core.lock().unwrap().target_program_id();
@@ -189,6 +197,7 @@ where
             OutputSinkTarget::Discard                   => { return true; },
             OutputSinkTarget::Disconnected              => { return false; },
             OutputSinkTarget::Input(input)              |
+            OutputSinkTarget::FixedInput(input)         |
             OutputSinkTarget::CloseWhenDropped(input)   => input.upgrade()
         };
 
@@ -250,6 +259,7 @@ where
                     OutputSinkTarget::Discard                   => Ok(()),
                     OutputSinkTarget::Disconnected              => Err(SceneSendError::StreamDisconnected(message)),
                     OutputSinkTarget::Input(input)              |
+                    OutputSinkTarget::FixedInput(input)         |
                     OutputSinkTarget::CloseWhenDropped(input)   => {
                         if let Some(input) = input.upgrade() {
                             let waker = input.lock().unwrap().send_with_overfill(source, message)?;
@@ -290,6 +300,7 @@ where
             OutputSinkTarget::Discard                   => { return Ok(()); },
             OutputSinkTarget::Disconnected              => None,
             OutputSinkTarget::Input(input)              |
+            OutputSinkTarget::FixedInput(input)         |
             OutputSinkTarget::CloseWhenDropped(input)   => input.upgrade()
         };
 
@@ -336,6 +347,7 @@ where
             OutputSinkTarget::Discard                   => None,
             OutputSinkTarget::Disconnected              => None,
             OutputSinkTarget::Input(input)              |
+            OutputSinkTarget::FixedInput(input)         |
             OutputSinkTarget::CloseWhenDropped(input)   => {
                 input.upgrade()
             }
@@ -386,6 +398,7 @@ where
                 OutputSinkTarget::Discard => Poll::Ready(Ok(())),
 
                 OutputSinkTarget::Input(input_core)               |
+                OutputSinkTarget::FixedInput(input_core)          |
                 OutputSinkTarget::CloseWhenDropped(input_core)    => {
                     if input_core.upgrade().is_none() {
                         // Downgrade to a disconnected core so the sending can be retried
@@ -423,6 +436,7 @@ where
             },
 
             OutputSinkTarget::Input(input_core)             |
+            OutputSinkTarget::FixedInput(input_core)        |
             OutputSinkTarget::CloseWhenDropped(input_core)  => {
                 if let Some(input_core) = input_core.upgrade() {
                     // Either directly send the item or add to the callback list for when there's enough space in the input
@@ -531,6 +545,7 @@ where
             },
 
             OutputSinkTarget::Input(input_core)             |
+            OutputSinkTarget::FixedInput(input_core)        |
             OutputSinkTarget::CloseWhenDropped(input_core)  => {
                 // Try to send to the attached core
                 if let Some(input_core) = input_core.upgrade() {

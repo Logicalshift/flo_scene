@@ -198,6 +198,7 @@ impl StreamTypeFunctions {
                     OutputSinkTarget::Disconnected                  => Ok(StreamTarget::Any),
                     OutputSinkTarget::Discard                       => Ok(StreamTarget::None),
                     OutputSinkTarget::Input(input_core)             |
+                    OutputSinkTarget::FixedInput(input_core)        |
                     OutputSinkTarget::CloseWhenDropped(input_core)  => {
                         if let Some(input_core) = input_core.upgrade() {
                             // Target is the program being run by the input stream core
