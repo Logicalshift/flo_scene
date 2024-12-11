@@ -33,10 +33,10 @@ pub (crate) enum OutputSinkTarget<TMessage: 'static + Send> {
 ///
 pub (crate) struct OutputSinkCore<TMessage: 'static + Send> {
     /// The target for the sink
-    pub (crate) target: OutputSinkTarget<TMessage>,
+    target: OutputSinkTarget<TMessage>,
 
     /// Waker that is notified when the target is changed
-    pub (crate) when_target_changed: Option<Waker>,
+    when_target_changed: Option<Waker>,
 }
 
 ///
@@ -126,6 +126,25 @@ where
 
         let program_id = input_core.lock().unwrap().target_program_id();
         Some(program_id)
+    }
+
+    ///
+    /// Reads the target of this core
+    ///
+    #[inline]
+    pub (crate) fn target(&self) -> &OutputSinkTarget<TMessage> {
+        &self.target
+    }
+
+    ///
+    /// Updates the target of this core, returning the waker to use
+    ///
+    #[inline]
+    pub (crate) fn set_new_target(core: &Arc<Mutex<Self>>, new_target: OutputSinkTarget<TMessage>) -> Option<Waker> {
+        let mut core = core.lock().unwrap();
+
+        core.target = new_target;
+        core.when_target_changed.take()
     }
 }
 

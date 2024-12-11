@@ -140,16 +140,10 @@ impl StreamTypeFunctions {
                 let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
 
                 // Connect the input stream core to the output target
-                let waker = {
-                    let mut output_sink = output_sink.lock().unwrap();
-
-                    output_sink.target  = if !close_when_dropped {
-                        OutputSinkTarget::Input(Arc::downgrade(&input_stream))
-                    } else {
-                        OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&input_stream))
-                    };
-
-                    output_sink.when_target_changed.take()
+                let waker = if !close_when_dropped {
+                    OutputSinkCore::set_new_target(&output_sink, OutputSinkTarget::Input(Arc::downgrade(&input_stream)))
+                } else {
+                    OutputSinkCore::set_new_target(&output_sink, OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&input_stream)))
                 };
 
                 Ok(waker)
@@ -158,13 +152,7 @@ impl StreamTypeFunctions {
             connect_output_to_discard: Arc::new(|output_sink_any| {
                 // Cast the output sink to the appropriate type and set it as discarding any input
                 let output_sink = output_sink_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
-
-                let waker = {
-                    let mut output_sink = output_sink.lock().unwrap();
-
-                    output_sink.target = OutputSinkTarget::Discard;
-                    output_sink.when_target_changed.take()
-                };
+                let waker       = OutputSinkCore::set_new_target(&output_sink, OutputSinkTarget::Discard);
 
                 Ok(waker)
             }),
@@ -172,13 +160,7 @@ impl StreamTypeFunctions {
             disconnect_output: Arc::new(|output_sink_any| {
                 // Cast the output sink to the appropriate type and set it as disconnected
                 let output_sink = output_sink_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
-
-                let waker = {
-                    let mut output_sink = output_sink.lock().unwrap();
-
-                    output_sink.target = OutputSinkTarget::Disconnected;
-                    output_sink.when_target_changed.take()
-                };
+                let waker       = OutputSinkCore::set_new_target(&output_sink, OutputSinkTarget::Disconnected);
 
                 Ok(waker)
             }),
@@ -210,7 +192,7 @@ impl StreamTypeFunctions {
 
             active_target: Arc::new(|output_sink_core_any| {
                 let output_sink         = output_sink_core_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
-                let output_sink_target  = output_sink.lock().unwrap().target.clone();
+                let output_sink_target  = output_sink.lock().unwrap().target().clone();
 
                 match &output_sink_target {
                     OutputSinkTarget::Disconnected                  => Ok(StreamTarget::Any),
@@ -235,14 +217,7 @@ impl StreamTypeFunctions {
 
                 // Update the output sink
                 let output_sink = output_sink_core_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
-
-                let waker = {
-                    let mut output_sink = output_sink.lock().unwrap();
-
-                    output_sink.target = new_target;
-
-                    output_sink.when_target_changed.take()
-                };
+                let waker       = OutputSinkCore::set_new_target(&output_sink, new_target);
 
                 Ok(waker)
             }),
