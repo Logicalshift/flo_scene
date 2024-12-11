@@ -647,7 +647,7 @@ mod test {
         /// Sends the messages from this sink to a particular input stream
         ///
         pub (crate) fn attach_to(&mut self, input_stream: &InputStream<TMessage>) {
-            self.attach_to_core(&input_stream.core);
+            self.fix_target_stream(&input_stream.core);
         }
     }
 
