@@ -194,6 +194,19 @@ where
     }
 
     ///
+    /// Sends the messages from this sink to an input stream core (that cannot be reconnected)
+    ///
+    pub (crate) fn fix_target_stream(&mut self, input_stream_core: &Arc<Mutex<InputStreamCore<TMessage>>>) {
+        // Connect to the target
+        let waker = OutputSinkCore::set_new_target(&self.core, OutputSinkTarget::FixedInput(Arc::downgrade(input_stream_core)));
+
+        // Wake anything waiting for the stream to become ready or to send a message
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+    }
+
+    ///
     /// Returns true if this output sink is still attached to a target program
     ///
     pub fn is_attached(&self) -> bool {

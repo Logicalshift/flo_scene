@@ -210,7 +210,7 @@ impl SceneContext {
             let mut target_output_sink  = subtask_context.send::<TCommand::Output>(())?;
             let command_result_core     = command_result.core();
 
-            target_output_sink.attach_to_core(&command_result_core);
+            target_output_sink.fix_target_stream(&command_result_core);
 
             Ok(command_result)
         } else {
@@ -317,7 +317,7 @@ impl SceneContext {
             let mut target_output_sink  = subtask_context.send::<TCommand::Output>(())?;
             let command_result_core     = command_result.core();
 
-            target_output_sink.attach_to_core(&command_result_core);
+            target_output_sink.fix_target_stream(&command_result_core);
 
             Ok(command_result)
         } else {
