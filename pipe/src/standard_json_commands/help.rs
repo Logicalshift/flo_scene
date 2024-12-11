@@ -49,7 +49,6 @@ impl SceneMessage for CommandHelp {
     }
 
     fn initialise(scene: &Scene) {
-
         // Default behaviour for the CommandHelp subprogram
         scene.add_subprogram(SubProgramId::called(
             "flo_scene_pipe::CommandHelp"), 
@@ -152,9 +151,6 @@ impl HelpQueryTopic {
 pub fn command_help(input: Option<String>, context: SceneContext) -> impl Future<Output=CommandResponse> {
     async move {
         let input = input.unwrap_or_else(|| "".into());
-
-        // Open the stream to the command help program to make sure it's running (as the query goes via a filter)
-        let _command_help = context.send::<CommandHelp>(()).ok();
 
         match context.spawn_query(ReadCommand::default(), HelpQueryTopic::with_topic(input.clone()), ()) {
             Ok(markdown) => {
