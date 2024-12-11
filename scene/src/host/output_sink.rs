@@ -171,10 +171,9 @@ where
     ///
     pub (crate) fn attach_to_core(&mut self, input_stream_core: &Arc<Mutex<InputStreamCore<TMessage>>>) {
         // Connect to the target
-        self.core.lock().unwrap().target = OutputSinkTarget::Input(Arc::downgrade(input_stream_core));
+        let waker = OutputSinkCore::set_new_target(&self.core, OutputSinkTarget::Input(Arc::downgrade(input_stream_core)));
 
         // Wake anything waiting for the stream to become ready or to send a message
-        let waker = self.core.lock().unwrap().when_target_changed.take();
         if let Some(waker) = waker {
             waker.wake();
         }
