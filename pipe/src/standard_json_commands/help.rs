@@ -10,7 +10,7 @@ use itertools::Itertools;
 use once_cell::sync::{Lazy};
 
 use std::borrow::{Cow};
-use std::collections::{HashMap};
+use std::collections::{HashSet, HashMap};
 
 /// Filter that maps the 'HelpQueryTopic' message to a CommandHelp
 static HELP_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| 
@@ -43,6 +43,69 @@ pub enum CommandHelp {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HelpQueryTopic(pub StreamTarget, pub String);
 
+/// Stores the help data for topics
+struct Topic { 
+    hidden:         bool,
+    description:    String,
+    markdown:       Cow<'static, str>
+}
+
+/// Stores the help data for the commands
+struct Command {
+    description:    String,
+    markdown:       Cow<'static, str>,
+}
+
+///
+/// Reads the commands from the current context
+///
+/// Subprograms are only queried for their commands if they're not already in the known_subprograms list, which is also updated on return to
+/// include the list of programs that were queried during this pass.
+///
+async fn read_new_commands(context: &SceneContext, known_subprograms: &mut HashSet<SubProgramId>) -> Vec<(String, Command)> {
+    // Query the subprograms from the control program
+    let scene_status = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ());
+    let scene_status = if let Ok(scene_status) = scene_status {
+        scene_status
+    } else {
+        return vec![];
+    };
+
+    // Figure out which subprograms have been added
+    let active_subprograms  = scene_status.flat_map(|update| match update {
+        SceneUpdate::Started(program_id, _) => stream::iter(std::iter::once(program_id)).boxed(),
+        _                                   => stream::empty().boxed(),
+    }).collect::<HashSet<SubProgramId>>().await;
+    let added_subprograms = active_subprograms.iter()
+        .filter(|new_program| !known_subprograms.contains(new_program))
+        .copied()
+        .collect::<HashSet<_>>();
+
+    // Query each of the added subprograms to get the commands
+    let mut new_commands = vec![];
+
+    for added_program_id in added_subprograms {
+        // Add to the list of known commands
+        known_subprograms.insert(added_program_id);
+
+        if let Ok(supported_commands) = context.spawn_query(ReadCommand::default(), RunCommand::<JsonParameter, CommandResponse>::new((), LIST_COMMANDS, ()), added_program_id) {
+            let mut supported_commands = supported_commands;
+
+            // Create Command objects for each command
+            while let Some(cmd) = supported_commands.next().await {
+                let cmd: ListCommandResponse = if let Ok(cmd) = cmd.try_into() { cmd } else { continue; };
+
+                // Commands get an empty help topic
+                for description in cmd.0 {
+                    new_commands.push((description.name.clone(), Command { description: "".into(), markdown: "".into() }));
+                }
+            }
+        }
+    }
+
+    new_commands
+}
+
 impl SceneMessage for CommandHelp {
     fn default_target() -> StreamTarget {
         StreamTarget::Program(SubProgramId::called("flo_scene_pipe::CommandHelp"))
@@ -53,20 +116,10 @@ impl SceneMessage for CommandHelp {
         scene.add_subprogram(SubProgramId::called(
             "flo_scene_pipe::CommandHelp"), 
             |input, context| async move {
-                struct Topic { 
-                    hidden:         bool,
-                    description:    String,
-                    markdown:       Cow<'static, str>
-                }
-
-                struct Command {
-                    description:    String,
-                    markdown:       Cow<'static, str>,
-                }
-
                 // The topics store the messages we return for different help requests, with the exception of a few custom ones that do things like list the available commands
                 let mut topics      = HashMap::new();
                 let mut commands    = HashMap::new();
+                let mut subprograms = HashSet::new();
 
                 topics.insert("".to_string(), Topic { hidden: true, description: "Default help topic".into(), markdown: String::from_utf8_lossy(DEFAULT_MSG) });
                 topics.insert("commands".to_string(), Topic { hidden: false, description: "Describe the available commands".into(), markdown: "".into() });
@@ -89,6 +142,14 @@ impl SceneMessage for CommandHelp {
                         }
 
                         CommandHelp::Query(target, topic) => {
+                            // Update the list of known commands
+                            let new_commands = read_new_commands(&context, &mut subprograms).await;
+                            for (name, details) in new_commands {
+                                if !commands.contains_key(&name) {
+                                    commands.insert(name, details);
+                                }
+                            }
+
                             // The 'commands' topic is special in that it will list the commands with help attached to them
                             let markdown = if topic == "commands" {
                                 format!("# Available commands:\n\n|   |   |\n| -- | -- |\n{}\n",
