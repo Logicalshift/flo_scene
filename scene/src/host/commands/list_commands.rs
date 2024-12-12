@@ -2,6 +2,9 @@ use crate::host::scene_message::*;
 
 use serde::*;
 
+/// The name of the command sent to request the list command response
+pub const LIST_COMMANDS: &str = "list_commands";
+
 ///
 /// Description of a command as returned by ListCommand
 ///
