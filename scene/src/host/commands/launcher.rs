@@ -16,7 +16,7 @@ use std::marker::{PhantomData};
 use std::sync::*;
 
 ///
-/// A command launcher will response to `RunCommand<TParameter, Result<TResponse, CommandError>>` requests by
+/// A command launcher will respond to `RunCommand<TParameter, Result<TResponse, CommandError>>` requests by
 /// spawning a task using a function. This is the typical way that a group of command queries is declared.
 ///
 /// The launcher will also respond to the `::list_commands` command with a list of responses converted from
