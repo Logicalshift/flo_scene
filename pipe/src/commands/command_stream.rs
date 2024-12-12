@@ -11,6 +11,7 @@ use futures::stream::{BoxStream};
 use serde::{Deserialize, Serialize};
 use serde_json;
 
+use std::borrow::{Cow};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 
@@ -78,7 +79,7 @@ pub enum CommandResponse {
     Message(String),
 
     /// A commentary message with markdown formatting, written as '  <message>' with added ANSI formatting
-    Markdown(String),
+    Markdown(Cow<'static, str>),
 
     /// A stream of values that can be outputted at any time, used for receiving monitored events
     /// A new stream is given a number in the initial response using a message of format '<<< <n>' (eg, '<<< 8')
@@ -292,7 +293,7 @@ pub fn write_command_data(input: impl 'static + Send + Unpin + Stream<Item=Comma
 enum SerializedCommandResponse {
     Json(serde_json::Value),
     Message(String),
-    Markdown(String),
+    Markdown(Cow<'static, str>),
 
     BackgroundStreamNotSupported,
     IoStreamNotSupported,

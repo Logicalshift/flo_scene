@@ -12,6 +12,7 @@ use futures::{pin_mut};
 
 use serde_json;
 
+use std::borrow::{Cow};
 use std::collections::{HashMap};
 use std::iter;
 use std::sync::*;
@@ -51,7 +52,7 @@ pub enum CommandNotification {
     Message(String),
 
     /// Informational message, formatted using markdown
-    Markdown(String),
+    Markdown(Cow<'static, str>),
 
     /// Error message
     Error(String),
