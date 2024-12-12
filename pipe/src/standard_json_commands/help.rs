@@ -69,6 +69,7 @@ impl SceneMessage for CommandHelp {
                 let mut commands    = HashMap::new();
 
                 topics.insert("".to_string(), Topic { hidden: true, description: "Default help topic".into(), markdown: String::from_utf8_lossy(DEFAULT_MSG) });
+                topics.insert("commands".to_string(), Topic { hidden: false, description: "Describe the available commands".into(), markdown: "".into() });
                 topics.insert("flo_scene_version".to_string(), Topic { hidden: false, description: "Describe the version number of flo_scene that this was built on".into(), markdown: format!("flo_scene {}", env!("CARGO_PKG_VERSION")).into() });
 
                 // Process CommandHelp requests
@@ -88,7 +89,15 @@ impl SceneMessage for CommandHelp {
                         }
 
                         CommandHelp::Query(target, topic) => {
-                            let markdown = if let Some(command) = commands.get(&topic) {
+                            // The 'commands' topic is special in that it will list the commands with help attached to them
+                            let markdown = if topic == "commands" {
+                                format!("# Available commands:\n\n|   |   |\n| -- | -- |\n{}\n",
+                                    commands.iter()
+                                        .sorted_by_key(|(name, _)| *name)
+                                        .map(|(name, description)| format!("| {} | {} |\n", name, description.description))
+                                        .collect::<String>()
+                                    ).into()
+                            } else if let Some(command) = commands.get(&topic) {
                                 // If there's a command, this takes priority over the topic, if there's one that matches
                                 command.markdown.to_string()
                             } else if let Some(markdown) = topics.get(&topic) {
