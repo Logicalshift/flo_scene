@@ -43,6 +43,12 @@ pub enum CommandHelp {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HelpQueryTopic(pub StreamTarget, pub String);
 
+///
+/// Response from a request for the markdown for a help topic
+///
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HelpMarkdown(pub Cow<'static, str>);
+
 /// Stores the help data for topics
 struct Topic { 
     hidden:         bool,
@@ -160,10 +166,10 @@ impl SceneMessage for CommandHelp {
                                     ).into()
                             } else if let Some(command) = commands.get(&topic) {
                                 // If there's a command, this takes priority over the topic, if there's one that matches
-                                command.markdown.to_string()
+                                command.markdown.clone()
                             } else if let Some(markdown) = topics.get(&topic) {
                                 // Otherwise look up topics
-                                markdown.markdown.to_string()
+                                markdown.markdown.clone()
                             } else {
                                 // If a request is made for a topic with no data, we produce a list of all the non-hidden topics
                                 format!("# Help topic '{}' not known\n\nThis topic is not in the list of topics known about by this help system.\n\nAvailable topics are:\n\n| | |\n| -- | -- |\n{}",
@@ -177,7 +183,7 @@ impl SceneMessage for CommandHelp {
                             };
 
                             if let Ok(mut target) = context.send(target) {
-                                target.send(QueryResponse::with_data(markdown.clone())).await.ok();
+                                target.send(QueryResponse::with_data(HelpMarkdown(markdown))).await.ok();
                             }
                         }
                     }
@@ -198,8 +204,11 @@ impl SceneMessage for HelpQueryTopic {
     }
 }
 
+impl SceneMessage for HelpMarkdown { 
+}
+
 impl QueryRequest for HelpQueryTopic {
-    type ResponseData = String;
+    type ResponseData = HelpMarkdown;
 
     fn with_new_target(self, new_target: StreamTarget) -> Self {
         HelpQueryTopic(new_target, self.1)
@@ -227,7 +236,7 @@ pub fn command_help(input: Option<String>, context: SceneContext) -> impl Future
                 // Send the resulting markdown to the target
                 let mut markdown = markdown;
                 while let Some(markdown) = markdown.next().await {
-                    return CommandResponse::Markdown(markdown.into());
+                    return CommandResponse::Markdown(markdown.0.into());
                 }
             }
 
