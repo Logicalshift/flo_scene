@@ -43,6 +43,22 @@ impl From<()> for JsonParameter {
     }
 }
 
+impl From<DescribeCommandRequest> for JsonParameter {
+    #[inline]
+    fn from(describe_request: DescribeCommandRequest) -> JsonParameter {
+        JsonParameter { value: describe_request.serialize(serde_json::value::Serializer).unwrap(), processor: None }
+    }
+}
+
+impl TryInto<DescribeCommandRequest> for JsonParameter {
+    type Error = CommandError;
+
+    fn try_into(self) -> Result<DescribeCommandRequest, Self::Error> {
+        DescribeCommandRequest::deserialize(&self.value)
+            .map_err(|_| CommandError::CannotConvertResponse)
+    }
+}
+
 impl From<RunCommand<JsonParameter, CommandResponse>> for JsonCommand {
     #[inline]
     fn from(cmd: RunCommand<JsonParameter, CommandResponse>) -> Self {

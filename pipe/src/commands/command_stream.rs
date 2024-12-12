@@ -209,6 +209,28 @@ impl TryInto<ListCommandResponse> for CommandResponse {
     }
 }
 
+impl From<DescribeCommandResponse> for CommandResponse {
+    fn from(describe_response: DescribeCommandResponse) -> Self {
+        CommandResponse::Json(describe_response.serialize(serde_json::value::Serializer).unwrap())
+    }
+}
+
+impl TryInto<DescribeCommandResponse> for CommandResponse {
+    type Error = CommandError;
+
+    fn try_into(self) -> Result<DescribeCommandResponse, CommandError> {
+        match self {
+            CommandResponse::Json(json) => {
+                DescribeCommandResponse::deserialize(json)
+                    .map_err(|_| CommandError::CannotConvertResponse)
+            }
+
+            // Other types of response cannot be JSON requests
+            _ => Err(CommandError::CannotConvertResponse)
+        }
+    }
+}
+
 impl Debug for CommandResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
