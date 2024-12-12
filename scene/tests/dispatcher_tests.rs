@@ -18,6 +18,18 @@ pub fn call_dispatcher_command_iteration() {
         }
     }
 
+    impl From<DescribeCommandRequest> for TestRequest {
+        fn from(value: DescribeCommandRequest) -> TestRequest {
+            TestRequest(value.0)
+        }
+    }
+
+    impl Into<DescribeCommandRequest> for TestRequest {
+        fn into(self) -> DescribeCommandRequest {
+            DescribeCommandRequest(self.0)
+        }
+    }
+
     // Create a response object for the test command
     #[derive(Debug, PartialEq, Serialize, Deserialize)]
     pub struct TestResponse(Vec<String>);
@@ -31,6 +43,18 @@ pub fn call_dispatcher_command_iteration() {
     impl Into<ListCommandResponse> for TestResponse {
         fn into(self) -> ListCommandResponse {
             ListCommandResponse(self.0.into_iter().map(|name| CommandDescription { name }).collect())
+        }
+    }
+
+    impl From<DescribeCommandResponse> for TestResponse {
+        fn from(value: DescribeCommandResponse) -> Self {
+            Self(vec![value.summary])
+        }
+    }
+
+    impl Into<DescribeCommandResponse> for TestResponse {
+        fn into(self) -> DescribeCommandResponse {
+            DescribeCommandResponse { summary: "Summary".into(), help: "Help".into() }
         }
     }
 
