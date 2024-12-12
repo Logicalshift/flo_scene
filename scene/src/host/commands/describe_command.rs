@@ -4,6 +4,9 @@ use serde::*;
 
 use std::borrow::{Cow};
 
+/// The name of the command sent to request a command description
+pub const DESCRIBE_COMMAND: &str = "describe_command";
+
 ///
 /// Provides a detailed description of what a command does
 ///
