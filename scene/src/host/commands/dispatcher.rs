@@ -2,6 +2,7 @@ use super::run_command::*;
 use super::list_commands::*;
 use super::read_command::*;
 use super::error::*;
+use super::describe_command::*;
 use crate::host::input_stream::*;
 use crate::host::scene_context::*;
 use crate::host::scene_message::*;
@@ -31,7 +32,11 @@ use std::iter;
 pub async fn command_dispatcher_subprogram<TParameter, TResponse>(input: InputStream<RunCommand<TParameter, TResponse>>, context: SceneContext)
 where
     TParameter: 'static + Unpin + Send + From<()> + Serialize,
-    TResponse:  'static + Unpin + Send + SceneMessage + TryInto<ListCommandResponse> + From<ListCommandResponse> + From<CommandError>,
+    TParameter: TryInto<DescribeCommandRequest>,
+    TResponse:  'static + Unpin + Send + SceneMessage,
+    TResponse:  TryInto<ListCommandResponse> + From<ListCommandResponse>,
+    TResponse:  TryInto<DescribeCommandResponse> + From<DescribeCommandResponse>,
+    TResponse:  From<CommandError>,
     for<'de> TParameter: Deserialize<'de>,
 {
     let our_program_id = context.current_program_id().unwrap();
@@ -51,7 +56,7 @@ where
 
         // We might need to update our list of commands before evaluating this one
         // We update if the LIST_COMMANDS command is sent, or if the command is not known, or if there's no way to contact the existing target
-        if next_command.name() == LIST_COMMANDS || command_owner_stream.is_none() {
+        if next_command.name() == LIST_COMMANDS || next_command.name() == DESCRIBE_COMMAND || command_owner_stream.is_none() {
             // Request the current scene status
             let scene_status = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ());
             let scene_status = if let Ok(scene_status) = scene_status {
@@ -135,6 +140,9 @@ where
 
                 response_stream.send(QueryResponse::with_data(list_commands_response.into())).await.ok();
             }
+        } else if next_command.name() == DESCRIBE_COMMAND {
+            // Forward the request to the owner of the command that's being described
+            todo!()
         } else if let Some(command_owner_stream) = command_owner_stream {
             // Forward the command to the target stream
             let mut command_owner_stream = command_owner_stream;
