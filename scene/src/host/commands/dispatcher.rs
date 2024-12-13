@@ -31,7 +31,7 @@ use std::iter;
 ///
 pub async fn command_dispatcher_subprogram<TParameter, TResponse>(input: InputStream<RunCommand<TParameter, TResponse>>, context: SceneContext)
 where
-    TParameter: 'static + Unpin + Send + From<()> + Serialize,
+    TParameter: 'static + Unpin + Send + From<()> + Serialize + Clone,
     TParameter: TryInto<DescribeCommandRequest>,
     TResponse:  'static + Unpin + Send + SceneMessage,
     TResponse:  TryInto<ListCommandResponse> + From<ListCommandResponse>,
@@ -142,7 +142,31 @@ where
             }
         } else if next_command.name() == DESCRIBE_COMMAND {
             // Forward the request to the owner of the command that's being described
-            todo!()
+            if let Ok(request) = next_command.parameter().clone().try_into() {
+                let request: DescribeCommandRequest = request;
+                let mut sent_ok                     = false;
+
+                let command_target                  = next_command.target();
+                let command_name                    = next_command.name().to_string();
+
+                if let Some((_, command_owner)) = commands.get(&request.0) {
+                    let command_owner_stream = context.send::<RunCommand<TParameter, TResponse>>(*command_owner).ok();
+
+                    if let Some(mut command_owner_stream) = command_owner_stream {
+                        if let Ok(()) = command_owner_stream.send(next_command).await {
+                            // Command was sent OK, target should have responded
+                            sent_ok = true;
+                        }
+                    }
+                }
+
+                if !sent_ok {
+                    // Message was rejected for some reason: we should send an error
+                    if let Ok(mut response_stream) = context.send::<QueryResponse<TResponse>>(command_target) {
+                        response_stream.send(QueryResponse::with_data(CommandError::CommandFailedToRespond(command_name).into())).await.ok();
+                    }
+                }
+            }
         } else if let Some(command_owner_stream) = command_owner_stream {
             // Forward the command to the target stream
             let mut command_owner_stream = command_owner_stream;
