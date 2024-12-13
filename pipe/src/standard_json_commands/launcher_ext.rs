@@ -31,5 +31,8 @@ impl StandardCommandsLauncherExt for CommandLauncher<JsonParameter, CommandRespo
             .with_json_command("query", command_query)
             .with_json_command("send", command_send)
             .with_json_command("subscribe", command_subscribe)
+            .with_summary("echo", "Sends its argument back as a message")
+            .with_summary("connect", "Updates the connections for two subprograms")
+            .with_summary("query", "Sends a query to a subprogram")
     }
 }
