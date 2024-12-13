@@ -71,6 +71,24 @@ where
     }
 
     ///
+    /// Returns this launcher modified with some summary text for a command (used when providing help)
+    ///
+    pub fn with_summary(mut self, command_name: impl Into<String>, summary: impl Into<String>) -> Self {
+        self.summaries.insert(command_name.into(), summary.into());
+
+        self
+    }
+
+    ///
+    /// Returns this launcher modified with some markdown text for a command (used when providing help)
+    ///
+    pub fn with_help(mut self, command_name: impl Into<String>, help: impl Into<Cow<'static, str>>) -> Self {
+        self.help.insert(command_name.into(), help.into());
+
+        self
+    }
+
+    ///
     /// Converts this launcher to a subprogram that can be added to a scene to respond to the run command requests
     ///
     pub fn to_subprogram(self) -> impl 'static + Send + FnOnce(InputStream<RunCommand<TParameter, TResponse>>, SceneContext) -> BoxFuture<'static, ()> {
