@@ -103,7 +103,22 @@ async fn read_new_commands(context: &SceneContext, known_subprograms: &mut HashS
 
                 // Commands get an empty help topic
                 for description in cmd.0 {
-                    new_commands.push((description.name.clone(), Command { description: "".into(), markdown: "".into() }));
+                    // Request more details about this command
+                    let describe_result = context.spawn_query(ReadCommand::default(), RunCommand::<JsonParameter, CommandResponse>::new((), DESCRIBE_COMMAND, DescribeCommandRequest(description.name.clone())), added_program_id);
+
+                    if let Ok(mut describe_result) = describe_result {
+                        if let Some(describe_result) = describe_result.next().await {
+                            if let Ok(describe_result) = describe_result.try_into() {
+                                let describe_result: DescribeCommandResponse = describe_result;
+
+                                // Retrieved description for this command
+                                new_commands.push((description.name.clone(), Command { description: describe_result.summary, markdown: describe_result.help }));
+                            }
+                        } else {
+                            // No description available for this command
+                            new_commands.push((description.name.clone(), Command { description: "".into(), markdown: "".into() }));
+                        }
+                    }
                 }
             }
         }
