@@ -158,6 +158,21 @@ where
                             sent_ok = true;
                         }
                     }
+                } else {
+                    // Command does not exist
+                    let response = DescribeCommandResponse {
+                        summary:    "No such command".into(),
+                        help:       format!("# {:?}\n\nThis command is not defined\n", request.0).into(),
+                    };
+
+                    // Send the response
+                    let description_command_response    = QueryResponse::with_data(response.into());
+                    let response_stream                 = context.send::<QueryResponse<TResponse>>(command_target.clone());
+
+                    if let Ok(mut response_stream) = response_stream {
+                        response_stream.send(description_command_response).await.ok();
+                        sent_ok = true;
+                    }
                 }
 
                 if !sent_ok {
