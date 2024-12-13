@@ -11,6 +11,7 @@ use super::run_command::*;
 use futures::prelude::*;
 use futures::future::{BoxFuture};
 
+use std::borrow::{Cow};
 use std::collections::{HashMap};
 use std::marker::{PhantomData};
 use std::sync::*;
@@ -26,6 +27,13 @@ pub struct CommandLauncher<TParameter, TResponse> {
     /// The commands are invoked as a subtask when a `RunCommand<TParameter, Result<TResponse, CommandError>>` request is made
     commands: HashMap<String, Arc<dyn Send + Sync + Fn(&TParameter, SceneContext) -> BoxFuture<'static, ()>>>,
 
+    /// The summaries are one-line descriptions of what the command does
+    summaries: HashMap<String, String>,
+
+    /// The help provides markdown help for the commands managed by this launcher
+    help: HashMap<String, Cow<'static, str>>,
+
+    /// The response is used for the output of the commands run by this launcher
     response: PhantomData<TResponse>,
 }
 
@@ -43,8 +51,10 @@ where
     ///
     pub fn empty() -> Self {
         CommandLauncher {
-            commands: HashMap::new(),
-            response: PhantomData
+            commands:   HashMap::new(),
+            summaries:  HashMap::new(),
+            help:       HashMap::new(),
+            response:   PhantomData
         }
     }
 
@@ -77,12 +87,30 @@ where
                         .chain([CommandDescription { name: LIST_COMMANDS.into() }])
                         .collect::<Vec<_>>());
 
-                    let list_commands_response = QueryResponse::with_data(response.into());
-
-                    let response = context.send::<QueryResponse<TResponse>>(command_target);
+                    let list_commands_response  = QueryResponse::with_data(response.into());
+                    let response_stream         = context.send::<QueryResponse<TResponse>>(command_target);
                     
-                    if let Ok(mut response) = response {
-                        response.send(list_commands_response).await.ok();
+                    if let Ok(mut response_stream) = response_stream {
+                        response_stream.send(list_commands_response).await.ok();
+                    }
+                } else if run_request.name() == DESCRIBE_COMMAND {
+                    let command_target  = run_request.target();
+
+                    // Fetch the description for this command
+                    let request = if let Ok(request) = run_request.parameter().clone().try_into() { request } else { continue; };
+
+                    // Create the response by looking up the details of this command
+                    let response = DescribeCommandResponse {
+                        summary:    self.summaries.get(&request.0).cloned().unwrap_or_else(|| "".into()),
+                        help:       self.help.get(&request.0).cloned().unwrap_or_else(|| "".into()),
+                    };
+
+                    // Send the response
+                    let description_command_response    = QueryResponse::with_data(response.into());
+                    let response_stream                 = context.send::<QueryResponse<TResponse>>(command_target);
+
+                    if let Ok(mut response_stream) = response_stream {
+                        response_stream.send(description_command_response).await.ok();
                     }
                 } else if let Some(command) = self.commands.get(run_request.name()).cloned() {
                     // Run the command
