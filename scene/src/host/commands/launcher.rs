@@ -1,10 +1,11 @@
 use crate::host::input_stream::*;
-use crate::host::programs::QueryResponse;
+use crate::host::programs::*;
 use crate::host::scene_context::*;
 use crate::host::scene_message::*;
 use super::error::*;
 use super::fn_command::*;
 use super::list_commands::*;
+use super::describe_command::*;
 use super::run_command::*;
 
 use futures::prelude::*;
@@ -30,8 +31,12 @@ pub struct CommandLauncher<TParameter, TResponse> {
 
 impl<TParameter, TResponse> CommandLauncher<TParameter, TResponse>
 where
-    TParameter: 'static + Unpin + Send + Sync,
-    TResponse:  'static + Unpin + Send + SceneMessage + From<ListCommandResponse> + From<CommandError>,
+    TParameter: 'static + Unpin + Send + Sync + Clone,
+    TParameter: TryInto<DescribeCommandRequest>,
+    TResponse:  'static + Unpin + Send + SceneMessage,
+    TResponse:  From<ListCommandResponse>,
+    TResponse:  From<CommandError>,
+    TResponse:  From<DescribeCommandResponse>,
 {
     ///
     /// Creates a new command launcher, with no built in commands
