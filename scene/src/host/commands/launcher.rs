@@ -120,7 +120,7 @@ where
                     // Create the response by looking up the details of this command
                     let response = DescribeCommandResponse {
                         summary:    self.summaries.get(&request.0).cloned().unwrap_or_else(|| "".into()),
-                        help:       self.help.get(&request.0).cloned().unwrap_or_else(|| "".into()),
+                        help:       self.help.get(&request.0).cloned().unwrap_or_else(|| format!("# {}\n\nExecutes the `{}` command\n", request.0, request.0).into()),
                     };
 
                     // Send the response
