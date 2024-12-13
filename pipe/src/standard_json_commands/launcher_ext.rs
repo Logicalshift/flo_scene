@@ -32,7 +32,12 @@ impl StandardCommandsLauncherExt for CommandLauncher<JsonParameter, CommandRespo
             .with_json_command("send", command_send)
             .with_json_command("subscribe", command_subscribe)
             .with_summary("echo", "Sends its argument back as a message")
-            .with_summary("connect", "Updates the connections for two subprograms")
+            .with_summary("connect", "Creates a connection between subprograms")
+            .with_summary("help", "Displays help text")
+            .with_summary("list_connections", "Lists the current set of connections between subprograms")
+            .with_summary("list_subprograms", "Lists the subprograms in the current scene")
             .with_summary("query", "Sends a query to a subprogram")
+            .with_summary("send", "Sends messages to a subprogram")
+            .with_summary("subscribe", "Subscribes to messages from a subprogram")
     }
 }
