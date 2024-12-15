@@ -40,5 +40,6 @@ impl StandardCommandsLauncherExt for CommandLauncher<JsonParameter, CommandRespo
             .with_summary("send", "Sends messages to a subprogram")
             .with_summary("subscribe", "Subscribes to messages from a subprogram")
             .with_help("echo", String::from_utf8_lossy(include_bytes!("command-echo.md")))
+            .with_help("connect", String::from_utf8_lossy(include_bytes!("command-connect.md")))
     }
 }
