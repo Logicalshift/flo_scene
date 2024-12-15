@@ -143,6 +143,7 @@ impl SceneMessage for CommandHelp {
                 let mut subprograms = HashSet::new();
 
                 topics.insert("".to_string(), Topic { hidden: true, description: "Default help topic".into(), markdown: String::from_utf8_lossy(DEFAULT_MSG) });
+                topics.insert("syntax".to_string(), Topic { hidden: false, description: "Describes the syntax of the command interpreter".into(), markdown: String::from_utf8_lossy(include_bytes!("help-syntax.md")) });
                 topics.insert("commands".to_string(), Topic { hidden: false, description: "Describe the available commands".into(), markdown: "".into() });
                 topics.insert("flo_scene_version".to_string(), Topic { hidden: false, description: "Describe the version number of flo_scene that this was built on".into(), markdown: format!("flo_scene {}", env!("CARGO_PKG_VERSION")).into() });
 
