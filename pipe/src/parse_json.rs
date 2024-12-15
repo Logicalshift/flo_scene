@@ -1,4 +1,5 @@
 use crate::parser::*;
+use crate::commands::{CommandRequest};
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
@@ -15,11 +16,12 @@ pub enum JsonToken {
     Whitespace,
     Number,
     String,
-    Variable,
     True,
     False,
     Null,
     Character(char),
+
+    Variable,
 }
 
 ///
@@ -48,13 +50,35 @@ pub enum JsonParseError {
 ///
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum ParsedJson {
+    /// 'null'
     Null,
+
+    /// 'true' or 'false'
     Bool(bool),
+
+    /// Valid number
     Number(serde_json::Number),
+
+    /// "string"
     String(String),
+
+    /// [ ... ]
     Array(Vec<ParsedJson>),
+
+    /// { ... }
     Object(HashMap<String, ParsedJson>),
+
+    /// :my_var
     Variable(String),
+
+    /// <command>
+    Command(Box<CommandRequest>),
+
+    /// :object.key
+    ObjectAccess(Box<ParsedJson>, String),
+
+    /// :object[1]
+    ArrayAccess(Box<ParsedJson>, serde_json::Number),
 }
 
 ///
@@ -744,7 +768,10 @@ impl From<ParsedJson> for serde_json::Value {
         use serde_json::Value;
 
         match json {
-            Variable(_)     => Value::Null,
+            Variable(_)         => Value::Null,
+            Command(_)          => Value::Null,
+            ObjectAccess(_, _)  => Value::Null,
+            ArrayAccess(_, _)   => Value::Null,
 
             Null            => Value::Null,
             Bool(val)       => Value::Bool(val),

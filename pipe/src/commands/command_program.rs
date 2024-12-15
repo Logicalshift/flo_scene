@@ -177,6 +177,10 @@ impl CommandSession {
                         Err(CommandResponse::Error(format!("Variable '{}' is not defined", variable)))
                     }
                 }
+
+                Command(_)          => todo!(),
+                ObjectAccess(_, _)  => todo!(),
+                ArrayAccess(_, _)   => todo!(),
             }
         }.boxed()
     }
