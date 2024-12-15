@@ -1,5 +1,5 @@
 use crate::parser::*;
-use crate::commands::{CommandRequest};
+use crate::commands::{CommandRequest, command_parse};
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
@@ -43,6 +43,12 @@ pub enum JsonParseError {
 
     /// A value that the parser thought was valid JSON was rejected by serde (usually indicating an error in this parser)
     SerdeJsonError,
+
+    /// Usually indicates an error with the parser, we failed to 'converge' to a single value
+    ParserDidNotConverge,
+
+    /// Expected more input while parsing a substituted command
+    CommandExpectedMoreInput,
 }
 
 ///
@@ -78,7 +84,7 @@ pub enum ParsedJson {
     ObjectAccess(Box<ParsedJson>, String),
 
     /// :object[1]
-    ArrayAccess(Box<ParsedJson>, serde_json::Number),
+    ArrayAccess(Box<ParsedJson>, Box<ParsedJson>),
 }
 
 ///
@@ -96,6 +102,9 @@ pub enum JsonInputType {
     AfterArrayValue,
     String,
     Number,
+
+    StartOfCommand,
+    EndOfCommand,
 }
 
 impl<'a, TToken> From<&'a TokenMatch<TToken>> for JsonParseError 
@@ -146,6 +155,12 @@ impl From<ParserStackTooSmall> for JsonParseError {
 impl From<serde_json::Error> for JsonParseError {
     fn from(_err: serde_json::Error) -> JsonParseError {
         JsonParseError::SerdeJsonError
+    }
+}
+
+impl From<ParserDidNotConverge> for JsonParseError {
+    fn from(_err: ParserDidNotConverge) -> JsonParseError {
+        JsonParseError::ParserDidNotConverge
     }
 }
 
@@ -489,7 +504,9 @@ where
                 Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(true))?; Ok(()) },
                 Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
                 Some(Ok(JsonToken::Null))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Null)?; Ok(()) },
+
                 Some(Ok(JsonToken::Variable))       => { let fragment = lookahead.fragment.clone(); parser.accept_token()?.reduce(1, |_| ParsedJson::Variable(fragment))?; Ok(()) },
+
                 _                                   => Err(lookahead.into())
             }
         } else {
@@ -497,6 +514,88 @@ where
             Err(JsonParseError::ExpectedMoreInput(JsonInputType::StartOfValue))
         }
     }.boxed()
+}
+
+///
+/// Attempts to parse a JSON value starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
+/// (or returning an error state if the value is not recognised)
+///
+/// This version will add in command substitutions and accesses, but requires a command token stream
+///
+pub fn json_parse_value_with_substitutions<'a, TStream>(parser: &'a mut Parser<TokenMatch<CommandToken>, ParsedJson>, tokenizer: &'a mut Tokenizer<CommandToken, TStream>) -> BoxFuture<'a, Result<(), JsonParseError>>
+where
+    TStream:        Send + Stream<Item=Vec<u8>>,
+{
+    async move {
+        let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+
+        if let Some(lookahead) = lookahead {
+            // Decide which matcher to use based on the lookahead
+            let json_token = lookahead.token.clone().map(|token| token.try_into());
+
+            match json_token {
+                Some(Ok(JsonToken::String))         => json_parse_string(parser, tokenizer).await,
+                Some(Ok(JsonToken::Number))         => json_parse_number(parser, tokenizer).await,
+                Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer).await,
+                Some(Ok(JsonToken::Character('['))) => json_parse_array(parser, tokenizer).await,
+                Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(true))?; Ok(()) },
+                Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
+                Some(Ok(JsonToken::Null))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Null)?; Ok(()) },
+
+                Some(Ok(JsonToken::Variable))       => { let fragment = lookahead.fragment.clone(); parser.accept_token()?.reduce(1, |_| ParsedJson::Variable(fragment))?; Ok(()) },
+                Some(Ok(JsonToken::Character('<'))) => json_parse_command_substitution(parser, tokenizer).await,
+
+                _                                   => Err(lookahead.into())
+            }
+        } else {
+            // Error if there's no symbol
+            Err(JsonParseError::ExpectedMoreInput(JsonInputType::StartOfValue))
+        }
+    }.boxed()
+}
+
+///
+/// Parses a commmand substitution, contained within `<>` operators
+///
+/// This is an extension to JSON used by the command parser to make it possible to use the output of one command to build the JSON input for another
+///
+pub async fn json_parse_command_substitution<TStream>(parser: &mut Parser<TokenMatch<CommandToken>, ParsedJson>, tokenizer: &mut Tokenizer<CommandToken, TStream>) -> Result<(), JsonParseError>
+where
+    TStream:        Send + Stream<Item=Vec<u8>>,
+{
+    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::StartOfCommand)) };
+
+    if let Some(Ok(JsonToken::Character('<'))) = lookahead.token.clone().map(|token| token.try_into()) {
+        // Accept the '<'
+        parser.accept_token()?;
+
+        // Try to parse the following command
+        let mut command_parser = Parser::with_lookahead_from(parser);
+        command_parse(&mut command_parser, tokenizer).await?;
+
+        // Return the lookahead back to the original parser
+        parser.take_lookahead_from(&mut command_parser);
+
+        // Fetch the command value that this parses to, and append it to the stack (replacing the '<' token)
+        let command = command_parser.finish()?;
+        parser.reduce(1, |_| ParsedJson::Command(Box::new(command)))?;
+
+        // Should be followed by a '>', which we swallow
+        let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+        let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::EndOfCommand)) };
+        let lookahead_token = lookahead.token.and_then(|token| token.try_into().ok());
+
+        if lookahead_token == Some(JsonToken::Character('>')) {
+            parser.skip_token();
+        } else {
+            return Err(JsonParseError::UnexpectedToken(lookahead_token, lookahead.fragment.clone()));
+        }
+
+        Ok(())
+    } else {
+        Err(lookahead.into())
+    }
 }
 
 ///

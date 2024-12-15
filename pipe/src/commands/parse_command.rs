@@ -93,6 +93,19 @@ impl From<JsonParseError> for CommandParseError {
     }
 }
 
+impl From<CommandParseError> for JsonParseError {
+    fn from(err: CommandParseError) -> JsonParseError {
+        match err {
+            CommandParseError::JsonError(err)               => err,
+            CommandParseError::UnexpectedToken(token, msg)  => JsonParseError::UnexpectedToken(token.and_then(|token| token.try_into().ok()), msg),
+            CommandParseError::ExpectedMoreInput            => JsonParseError::CommandExpectedMoreInput,
+            CommandParseError::ParserStackTooSmall          => JsonParseError::ParserStackTooSmall,
+            CommandParseError::ParserDidNotConverge         => JsonParseError::ParserDidNotConverge,
+
+        }
+    }
+}
+
 impl From<JsonToken> for CommandToken {
     #[inline]
     fn from(token: JsonToken) -> Self {
@@ -341,7 +354,7 @@ where
                     Some(CommandToken::Json(_)) => {
                         // Convert to a JSON parser
                         let mut json_parser = Parser::with_lookahead_from(parser);
-                        json_parse_value(&mut json_parser, tokenizer).await?;
+                        json_parse_value_with_substitutions(&mut json_parser, tokenizer).await?;
 
                         // Restore any lookahead to the original parser
                         parser.take_lookahead_from(&mut json_parser);
@@ -527,7 +540,7 @@ where
 {
     // Create a JSON parser to read the following JSON value
     let mut json_parser = Parser::with_lookahead_from(parser);
-    json_parse_value(&mut json_parser, tokenizer).await?;
+    json_parse_value_with_substitutions(&mut json_parser, tokenizer).await?;
 
     // Restore any lookahead to the original parser
     parser.take_lookahead_from(&mut json_parser);
@@ -650,6 +663,22 @@ mod test {
     }
 
     #[test]
+    fn parse_argument_with_command_substitution() {
+        let argument        = stream::iter(r#"{ "key": <command "test"> }"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse_argument(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Command { command: CommandName("".to_string()), argument: json!{[1, 2, 3, 4]}.into() });
+        });
+    }
+
+    #[test]
     fn parse_command_without_arguments() {
         let argument        = stream::iter(r#"some::command"#.bytes()).ready_chunks(2);
         let mut tokenizer   = Tokenizer::new(argument);
@@ -668,6 +697,22 @@ mod test {
     #[test]
     fn parse_command_with_arguments() {
         let argument        = stream::iter(r#"some::command [ 1, 2, 3, 4 ]"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]}.into() });
+        });
+    }
+
+    #[test]
+    fn parse_command_with_command_substitution_argument() {
+        let argument        = stream::iter(r#"some::command <test::command "test">"#.bytes()).ready_chunks(2);
         let mut tokenizer   = Tokenizer::new(argument);
         let mut parser      = Parser::new();
 
@@ -862,6 +907,22 @@ mod test {
     #[test]
     fn parse_raw_json_3() {
         let json            = stream::iter(r#"{ "test": 1 } "#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(json);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::RawJson { value: json!{{"test": 1}}.into() }, "{:?}", result);
+        });
+    }
+
+    #[test]
+    fn parse_raw_json_4() {
+        let json            = stream::iter(r#"{ "test": <command "test"> } "#.bytes()).ready_chunks(2);
         let mut tokenizer   = Tokenizer::new(json);
         let mut parser      = Parser::new();
 
