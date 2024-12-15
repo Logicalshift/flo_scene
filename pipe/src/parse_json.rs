@@ -499,7 +499,7 @@ where
             match json_token {
                 Some(Ok(JsonToken::String))         => json_parse_string(parser, tokenizer).await,
                 Some(Ok(JsonToken::Number))         => json_parse_number(parser, tokenizer).await,
-                Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer).await,
+                Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer, |parser, tokenizer| json_parse_value(parser, tokenizer)).await,
                 Some(Ok(JsonToken::Character('['))) => json_parse_array(parser, tokenizer).await,
                 Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(true))?; Ok(()) },
                 Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
@@ -536,7 +536,7 @@ where
             match json_token {
                 Some(Ok(JsonToken::String))         => json_parse_string(parser, tokenizer).await,
                 Some(Ok(JsonToken::Number))         => json_parse_number(parser, tokenizer).await,
-                Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer).await,
+                Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer, |parser, tokenizer| json_parse_value_with_substitutions(parser, tokenizer)).await,
                 Some(Ok(JsonToken::Character('['))) => json_parse_array(parser, tokenizer).await,
                 Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(true))?; Ok(()) },
                 Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
@@ -602,7 +602,7 @@ where
 /// Attempts to parse a JSON object starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_object<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, ParsedJson>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
+pub async fn json_parse_object<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, ParsedJson>, tokenizer: &mut Tokenizer<TToken, TStream>, parse_value: impl for<'a> Fn(&'a mut Parser<TokenMatch<TToken>, ParsedJson>, &'a mut Tokenizer<TToken, TStream>) -> BoxFuture<'a, Result<(), JsonParseError>>) -> Result<(), JsonParseError>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
@@ -652,7 +652,7 @@ where
                     })?;
                     num_tokens += 1;
 
-                    json_parse_value(parser, tokenizer).await?;
+                    parse_value(parser, tokenizer).await?;
                     num_tokens += 1;
 
                     // ',' or '}'
