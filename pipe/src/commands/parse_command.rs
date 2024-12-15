@@ -958,6 +958,30 @@ mod test {
     }
 
     #[test]
+    fn parse_raw_json_5() {
+        let json            = stream::iter(r#"[ 1, <command "test"> ] "#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(json);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::RawJson { 
+                value: ParsedJson::Array(vec![
+                    json!{1}.into(),
+                    ParsedJson::Command(Box::new(CommandRequest::Command {
+                        command:    CommandName("command".into()),
+                        argument:   json!{"test"}.into()
+                    }))
+                ])
+            }, "{:?}", result);
+        });
+    }
+
+    #[test]
     fn parse_pipe_1() {
         let json            = stream::iter(r#"::command_1 | ::command_2"#.bytes()).ready_chunks(2);
         let mut tokenizer   = Tokenizer::new(json);
