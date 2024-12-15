@@ -18,6 +18,7 @@ See these topics for some more information on getting started with the command i
 | | |
 | - | - |
 | help "syntax" | Describes the syntax supported by the command interpreter |
+| help "pipes" | Provides some more details about how pipes work |
 | help "flo_scene_version" | Displays the version of flo_scene that is running |
 | help "commands" | Lists all of the commands that are available in the interpreter |
 | help "topics" | Produces an index of all of the other topics that are available in the help system |

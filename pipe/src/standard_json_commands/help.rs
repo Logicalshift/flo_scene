@@ -144,6 +144,7 @@ impl SceneMessage for CommandHelp {
 
                 topics.insert("".to_string(), Topic { hidden: true, description: "Default help topic".into(), markdown: String::from_utf8_lossy(DEFAULT_MSG) });
                 topics.insert("syntax".to_string(), Topic { hidden: false, description: "Describes the syntax of the command interpreter".into(), markdown: String::from_utf8_lossy(include_bytes!("help-syntax.md")) });
+                topics.insert("pipes".to_string(), Topic { hidden: false, description: "Provides some details about how pipes can be used".into(), markdown: String::from_utf8_lossy(include_bytes!("help-pipes.md")) });
                 topics.insert("commands".to_string(), Topic { hidden: false, description: "Describe the available commands".into(), markdown: "".into() });
                 topics.insert("flo_scene_version".to_string(), Topic { hidden: false, description: "Describe the version number of flo_scene that this was built on".into(), markdown: format!("flo_scene {}", env!("CARGO_PKG_VERSION")).into() });
 
