@@ -499,7 +499,7 @@ where
             match json_token {
                 Some(Ok(JsonToken::String))         => json_parse_string(parser, tokenizer).await,
                 Some(Ok(JsonToken::Number))         => json_parse_number(parser, tokenizer).await,
-                Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer, |parser, tokenizer| json_parse_value(parser, tokenizer)).await,
+                Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer, json_parse_value).await,
                 Some(Ok(JsonToken::Character('['))) => json_parse_array(parser, tokenizer).await,
                 Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(true))?; Ok(()) },
                 Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
@@ -536,7 +536,7 @@ where
             match json_token {
                 Some(Ok(JsonToken::String))         => json_parse_string(parser, tokenizer).await,
                 Some(Ok(JsonToken::Number))         => json_parse_number(parser, tokenizer).await,
-                Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer, |parser, tokenizer| json_parse_value_with_substitutions(parser, tokenizer)).await,
+                Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer, json_parse_value_with_substitutions).await,
                 Some(Ok(JsonToken::Character('['))) => json_parse_array(parser, tokenizer).await,
                 Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(true))?; Ok(()) },
                 Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
