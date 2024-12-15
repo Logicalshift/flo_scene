@@ -89,7 +89,9 @@ impl Formatter {
     pub fn newline(&mut self) {
         if self.pad_to_width {
             // Add spaces until this is the correct width
-            self.formatted_text.extend((0..(self.width-self.x_pos)).map(|_| ' '));
+            if self.x_pos < self.width {
+                self.formatted_text.extend((0..(self.width-self.x_pos)).map(|_| ' '));
+            }
         }
 
         self.preceding_ws = None;
