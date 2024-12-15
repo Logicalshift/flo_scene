@@ -499,7 +499,7 @@ where
             match json_token {
                 Some(Ok(JsonToken::String))         => json_parse_string(parser, tokenizer).await,
                 Some(Ok(JsonToken::Number))         => json_parse_number(parser, tokenizer).await,
-                Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer, json_parse_value).await,
+                Some(Ok(JsonToken::Character('{'))) => json_parse_object_with_parse_value(parser, tokenizer, json_parse_value).await,
                 Some(Ok(JsonToken::Character('['))) => json_parse_array(parser, tokenizer).await,
                 Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(true))?; Ok(()) },
                 Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
@@ -536,7 +536,7 @@ where
             match json_token {
                 Some(Ok(JsonToken::String))         => json_parse_string(parser, tokenizer).await,
                 Some(Ok(JsonToken::Number))         => json_parse_number(parser, tokenizer).await,
-                Some(Ok(JsonToken::Character('{'))) => json_parse_object(parser, tokenizer, json_parse_value_with_substitutions).await,
+                Some(Ok(JsonToken::Character('{'))) => json_parse_object_with_parse_value(parser, tokenizer, json_parse_value_with_substitutions).await,
                 Some(Ok(JsonToken::Character('['))) => json_parse_array(parser, tokenizer).await,
                 Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(true))?; Ok(()) },
                 Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
@@ -602,7 +602,25 @@ where
 /// Attempts to parse a JSON object starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
 /// (or returning an error state if the value is not recognised)
 ///
-pub async fn json_parse_object<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, ParsedJson>, tokenizer: &mut Tokenizer<TToken, TStream>, parse_value: impl for<'a> Fn(&'a mut Parser<TokenMatch<TToken>, ParsedJson>, &'a mut Tokenizer<TToken, TStream>) -> BoxFuture<'a, Result<(), JsonParseError>>) -> Result<(), JsonParseError>
+#[inline]
+pub async fn json_parse_object<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, ParsedJson>, tokenizer: &mut Tokenizer<TToken, TStream>) -> Result<(), JsonParseError>
+where
+    TStream:        Send + Stream<Item=Vec<u8>>,
+    TToken:         Clone + Send + TryInto<JsonToken>,
+    TToken::Error:  Send
+{
+    // Parses without command substitution as we're not generating a command (so don't have command tokens)
+    json_parse_object_with_parse_value(parser, tokenizer, json_parse_value).await
+}
+
+///
+/// Attempts to parse a JSON object starting at the current location in the tokenizer, leaving the result on top of the stack in the parser
+/// (or returning an error state if the value is not recognised)
+///
+/// This internal version of the function takes a parse_value parameter in order to determine which parser to use for recursive parsing.
+/// (This is used to make the command substitution work)
+///
+async fn json_parse_object_with_parse_value<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, ParsedJson>, tokenizer: &mut Tokenizer<TToken, TStream>, parse_value: impl for<'a> Fn(&'a mut Parser<TokenMatch<TToken>, ParsedJson>, &'a mut Tokenizer<TToken, TStream>) -> BoxFuture<'a, Result<(), JsonParseError>>) -> Result<(), JsonParseError>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
