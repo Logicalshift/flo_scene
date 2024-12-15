@@ -26,7 +26,7 @@ A `<Connection>` value is an enum that can have one of three value types:
 | "None" | For the source, indicates that no connection is actually being made. For the target, indicates that any messages sent to the stream should be discarded |
 | "Any" | For the source, indicates that all sources of this type should use this connection. For the target, indicates that the default target should be used, or that the stream should block until a specific target is chosen |
 | { "Program": { "Named": "ProgramName" } } | The source or target should be the program called `ProgramName` |
-| { "Program": { "Guid": "cfea9b01-78ce-4ab3-aad3-b7b10f642dc5" } } | The source or target should be a program named by a GUID |
+| { "Program": { "Guid": "..." } } | The source or target should be a program named by a GUID |
 
 ## Examples
 
