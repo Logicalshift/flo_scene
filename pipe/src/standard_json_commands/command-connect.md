@@ -28,6 +28,11 @@ A `<Connection>` value is an enum that can have one of three value types:
 | { "Program": { "Named": "ProgramName" } } | The source or target should be the program called `ProgramName` |
 | { "Program": { "Guid": "..." } } | The source or target should be a program named by a GUID |
 
+## Result
+
+The result is a `ConnectResponse`, which can either be the value `"Ok"` if the connection was made 
+correctly, or `{ "Error": <Message> }` if there was a problem establishing the requested connection.
+
 ## Examples
 
 ```
