@@ -674,7 +674,15 @@ mod test {
             command_parse_argument(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::Command { command: CommandName("".to_string()), argument: json!{[1, 2, 3, 4]}.into() });
+            assert!(result == CommandRequest::Command { 
+                command:    CommandName("".to_string()), 
+                argument:   ParsedJson::Object(vec![
+                    ("key".into(), ParsedJson::Command(Box::new(CommandRequest::Command {
+                        command:    CommandName("command".into()),
+                        argument:   json!{"test"}.into(),
+                    })))
+                ].into_iter().collect())
+            });
         });
     }
 
@@ -938,7 +946,14 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::RawJson { value: json!{{"test": 1}}.into() }, "{:?}", result);
+            assert!(result == CommandRequest::RawJson { 
+                value: ParsedJson::Object(vec![
+                    ("test".into(), ParsedJson::Command(Box::new(CommandRequest::Command {
+                        command:    CommandName("command".into()),
+                        argument:   json!{"test"}.into()
+                    })))
+                ].into_iter().collect())
+            }, "{:?}", result);
         });
     }
 
