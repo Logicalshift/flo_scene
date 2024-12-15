@@ -722,7 +722,13 @@ mod test {
             command_parse(&mut parser, &mut tokenizer).await.unwrap();
             let result = parser.finish().unwrap();
 
-            assert!(result == CommandRequest::Command { command: CommandName("some::command".to_string()), argument: json!{[1, 2, 3, 4]}.into() });
+            assert!(result == CommandRequest::Command { 
+                command:    CommandName("some::command".to_string()), 
+                argument:   ParsedJson::Command(Box::new(CommandRequest::Command {
+                    command:    CommandName("test::command".into()),
+                    argument:   json!{"test"}.into()
+                })) 
+            });
         });
     }
 
