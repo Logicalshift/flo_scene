@@ -178,7 +178,42 @@ impl CommandSession {
                     }
                 }
 
-                Command(_)          => todo!(),
+                Command(request) => {
+                    let request_copy = request.clone();
+
+                    // Evaluate the command
+                    let mut request_result = self.evaluate_request(*request, context).await;
+
+                    // The argument is the first JSON response, if there is one
+                    let mut error_response  = None;
+                    let mut json_response   = None;
+
+                    while let Some(response) = request_result.next().await {
+                        match response {
+                            CommandResponse::Json(value) => {
+                                if json_response.is_none() {
+                                    json_response = Some(value);
+                                }
+                            }
+
+                            CommandResponse::Error(err) => {
+                                error_response = Some(err);
+                            }
+
+                            _ => { /* Other response types (streams, messages, etc) are ignored and not output */ }
+                        }
+                    }
+
+                    if let Some(error_response) = error_response {
+                        Err(CommandResponse::Error(error_response))
+                    } else if let Some(json_response) = json_response {
+                        Ok(json_response)
+                    } else {
+                        Err(CommandResponse::Error(format!("Command '{}' used in a substitution did not produce a JSON result", request_copy.summary_description())))
+                    }
+                },
+
+
                 ObjectAccess(_, _)  => todo!(),
                 ArrayAccess(_, _)   => todo!(),
             }
