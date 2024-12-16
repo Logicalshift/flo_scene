@@ -99,6 +99,19 @@ impl CommandRequest {
 
         Ok(parser.finish()?)
     }
+
+    ///
+    /// Returns a summary description of this command request
+    ///
+    pub fn summary_description(&self) -> String {
+        match self {
+            CommandRequest::Command { command, .. }     => command.0.clone(),
+            CommandRequest::RawJson { .. }              => "json".into(),
+            CommandRequest::Pipe { from, to }           => format!("{} | {}", from.summary_description(), to.summary_description()),
+            CommandRequest::Assign { from, .. }         => from.summary_description(),
+            CommandRequest::ForTarget { request, .. }   => request.summary_description(),
+        }
+    }
 }
 
 impl Into<String> for VariableName {
