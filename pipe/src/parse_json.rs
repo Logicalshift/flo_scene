@@ -617,114 +617,136 @@ where
 /// This internal version of the function takes a parse_value parameter in order to determine which parser to use for recursive parsing.
 /// (This is used to make the command substitution work)
 ///
-async fn json_parse_object_with_parse_value<TStream, TToken>(parser: &mut Parser<TokenMatch<TToken>, ParsedJson>, tokenizer: &mut Tokenizer<TToken, TStream>, parse_value: impl for<'a> Fn(&'a mut Parser<TokenMatch<TToken>, ParsedJson>, &'a mut Tokenizer<TToken, TStream>) -> BoxFuture<'a, Result<(), JsonParseError>>) -> Result<(), JsonParseError>
+fn json_parse_object_with_parse_value<'b, TStream, TToken>(
+    parser: &'b mut Parser<TokenMatch<TToken>, ParsedJson>, 
+    tokenizer: &'b mut Tokenizer<TToken, TStream>, 
+    parse_value: impl 'b + Send + for<'a> Fn(&'a mut Parser<TokenMatch<TToken>, ParsedJson>, &'a mut Tokenizer<TToken, TStream>) -> BoxFuture<'a, Result<(), JsonParseError>>) 
+-> BoxFuture<'b, Result<(), JsonParseError>>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
     TToken:         Clone + Send + TryInto<JsonToken>,
     TToken::Error:  Send
 {
-    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::StartOfObject)) };
+    async move {
+        let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+        let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::StartOfObject)) };
 
-    if let Some(Ok(JsonToken::Character('{'))) = lookahead.token.clone().map(|token| token.try_into()) {
-        // Accept the initial '{'
-        parser.accept_token()?;
+        if let Some(Ok(JsonToken::Character('{'))) = lookahead.token.clone().map(|token| token.try_into()) {
+            // Accept the initial '{'
+            parser.accept_token()?;
 
-        let mut num_tokens = 1;
+            let mut num_tokens = 1;
 
-        loop {
-            // Look to the next value to decide what to do
-            let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-            let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::ObjectValues)) };
+            loop {
+                // Look to the next value to decide what to do
+                let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+                let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::ObjectValues)) };
 
-            match lookahead.token.clone().map(|token| token.try_into()) {
-                Some(Ok(JsonToken::Character('}'))) => {
-                    // '}' Finishes the object successfully
-                    parser.accept_token()?;
-                    num_tokens += 1;
-                    break;
-                },
+                match lookahead.token.clone().map(|token| token.try_into()) {
+                    Some(Ok(JsonToken::Character('}'))) => {
+                        // '}' Finishes the object successfully
+                        parser.accept_token()?;
+                        num_tokens += 1;
+                        break;
+                    },
 
-                Some(Ok(JsonToken::String)) => {
-                    // <String> : <Value>
-                    parser.accept_token()?;
-                    parser.reduce(1, |string| {
-                            match serde_json::from_str(&string[0].token().unwrap().fragment).unwrap() {
-                                serde_json::Value::String(val)  => ParsedJson::String(val),
-                                _                               => ParsedJson::String("".into())
+                    Some(Ok(JsonToken::String)) => {
+                        // <String> : <Value>
+                        parser.accept_token()?;
+                        parser.reduce(1, |string| {
+                                match serde_json::from_str(&string[0].token().unwrap().fragment).unwrap() {
+                                    serde_json::Value::String(val)  => ParsedJson::String(val),
+                                    _                               => ParsedJson::String("".into())
+                                }
+                            })?;
+                        num_tokens += 1;
+
+                        // ... ':'
+                        parser.ensure_lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+                        parser.accept_expected_token(|token| {
+                            if let Some(Ok(JsonToken::Character(':'))) = token.token.clone().map(|token| token.try_into()) {
+                                true
+                            } else {
+                                false
                             }
                         })?;
-                    num_tokens += 1;
+                        num_tokens += 1;
 
-                    // ... ':'
-                    parser.ensure_lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-                    parser.accept_expected_token(|token| {
-                        if let Some(Ok(JsonToken::Character(':'))) = token.token.clone().map(|token| token.try_into()) {
-                            true
-                        } else {
-                            false
+                        parse_value(parser, tokenizer).await?;
+                        num_tokens += 1;
+
+                        // ',' or '}'
+                        let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+                        let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::AfterObjectValue)) };
+
+                        let json_token = lookahead.token.clone().map(|token| token.try_into());
+                        match json_token {
+                            Some(Ok(JsonToken::Character('}'))) => {
+                                // Ends the object
+                                parser.accept_token()?;
+                                num_tokens += 1;
+                                break;
+                            }
+
+                            Some(Ok(JsonToken::Character(','))) => {
+                                // More fields
+                                parser.accept_token()?;
+                                num_tokens += 1;
+                            }
+
+                            _ => {
+                                // Unexpected value
+                                return Err(lookahead.into());
+                            }
                         }
-                    })?;
-                    num_tokens += 1;
+                    },
 
-                    parse_value(parser, tokenizer).await?;
-                    num_tokens += 1;
-
-                    // ',' or '}'
-                    let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-                    let lookahead = if let Some(lookahead) = lookahead { lookahead } else { return Err(JsonParseError::ExpectedMoreInput(JsonInputType::AfterObjectValue)) };
-
-                    let json_token = lookahead.token.clone().map(|token| token.try_into());
-                    match json_token {
-                        Some(Ok(JsonToken::Character('}'))) => {
-                            // Ends the object
-                            parser.accept_token()?;
-                            num_tokens += 1;
-                            break;
-                        }
-
-                        Some(Ok(JsonToken::Character(','))) => {
-                            // More fields
-                            parser.accept_token()?;
-                            num_tokens += 1;
-                        }
-
-                        _ => {
-                            // Unexpected value
-                            return Err(lookahead.into());
-                        }
+                    _ => {
+                        return Err(lookahead.into());
                     }
-                },
-
-                _ => {
-                    return Err(lookahead.into());
                 }
             }
+
+            // Reduce the object to a value
+            parser.reduce(num_tokens, |fields| {
+                let values = fields.into_iter()
+                    .skip(1)
+                    .tuples()
+                    .map(|(key, _colon, value, _comma_or_brace)| {
+                        // Key should be a string node
+                        let key = match key.to_node() {
+                            Some(ParsedJson::String(key))   => key,
+                            _                               => panic!(),
+                        };
+
+                        (key, value.to_node().unwrap())
+                    });
+
+                ParsedJson::Object(values.collect())
+            })?;
+
+            // '[' turns this object into an accessor
+            let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+            if lookahead.as_ref().and_then(|lookahead| lookahead.token.clone()).and_then(|token| token.try_into().ok()) == Some(JsonToken::Character('[')) {
+                // Accept the '['
+                parser.accept_token();
+
+                // Parse the index expression
+                todo!();
+
+                // Accept the ']'
+                todo!();
+
+                // Reduce to an array access
+                todo!();
+            }
+
+            Ok(())
+        } else {
+            // Doesn't start with '{'
+            Err(lookahead.into())
         }
-
-        // Reduce the object to a value
-        parser.reduce(num_tokens, |fields| {
-            let values = fields.into_iter()
-                .skip(1)
-                .tuples()
-                .map(|(key, _colon, value, _comma_or_brace)| {
-                    // Key should be a string node
-                    let key = match key.to_node() {
-                        Some(ParsedJson::String(key))   => key,
-                        _                               => panic!(),
-                    };
-
-                    (key, value.to_node().unwrap())
-                });
-
-            ParsedJson::Object(values.collect())
-        })?;
-
-        Ok(())
-    } else {
-        // Doesn't start with '{'
-        Err(lookahead.into())
-    }
+    }.boxed()
 }
 
 ///
