@@ -783,11 +783,8 @@ mod test {
 
             assert!(result == CommandRequest::Command { 
                 command:    CommandName("some::command".to_string()), 
-                argument:   ParsedJson::Command(Box::new(CommandRequest::Command {
-                    command:    CommandName("test::command".into()),
-                    argument:   json!{"test"}.into()
-                })) 
-            });
+                argument:   ParsedJson::ArrayAccess(Box::new(json!( { "Key": "value" }).into()), Box::new(json!{"Key"}.into()))
+            }, "{:?}", result);
         });
     }
 
