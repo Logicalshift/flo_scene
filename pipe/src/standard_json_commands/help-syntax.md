@@ -23,6 +23,19 @@ As an extension to the JSON syntax, variables can be subsitituted into JSON valu
    }
 ```
 
+# Substitution
+
+Commands that return JSON values can have those values substituted into parameters using the '<>' syntax.
+For example, `echo <list_commands>` will write the JSON result of the `list_commands` command to the output.
+This can also be used as part of the JSON syntax:
+
+```
+> echo { "Key": <list_commands> }
+   {
+     "Key": [ ... ]
+   }
+```
+
 # Pipes
 
 Pipes are used to connect the output of one command to the input of another. They are mostly useful
