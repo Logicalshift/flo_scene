@@ -212,9 +212,7 @@ impl CommandSession {
                     }
                 },
 
-
-                ObjectAccess(_, _)  => todo!(),
-                ArrayAccess(_, _)   => todo!(),
+                ArrayAccess(_, _) => todo!(),
             }
         }.boxed()
     }

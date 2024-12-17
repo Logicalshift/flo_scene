@@ -80,10 +80,7 @@ pub enum ParsedJson {
     /// <command>
     Command(Box<CommandRequest>),
 
-    /// :object.key
-    ObjectAccess(Box<ParsedJson>, String),
-
-    /// :object[1]
+    /// :object[1] or :object["Key"]
     ArrayAccess(Box<ParsedJson>, Box<ParsedJson>),
 }
 
@@ -904,7 +901,6 @@ impl From<ParsedJson> for serde_json::Value {
         match json {
             Variable(_)         => Value::Null,
             Command(_)          => Value::Null,
-            ObjectAccess(_, _)  => Value::Null,
             ArrayAccess(_, _)   => Value::Null,
 
             Null            => Value::Null,
