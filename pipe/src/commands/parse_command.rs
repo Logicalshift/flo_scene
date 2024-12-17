@@ -431,6 +431,13 @@ where
         let maybe_argument = parser.lookahead(0, tokenizer, |tokenizer| command_read_token(tokenizer).boxed()).await;
         if let Some(maybe_argument) = maybe_argument {
             match maybe_argument.token {
+                Some(CommandToken::Json(JsonToken::Character('>'))) => {
+                    parser.reduce(1, |cmd| {
+                        let name = cmd[0].token().unwrap().fragment.clone();
+                        CommandRequest::Command { command: CommandName(name), argument: ParsedJson::Null }
+                    })?;
+                }
+
                 Some(CommandToken::Json(_)) | Some(CommandToken::Variable) => {
                     // Argument is a JSON value which may be followed by a pipe or an equals
                     command_parse_argument(parser, tokenizer).await?;
