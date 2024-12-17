@@ -138,7 +138,6 @@ impl CommandSession {
     /// Return value is the substituted variable or an error response
     ///
     pub fn substitute_variables<'a>(&'a self, parsed_json: ParsedJson, context: &'a SceneContext) -> BoxFuture<'a, Result<serde_json::Value, CommandResponse>> {
-        // TODO: a way to have `command { }` type substitutions
         async move {
             use ParsedJson::*;
             use serde_json::Value;
