@@ -770,6 +770,28 @@ mod test {
     }
 
     #[test]
+    fn parse_command_with_indexing() {
+        let argument        = stream::iter(r#"some::command { "Key": "value" }["Key"]"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Command { 
+                command:    CommandName("some::command".to_string()), 
+                argument:   ParsedJson::Command(Box::new(CommandRequest::Command {
+                    command:    CommandName("test::command".into()),
+                    argument:   json!{"test"}.into()
+                })) 
+            });
+        });
+    }
+
+    #[test]
     fn parse_command_with_arguments_and_newline() {
         let argument        = stream::iter("some::command [ 1, 2, 3, 4 ]\n".bytes()).ready_chunks(2);
         let mut tokenizer   = Tokenizer::new(argument);
