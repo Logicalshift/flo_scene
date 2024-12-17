@@ -417,3 +417,36 @@ pub fn pipe_command_chain() {
     TestBuilder::new()
         .run_in_scene(&scene, test_subprogram);
 }
+
+#[test]
+fn substitute_parameter() {
+    let scene               = Scene::default().with_standard_json_commands();
+    let test_subprogram     = SubProgramId::called("test");
+    let command_subprogram  = SubProgramId::called("command");
+    let internal_socket     = SubProgramId::called("send_internal_socket");
+
+    // Create a launcher with some simple mathematical functions that take their values as integers
+    let launcher = CommandLauncher::json()
+        .with_json_command("::add_one", |param: i64, _context| async move {
+            CommandResponse::Json(json!{param + 1})
+        }).with_json_command("::double", |param: i64, _context| async move {
+            CommandResponse::Json(json!{param * 2})
+        });
+    scene.add_subprogram(command_subprogram, launcher.to_subprogram(), 1);
+
+    // Pipe between the two commands using the interpreter
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#"::add_one <::double <::add_one 4>>
+        "#, 
+        |msg, _| async move {
+            // We're hard-coding the JSON formatting here which might not always be consistent (many formats can communicate the same message)
+            println!("Msg is {:?}", msg);
+            assert!(msg.contains(r#" 11
+"#));
+        });
+
+    // Pipe from one command to another and check the results
+    TestBuilder::new()
+        .run_in_scene(&scene, test_subprogram);
+}
