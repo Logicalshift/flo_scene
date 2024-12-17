@@ -726,19 +726,39 @@ where
             })?;
 
             // '[' turns this object into an accessor
-            let lookahead = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-            if lookahead.as_ref().and_then(|lookahead| lookahead.token.clone()).and_then(|token| token.try_into().ok()) == Some(JsonToken::Character('[')) {
+            let lookahead_token = {
+                let lookahead       = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+                let lookahead_token = lookahead.as_ref().and_then(|lookahead| lookahead.token.clone()).and_then(|token| token.try_into().ok());
+                lookahead_token.clone()
+            };
+
+            if lookahead_token == Some(JsonToken::Character('[')) {
                 // Accept the '['
-                parser.accept_token();
+                parser.accept_token()?;
 
                 // Parse the index expression
-                todo!();
+                parse_value(parser, tokenizer).await?;
 
                 // Accept the ']'
-                todo!();
+                let lookahead       = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+                let lookahead_token = lookahead.as_ref().and_then(|lookahead| lookahead.token.clone()).and_then(|token| token.try_into().ok());
+
+                if lookahead_token != Some(JsonToken::Character(']')) {
+                    return Err(JsonParseError::UnexpectedToken(lookahead_token.clone(), lookahead.as_ref().unwrap().fragment.clone()));
+                }
+                parser.accept_token()?;
 
                 // Reduce to an array access
-                todo!();
+                parser.reduce(4, |tokens| {
+                    let mut tokens      = tokens;
+
+                    let _close_bracket  = tokens.pop().unwrap();
+                    let index           = tokens.pop().unwrap().to_node().unwrap();
+                    let _open_bracket   = tokens.pop().unwrap();
+                    let expr            = tokens.pop().unwrap().to_node().unwrap();
+
+                    ParsedJson::ArrayAccess(Box::new(expr), Box::new(index))
+                })?;
             }
 
             Ok(())
