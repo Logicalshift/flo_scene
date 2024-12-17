@@ -687,6 +687,28 @@ mod test {
     }
 
     #[test]
+    fn parse_argument_with_command_substitution_without_arguments() {
+        let argument        = stream::iter(r#"<command>"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse_argument(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Command {
+                command:    CommandName("".to_string()), 
+                argument:   ParsedJson::Command(Box::new(CommandRequest::Command {
+                    command:    CommandName("command".into()),
+                    argument:   serde_json::Value::Null.into(),
+                }))
+            });
+        });
+    }
+
+    #[test]
     fn parse_command_without_arguments() {
         let argument        = stream::iter(r#"some::command"#.bytes()).ready_chunks(2);
         let mut tokenizer   = Tokenizer::new(argument);
