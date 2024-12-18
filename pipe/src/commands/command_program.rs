@@ -212,7 +212,35 @@ impl CommandSession {
                     }
                 },
 
-                ArrayAccess(_, _) => todo!(),
+                ArrayAccess(value, index) => {
+                    // Evaluate the LHS and the RHS
+                    let value = self.substitute_variables(*value, context).await?;
+                    let index = self.substitute_variables(*index, context).await?;
+
+                    // Index should be a valid indexer into the value: behaviour depends on the type of value
+                    use serde_json::Value;
+                    match value {
+                        Value::Array(array) => {
+                            if let Some(index_num) = index.as_i64() {
+                                if index_num < 0 {
+                                    Err(CommandResponse::Error(format!("{:?} must be >0 to index an array", index)))
+                                } else if index_num >= array.len() as _ {
+                                    Err(CommandResponse::Error(format!("{:?} is out of bounds of the array (must be less than {})", index, array.len())))
+                                } else {
+                                    // TODO: mutating the array is wasted time here, but I don't think rust has a 'turn array into just this one value that we want' function
+                                    let mut array = array;
+                                    Ok(array.remove(index_num as usize))
+                                }
+                            } else {
+                                Err(CommandResponse::Error(format!("{:?} must be a number to index an array", index)))
+                            }
+                        }
+
+                        value => {
+                            Err(CommandResponse::Error(format!("{:?} is not a valid type for an indexer", value)))
+                        }
+                    }
+                },
             }
         }.boxed()
     }
