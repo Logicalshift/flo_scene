@@ -354,7 +354,7 @@ where
                     Some(CommandToken::Json(_)) => {
                         // Convert to a JSON parser
                         let mut json_parser = Parser::with_lookahead_from(parser);
-                        json_parse_value_with_substitutions(&mut json_parser, tokenizer).await?;
+                        json_parse_value_with_extensions(&mut json_parser, tokenizer).await?;
 
                         // Restore any lookahead to the original parser
                         parser.take_lookahead_from(&mut json_parser);
@@ -547,7 +547,7 @@ where
 {
     // Create a JSON parser to read the following JSON value
     let mut json_parser = Parser::with_lookahead_from(parser);
-    json_parse_value_with_substitutions(&mut json_parser, tokenizer).await?;
+    json_parse_value_with_extensions(&mut json_parser, tokenizer).await?;
 
     // Restore any lookahead to the original parser
     parser.take_lookahead_from(&mut json_parser);

@@ -519,7 +519,7 @@ where
 ///
 /// This version will add in command substitutions and accesses, but requires a command token stream
 ///
-pub fn json_parse_value_with_substitutions<'a, TStream>(parser: &'a mut Parser<TokenMatch<CommandToken>, ParsedJson>, tokenizer: &'a mut Tokenizer<CommandToken, TStream>) -> BoxFuture<'a, Result<(), JsonParseError>>
+pub fn json_parse_value_with_extensions<'a, TStream>(parser: &'a mut Parser<TokenMatch<CommandToken>, ParsedJson>, tokenizer: &'a mut Tokenizer<CommandToken, TStream>) -> BoxFuture<'a, Result<(), JsonParseError>>
 where
     TStream:        Send + Stream<Item=Vec<u8>>,
 {
@@ -533,8 +533,8 @@ where
             match json_token {
                 Some(Ok(JsonToken::String))         => json_parse_string(parser, tokenizer).await,
                 Some(Ok(JsonToken::Number))         => json_parse_number(parser, tokenizer).await,
-                Some(Ok(JsonToken::Character('{'))) => json_parse_object_with_parse_value(parser, tokenizer, json_parse_value_with_substitutions).await,
-                Some(Ok(JsonToken::Character('['))) => json_parse_array_with_parse_value(parser, tokenizer, json_parse_value_with_substitutions).await,
+                Some(Ok(JsonToken::Character('{'))) => json_parse_object_with_parse_value(parser, tokenizer, json_parse_value_with_extensions).await,
+                Some(Ok(JsonToken::Character('['))) => json_parse_array_with_parse_value(parser, tokenizer, json_parse_value_with_extensions).await,
                 Some(Ok(JsonToken::True))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(true))?; Ok(()) },
                 Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
                 Some(Ok(JsonToken::Null))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Null)?; Ok(()) },
@@ -559,7 +559,7 @@ where
                 parser.accept_token()?;
 
                 // Parse the index expression
-                json_parse_value_with_substitutions(parser, tokenizer).await?;
+                json_parse_value_with_extensions(parser, tokenizer).await?;
 
                 // Accept the ']'
                 let lookahead       = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
