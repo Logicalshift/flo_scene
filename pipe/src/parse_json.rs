@@ -546,7 +546,8 @@ where
             }?;
 
             // '[' turns this value into an accessor
-            // (Only for the version with substitutions here; this will work with the 'normal' version but we end up with a bunch of duplicated code)
+            // (Only for the version with substitutions here; this will work with the 'normal' version but we end up with a bunch of duplicated code
+            // - the other version is used with IoStreams mainly where we don't want any extensions to JSON in any case)
             let lookahead_token = {
                 let lookahead       = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
                 let lookahead_token = lookahead.as_ref().and_then(|lookahead| lookahead.token.clone()).and_then(|token| token.try_into().ok());
