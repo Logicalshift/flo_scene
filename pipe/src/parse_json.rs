@@ -570,39 +570,43 @@ where
             // '[' turns this value into an accessor
             // (Only for the version with substitutions here; this will work with the 'normal' version but we end up with a bunch of duplicated code
             // - the other version is used with IoStreams mainly where we don't want any extensions to JSON in any case)
-            let lookahead_token = {
-                let lookahead       = parser.lookahead(0, tokenizer, |tokenizer| json_read_token_or_newline(tokenizer).boxed()).await;
-                let lookahead_token = lookahead.as_ref().and_then(|lookahead| lookahead.token.clone()).and_then(|token| token.try_into().ok());
-                lookahead_token.clone()
-            };
+            loop {
+                let lookahead_token = {
+                    let lookahead       = parser.lookahead(0, tokenizer, |tokenizer| json_read_token_or_newline(tokenizer).boxed()).await;
+                    let lookahead_token = lookahead.as_ref().and_then(|lookahead| lookahead.token.clone()).and_then(|token| token.try_into().ok());
+                    lookahead_token.clone()
+                };
 
-            if lookahead_token == Some(JsonToken::Character('[')) {
-                // Accept the '['
-                parser.accept_token()?;
+                if lookahead_token == Some(JsonToken::Character('[')) {
+                    // Accept the '['
+                    parser.accept_token()?;
 
-                // Parse the index expression
-                json_parse_value_with_extensions(parser, tokenizer).await?;
+                    // Parse the index expression
+                    json_parse_value_with_extensions(parser, tokenizer).await?;
 
-                // Accept the ']'
-                let lookahead       = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
-                let lookahead_token = lookahead.as_ref().and_then(|lookahead| lookahead.token.clone()).and_then(|token| token.try_into().ok());
+                    // Accept the ']'
+                    let lookahead       = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+                    let lookahead_token = lookahead.as_ref().and_then(|lookahead| lookahead.token.clone()).and_then(|token| token.try_into().ok());
 
-                if lookahead_token != Some(JsonToken::Character(']')) {
-                    return Err(JsonParseError::UnexpectedToken(lookahead_token.clone(), lookahead.as_ref().unwrap().fragment.clone()));
+                    if lookahead_token != Some(JsonToken::Character(']')) {
+                        return Err(JsonParseError::UnexpectedToken(lookahead_token.clone(), lookahead.as_ref().unwrap().fragment.clone()));
+                    }
+                    parser.accept_token()?;
+
+                    // Reduce to an array access
+                    parser.reduce(4, |tokens| {
+                        let mut tokens      = tokens;
+
+                        let _close_bracket  = tokens.pop().unwrap();
+                        let index           = tokens.pop().unwrap().to_node().unwrap();
+                        let _open_bracket   = tokens.pop().unwrap();
+                        let expr            = tokens.pop().unwrap().to_node().unwrap();
+
+                        ParsedJson::ArrayAccess(Box::new(expr), Box::new(index))
+                    })?;
+                } else {
+                    break;
                 }
-                parser.accept_token()?;
-
-                // Reduce to an array access
-                parser.reduce(4, |tokens| {
-                    let mut tokens      = tokens;
-
-                    let _close_bracket  = tokens.pop().unwrap();
-                    let index           = tokens.pop().unwrap().to_node().unwrap();
-                    let _open_bracket   = tokens.pop().unwrap();
-                    let expr            = tokens.pop().unwrap().to_node().unwrap();
-
-                    ParsedJson::ArrayAccess(Box::new(expr), Box::new(index))
-                })?;
             }
 
             Ok(())
