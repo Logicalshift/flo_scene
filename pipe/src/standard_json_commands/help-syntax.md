@@ -23,6 +23,26 @@ As an extension to the JSON syntax, variables can be subsitituted into JSON valu
    }
 ```
 
+Note that a 'bare' variable is a command rather than a raw JSON statement, so they will behave a little
+strangely in some circumstances. This is because variable names are also valid command names:
+
+```
+> :foo 2
+
+!!! CommandNotFound(":foo")
+
+
+> :foo = 3
+   Result assigned to `:foo`
+
+
+> :foo 2
+3
+
+> :foo[2]
+3
+```
+
 # Substitution
 
 Commands that return JSON values can have those values substituted into parameters using the '<>' syntax.
