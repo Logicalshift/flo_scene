@@ -50,6 +50,9 @@ variables or substituted commands:
 > <list_commands>[1]["name"]
 "query"
 
+> :commands = <list_commands>
+> echo :commands[1]["name"]
+   query
 ```
 
 # Pipes
