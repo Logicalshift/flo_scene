@@ -14,6 +14,7 @@ use std::collections::{HashMap};
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum JsonToken {
     Whitespace,
+    Newline,
     Number,
     String,
     True,
@@ -179,7 +180,7 @@ pub (crate) fn match_whitespace(lookahead: &str, eof: bool) -> TokenMatchResult<
             while let Some(chr) = chrs.next() {
                 if chr == '\n' || chr == '\r' {
                     // We end early on newlines to allow for interactive parsing
-                    return TokenMatchResult::Matches(JsonToken::Whitespace, len + 1);
+                    return TokenMatchResult::Matches(JsonToken::Newline, len + 1);
                 }
 
                 if !chr.is_whitespace() {
@@ -425,6 +426,7 @@ where
 
         match self {
             Whitespace      => match_whitespace(lookahead, eof).into(),
+            Newline         => match_whitespace(lookahead, eof).into(),
             Number          => match_number(lookahead, eof).into(),
             Character(_)    => match_character(lookahead, eof).into(),
             String          => match_string(lookahead, eof).into(),
@@ -459,6 +461,28 @@ where
 /// Reads a JSON token from the tokenizer
 ///
 pub async fn json_read_token<TStream, TToken>(tokenizer: &mut Tokenizer<TToken, TStream>) -> Option<TokenMatch<TToken>>
+where
+    TStream:    Send + Stream<Item=Vec<u8>>,
+    TToken:     Clone + Send + TryInto<JsonToken>,
+{
+    loop {
+        // Acquire a token from the tokenizer
+        let next_match = tokenizer.match_token().await?;
+
+        // Skip over whitespace, then return the first 'sold' value
+        match next_match.token.clone()?.try_into() {
+            Ok(JsonToken::Whitespace)   => { }
+            Ok(JsonToken::Newline)      => { }
+            Ok(_)                       => { break Some(next_match); }
+            Err(_)                      => { break Some(next_match); }
+        }
+    }
+}
+
+///
+/// Reads a JSON token from the tokenizer, including any newlines that are encountered
+///
+pub async fn json_read_token_or_newline<TStream, TToken>(tokenizer: &mut Tokenizer<TToken, TStream>) -> Option<TokenMatch<TToken>>
 where
     TStream:    Send + Stream<Item=Vec<u8>>,
     TToken:     Clone + Send + TryInto<JsonToken>,
@@ -547,7 +571,7 @@ where
             // (Only for the version with substitutions here; this will work with the 'normal' version but we end up with a bunch of duplicated code
             // - the other version is used with IoStreams mainly where we don't want any extensions to JSON in any case)
             let lookahead_token = {
-                let lookahead       = parser.lookahead(0, tokenizer, |tokenizer| json_read_token(tokenizer).boxed()).await;
+                let lookahead       = parser.lookahead(0, tokenizer, |tokenizer| json_read_token_or_newline(tokenizer).boxed()).await;
                 let lookahead_token = lookahead.as_ref().and_then(|lookahead| lookahead.token.clone()).and_then(|token| token.try_into().ok());
                 lookahead_token.clone()
             };
@@ -1199,7 +1223,7 @@ mod test {
     #[test]
     pub fn match_whitespace_stops_at_newline() {
         let match_result = match_whitespace("  \n  1234", true);
-        assert!(match_result == TokenMatchResult::Matches(JsonToken::Whitespace, 3), "{:?}", match_result);
+        assert!(match_result == TokenMatchResult::Matches(JsonToken::Newline, 3), "{:?}", match_result);
     }
 
     #[test]

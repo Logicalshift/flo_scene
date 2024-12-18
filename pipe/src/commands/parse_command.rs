@@ -122,7 +122,7 @@ impl TryInto<JsonToken> for CommandToken {
             CommandToken::Json(token)   => Ok(token),
             CommandToken::Variable      => Ok(JsonToken::Variable),
             CommandToken::Comment       => Ok(JsonToken::Whitespace),
-            CommandToken::Newline       => Ok(JsonToken::Whitespace),
+            CommandToken::Newline       => Ok(JsonToken::Newline),
             other                       => Err(other),
         }
     }
@@ -139,7 +139,8 @@ impl TokenMatcher<CommandToken> for CommandToken {
             CommandToken::Equals    => if lookahead.starts_with("=") { TokenMatchResult::Matches(CommandToken::Equals, 1) } else { TokenMatchResult::LookaheadCannotMatch },
             CommandToken::Newline   => {
                 match match_whitespace(lookahead, eof) {
-                    TokenMatchResult::Matches(JsonToken::Whitespace, count) => {
+                    TokenMatchResult::Matches(JsonToken::Whitespace, count) |
+                    TokenMatchResult::Matches(JsonToken::Newline, count)    => {
                         if lookahead.as_bytes()[count-1] == b'\n' || lookahead.as_bytes()[count-1] == b'\r' {
                             TokenMatchResult::Matches(CommandToken::Newline, count)
                         } else {
