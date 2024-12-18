@@ -43,6 +43,24 @@ strangely in some circumstances. This is because variable names are also valid c
 3
 ```
 
+If you want to use a variable as if it was a JSON string (for example to index it), enclose it in a substitution
+`<>` operator. Ie, this will work (will index the value of the `:foo` variable):
+
+```
+> :foo = <list_commands>
+> <:foo>[3]["name"]
+"subscribe"
+
+```
+
+But this will not (will treat `:foo` as a command with the arguments `[3]["name"]`):
+
+```
+> :foo[3]["name"]
+
+!!! String("name") must be a number to index an array
+```
+
 # Substitution
 
 Commands that return JSON values can have those values substituted into parameters using the '<>' syntax.
