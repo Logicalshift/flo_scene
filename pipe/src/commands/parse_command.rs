@@ -316,7 +316,7 @@ where
         // Acquire a token from the tokenizer
         let next_match = tokenizer.match_token().await?;
 
-        // Skip over whitespace, then return the first 'sold' value
+        // Skip over whitespace, then return the first 'solid' value
         match next_match.token {
             Some(CommandToken::Json(JsonToken::Whitespace)) => { }
             _ => { break Some(next_match); }
