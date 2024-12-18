@@ -434,7 +434,7 @@ fn substitute_parameter() {
         });
     scene.add_subprogram(command_subprogram, launcher.to_subprogram(), 1);
 
-    // Pipe between the two commands using the interpreter
+    // Do ((4+1)*2)+1 by substituting the results of other commands
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
         r#"::add_one <::double <::add_one 4>>
@@ -446,7 +446,6 @@ fn substitute_parameter() {
 "#));
         });
 
-    // Pipe from one command to another and check the results
     TestBuilder::new()
         .run_in_scene(&scene, test_subprogram);
 }
@@ -465,7 +464,7 @@ fn index_array() {
         });
     scene.add_subprogram(command_subprogram, launcher.to_subprogram(), 1);
 
-    // Pipe between the two commands using the interpreter
+    // Add one to the second item in the array
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
         r#"::add_one [9, 10, 11][1]
@@ -477,7 +476,6 @@ fn index_array() {
 "#));
         });
 
-    // Pipe from one command to another and check the results
     TestBuilder::new()
         .run_in_scene(&scene, test_subprogram);
 }
@@ -496,7 +494,7 @@ fn index_object() {
         });
     scene.add_subprogram(command_subprogram, launcher.to_subprogram(), 1);
 
-    // Pipe between the two commands using the interpreter
+    // Run the command using the value with the 'Ten' key
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
         r#"::add_one { "Nine": 9, "Ten": 10, "Eleven": 11 }["Ten"]
@@ -508,7 +506,6 @@ fn index_object() {
 "#));
         });
 
-    // Pipe from one command to another and check the results
     TestBuilder::new()
         .run_in_scene(&scene, test_subprogram);
 }
@@ -527,7 +524,7 @@ fn index_result() {
         });
     scene.add_subprogram(command_subprogram, launcher.to_subprogram(), 1);
 
-    // Pipe between the two commands using the interpreter
+    // Run the command and index the result
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
         r#"<::add_numbers 9>[2]
@@ -570,7 +567,6 @@ fn double_index_result() {
 "#));
         });
 
-    // Pipe from one command to another and check the results
     TestBuilder::new()
         .run_in_scene(&scene, test_subprogram);
 }
