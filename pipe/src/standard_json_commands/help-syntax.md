@@ -46,6 +46,10 @@ variables or substituted commands:
    {
      "name": "query"
    }
+
+> <list_commands>[1]["name"]
+"query"
+
 ```
 
 # Pipes
