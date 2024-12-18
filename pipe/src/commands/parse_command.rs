@@ -770,7 +770,7 @@ mod test {
     }
 
     #[test]
-    fn parse_command_with_indexing() {
+    fn parse_command_with_indexing_1() {
         let argument        = stream::iter(r#"some::command { "Key": "value" }["Key"]"#.bytes()).ready_chunks(2);
         let mut tokenizer   = Tokenizer::new(argument);
         let mut parser      = Parser::new();
@@ -784,6 +784,67 @@ mod test {
             assert!(result == CommandRequest::Command { 
                 command:    CommandName("some::command".to_string()), 
                 argument:   ParsedJson::ArrayAccess(Box::new(json!( { "Key": "value" }).into()), Box::new(json!{"Key"}.into()))
+            }, "{:?}", result);
+        });
+    }
+
+    #[test]
+    fn parse_command_with_indexing_2() {
+        let argument        = stream::iter(r#"some::command [1, 2, 3][2]"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Command { 
+                command:    CommandName("some::command".to_string()), 
+                argument:   ParsedJson::ArrayAccess(Box::new(json!([1, 2, 3]).into()), Box::new(json!{2}.into()))
+            }, "{:?}", result);
+        });
+    }
+
+    #[test]
+    fn parse_command_with_indexing_3() {
+        let argument        = stream::iter(r#"some::command <command>["Key"]"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Command { 
+                command:    CommandName("some::command".to_string()), 
+                argument:   ParsedJson::ArrayAccess(Box::new(
+                    ParsedJson::Command(Box::new(CommandRequest::Command { 
+                        command:    CommandName("command".into()),
+                        argument:   ParsedJson::Null,
+                    }))), Box::new(json!{"Key"}.into()))
+            }, "{:?}", result);
+        });
+    }
+
+    #[test]
+    fn parse_command_with_indexing_4() {
+        let argument        = stream::iter(r#"some::command :my_var["Key"]"#.bytes()).ready_chunks(2);
+        let mut tokenizer   = Tokenizer::new(argument);
+        let mut parser      = Parser::new();
+
+        tokenizer.with_command_matchers();
+
+        executor::block_on(async {
+            command_parse(&mut parser, &mut tokenizer).await.unwrap();
+            let result = parser.finish().unwrap();
+
+            assert!(result == CommandRequest::Command { 
+                command:    CommandName("some::command".to_string()), 
+                argument:   ParsedJson::ArrayAccess(Box::new(ParsedJson::Variable(":my_var".into())), Box::new(json!{"Key"}.into()))
             }, "{:?}", result);
         });
     }
