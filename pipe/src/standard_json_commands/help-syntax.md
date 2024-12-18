@@ -36,6 +36,18 @@ This can also be used as part of the JSON syntax:
    }
 ```
 
+# Indexing
+
+The `[]` operator can be appended to a JSON value in order to use a specific value. This is useful with
+variables or substituted commands:
+
+```
+> echo <list_commands>[1]
+   {
+     "name": "query"
+   }
+```
+
 # Pipes
 
 Pipes are used to connect the output of one command to the input of another. They are mostly useful
