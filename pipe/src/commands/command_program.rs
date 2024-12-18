@@ -236,6 +236,19 @@ impl CommandSession {
                             }
                         }
 
+                        Value::Object(key_values) => {
+                            if let Some(key_name) = index.as_str() {
+                                let mut key_values = key_values;
+                                if let Some(lookup_value) = key_values.remove(key_name) {
+                                    Ok(lookup_value)
+                                } else {
+                                    Err(CommandResponse::Error(format!("{:?} was not found in the object", index)))
+                                }
+                            } else {
+                                Err(CommandResponse::Error(format!("{:?} must be a string to lookup a value in an object", index)))
+                            }
+                        }
+
                         value => {
                             Err(CommandResponse::Error(format!("{:?} is not a valid type for an indexer", value)))
                         }
