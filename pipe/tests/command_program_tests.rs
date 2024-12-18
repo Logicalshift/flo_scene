@@ -543,3 +543,34 @@ fn index_result() {
     TestBuilder::new()
         .run_in_scene(&scene, test_subprogram);
 }
+
+#[test]
+fn double_index_result() {
+    let scene               = Scene::default().with_standard_json_commands();
+    let test_subprogram     = SubProgramId::called("test");
+    let command_subprogram  = SubProgramId::called("command");
+    let internal_socket     = SubProgramId::called("send_internal_socket");
+
+    // Create a launcher with some simple mathematical functions that take their values as integers
+    let launcher = CommandLauncher::json()
+        .with_json_command("::add_numbers", |param: i64, _context| async move {
+            CommandResponse::Json(json!({ "values": [param, param + 1, param + 2, param + 3] }))
+        });
+    scene.add_subprogram(command_subprogram, launcher.to_subprogram(), 1);
+
+    // Retrieve the third entry from the array returned within an object
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#"<::add_numbers 9>["values"][2]
+        "#, 
+        |msg, _| async move {
+            // We're hard-coding the JSON formatting here which might not always be consistent (many formats can communicate the same message)
+            println!("Msg is {:?}", msg);
+            assert!(msg.contains(r#" 11
+"#));
+        });
+
+    // Pipe from one command to another and check the results
+    TestBuilder::new()
+        .run_in_scene(&scene, test_subprogram);
+}
