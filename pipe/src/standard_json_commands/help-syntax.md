@@ -13,52 +13,22 @@ Commands are ended by a newline character, although JSON data can be stretched a
 Variables are names beginning with a `:`, for example `:my_variable`. These can be assigned the JSON
 value returned by any command, for example `:my_variable = "Test"`, or `:my_variable = list_commands`
 
-As an extension to the JSON syntax, variables can be subsitituted into JSON values. For example:
+Variables create new commands that return the value of the variable.
 
 ```
 > :foo = "Test"
-> echo { "Key": :foo }
+> :foo
+"Test"
+```
+
+Command substitution can be used to insert the value of a variable into a parameter:
+
+```
+> :foo = "Test"
+> echo { "Key": <:foo> }
    {
      "Key": "Test"
    }
-```
-
-Note that a 'bare' variable is a command rather than a raw JSON statement, so they will behave a little
-strangely in some circumstances. This is because variable names are also valid command names:
-
-```
-> :foo 2
-
-!!! CommandNotFound(":foo")
-
-
-> :foo = 3
-   Result assigned to `:foo`
-
-
-> :foo 2
-3
-
-> :foo[2]
-3
-```
-
-If you want to use a variable as if it was a JSON string (for example to index it), enclose it in a substitution
-`<>` operator. Ie, this will work (will index the value of the `:foo` variable):
-
-```
-> :foo = <list_commands>
-> <:foo>[3]["name"]
-"subscribe"
-
-```
-
-But this will not (will treat `:foo` as a command with the arguments `[3]["name"]`):
-
-```
-> :foo[3]["name"]
-
-!!! String("name") must be a number to index an array
 ```
 
 # Substitution
