@@ -298,8 +298,13 @@ impl CommandSession {
         };
 
         if let Some(variable_value) = variable_value {
-            // Variables replace commands (even with parameters), so if a variable is defined, this is the value
-            stream::iter(iter::once(CommandResponse::Json(variable_value))).boxed()
+            if let serde_json::Value::Null = &parameter {
+                // Variables replace commands (even with parameters), so if a variable is defined, this is the value
+                stream::iter(iter::once(CommandResponse::Json(variable_value))).boxed()
+            } else {
+                // It's an error to pass an argument to a variable
+                stream::iter(iter::once(CommandResponse::Error(format!("'{}' is a variable - it cannot be used with a parameter", command.0)))).boxed()
+            }
         } else {
             // Create the command query
             let command = JsonCommand::new((), command, parameter, context.current_program_id());
