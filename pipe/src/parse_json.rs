@@ -21,8 +21,6 @@ pub enum JsonToken {
     False,
     Null,
     Character(char),
-
-    Variable,
 }
 
 ///
@@ -433,7 +431,6 @@ where
             True            => match_true(lookahead, eof).into(),
             False           => match_false(lookahead, eof).into(),
             Null            => match_null(lookahead, eof).into(),
-            Variable        => TokenMatchResult::LookaheadCannotMatch, // These are generated externally, so there's no matcher here
         }
     }
 }
@@ -561,7 +558,6 @@ where
                 Some(Ok(JsonToken::False))          => { parser.accept_token()?.reduce(1, |_| ParsedJson::Bool(false))?; Ok(()) },
                 Some(Ok(JsonToken::Null))           => { parser.accept_token()?.reduce(1, |_| ParsedJson::Null)?; Ok(()) },
 
-                Some(Ok(JsonToken::Variable))       => { let fragment = lookahead.fragment.clone(); parser.accept_token()?.reduce(1, |_| ParsedJson::Variable(fragment))?; Ok(()) },
                 Some(Ok(JsonToken::Character('<'))) => json_parse_command_substitution(parser, tokenizer).await,
 
                 _                                   => Err(lookahead.into())

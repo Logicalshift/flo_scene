@@ -120,7 +120,6 @@ impl TryInto<JsonToken> for CommandToken {
     fn try_into(self) -> Result<JsonToken, Self::Error> {
         match self {
             CommandToken::Json(token)   => Ok(token),
-            CommandToken::Variable      => Ok(JsonToken::Variable),
             CommandToken::Comment       => Ok(JsonToken::Whitespace),
             CommandToken::Newline       => Ok(JsonToken::Newline),
             other                       => Err(other),
@@ -833,25 +832,6 @@ mod test {
 
     #[test]
     fn parse_command_with_indexing_4() {
-        let argument        = stream::iter(r#"some::command :my_var["Key"]"#.bytes()).ready_chunks(2);
-        let mut tokenizer   = Tokenizer::new(argument);
-        let mut parser      = Parser::new();
-
-        tokenizer.with_command_matchers();
-
-        executor::block_on(async {
-            command_parse(&mut parser, &mut tokenizer).await.unwrap();
-            let result = parser.finish().unwrap();
-
-            assert!(result == CommandRequest::Command { 
-                command:    CommandName("some::command".to_string()), 
-                argument:   ParsedJson::ArrayAccess(Box::new(ParsedJson::Variable(":my_var".into())), Box::new(json!{"Key"}.into()))
-            }, "{:?}", result);
-        });
-    }
-
-    #[test]
-    fn parse_command_with_indexing_5() {
         let argument        = stream::iter(r#"some::command { "Key": "value" }["Key"][2]"#.bytes()).ready_chunks(2);
         let mut tokenizer   = Tokenizer::new(argument);
         let mut parser      = Parser::new();

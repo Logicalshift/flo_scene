@@ -152,7 +152,7 @@ fn echo_variable() {
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
         r#":test = "Hello"
-        echo :test
+        echo <:test>
         "#, 
         move |msg, context| async move {
             assert!(msg.contains("   Hello\n"), "{}", msg);
@@ -175,7 +175,7 @@ fn echo_array_variable() {
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
         r#":test = "Hello"
-        echo [ :test, :test ]
+        echo [ <:test>, <:test> ]
         "#, 
         move |msg, context| async move {
             assert!(msg.contains("   Hello\n   Hello\n"), "{}", msg);
@@ -198,7 +198,7 @@ fn echo_object_variable() {
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
         r#":test = "Hello"
-        echo { "test": :test }
+        echo { "test": <:test> }
         "#, 
         move |msg, context| async move {
             assert!(msg.contains("   {\n     \"test\": \"Hello\"\n   }"), "{}", msg);
