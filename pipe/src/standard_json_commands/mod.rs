@@ -12,6 +12,7 @@ mod list_connections;
 mod query;
 mod send;
 mod subscribe;
+mod stream;
 
 pub use launcher_ext::*;
 pub use scene_ext::*;
@@ -23,3 +24,4 @@ pub use list_connections::*;
 pub use query::*;
 pub use send::*;
 pub use subscribe::*;
+pub use stream::*;

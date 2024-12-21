@@ -6,6 +6,7 @@ use super::list_subprograms::*;
 use super::query::*;
 use super::send::*;
 use super::subscribe::*;
+use super::stream::*;
 use crate::commands::*;
 
 use flo_scene::commands::*;
@@ -31,6 +32,7 @@ impl StandardCommandsLauncherExt for CommandLauncher<JsonParameter, CommandRespo
             .with_json_command("query", command_query)
             .with_json_command("send", command_send)
             .with_json_command("subscribe", command_subscribe)
+            .with_json_command("stream", command_stream)
             .with_summary("echo", "Sends its argument back as a message")
             .with_summary("connect", "Creates a connection between subprograms")
             .with_summary("help", "Displays help text")
@@ -39,6 +41,7 @@ impl StandardCommandsLauncherExt for CommandLauncher<JsonParameter, CommandRespo
             .with_summary("query", "Sends a query to a subprogram")
             .with_summary("send", "Sends messages to a subprogram")
             .with_summary("subscribe", "Subscribes to messages from a subprogram")
+            .with_summary("stream", "Transforms its argument into an IoStream")
             .with_help("echo", String::from_utf8_lossy(include_bytes!("command-echo.md")))
             .with_help("connect", String::from_utf8_lossy(include_bytes!("command-connect.md")))
     }
