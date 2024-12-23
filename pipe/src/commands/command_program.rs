@@ -2,6 +2,7 @@ use super::command_response::*;
 use super::command_stream::*;
 use super::command_socket::*;
 use super::json_command::*;
+use super::CommandParseError;
 use crate::socket::*;
 use crate::parse_json::*;
 
@@ -577,10 +578,19 @@ impl CommandSession {
                         }
                     }
 
-                    Err(other_error) => {
-                        // TODO: for errors other than 'end of stream', we need to continue
-                        println!("Parse error: {:?}", other_error);
+                    Err(CommandParseError::ExpectedMoreInput) => {
+                        // EOF
                         break;
+                    }
+
+                    Err(other_error) => {
+                        // Describe the error and continue parsing
+                        let error_message = format!("{:?}", other_error);
+
+                        if socket.send_response(CommandResponse::Error(error_message)).await.is_err() {
+                            // Could not indicate the error
+                            break;
+                        }
                     }
                 }
             }
