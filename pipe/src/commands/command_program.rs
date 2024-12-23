@@ -591,6 +591,11 @@ impl CommandSession {
                             // Could not indicate the error
                             break;
                         }
+
+                        if !socket.flush_after_error().await {
+                            // Ran out of input after this error
+                            break;
+                        }
                     }
                 }
             }

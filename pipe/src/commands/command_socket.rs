@@ -264,6 +264,106 @@ impl CommandSocket {
     }
 
     ///
+    /// Removes extra data after an error has been detected in the input stream
+    ///
+    /// To stop an error from causing a cascade of failures we use some simple rules to get rid of any extra data. We initially 
+    /// read until the first newline, then until the socket is idle. Processing resumes after the last newline after the socket
+    /// goes idle. Ie, we always ignore the rest of the line, and then we keep on ignoring until the stream blocks.
+    ///
+    /// The idea is that the socket probably won't go idle at all if we're streaming data constantly from a file or something,
+    /// but it will if we're working interactively. We need at least one newline in any case to get a resumption point, and this
+    /// behaviour will be a little random if we are streaming commands from a network connection.
+    ///
+    /// Returns true if there is more input, or false if the input is finished.
+    ///
+    pub async fn flush_after_error(&mut self) -> bool {
+        use std::mem;
+
+        // Take the buffer from this object
+        let mut buffer = vec![];
+        mem::swap(&mut self.buffer, &mut buffer);
+
+        // Read until the first newline appears in the buffer
+        loop {
+            // '\n' doesn't have any special decoding requirements in UTF-8 which is convenient
+            if buffer.contains(&b'\n') { break; }
+
+            // Replace the whole buffer with the next set of bytes from the input
+            if let Some(CommandData(new_buffer)) = self.input_stream.next().await {
+                // Try the next buffer
+                buffer = new_buffer;
+            } else {
+                // Stream ended
+                return false;
+            }
+        }
+
+        // Wait until the stream is idle; replace the buffer if anything we read has another newline in it
+        let mut hit_eof = false;
+        loop {
+            let input_stream = &mut self.input_stream;
+
+            // Poll for the next data from the input stream, and return whether or not it went idle
+            let buffer_is_idle = future::poll_fn(|ctxt| {
+                match input_stream.poll_next_unpin(ctxt) {
+                    Poll::Ready(Some(CommandData(new_buffer))) => {
+                        if new_buffer.contains(&b'\n') {
+                            // Just throw away the buffer if the new one contains a newline
+                            buffer = new_buffer;
+                        } else {
+                            // Add to the existing buffer when there's no newline
+                            buffer.extend(new_buffer.into_iter());
+                        }
+
+                        Poll::Ready(false)
+                    }
+
+                    Poll::Ready(None) => {
+                        // EOF
+                        hit_eof = true;
+                        Poll::Ready(true)
+                    }
+
+                    Poll::Pending => {
+                        // Input stream is idle
+                        Poll::Ready(true)
+                    }
+                }
+            }).await;
+
+            // Once the buffer is idle, stop reading
+            if buffer_is_idle {
+                break;
+            }
+        }
+
+        if hit_eof {
+            // Ran into the end of file marker while emptying the buffer
+            self.buffer = vec![];
+            false
+        } else {
+            // Remove anything from the buffer that precedes the last newline in it
+            let index_of_last_newline = buffer.iter()
+                .enumerate()
+                .rev()
+                .filter(|(_, c)| *c == &b'\n')
+                .map(|(idx, _)| idx)
+                .next();
+
+            if let Some(index_of_last_newline) = index_of_last_newline {
+                // Strip up to (but not including) the newline
+                buffer.drain(0..index_of_last_newline);
+
+                // Store the buffer (by omission, the buffer is left empty if there's no newline for some reason, which is probably the most correct behaviour we could get)
+                self.buffer = buffer;
+            }
+
+            // Stream didn't end while we were reading from it
+            true
+        }
+    }
+
+    ///
     /// Sends a notification to the output stream
     ///
     pub async fn notify(&mut self, notification: CommandNotification) -> Result<(), mpsc::SendError> {
