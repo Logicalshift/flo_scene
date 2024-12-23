@@ -585,7 +585,7 @@ impl CommandSession {
 
                     Err(other_error) => {
                         // Describe the error and continue parsing
-                        let error_message = format!("{:?}", other_error);
+                        let error_message = other_error.describe();
 
                         if socket.send_response(CommandResponse::Error(error_message)).await.is_err() {
                             // Could not indicate the error

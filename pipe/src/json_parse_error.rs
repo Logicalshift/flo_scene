@@ -84,3 +84,22 @@ impl From<ParserDidNotConverge> for JsonParseError {
         JsonParseError::ParserDidNotConverge
     }
 }
+
+impl JsonParseError {
+    ///
+    /// Produces a human readable description of this error
+    ///
+    pub fn describe(&self) -> String {
+        use JsonParseError::*;
+
+        match self {
+            UnexpectedToken(_, fragment)    => format!("Unexpected token: '{}'", fragment),
+            ExpectedColon(_, fragment)      => format!("Expected ':' but found '{}'", fragment),
+            ExpectedMoreInput(_)            => format!("Input ended before completing a JSON value"),
+            ParserStackTooSmall             => format!("Internal error: parser stack underflow"),
+            SerdeJsonError                  => format!("Internal error: could not parse value with serde"),
+            ParserDidNotConverge            => format!("Internal error: parser did not converge"),
+            CommandExpectedMoreInput        => format!("Input ended while parsing a command substitution"),
+        }
+    }
+}

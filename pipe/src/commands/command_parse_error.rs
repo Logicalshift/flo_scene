@@ -71,3 +71,20 @@ impl From<CommandParseError> for JsonParseError {
         }
     }
 }
+
+impl CommandParseError {
+    ///
+    /// Produces a human readable description of this error
+    ///
+    pub fn describe(&self) -> String {
+        use CommandParseError::*;
+
+        match self {
+            JsonError(json_error)           => json_error.describe(),
+            UnexpectedToken(_, fragment)    => format!("Unexpected token: '{}'", fragment),
+            ExpectedMoreInput               => format!("Input ended before completing a command"),
+            ParserStackTooSmall             => format!("Internal error: parser stack underflow"),
+            ParserDidNotConverge            => format!("Internal error: parser did not converge"),
+        }
+    }
+}
