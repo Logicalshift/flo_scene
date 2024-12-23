@@ -13,3 +13,5 @@ keywords        = [ "message-queue" ]
 [dependencies]
 postcard        = { version = "1.0" }
 futures         = { version = "0.3", default-features = false }
+serde           = { version = "1.0", default-features = false, features = [ "derive" ] }
+uuid            = { version = "1.0", default-features = false, features = [ "serde" ] }
