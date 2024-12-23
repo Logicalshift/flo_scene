@@ -1,3 +1,4 @@
+use super::command_parse_error::*;
 use super::command_response::*;
 use super::command_socket::*;
 use crate::parser::*;

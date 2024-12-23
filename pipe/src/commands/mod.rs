@@ -3,6 +3,7 @@ mod command_program;
 mod command_stream;
 mod command_response;
 pub (crate) mod parse_command;
+pub (crate) mod command_parse_error;
 mod json_command;
 mod json_command_launcher;
 mod markdown_formatter;

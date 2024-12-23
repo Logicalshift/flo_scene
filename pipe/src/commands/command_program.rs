@@ -2,7 +2,7 @@ use super::command_response::*;
 use super::command_stream::*;
 use super::command_socket::*;
 use super::json_command::*;
-use super::CommandParseError;
+use super::command_parse_error::*;
 use crate::socket::*;
 use crate::parse_json::*;
 
@@ -579,7 +579,7 @@ impl CommandSession {
                     }
 
                     Err(CommandParseError::ExpectedMoreInput) => {
-                        // EOF
+                        // EOF - stop receiving more commands from this socket
                         break;
                     }
 
