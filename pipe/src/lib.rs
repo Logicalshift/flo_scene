@@ -4,6 +4,7 @@ mod internal_socket;
 mod tcp_socket;
 mod tokenizer;
 mod parse_json;
+mod json_parse_error;
 
 pub mod main_scene;
 pub mod sub_scene;

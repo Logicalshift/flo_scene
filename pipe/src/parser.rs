@@ -4,6 +4,7 @@ use std::collections::{VecDeque};
 
 pub use super::tokenizer::*;
 pub use super::parse_json::*;
+pub use super::json_parse_error::*;
 pub use crate::commands::parse_command::*;
 
 ///
