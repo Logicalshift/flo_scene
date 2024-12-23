@@ -1,0 +1,12 @@
+//!
+//! # flo_scene_nostd
+//!
+//! `flo_scene` is a runtime system for Rust that provides a platform for building large software 
+//! out of much smaller components. See the `flo_scene` crate for details.
+//!
+//! This provides a no_std implementation of the guest protocol used by flo_scene for dynamically
+//! loaded components. This is particularly useful for implementing guest programs in wasm, as
+//! this can produce considerably smaller assembly file sizes.
+//!
+
+#![no_std]

@@ -744,6 +744,13 @@ name = "flo_scene_macros"
 version = "0.2.0"
 
 [[package]]
+name = "flo_scene_nostd"
+version = "0.2.0"
+dependencies = [
+ "postcard",
+]
+
+[[package]]
 name = "flo_scene_pipe"
 version = "0.2.0"
 dependencies = [
