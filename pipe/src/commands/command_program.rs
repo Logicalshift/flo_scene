@@ -565,13 +565,23 @@ impl CommandSession {
         let run_commands = async move {
             let context     = run_context;
 
-            while let Ok(next_command) = socket.next_request().await {
-                // Read the next command and decide on the response
-                let command_responses = self.evaluate_request(next_command, &context).await;
+            loop {
+                match socket.next_request().await {
+                    Ok(next_command) => {
+                        // Read the next command and decide on the response
+                        let command_responses = self.evaluate_request(next_command, &context).await;
 
-                // Send the responses to the socket
-                if socket.send_responses(command_responses).await.is_err() {
-                    break;
+                        // Send the responses to the socket
+                        if socket.send_responses(command_responses).await.is_err() {
+                            break;
+                        }
+                    }
+
+                    Err(other_error) => {
+                        // TODO: for errors other than 'end of stream', we need to continue
+                        println!("Parse error: {:?}", other_error);
+                        break;
+                    }
                 }
             }
         };
