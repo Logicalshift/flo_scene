@@ -12,3 +12,4 @@ keywords        = [ "message-queue" ]
 
 [dependencies]
 postcard        = { version = "1.0" }
+futures         = { version = "0.3", default-features = false }
