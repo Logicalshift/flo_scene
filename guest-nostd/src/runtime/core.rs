@@ -1,3 +1,4 @@
+use crate::errors::*;
 use crate::guest_types::*;
 use crate::host_types::*;
 use crate::guest_result::*;
@@ -5,10 +6,11 @@ use crate::util::*;
 use super::input_stream_core::*;
 use super::stream_core::*;
 
+use futures::prelude::*;
 use futures::future::{BoxFuture};
 use futures::task::{Waker};
 
-use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::collections::{BTreeMap, BTreeSet, VecDeque};
 use alloc::vec::*;
 
 pub (crate) struct GuestRuntimeCore {
@@ -50,4 +52,277 @@ pub (crate) struct GuestRuntimeCore {
 
     /// The streams with pending data from the host side
     pending_streams: BTreeMap<SerializationId, Shared<GuestStreamCore>>,
+}
+
+impl GuestRuntimeCore {
+    ///
+    /// Creates a new input stream in a runtime core
+    ///
+    pub (crate) fn create_input_stream<TMessageType: SceneGuestMessage>(runtime_core: &Shared<Self>) -> (usize, GuestInputStream<TMessageType>) {
+        with_shared(&runtime_core, |core| {
+            // Assign a handle to the input stream
+            let stream_handle = core.next_stream_handle;
+            core.next_stream_handle += 1;
+
+            // Create a new serialization context for the core
+            let serialization_context = GuestSerializationContext::new(&runtime_core, &core.future_pile);
+
+            // Create a core for the new stream
+            let input_stream    = GuestInputStream::new(GuestSubProgramHandle(stream_handle), runtime_core, serialization_context);
+            let input_core      = input_stream.core().clone();
+
+            core.input_streams.insert(stream_handle, input_core);
+
+            (stream_handle, input_stream)
+        })
+    }
+
+    ///
+    /// Polls any awake futures in this core
+    ///
+    #[inline]
+    pub (crate) fn poll_awake(core: &Shared<Self>) -> Vec<GuestResult> {
+        use core::mem;
+
+        // TODO: need to mark the futures as stopped and finished
+        loop {
+            // Fetch the runner from the core (we borrow it while it's active)
+            let future_runner = {
+                let mut core = core.lock().unwrap();
+
+                if core.pile_is_awake {
+                    core.pile_is_awake = false;
+                    core.future_runner.take()
+                } else {
+                    None
+                }
+            };
+
+            if let Some(mut future_runner) = future_runner {
+                // The waker sets the core as 'awake' if it's woken (main reason for it is to go through this loop again if we get re-awoken while polling)
+                let core_waker  = CoreWaker(Arc::downgrade(core));
+                let core_waker  = waker(Arc::new(core_waker));
+                let mut context = Context::from_waker(&core_waker);
+
+                // Run the futures that are awake (we ignore the result because we know we use poll_forever)
+                let _ = future_runner.poll_unpin(&mut context);
+
+                // Return the runner to the core so we're ready for the next pass through the loop
+                (*core.lock().unwrap()).future_runner = Some(future_runner);
+            } else {
+                // Return the results if there's nothing to poll
+                if future_runner.is_none() {
+                    let mut core    = core.lock().unwrap();
+                    let mut results = vec![];
+                    mem::swap(&mut results, &mut core.pending_results);
+
+                    return results;
+                }
+            }
+        }
+    }
+
+    ///
+    /// Enqueues a messge for the specified subprogram
+    ///
+    /// This will always accept the message, but the specified subprogram should be considered 'not ready' after this call has
+    /// been made so that backpressure is generated. The message is discarded if there is no subprogram with the specified
+    /// ID running
+    ///
+    pub (crate) fn send_message(core: &Shared<Self>, target: GuestSubProgramHandle, message: Vec<u8>) {
+        use core::mem;
+
+        let waker = {
+            // Lock the core
+            let core = core.lock().unwrap();
+
+            // The handle is an index into the input_streams list
+            let GuestSubProgramHandle(target_id) = target;
+
+            // Get the input stream, if we can
+            let input_stream = core.input_streams.get(&target_id).cloned();
+
+            // Release the lock on the core
+            mem::drop(core);
+
+            if let Some(input_stream) = input_stream {
+                GuestInputStreamCore::send_message(&input_stream, message)
+            } else {
+                // This program is not running
+                None
+            }
+        };
+
+        // Wake anything that needs to be awoken for this stream
+        waker.into_iter()
+            .for_each(|waker| waker.wake());
+    }
+
+    ///
+    /// Indicates that a stream is ready to accept more input
+    ///
+    pub (crate) fn stream_ready(core: &Shared<Self>, target: GuestSubProgramHandle) {
+        // Indicate that the program is ready to receive a new message
+        let mut core = core.lock().unwrap();
+
+        core.pending_results.push(GuestResult::Ready(target))
+    }
+
+    ///
+    /// Performs a request to open a sink on the host side
+    ///
+    pub (crate) fn open_host_sink(core: &Shared<Self>, target: HostStreamTarget) -> impl Send + Future<Output=Result<HostSinkHandle, ConnectionError>> {
+        let core = core.clone();
+
+        // Create a new sink. It's only a proposed sink handle at this point as we'll throw it away if it errors out
+        let proposed_sink_handle = {
+            let mut core = core.lock().unwrap();
+            let handle   = core.next_sink_handle;
+
+            core.sink_handles.insert(handle, GuestSink { waker: None, status: GuestSinkStatus::Busy });
+            core.next_sink_handle += 1;
+
+            handle
+        };
+
+        // Queue a request for this stream
+        core.lock().unwrap().pending_results.push(GuestResult::Connect(HostSinkHandle(proposed_sink_handle), target));
+
+        // Poll until the sink moves to the ready state
+        future::poll_fn(move |context| {
+            let mut core = core.lock().unwrap();
+
+            if let Some(sink_data) = core.sink_handles.get_mut(&proposed_sink_handle) {
+                match &sink_data.status {
+                    GuestSinkStatus::Busy => {
+                        // Sink is still waiting for data
+                        sink_data.waker = Some(context.waker().clone());
+                        Poll::Pending
+                    }
+
+                    GuestSinkStatus::Ready => {
+                        // Sink is ready to send data
+                        Poll::Ready(Ok(HostSinkHandle(proposed_sink_handle)))
+                    }
+
+                    GuestSinkStatus::ConnectionError(error) => {
+                        // Sink could not connect
+                        let error = error.clone();
+                        core.sink_handles.remove(&proposed_sink_handle);
+                        Poll::Ready(Err(error))
+                    }
+
+                    GuestSinkStatus::SendError(_error) => {
+                        // Unexpected error as we're not trying to send anything to the sink at this point
+                        core.sink_handles.remove(&proposed_sink_handle);
+                        Poll::Ready(Err(ConnectionError::Cancelled))
+                    }
+                }
+            } else {
+                // Sink disappeared while we were waiting
+                Poll::Ready(Err(ConnectionError::Cancelled))
+            }
+        })
+    }
+
+    ///
+    /// Sends an encoded message to a host sink
+    ///
+    pub (crate) fn send_to_host_sink(core: &Shared<Self>, sink: HostSinkHandle, message: Vec<u8>) -> impl Send + Unpin + Future<Output=Result<(), SceneSendError<Vec<u8>>>> {
+        let core = core.clone();
+
+        // Poll until the sink moves to the ready state
+        let mut message = Some(message);
+        let HostSinkHandle(sink) = sink;
+
+        future::poll_fn(move |context| {
+            let mut core = core.lock().unwrap();
+
+            if let Some(sink_data) = core.sink_handles.get_mut(&sink) {
+                match &sink_data.status {
+                    GuestSinkStatus::Busy => {
+                        // Sink is still waiting for data
+                        sink_data.waker = Some(context.waker().clone());
+                        Poll::Pending
+                    }
+
+                    GuestSinkStatus::Ready => {
+                        if let Some(message) = message.take() {
+                            // Move the sink to the busy state
+                            sink_data.status = GuestSinkStatus::Busy;
+                            sink_data.waker  = Some(context.waker().clone());
+
+                            // Send the data
+                            core.pending_results.push(GuestResult::Send(HostSinkHandle(sink), message));
+
+                            // Wait for the sink to become ready (or report an error)
+                            Poll::Pending
+                        } else {
+                            // Message was previously sent and the sink is now ready again
+                            Poll::Ready(Ok(()))
+                        }
+                    }
+
+                    GuestSinkStatus::ConnectionError(_error) => {
+                        // Unexpected error
+                        panic!("Connection error (stream should already be connected");
+                    }
+
+                    GuestSinkStatus::SendError(error) => {
+                        // Unexpected error as we're not trying to send anything to the sink at this point
+                        let error = error.clone();
+                        core.sink_handles.remove(&sink);
+                        Poll::Ready(Err(error))
+                    }
+                }
+            } else {
+                // Sink disappeared while we were waiting
+                Poll::Ready(Err(SceneSendError::TargetProgramEndedBeforeReady))
+            }
+        })
+    }
+
+    ///
+    /// Creates a sink that receives encoded data and sends it to a target 
+    ///
+    pub (crate) fn create_output_sink(core: &Shared<Self>, target: HostStreamTarget) -> impl Future<Output=Result<impl 'static + Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError>> {
+        let core = Arc::clone(&core);
+
+        async move {
+            // Create the connection to the core
+            let sink_handle = GuestRuntimeCore::open_host_sink(&core, target).await?;
+
+            // Use unfold to send messages
+            Ok(sink::unfold((), move |_, data| GuestRuntimeCore::send_to_host_sink(&core, sink_handle, data)))
+        }
+    }
+
+    ///
+    /// Creates a guest stream core for reading data for a stream located on the host
+    ///
+    pub (crate) fn create_stream_from_host(core: &Shared<Self>, stream_id: SerializationId) -> Shared<GuestStreamCore> {
+        // Create a guest core to represent this stream
+        let stream_core = GuestStreamCore {
+            pending:    VecDeque::new(),
+            waker:      None,
+            closed:     false,
+        };
+        let stream_core = share(stream_core);
+
+        // Store the new stream in the core (or if an exising one is already present, substitute that one)
+        core.lock().unwrap().pending_streams.entry(stream_id)
+            .or_insert(stream_core)
+            .clone()
+    }
+
+    ///
+    /// Creates a serialization ID for a stream on the guest side
+    ///
+    pub (crate) fn next_serialization_id(core: &Shared<Self>) -> SerializationId {
+        let mut core    = core.lock().unwrap();
+        let next_id     = core.next_serialization_id;
+        core.next_serialization_id += 1;
+
+        SerializationId::MyStream(next_id)
+    }
 }
