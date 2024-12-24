@@ -98,7 +98,7 @@ use alloc::borrow::{Cow};
 /// }
 /// ```
 ///
-pub trait SceneMessage :
+pub trait SceneGuestMessage :
     'static                 +
     Sized                   + 
     Send                    + 
@@ -106,45 +106,6 @@ pub trait SceneMessage :
     Serialize               +
     for<'a> Deserialize<'a> + 
 {
-    ///
-    /// The default target for this message type
-    ///
-    /// This is `StreamTarget::Any` by default, so streams will wait to be connected. This can be set to `StreamTarget::None`
-    /// to throw away messages, or even to a program ID if messages should be sent to a particular program by default.
-    ///
-    /// Setting a default message target makes it much easier to start programs that use this message type as there's no
-    /// need to specifically set up the connections separately. Ideally aim for every message type to have a default target
-    /// and only use the `connect_programs()` function to specify exceptions, avoiding the 'wall o'configuration' problem
-    /// commonly encountered when using dependency injection to link together a large program.
-    ///
-    fn default_target() -> StreamTarget { StreamTarget::Any }
-
-    ///
-    /// Sets up this message type in a scene. This can be an opportunity to set up default filters and connections for a
-    /// particular message type. This is called the first time that a message is referenced in a scene.
-    ///
-    fn initialise(scene: &Scene) { let _ = scene; }
-
-    ///
-    /// True if input streams for this message type should allow thread stealing by default
-    ///
-    /// Thread stealing will immediately run a future when a message is queued instead of waiting for the future to be
-    /// polled in the main loop.
-    ///
-    fn allow_thread_stealing_by_default() -> bool { false }
-
-    ///
-    /// True if this message supports serialization
-    ///
-    /// This is true by default, but can be overridden to return false. Messages that are not serializable do not generate
-    /// filters for receiving serialized messages.
-    ///
-    /// All messages must implement the serialization interfaces, but in order to allow messages that are intended to
-    /// only be sent within an application (eg, messages that contain function calls or similar non-serializable values,
-    /// this can be overridden to return false)
-    ///
-    fn serializable() -> bool { true }
-
     ///
     /// A string that identifies this message type uniquely when serializing
     ///
@@ -197,19 +158,19 @@ pub trait SceneMessage :
     }
 }
 
-impl SceneMessage for ()                { fn message_type_name() -> String { "()".into() } }
-impl SceneMessage for String            { fn message_type_name() -> String { "String".into() } }
-impl SceneMessage for Cow<'static, str> { fn message_type_name() -> String { "Cow::str".into() } }
-impl SceneMessage for char              { fn message_type_name() -> String { "char".into() } }
-impl SceneMessage for usize             { fn message_type_name() -> String { "usize".into() } }
-impl SceneMessage for isize             { fn message_type_name() -> String { "isize".into() } }
-impl SceneMessage for i8                { fn message_type_name() -> String { "i8".into() } }
-impl SceneMessage for u8                { fn message_type_name() -> String { "u8".into() } }
-impl SceneMessage for i16               { fn message_type_name() -> String { "i16".into() } }
-impl SceneMessage for u16               { fn message_type_name() -> String { "u16".into() } }
-impl SceneMessage for i32               { fn message_type_name() -> String { "i32".into() } }
-impl SceneMessage for u32               { fn message_type_name() -> String { "u32".into() } }
-impl SceneMessage for i64               { fn message_type_name() -> String { "i64".into() } }
-impl SceneMessage for u64               { fn message_type_name() -> String { "u64".into() } }
-impl SceneMessage for i128              { fn message_type_name() -> String { "i128".into() } }
-impl SceneMessage for u128              { fn message_type_name() -> String { "u128".into() } }
+impl SceneGuestMessage for ()                { fn message_type_name() -> String { "()".into() } }
+impl SceneGuestMessage for String            { fn message_type_name() -> String { "String".into() } }
+impl SceneGuestMessage for Cow<'static, str> { fn message_type_name() -> String { "Cow::str".into() } }
+impl SceneGuestMessage for char              { fn message_type_name() -> String { "char".into() } }
+impl SceneGuestMessage for usize             { fn message_type_name() -> String { "usize".into() } }
+impl SceneGuestMessage for isize             { fn message_type_name() -> String { "isize".into() } }
+impl SceneGuestMessage for i8                { fn message_type_name() -> String { "i8".into() } }
+impl SceneGuestMessage for u8                { fn message_type_name() -> String { "u8".into() } }
+impl SceneGuestMessage for i16               { fn message_type_name() -> String { "i16".into() } }
+impl SceneGuestMessage for u16               { fn message_type_name() -> String { "u16".into() } }
+impl SceneGuestMessage for i32               { fn message_type_name() -> String { "i32".into() } }
+impl SceneGuestMessage for u32               { fn message_type_name() -> String { "u32".into() } }
+impl SceneGuestMessage for i64               { fn message_type_name() -> String { "i64".into() } }
+impl SceneGuestMessage for u64               { fn message_type_name() -> String { "u64".into() } }
+impl SceneGuestMessage for i128              { fn message_type_name() -> String { "i128".into() } }
+impl SceneGuestMessage for u128              { fn message_type_name() -> String { "u128".into() } }
