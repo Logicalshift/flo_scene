@@ -8,9 +8,10 @@ use super::stream_core::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
-use futures::task::{Waker};
+use futures::task::{Waker, Poll, Context, waker};
 
 use alloc::collections::{BTreeMap, BTreeSet, VecDeque};
+use alloc::sync::*;
 use alloc::vec::*;
 
 pub (crate) struct GuestRuntimeCore {
@@ -87,20 +88,18 @@ impl GuestRuntimeCore {
         // TODO: need to mark the futures as stopped and finished
         loop {
             // Fetch the runner from the core (we borrow it while it's active)
-            let future_runner = {
-                let mut core = core.lock().unwrap();
-
+            let future_runner = with_shared(core, |core| {
                 if core.pile_is_awake {
                     core.pile_is_awake = false;
                     core.future_runner.take()
                 } else {
                     None
                 }
-            };
+            });
 
             if let Some(mut future_runner) = future_runner {
                 // The waker sets the core as 'awake' if it's woken (main reason for it is to go through this loop again if we get re-awoken while polling)
-                let core_waker  = CoreWaker(Arc::downgrade(core));
+                let core_waker  = CoreWaker(shared_downgrade(core));
                 let core_waker  = waker(Arc::new(core_waker));
                 let mut context = Context::from_waker(&core_waker);
 
@@ -108,15 +107,15 @@ impl GuestRuntimeCore {
                 let _ = future_runner.poll_unpin(&mut context);
 
                 // Return the runner to the core so we're ready for the next pass through the loop
-                (*core.lock().unwrap()).future_runner = Some(future_runner);
+                with_shared(core, |core| core.future_runner = Some(future_runner));
             } else {
                 // Return the results if there's nothing to poll
                 if future_runner.is_none() {
-                    let mut core    = core.lock().unwrap();
-                    let mut results = vec![];
-                    mem::swap(&mut results, &mut core.pending_results);
-
-                    return results;
+                    return with_shared(core, |core| {
+                        let mut results = Vec::new();
+                        mem::swap(&mut results, &mut core.pending_results);
+                        results
+                    });
                 }
             }
         }
@@ -132,10 +131,7 @@ impl GuestRuntimeCore {
     pub (crate) fn send_message(core: &Shared<Self>, target: GuestSubProgramHandle, message: Vec<u8>) {
         use core::mem;
 
-        let waker = {
-            // Lock the core
-            let core = core.lock().unwrap();
-
+        let waker = with_shared(core, |core| {
             // The handle is an index into the input_streams list
             let GuestSubProgramHandle(target_id) = target;
 
@@ -151,7 +147,7 @@ impl GuestRuntimeCore {
                 // This program is not running
                 None
             }
-        };
+        });
 
         // Wake anything that needs to be awoken for this stream
         waker.into_iter()
@@ -163,9 +159,9 @@ impl GuestRuntimeCore {
     ///
     pub (crate) fn stream_ready(core: &Shared<Self>, target: GuestSubProgramHandle) {
         // Indicate that the program is ready to receive a new message
-        let mut core = core.lock().unwrap();
-
-        core.pending_results.push(GuestResult::Ready(target))
+        with_shared(core, |core| {
+            core.pending_results.push(GuestResult::Ready(target))
+        })
     }
 
     ///
@@ -175,23 +171,20 @@ impl GuestRuntimeCore {
         let core = core.clone();
 
         // Create a new sink. It's only a proposed sink handle at this point as we'll throw it away if it errors out
-        let proposed_sink_handle = {
-            let mut core = core.lock().unwrap();
+        let proposed_sink_handle = with_shared(&core, |core| {
             let handle   = core.next_sink_handle;
 
             core.sink_handles.insert(handle, GuestSink { waker: None, status: GuestSinkStatus::Busy });
             core.next_sink_handle += 1;
 
             handle
-        };
+        });
 
         // Queue a request for this stream
-        core.lock().unwrap().pending_results.push(GuestResult::Connect(HostSinkHandle(proposed_sink_handle), target));
+        with_shared(&core, |core| core.pending_results.push(GuestResult::Connect(HostSinkHandle(proposed_sink_handle), target)));
 
         // Poll until the sink moves to the ready state
-        future::poll_fn(move |context| {
-            let mut core = core.lock().unwrap();
-
+        future::poll_fn(move |context| with_shared(&core, |core| {
             if let Some(sink_data) = core.sink_handles.get_mut(&proposed_sink_handle) {
                 match &sink_data.status {
                     GuestSinkStatus::Busy => {
@@ -222,7 +215,7 @@ impl GuestRuntimeCore {
                 // Sink disappeared while we were waiting
                 Poll::Ready(Err(ConnectionError::Cancelled))
             }
-        })
+        }))
     }
 
     ///
@@ -235,9 +228,7 @@ impl GuestRuntimeCore {
         let mut message = Some(message);
         let HostSinkHandle(sink) = sink;
 
-        future::poll_fn(move |context| {
-            let mut core = core.lock().unwrap();
-
+        future::poll_fn(move |context| with_shared(&core, |core| {
             if let Some(sink_data) = core.sink_handles.get_mut(&sink) {
                 match &sink_data.status {
                     GuestSinkStatus::Busy => {
@@ -279,14 +270,14 @@ impl GuestRuntimeCore {
                 // Sink disappeared while we were waiting
                 Poll::Ready(Err(SceneSendError::TargetProgramEndedBeforeReady))
             }
-        })
+        }))
     }
 
     ///
     /// Creates a sink that receives encoded data and sends it to a target 
     ///
     pub (crate) fn create_output_sink(core: &Shared<Self>, target: HostStreamTarget) -> impl Future<Output=Result<impl 'static + Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError>> {
-        let core = Arc::clone(&core);
+        let core = core.clone();
 
         async move {
             // Create the connection to the core
@@ -310,19 +301,22 @@ impl GuestRuntimeCore {
         let stream_core = share(stream_core);
 
         // Store the new stream in the core (or if an exising one is already present, substitute that one)
-        core.lock().unwrap().pending_streams.entry(stream_id)
-            .or_insert(stream_core)
-            .clone()
+        with_shared(core, |core| {
+            core.pending_streams.entry(stream_id)
+                .or_insert(stream_core)
+                .clone()
+        })
     }
 
     ///
     /// Creates a serialization ID for a stream on the guest side
     ///
     pub (crate) fn next_serialization_id(core: &Shared<Self>) -> SerializationId {
-        let mut core    = core.lock().unwrap();
-        let next_id     = core.next_serialization_id;
-        core.next_serialization_id += 1;
+        with_shared(core, |core| {
+            let next_id = core.next_serialization_id;
+            core.next_serialization_id += 1;
 
-        SerializationId::MyStream(next_id)
+            SerializationId::MyStream(next_id)
+        })
     }
 }
