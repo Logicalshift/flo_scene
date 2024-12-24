@@ -8,6 +8,12 @@ mod std_sharing_types {
     /// A weak shared reference does not retain its contents if the main 'shared' items are released
     pub type WeakShared<T> = Weak<Mutex<T>>;
 
+    /// Create a new shared item
+    #[inline]
+    pub fn share<T>(item: T) -> Shared<T> {
+        Arc::new(Mutex::new(item))
+    }
+
     /// Accesses a shared value
     #[inline]
     pub fn with_shared<T, TReturn>(shared: &Shared<T>, action: impl FnOnce(&mut T) -> TReturn) -> TReturn {
@@ -21,7 +27,7 @@ mod std_sharing_types {
     }
 
     #[inline]
-    fn shared_downgrade<T>(shared: &Shared<T>) -> WeakShared<T> {
+    pub fn shared_downgrade<T>(shared: &Shared<T>) -> WeakShared<T> {
         Arc::downgrade(shared)
     }
 
@@ -53,6 +59,12 @@ mod one_thread_sharing_types {
     /// A weak shared reference does not retain its contents if the main 'shared' items are released
     pub type WeakShared<T> = Weak<RefCell<T>>;
 
+    /// Create a new shared item
+    #[inline]
+    pub fn share<T>(item: T) -> Shared<T> {
+        Rc::new(RefCell::new(item))
+    }
+
     /// Accesses a shared value
     #[inline]
     pub fn with_shared<T, TReturn>(shared: &Shared<T>, action: impl FnOnce(&mut T) -> TReturn) -> TReturn {
@@ -67,7 +79,7 @@ mod one_thread_sharing_types {
 
     /// Creates a weak version of a shared item
     #[inline]
-    fn shared_downgrade<T>(shared: &Shared<T>) -> WeakShared<T> {
+    pub fn shared_downgrade<T>(shared: &Shared<T>) -> WeakShared<T> {
         Rc::downgrade(shared)
     }
 
