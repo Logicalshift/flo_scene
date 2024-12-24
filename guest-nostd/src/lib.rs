@@ -16,6 +16,9 @@ extern crate alloc;
 pub mod exports;
 pub mod imports;
 mod guest_types;
+mod host_types;
+//mod poll_action;
+mod poll_result;
 
 pub use serde;
 pub use postcard;
@@ -23,3 +26,5 @@ pub use futures;
 pub use uuid;
 
 pub use guest_types::*;
+pub use host_types::*;
+
