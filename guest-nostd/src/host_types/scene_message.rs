@@ -1,4 +1,5 @@
 use crate::errors::*;
+use crate::util::*;
 
 use serde::*;
 
@@ -11,92 +12,7 @@ use alloc::vec::*;
 use alloc::borrow::{Cow};
 
 ///
-/// Trait implemented by messages that can be sent via a scene
-///
-/// A basic message type can be declared like this:
-///
-/// ```
-/// # use flo_scene::*;
-/// # use serde::*;
-/// #[derive(Serialize, Deserialize)]
-/// struct ExampleMessage { some_value: i64 };
-///
-/// impl SceneMessage for ExampleMessage { }
-/// ```
-///
-/// Messages are initialised the first time they are encountered in a scene. The `initialise()` function can be used to
-/// customise this if needed: for example, to set up the default set of connections that a message should support.
-///
-/// Scene messages should implement the serde serialization primitives but can return only errors. These types should also
-/// return `false` from `serializable()` so that the serialization filters aren't generated. Most messages can use 
-/// `#[derive(Serialize, Deserialize)]` to generate the serialization routines.
-///
-/// An implementation like the following can be used for non-serializable messages:
-///
-/// ```
-/// # use flo_scene::*;
-/// use serde::*;
-/// use serde::de::{Error as DeError};
-/// use serde::ser::{Error as SeError};
-///
-/// struct ExampleMessage;
-/// 
-/// impl Serialize for ExampleMessage {
-///     fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
-///     where
-///         S: Serializer 
-///     {
-///         Err(S::Error::custom("ExampleMessage cannot be serialized"))
-///     }
-/// }
-/// 
-/// impl<'a> Deserialize<'a> for ExampleMessage {
-///     fn deserialize<D>(_: D) -> Result<Self, D::Error>
-///     where
-///         D: Deserializer<'a> 
-///     {
-///         Err(D::Error::custom("RunCommand cannot be serialized"))
-///     }
-/// }
-/// 
-/// impl SceneMessage for ExampleMessage {
-///     fn serializable() -> bool { false }
-/// }
-/// ```
-///
-/// Another approach is to serialize via an intermediate type, which can be used when special treatment is needed for serialization
-/// or deserialization. This can look like this:
-///
-/// ```
-/// # use flo_scene::*;
-/// use serde::*;
-/// # 
-/// # struct ExampleMessage { real_number: usize }
-///
-/// #[derive(Serialize, Deserialize)]
-/// struct IntermediateMessage { serialized_number: usize }
-/// 
-/// // This is a contrived example that serializes a different number
-///
-/// impl Serialize for ExampleMessage {
-///     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-///     where
-///         S: Serializer 
-///     {
-///         IntermediateMessage { serialized_number: self.real_number + 1 }.serialize(serializer)
-///     }
-/// }
-/// 
-/// impl<'a> Deserialize<'a> for ExampleMessage {
-///     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-///     where
-///         D: Deserializer<'a> 
-///     {
-///         let intermediate = IntermediateMessage::deserialize(deserializer)?;
-///         Ok(ExampleMessage { real_number: intermediate.serialized_number - 1 })
-///     }
-/// }
-/// ```
+/// Trait implemented by messages that can be sent via a scene, or a guest of a scene
 ///
 pub trait SceneGuestMessage :
     'static                 +
