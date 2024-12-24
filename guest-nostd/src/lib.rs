@@ -17,8 +17,8 @@ pub mod exports;
 pub mod imports;
 mod guest_types;
 mod host_types;
-//mod poll_action;
-mod poll_result;
+//mod guest_action;
+mod guest_result;
 
 pub use serde;
 pub use postcard;
@@ -27,4 +27,3 @@ pub use uuid;
 
 pub use guest_types::*;
 pub use host_types::*;
-
