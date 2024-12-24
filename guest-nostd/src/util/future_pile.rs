@@ -36,10 +36,7 @@ pub struct FuturePileBusy(WeakShared<FuturePileCore>);
 
 impl Drop for FuturePileBusy {
     fn drop(&mut self) {
-        if let Some(core) = self.0.upgrade() {
-            // Decrease the busy count, core will be idle at next poll (we don't need to trigger the waker if this is used in a core future, which is the intention)
-            core.lock().unwrap().busy_count -= 1;
-        }
+        with_weak_shared(&self.0, |core| core.busy_count -= 1);
     }
 }
 
@@ -76,10 +73,10 @@ impl FuturePile {
             when_idle:      None,
             waker:          None,
         };
-        let core = Arc::new(Mutex::new(core));
+        let core = share(core);
 
         // Put the core into a futurepile and a runner
-        let pile    = FuturePile        { core: Arc::downgrade(&core) };
+        let pile    = FuturePile        { core: shared_downgrade(&core) };
         let runner  = FuturePileRunner  { core: core };
 
         (pile, runner)
@@ -89,24 +86,20 @@ impl FuturePile {
     /// Adds a future to the set that this pile will run
     ///
     pub fn add_future(&self, new_future: impl 'static + Send + Future<Output=()>) {
-        if let Some(core) = self.core.upgrade() {
-            // Add the future to the core
-            let waker = {
-                let mut core = core.lock().unwrap();
+        // Add the future to the core
+        let waker = with_weak_shared(&self.core, |core| {
+            let future_id = core.next_id;
+            core.next_id += 1;
 
-                let future_id = core.next_id;
-                core.next_id += 1;
+            core.futures.insert(future_id, Some(new_future.boxed()));
+            core.awake_futures.insert(future_id);
 
-                core.futures.insert(future_id, Some(new_future.boxed()));
-                core.awake_futures.insert(future_id);
+            core.waker.take()
+        });
 
-                core.waker.take()
-            };
-
-            // Wake up the runner if it's asleep
-            if let Some(waker) = waker {
-                waker.wake();
-            }
+        // Wake up the runner if it's asleep
+        if let Some(Some(waker)) = waker {
+            waker.wake();
         }
     }
 
@@ -114,9 +107,9 @@ impl FuturePile {
     /// Marks this pile as 'busy' (so the 'idle()' callback will wait)
     ///
     pub fn make_busy(&self) -> FuturePileBusy {
-        if let Some(core) = self.core.upgrade() {
-            core.lock().unwrap().busy_count += 1;
-        }
+        with_weak_shared(&self.core, |core| {
+            core.busy_count += 1;
+        });
 
         FuturePileBusy(self.core.clone())
     }
@@ -124,11 +117,10 @@ impl FuturePile {
     ///
     /// Returns a future that waits until there is nothing left waiting in the pile
     ///
+    #[cfg(feature="std")]
     pub fn idle<'a>(&'a self) -> impl 'a + Send + Future<Output=()> {
         future::poll_fn(|ctxt| {
-            if let Some(core) = self.core.upgrade() {
-                let mut core = core.lock().unwrap();
-
+            if let Some(action) = with_weak_shared(&self.core, |core| {
                 if core.awake_futures.is_empty() && core.busy_count == 0 {
                     // No more futures are awake, so we're idle
                     Poll::Ready(())
@@ -137,6 +129,31 @@ impl FuturePile {
                     core.when_idle = Some(ctxt.waker().clone());
                     Poll::Pending
                 }
+            }) {
+                action
+            } else {
+                Poll::Ready(())
+            }
+        })
+    }
+
+    ///
+    /// Returns a future that waits until there is nothing left waiting in the pile
+    ///
+    #[cfg(feature="one_thread")]
+    pub fn idle<'a>(&'a self) -> impl 'a + Future<Output=()> {
+        future::poll_fn(|ctxt| {
+            if let Some(action) = with_weak_shared(&self.core, |core| {
+                if core.awake_futures.is_empty() && core.busy_count == 0 {
+                    // No more futures are awake, so we're idle
+                    Poll::Ready(())
+                } else {
+                    // Wake up this thread when we're ready
+                    core.when_idle = Some(ctxt.waker().clone());
+                    Poll::Pending
+                }
+            }) {
+                action
             } else {
                 Poll::Ready(())
             }
@@ -147,7 +164,32 @@ impl FuturePile {
 /// The waker wakes up a specific future. We use a weak core so there's no reference loop
 struct PileWaker(usize, WeakShared<FuturePileCore>);
 
+#[cfg(feature="std")]
 impl ArcWake for PileWaker {
+    fn wake_by_ref(arc_self: &Arc<Self>) {
+        let PileWaker(future_id, core) = &**arc_self;
+        let future_id = *future_id;
+
+        // Add the future ID to the list of awake futures
+        let waker = if let Some(core) = core.upgrade() {
+            let mut core = core.lock().unwrap();
+
+            core.awake_futures.insert(future_id);
+
+            core.waker.take()
+        } else {
+            None
+        };
+
+        // Wake up the runtime to poll this future
+        if let Some(waker) = waker {
+            waker.wake()
+        }
+    }
+}
+
+#[cfg(feature="one_thread")]
+impl RcWake for PileWaker {
     fn wake_by_ref(arc_self: &Arc<Self>) {
         let PileWaker(future_id, core) = &**arc_self;
         let future_id = *future_id;
