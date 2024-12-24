@@ -146,18 +146,14 @@ impl ArcWake for PileWaker {
         let future_id = *future_id;
 
         // Add the future ID to the list of awake futures
-        let waker = if let Some(core) = core.upgrade() {
-            let mut core = core.lock().unwrap();
-
+        let waker = with_weak_shared(core, |core| {
             core.awake_futures.insert(future_id);
 
             core.waker.take()
-        } else {
-            None
-        };
+        });
 
         // Wake up the runtime to poll this future
-        if let Some(waker) = waker {
+        if let Some(Some(waker)) = waker {
             waker.wake()
         }
     }
@@ -170,13 +166,11 @@ impl FuturePileRunner {
     pub fn run_forever(self) -> impl 'static + Send + Unpin + Future<Output=()> {
         future::poll_fn(move |context| {
             // Store a waker for when new futures are added
-            self.core.lock().unwrap().waker = Some(context.waker().clone());
+            with_shared(&self.core, |core| core.waker = Some(context.waker().clone()));
 
             loop {
                 // Fetch the futures that are awake from the core
-                let (awake_futures, is_busy) = {
-                    let mut core            = self.core.lock().unwrap();
-                    let core                = &mut *core;
+                let (awake_futures, is_busy) = with_shared(&self.core, |core| {
                     let mut awake_futures   = Vec::with_capacity(core.awake_futures.len());
 
                     // Take the futures that need polling from the core
@@ -192,12 +186,12 @@ impl FuturePileRunner {
                     }
 
                     (awake_futures, core.busy_count != 0)
-                };
+                });
 
                 // Go to sleep once there are no more awake futures
                 if awake_futures.is_empty() && !is_busy {
                     // Wake up anything that's waiting for us to become idle (which might re-enter the core)
-                    let idle_waker = self.core.lock().unwrap().when_idle.take();
+                    let idle_waker = with_shared(&self.core, |core| core.when_idle.take());
 
                     if let Some(idle_waker) = idle_waker {
                         idle_waker.wake();
@@ -228,13 +222,11 @@ impl FuturePileRunner {
                 }
 
                 // Return the futures that were still running after polling to the core
-                {
-                    let mut core = self.core.lock().unwrap();
-
+                with_shared(&self.core, move |core| {
                     for (future_id, future) in remaining_futures {
                         core.futures.insert(future_id, Some(future));
                     }
-                }
+                });
             }
         })
     }
