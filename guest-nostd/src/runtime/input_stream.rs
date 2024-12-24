@@ -2,6 +2,7 @@ use crate::host_types::*;
 use crate::guest_types::*;
 use super::core::*;
 use super::input_stream_core::*;
+use super::serialization_context::*;
 
 use futures::prelude::*;
 use futures::task::{Context, Poll};

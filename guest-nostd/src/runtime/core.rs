@@ -5,6 +5,7 @@ use crate::guest_result::*;
 use crate::util::*;
 use super::input_stream::*;
 use super::input_stream_core::*;
+use super::serialization_context::*;
 use super::stream_core::*;
 
 use futures::prelude::*;
