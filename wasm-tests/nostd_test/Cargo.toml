@@ -1,0 +1,11 @@
+[package]
+name = "flo_scene_wasm_nostd_test"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+flo_scene_nostd = { version = "0.2" }
+wee_alloc       = "0.4"

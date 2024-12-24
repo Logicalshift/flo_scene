@@ -2,6 +2,7 @@
 members     = [
     "buffer_tests",
     "subprogram_test",
+    "nostd_test"
 ]
 resolver    = "2"
 
@@ -10,4 +11,5 @@ lto         = true
 opt-level   = 'z'
 
 [patch.crates-io]
-flo_scene = { path = "../scene" }
+flo_scene       = { path = "../scene" }
+flo_scene_nostd = { path = "../guest-nostd" }
