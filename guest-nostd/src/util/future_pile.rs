@@ -117,31 +117,7 @@ impl FuturePile {
     ///
     /// Returns a future that waits until there is nothing left waiting in the pile
     ///
-    #[cfg(feature="std")]
     pub fn idle<'a>(&'a self) -> impl 'a + Send + Future<Output=()> {
-        future::poll_fn(|ctxt| {
-            if let Some(action) = with_weak_shared(&self.core, |core| {
-                if core.awake_futures.is_empty() && core.busy_count == 0 {
-                    // No more futures are awake, so we're idle
-                    Poll::Ready(())
-                } else {
-                    // Wake up this thread when we're ready
-                    core.when_idle = Some(ctxt.waker().clone());
-                    Poll::Pending
-                }
-            }) {
-                action
-            } else {
-                Poll::Ready(())
-            }
-        })
-    }
-
-    ///
-    /// Returns a future that waits until there is nothing left waiting in the pile
-    ///
-    #[cfg(feature="one_thread")]
-    pub fn idle<'a>(&'a self) -> impl 'a + Future<Output=()> {
         future::poll_fn(|ctxt| {
             if let Some(action) = with_weak_shared(&self.core, |core| {
                 if core.awake_futures.is_empty() && core.busy_count == 0 {
@@ -164,32 +140,7 @@ impl FuturePile {
 /// The waker wakes up a specific future. We use a weak core so there's no reference loop
 struct PileWaker(usize, WeakShared<FuturePileCore>);
 
-#[cfg(feature="std")]
 impl ArcWake for PileWaker {
-    fn wake_by_ref(arc_self: &Arc<Self>) {
-        let PileWaker(future_id, core) = &**arc_self;
-        let future_id = *future_id;
-
-        // Add the future ID to the list of awake futures
-        let waker = if let Some(core) = core.upgrade() {
-            let mut core = core.lock().unwrap();
-
-            core.awake_futures.insert(future_id);
-
-            core.waker.take()
-        } else {
-            None
-        };
-
-        // Wake up the runtime to poll this future
-        if let Some(waker) = waker {
-            waker.wake()
-        }
-    }
-}
-
-#[cfg(feature="one_thread")]
-impl RcWake for PileWaker {
     fn wake_by_ref(arc_self: &Arc<Self>) {
         let PileWaker(future_id, core) = &**arc_self;
         let future_id = *future_id;
