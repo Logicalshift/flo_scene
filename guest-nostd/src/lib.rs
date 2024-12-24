@@ -17,5 +17,7 @@ mod guest_types;
 
 pub use serde;
 pub use postcard;
+pub use futures;
+pub use uuid;
 
 pub use guest_types::*;
