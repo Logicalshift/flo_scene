@@ -750,6 +750,7 @@ dependencies = [
  "futures",
  "postcard",
  "serde",
+ "serde_json",
  "spin",
  "uuid",
 ]
