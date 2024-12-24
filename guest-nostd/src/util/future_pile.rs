@@ -171,13 +171,17 @@ impl FuturePileRunner {
             loop {
                 // Fetch the futures that are awake from the core
                 let (awake_futures, is_busy) = with_shared(&self.core, |core| {
-                    let mut awake_futures   = Vec::with_capacity(core.awake_futures.len());
+                    use core::mem;
+
+                    let mut awake_futures = Vec::with_capacity(core.awake_futures.len());
 
                     // Take the futures that need polling from the core
-                    let awake_future_ids    = &mut core.awake_futures;
-                    let futures             = &mut core.futures;
+                    let mut awake_future_ids = BTreeSet::new();
+                    mem::swap(&mut core.awake_futures, &mut awake_future_ids);
 
-                    for future_id in awake_future_ids.drain() {
+                    let futures = &mut core.futures;
+
+                    for future_id in awake_future_ids.into_iter() {
                         let future = futures.get_mut(&future_id).map(|future| future.take());
 
                         if let Some(Some(future)) = future {
