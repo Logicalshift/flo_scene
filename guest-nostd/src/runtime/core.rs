@@ -2,6 +2,7 @@ use crate::guest_types::*;
 use crate::host_types::*;
 use crate::guest_result::*;
 use crate::util::*;
+use super::input_stream_core::*;
 
 use futures::future::{BoxFuture};
 use futures::task::{Waker};
@@ -20,7 +21,7 @@ pub (crate) struct GuestRuntimeCore {
     pile_is_awake: bool,
 
     /// The input stream cores used in the runtime
-    // input_streams: BTreeMap<usize, Arc<Mutex<GuestInputStreamCore>>>,
+    input_streams: BTreeMap<usize, Shared<GuestInputStreamCore>>,
 
     /// Sink handles
     sink_handles: BTreeMap<usize, GuestSink>,
