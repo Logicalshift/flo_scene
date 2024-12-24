@@ -67,7 +67,8 @@ where
         use core::mem;
 
         // Read the encoded form of the next message from the core
-        let next_message = with_shared(&self.core, |core| {
+        let mut signal_ready    = false;
+        let next_message        = with_shared(&self.core, |core| {
             if let Some(encoded) = core.waiting.pop_front() {
                 // There's a message waiting
                 core.is_ready = false;
@@ -82,10 +83,9 @@ where
                 if !core.is_ready {
                     // The core is ready
                     core.is_ready = true;
-                    mem::drop(core);
 
                     // Signal via the runtime
-                    GuestRuntimeCore::stream_ready(&self.runtime_core, self.program_handle);
+                    signal_ready = true;
 
                     Poll::Pending
                 } else {
@@ -93,6 +93,11 @@ where
                 }
             }
         });
+
+        // Signal that the stream is ready once we've dropped the lock
+        if signal_ready {
+            GuestRuntimeCore::stream_ready(&self.runtime_core, self.program_handle);
+        }
 
         // Decode the message
         match next_message {
