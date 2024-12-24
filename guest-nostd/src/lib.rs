@@ -18,6 +18,7 @@ pub mod imports;
 pub mod guest_types;
 pub mod host_types;
 pub mod errors;
+pub mod runtime;
 mod guest_action;
 mod guest_result;
 
