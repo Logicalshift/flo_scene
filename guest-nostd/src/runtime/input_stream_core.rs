@@ -8,14 +8,14 @@ use alloc::vec::*;
 ///
 pub (crate) struct GuestInputStreamCore {
     /// Messages waiting in this input stream
-    waiting: VecDeque<Vec<u8>>,
+    pub (super) waiting: VecDeque<Vec<u8>>,
 
     /// Waker for the future for this input stream
-    waker: Option<Waker>,
+    pub (super) waker: Option<Waker>,
 
     /// Set to true once the stream should be considered to be closed
-    closed: bool,
+    pub (super) closed: bool,
 
     /// Set to true when the stream is ready (and false when input is returned)
-    is_ready: bool,
+    pub (super) is_ready: bool,
 }
