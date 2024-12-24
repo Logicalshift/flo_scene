@@ -3,6 +3,7 @@ use crate::host_types::*;
 use crate::guest_result::*;
 use crate::util::*;
 use super::input_stream_core::*;
+use super::stream_core::*;
 
 use futures::future::{BoxFuture};
 use futures::task::{Waker};
@@ -48,6 +49,5 @@ pub (crate) struct GuestRuntimeCore {
     pub (super) when_ready: BTreeMap<SerializationId, Option<Waker>>,
 
     /// The streams with pending data from the host side
-    // pending_streams: BTreeSet<SerializationId, Arc<Mutex<GuestStreamCore>>>,
-    nothing: ()
+    pending_streams: BTreeMap<SerializationId, Shared<GuestStreamCore>>,
 }
