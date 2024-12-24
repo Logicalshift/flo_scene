@@ -10,6 +10,16 @@ description     = "no_std implementation of the guest protocol for flo_scene for
 categories      = [ "concurrency", "data-structures" ]
 keywords        = [ "message-queue" ]
 
+[features]
+# By default assume we're creating a wasm module which will run on a single thread
+default         = [ "one_thread" ]
+
+# Use std after all, protect shared data with shared mutexes
+std             = []
+
+# If std is not applied, assume that we're running in single-threaded mode
+one_thread      = []
+
 [dependencies]
 postcard        = { version = "1.0", features = [ "alloc" ] }
 futures         = { version = "0.3", default-features = false }
