@@ -3,7 +3,8 @@ use futures::future::{BoxFuture};
 use futures::task::{waker, ArcWake, Poll, Waker, Context};
 
 use alloc::sync::*;
-use alloc::collections::{HashMap, HashSet};
+use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::vec::*;
 
 ///
 /// Core data for a future pile
@@ -13,10 +14,10 @@ struct FuturePileCore {
     next_id: usize,
 
     /// The futures that are waiting to be run in the pile (set to None when we take them out to poll them)
-    futures: HashMap<usize, Option<BoxFuture<'static, ()>>>,
+    futures: BTreeMap<usize, Option<BoxFuture<'static, ()>>>,
 
     /// The futures that have been woken up and need to be polled
-    awake_futures: HashSet<usize>,
+    awake_futures: BTreeSet<usize>,
 
     /// Number of futures that consider themselves 'busy'
     busy_count: usize,
@@ -67,8 +68,8 @@ impl FuturePile {
         // Create a new core
         let core = FuturePileCore {
             next_id:        0,
-            futures:        HashMap::new(),
-            awake_futures:  HashSet::new(),
+            futures:        BTreeMap::new(),
+            awake_futures:  BTreeSet::new(),
             busy_count:     0,
             when_idle:      None,
             waker:          None,
@@ -213,7 +214,7 @@ impl FuturePileRunner {
                 }
 
                 // With the core unlocked again, poll the futures
-                let mut remaining_futures = vec![];
+                let mut remaining_futures = Vec::new();
                 for (future_id, mut future) in awake_futures {
                     let future_waker    = Arc::new(PileWaker(future_id, Arc::downgrade(&self.core)));
                     let future_waker    = waker(future_waker);
