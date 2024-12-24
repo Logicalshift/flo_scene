@@ -8,6 +8,7 @@ use super::core::*;
 use futures::prelude::*;
 use futures::stream::{BoxStream};
 
+use alloc::boxed::*;
 use alloc::sync::*;
 use alloc::vec::*;
 
@@ -39,9 +40,9 @@ impl Drop for CloseStream {
     fn drop(&mut self) {
         let CloseStream(stream_id, core) = self;
 
-        if let Some(core) = core.upgrade() {
-            core.lock().unwrap().pending_results.push(GuestResult::CloseStream(*stream_id));
-        }
+        with_weak_shared(core, |core| {
+            core.pending_results.push(GuestResult::CloseStream(*stream_id));
+        });
     }
 }
 
@@ -90,26 +91,26 @@ impl SerializationContext for GuestSerializationContext {
                             }
                         }
 
-                        let mut locked_core = core.lock().unwrap();
-
-                        if locked_core.closed_streams.contains(&stream_id) {
-                            // Stream is closed (return true, the stream is closed)
-                            Poll::Ready(ReadyMessage::ClosedOnOtherSide)
-                        } else if locked_core.ready_streams.contains(&stream_id) {
-                            // Stream is ready (return false, the stream is not closed)
-                            if let Some(message) = received_message.take() {
-                                // Received a message from the source stream and the other side is ready to receive it
-                                locked_core.ready_streams.remove(&stream_id);
-                                Poll::Ready(ReadyMessage::Ready(message))
+                        with_shared(&core, |locked_core| {
+                            if locked_core.closed_streams.contains(&stream_id) {
+                                // Stream is closed (return true, the stream is closed)
+                                Poll::Ready(ReadyMessage::ClosedOnOtherSide)
+                            } else if locked_core.ready_streams.contains(&stream_id) {
+                                // Stream is ready (return false, the stream is not closed)
+                                if let Some(message) = received_message.take() {
+                                    // Received a message from the source stream and the other side is ready to receive it
+                                    locked_core.ready_streams.remove(&stream_id);
+                                    Poll::Ready(ReadyMessage::Ready(message))
+                                } else {
+                                    // Waiting for the next message to arrive from the stream
+                                    Poll::Pending
+                                }
                             } else {
-                                // Waiting for the next message to arrive from the stream
+                                // Stream is not ready, wait for it
+                                locked_core.when_ready.insert(stream_id, Some(ctxt.waker().clone()));
                                 Poll::Pending
                             }
-                        } else {
-                            // Stream is not ready, wait for it
-                            locked_core.when_ready.insert(stream_id, Some(ctxt.waker().clone()));
-                            Poll::Pending
-                        }
+                        })
                     }).await;
 
                     // We can either get a message that's ready to send to the other side, or the other side can indicate we're closed, or our own side can close the stream
@@ -127,7 +128,7 @@ impl SerializationContext for GuestSerializationContext {
                         ReadyMessage::Ready(Some(next_message)) => {
                             // Send as an action to the host (the host will re-ready the stream after this event)
                             // These messages are picked up later on by the callback from the host
-                            core.lock().unwrap().pending_results.push(GuestResult::SendStream(stream_id, next_message));
+                            with_shared(&core, |core| core.pending_results.push(GuestResult::SendStream(stream_id, next_message)));
                         }
                     }
 
@@ -136,13 +137,12 @@ impl SerializationContext for GuestSerializationContext {
                 }
 
                 // Remove the status for this stream before shutting down
-                let mut locked_core = core.lock().unwrap();
+                with_shared(&core, |locked_core| {
+                    locked_core.closed_streams.remove(&stream_id);
+                    locked_core.ready_streams.remove(&stream_id);
+                    locked_core.when_ready.remove(&stream_id);
+                });
 
-                locked_core.closed_streams.remove(&stream_id);
-                locked_core.ready_streams.remove(&stream_id);
-                locked_core.when_ready.remove(&stream_id);
-
-                mem::drop(locked_core);
                 mem::drop(close_stream);
             });
 
@@ -164,25 +164,25 @@ impl SerializationContext for GuestSerializationContext {
             // Use an unfold to generate the messages for the stream
             let stream = stream::unfold((core, stream_core, close_stream), move |(core, stream_core, close_stream)| async move { 
                 // Stream is ready to receive a message
-                core.lock().unwrap().pending_results.push(GuestResult::ReadyStream(stream_id));
+                with_shared(&core, |core| core.pending_results.push(GuestResult::ReadyStream(stream_id)));
 
                 // Wait for a message to arrive
                 let next_msg = future::poll_fn(|ctxt| {
                     use futures::task::*;
 
-                    let mut stream_core = stream_core.lock().unwrap();
-
-                    if let Some(msg) = stream_core.pending.pop_front() {
-                        // There's a message waiting
-                        Poll::Ready(Some(msg))
-                    } else if stream_core.closed {
-                        // No messages and the stream is closed
-                        Poll::Ready(None)
-                    } else {
-                        // Sleep until a message is received
-                        stream_core.waker = Some(ctxt.waker().clone());
-                        Poll::Pending
-                    }
+                    with_shared(&stream_core, |stream_core| {
+                        if let Some(msg) = stream_core.pending.pop_front() {
+                            // There's a message waiting
+                            Poll::Ready(Some(msg))
+                        } else if stream_core.closed {
+                            // No messages and the stream is closed
+                            Poll::Ready(None)
+                        } else {
+                            // Sleep until a message is received
+                            stream_core.waker = Some(ctxt.waker().clone());
+                            Poll::Pending
+                        }
+                        })
                 }).await;
 
                 // Return messages until the stream is closed
@@ -245,7 +245,7 @@ impl SerializationContext for GuestSerializationContext {
 
                     // Add the request to the pending results (so long as we're awaited from the guest runtime this will get sent)
                     if let Some(core) = core.upgrade() {
-                        core.lock().unwrap().pending_results.push(GuestResult::SendStream(callback_id, arg));
+                        with_shared(&core, |core| core.pending_results.push(GuestResult::SendStream(callback_id, arg)));
                     }
                 }.boxed()
             };
