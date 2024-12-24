@@ -9,7 +9,7 @@
 //! this can produce considerably smaller assembly file sizes.
 //!
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
 
