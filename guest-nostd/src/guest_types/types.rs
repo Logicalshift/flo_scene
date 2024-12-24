@@ -31,10 +31,3 @@ impl Default for GuestSubProgramHandle {
 #[derive(Clone, Copy, PartialEq, Debug, Eq, Hash)]
 #[repr(transparent)]
 pub struct BufferHandle(usize);
-
-///
-/// Handle that identifies an output sink on the host side
-///
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[repr(transparent)]
-pub struct HostSinkHandle(pub usize);
