@@ -2,7 +2,7 @@
 //! The functions that are exported to the host in order to allow it to communicate with the guest
 //!
 
-use super::types::*;
+use super::guest_types::*;
 
 ///
 /// Sends a message to a guest subprogram in a runtime
