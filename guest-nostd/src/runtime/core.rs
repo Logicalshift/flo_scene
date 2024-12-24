@@ -1,6 +1,7 @@
 use crate::guest_types::*;
 use crate::host_types::*;
 use crate::guest_result::*;
+use crate::util::*;
 
 use futures::future::{BoxFuture};
 use futures::task::{Waker};
@@ -13,7 +14,7 @@ pub (crate) struct GuestRuntimeCore {
     future_runner: Option<BoxFuture<'static, ()>>,
 
     /// The future pile, which can be used to schedule new futures on this core
-    // pub (super) future_pile: FuturePile,
+    pub (super) future_pile: FuturePile,
 
     /// Set to true if the waker has been triggered for anything in the future pile
     pile_is_awake: bool,
