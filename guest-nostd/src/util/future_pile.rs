@@ -1,3 +1,5 @@
+use crate::guest_types::*;
+
 use futures::prelude::*;
 use futures::future::{BoxFuture};
 use futures::task::{waker, ArcWake, Poll, Waker, Context};
@@ -30,7 +32,7 @@ struct FuturePileCore {
 }
 
 /// Value whose lifetime represents a 'busy' period with the future pile. Decreases the 'busy' count when dropped
-pub struct FuturePileBusy(Weak<Mutex<FuturePileCore>>);
+pub struct FuturePileBusy(WeakShared<FuturePileCore>);
 
 impl Drop for FuturePileBusy {
     fn drop(&mut self) {
@@ -49,7 +51,7 @@ impl Drop for FuturePileBusy {
 #[derive(Clone)]
 pub struct FuturePile {
     /// The core is used to add new futures to the pile (weak because we should start throwing futures away after the runner finishes)
-    core: Weak<Mutex<FuturePileCore>>,
+    core: WeakShared<FuturePileCore>,
 }
 
 ///
@@ -57,7 +59,7 @@ pub struct FuturePile {
 ///
 pub struct FuturePileRunner {
     /// The core is used to run futures from the pile
-    core: Arc<Mutex<FuturePileCore>>,
+    core: Shared<FuturePileCore>,
 }
 
 impl FuturePile {
@@ -143,7 +145,7 @@ impl FuturePile {
 }
 
 /// The waker wakes up a specific future. We use a weak core so there's no reference loop
-struct PileWaker(usize, Weak<Mutex<FuturePileCore>>);
+struct PileWaker(usize, WeakShared<FuturePileCore>);
 
 impl ArcWake for PileWaker {
     fn wake_by_ref(arc_self: &Arc<Self>) {
