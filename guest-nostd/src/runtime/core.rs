@@ -23,7 +23,7 @@ pub (crate) struct GuestRuntimeCore {
     // input_streams: BTreeMap<usize, Arc<Mutex<GuestInputStreamCore>>>,
 
     /// Sink handles
-    // sink_handles: BTreeMap<usize, GuestSink>,
+    sink_handles: BTreeMap<usize, GuestSink>,
 
     /// The handle to assign to the next input stream we assign
     next_stream_handle: usize,
