@@ -17,8 +17,8 @@ pub mod exports;
 pub mod imports;
 pub mod guest_types;
 pub mod host_types;
-//mod guest_action;
 pub mod errors;
+mod guest_action;
 mod guest_result;
 
 pub use serde;

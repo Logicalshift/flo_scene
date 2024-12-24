@@ -1,4 +1,6 @@
 use crate::guest_types::*;
+use crate::host_types::*;
+use crate::errors::*;
 
 use alloc::vec::*;
 
