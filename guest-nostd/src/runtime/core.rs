@@ -131,25 +131,20 @@ impl GuestRuntimeCore {
     /// ID running
     ///
     pub (crate) fn send_message(core: &Shared<Self>, target: GuestSubProgramHandle, message: Vec<u8>) {
-        use core::mem;
-
-        let waker = with_shared(core, |core| {
+        let input_stream = with_shared(core, |core| {
             // The handle is an index into the input_streams list
             let GuestSubProgramHandle(target_id) = target;
 
             // Get the input stream, if we can
-            let input_stream = core.input_streams.get(&target_id).cloned();
-
-            // Release the lock on the core
-            mem::drop(core);
-
-            if let Some(input_stream) = input_stream {
-                GuestInputStreamCore::send_message(&input_stream, message)
-            } else {
-                // This program is not running
-                None
-            }
+            core.input_streams.get(&target_id).cloned()
         });
+
+        let waker = if let Some(input_stream) = input_stream {
+            GuestInputStreamCore::send_message(&input_stream, message)
+        } else {
+            // This program is not running
+            None
+        };
 
         // Wake anything that needs to be awoken for this stream
         waker.into_iter()
