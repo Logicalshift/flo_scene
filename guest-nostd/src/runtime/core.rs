@@ -10,7 +10,7 @@ use super::stream_core::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
-use futures::task::{Waker, Poll, Context, waker};
+use futures::task::{Waker, Poll, Context, ArcWake, waker};
 
 use alloc::collections::{BTreeMap, BTreeSet, VecDeque};
 use alloc::sync::*;
@@ -320,5 +320,16 @@ impl GuestRuntimeCore {
 
             SerializationId::MyStream(next_id)
         })
+    }
+}
+
+struct CoreWaker(WeakShared<GuestRuntimeCore>);
+
+impl ArcWake for CoreWaker {
+    fn wake_by_ref(arc_self: &Arc<Self>) {
+        with_weak_shared(&arc_self.0, |core| {
+            // Future pile should have been woken up
+            core.pile_is_awake = true;
+        });
     }
 }
