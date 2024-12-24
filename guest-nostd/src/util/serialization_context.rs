@@ -3,7 +3,6 @@ use crate::host_types::*;
 
 use futures::future::{BoxFuture};
 use futures::stream::{BoxStream};
-use serde::*;
 
 use alloc::boxed::*;
 use alloc::vec::*;
