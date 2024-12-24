@@ -1,4 +1,5 @@
 use super::guest_types::*;
+use super::host_types::*;
 
 use serde::*;
 

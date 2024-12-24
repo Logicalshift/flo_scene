@@ -15,8 +15,8 @@ extern crate alloc;
 
 pub mod exports;
 pub mod imports;
-mod guest_types;
-mod host_types;
+pub mod guest_types;
+pub mod host_types;
 //mod guest_action;
 mod guest_result;
 
