@@ -13,7 +13,9 @@
 
 pub mod exports;
 pub mod imports;
-pub mod types;
+mod guest_types;
 
 pub use serde;
 pub use postcard;
+
+pub use guest_types::*;
