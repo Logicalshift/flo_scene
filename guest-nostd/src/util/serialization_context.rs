@@ -1,4 +1,5 @@
 use crate::errors::*;
+use crate::host_types::*;
 
 use futures::future::{BoxFuture};
 use futures::stream::{BoxStream};
@@ -9,21 +10,6 @@ use alloc::vec::*;
 
 /// Remote callback functions are used to trigger a callback on the remote side of a connection
 pub type RemoteCallbackFn = Box<dyn 'static + Send + Sync + Fn(Vec<u8>) -> BoxFuture<'static, ()>>;
-
-///
-/// Identifies a serialized resource
-///
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
-pub enum SerializationId {
-    /// Identifies a stream whose source is on this side of the connection
-    MyStream(usize),
-
-    /// Identifies a stream whose source is on the target side of the connection
-    ///
-    /// Streams are 'inverted' after they are sent across a connection, so when we're serializing a value to send to a guest (or a host), we always
-    /// send a 'TheirStream' as they will be accessed on the other side of the connection.
-    TheirStream(usize),
-}
 
 ///
 /// The serialization context can be used to pass things like streams and function calls across
