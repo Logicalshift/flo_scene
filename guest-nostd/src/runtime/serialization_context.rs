@@ -48,7 +48,7 @@ impl Drop for CloseStream {
 
 impl SerializationContext for GuestSerializationContext {
     fn send_stream(&self, stream: BoxStream<'static, Vec<u8>>) -> Result<SerializationId, SceneSendError<BoxStream<'static, Vec<u8>>>> {
-        if let Some(core) = self.core.upgrade() {
+        if let Some(core) = shared_upgrade(&self.core) {
             // Create a serialization ID for this stream
             let stream_id = GuestRuntimeCore::next_serialization_id(&core).to_mine();
 
@@ -154,7 +154,7 @@ impl SerializationContext for GuestSerializationContext {
     }
 
     fn receive_stream(&self, stream_id: SerializationId) -> Result<BoxStream<'static, Vec<u8>>, SceneSendError<SerializationId>> {
-        if let Some(core) = self.core.upgrade() {
+        if let Some(core) = shared_upgrade(&self.core) {
             // Create a core for this stream
             let stream_core = GuestRuntimeCore::create_stream_from_host(&core, stream_id);
 
@@ -200,7 +200,7 @@ impl SerializationContext for GuestSerializationContext {
     }
 
     fn send_function(&self, callback: RemoteCallbackFn) -> Result<SerializationId, SceneSendError<RemoteCallbackFn>> {
-        if let Some(core) = self.core.upgrade() {
+        if let Some(core) = shared_upgrade(&self.core) {
             // Functions calls are made by writing to a stream, except the 'source' of the function is the receiver
             let new_stream_id   = GuestRuntimeCore::next_serialization_id(&core).to_mine();
 
@@ -228,7 +228,7 @@ impl SerializationContext for GuestSerializationContext {
     }
 
     fn receive_function(&self, callback_id: SerializationId) -> Result<RemoteCallbackFn, SceneSendError<SerializationId>> {
-        if let Some(core) = self.core.upgrade() {
+        if let Some(core) = shared_upgrade(&self.core) {
             // Create a CloseStream to close the stream when the functioin is dropped
             let close_stream    = CloseStream(callback_id, shared_downgrade(&core));
             let close_stream    = Arc::new(close_stream);

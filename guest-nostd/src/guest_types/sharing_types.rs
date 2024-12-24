@@ -31,6 +31,11 @@ mod std_sharing_types {
         Arc::downgrade(shared)
     }
 
+    #[inline]
+    pub fn shared_upgrade<T>(shared: WeakShared<T>) -> Option<Shared<T>> {
+        shared.upgrade()
+    }
+
     /// Accesses a weak shared value, if possible
     #[inline]
     pub fn with_weak_shared<T, TReturn>(shared: &WeakShared<T>, action: impl FnOnce(&mut T) -> TReturn) -> Option<TReturn> {
@@ -76,6 +81,12 @@ mod one_thread_sharing_types {
     #[inline]
     pub fn shared_downgrade<T>(shared: &Shared<T>) -> WeakShared<T> {
         Arc::downgrade(shared)
+    }
+
+    /// Attempts to upgrade a weak shared item to a 'strong' version
+    #[inline]
+    pub fn shared_upgrade<T>(shared: &WeakShared<T>) -> Option<Shared<T>> {
+        shared.upgrade()
     }
 
     /// Accesses a weak shared value, if possible
