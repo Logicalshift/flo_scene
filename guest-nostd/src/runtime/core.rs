@@ -38,6 +38,9 @@ pub (crate) struct GuestRuntimeCore {
     /// The handle to assign to the next sink that we create
     next_sink_handle: usize,
 
+    /// Sink handles that have been freed up
+    free_sink_handles: Vec<usize>,
+
     /// Actions and results that are waiting to be returned to the host
     pub (super) pending_results: Vec<GuestResult>,
 
@@ -68,6 +71,7 @@ impl GuestRuntimeCore {
         let future_runner       = Some(runner.run_forever().boxed());
         let input_streams       = Vec::new();
         let sink_handles        = Vec::new();
+        let free_sink_handles   = Vec::new();
         let next_stream_handle  = 0;
         let next_sink_handle    = 0;
         let next_serialization_id = 0;
@@ -77,7 +81,7 @@ impl GuestRuntimeCore {
         let when_ready          = BTreeMap::new();
         let pending_streams     = BTreeMap::new();
 
-        let core = GuestRuntimeCore { future_runner, future_pile, pile_is_awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, next_serialization_id, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
+        let core = GuestRuntimeCore { future_runner, future_pile, pile_is_awake, input_streams, sink_handles, free_sink_handles, next_stream_handle, next_sink_handle, next_serialization_id, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
 
         core
     }
@@ -194,11 +198,16 @@ impl GuestRuntimeCore {
 
         // Create a new sink. It's only a proposed sink handle at this point as we'll throw it away if it errors out
         let proposed_sink_handle = with_shared(&core, |core| {
-            let handle   = core.next_sink_handle;
+            let handle   = if let Some(handle) = core.free_sink_handles.pop() {
+                handle
+            } else {
+                let handle = core.next_sink_handle;
+                core.next_sink_handle += 1;
+                handle
+            };
 
             while core.sink_handles.len() <= handle { core.sink_handles.push(None); }
             core.sink_handles[handle] = Some(GuestSink { waker: None, status: GuestSinkStatus::Busy });
-            core.next_sink_handle += 1;
 
             handle
         });
@@ -225,12 +234,14 @@ impl GuestRuntimeCore {
                         // Sink could not connect
                         let error = error.clone();
                         core.sink_handles[proposed_sink_handle] = None;
+                        core.free_sink_handles.push(proposed_sink_handle);
                         Poll::Ready(Err(error))
                     }
 
                     GuestSinkStatus::SendError(_error) => {
                         // Unexpected error as we're not trying to send anything to the sink at this point
                         core.sink_handles[proposed_sink_handle] = None;
+                        core.free_sink_handles.push(proposed_sink_handle);
                         Poll::Ready(Err(ConnectionError::Cancelled))
                     }
                 }
@@ -286,6 +297,7 @@ impl GuestRuntimeCore {
                         // Unexpected error as we're not trying to send anything to the sink at this point
                         let error = error.clone();
                         core.sink_handles[sink] = None;
+                        core.free_sink_handles.push(sink);
                         Poll::Ready(Err(error))
                     }
                 }

@@ -3,7 +3,6 @@ use crate::guest_types::*;
 use crate::guest_result::*;
 use crate::guest_action::*;
 use crate::host_types::*;
-use crate::util::*;
 use super::context::*;
 use super::core::*;
 use super::input_stream::*;
@@ -15,7 +14,7 @@ use futures::channel::mpsc;
 use futures::task::{Waker};
 
 use alloc::boxed::*;
-use alloc::collections::{BTreeMap, BTreeSet, VecDeque};
+use alloc::collections::{VecDeque};
 use alloc::vec::*;
 
 ///
