@@ -3,6 +3,7 @@ use crate::imports::*;
 
 use ::serde::*;
 use ::serde::de::*;
+use ::serde::ser::{Error};
 use uuid::*;
 use once_cell::race::{OnceBox};
 
@@ -197,8 +198,12 @@ impl Serialize for SubProgramNameId {
     where
         S: Serializer 
     {
-        let name_string = name_for_id(*self).unwrap();
-        serializer.serialize_str(&name_string)
+        let name_string = name_for_id(*self);
+        if let Some(name_string) = name_string {
+            serializer.serialize_str(&name_string)
+        } else {
+            Err(S::Error::custom("No name"))
+        }
     }
 }
 
