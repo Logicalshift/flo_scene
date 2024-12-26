@@ -3,6 +3,7 @@
 //!
 
 use crate::guest_types::*;
+use crate::host_types::*;
 use crate::runtime::*;
 
 use once_cell::race::{OnceBox};
