@@ -166,7 +166,7 @@ fn allocate_handle() -> GuestRuntimeHandle {
 pub fn register_postcard_runtime(new_runtime: GuestRuntime) -> GuestRuntimeHandle {
     // Assign a handle and store in the guest list
     let handle = allocate_handle();
-    GUEST_POSTCARD_RUNTIMES.lock().unwrap().insert(handle, Arc::new(new_runtime));
+    with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes[handle.0] = Some(Arc::new(new_runtime)));
 
     handle
 }
@@ -177,13 +177,15 @@ pub fn register_postcard_runtime(new_runtime: GuestRuntime) -> GuestRuntimeHandl
 #[no_mangle]
 pub extern "C" fn scene_guest_postcard_send_message(runtime: GuestRuntimeHandle, target: GuestSubProgramHandle, postcard_data: BufferHandle) {
     // Get the postcard runtime with this ID
-    let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+    let runtime = with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes.get(runtime.0).cloned());
 
-    // Retrieve the postcard data buffer from where it was being written by the host
-    let postcard_data = claim_buffer(postcard_data);
+    if let Some(Some(runtime)) = runtime {
+        // Retrieve the postcard data buffer from where it was being written by the host
+        let postcard_data = claim_buffer(postcard_data);
 
-    // Send the message to the runtime
-    runtime.send_message(target, postcard_data);
+        // Send the message to the runtime
+        runtime.send_message(target, postcard_data);
+    }
 }
 
 ///
@@ -191,8 +193,11 @@ pub extern "C" fn scene_guest_postcard_send_message(runtime: GuestRuntimeHandle,
 ///
 #[no_mangle]
 pub extern "C" fn scene_guest_postcard_sink_ready(runtime: GuestRuntimeHandle, sink: HostSinkHandle) {
-    let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
-    runtime.sink_ready(sink);
+    let runtime = with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes.get(runtime.0).cloned());
+
+    if let Some(Some(runtime)) = runtime {
+        runtime.sink_ready(sink);
+    }
 }
 
 ///
@@ -203,8 +208,10 @@ pub extern "C" fn scene_guest_postcard_sink_connection_error(runtime: GuestRunti
     let postcard_error  = claim_buffer(postcard_error);
     let error           = postcard::from_bytes(&postcard_error).unwrap();
 
-    let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
-    runtime.sink_connection_error(sink, error);
+    let runtime = with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes.get(runtime.0).cloned());
+    if let Some(Some(runtime)) = runtime {
+        runtime.sink_connection_error(sink, error);
+    }
 }
 
 ///
@@ -215,8 +222,10 @@ pub extern "C" fn scene_guest_postcard_sink_send_error(runtime: GuestRuntimeHand
     let postcard_error  = claim_buffer(postcard_error);
     let error           = postcard::from_bytes(&postcard_error).unwrap();
 
-    let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
-    runtime.sink_send_error(sink, error);
+    let runtime = with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes.get(runtime.0).cloned());
+    if let Some(Some(runtime)) = runtime {
+        runtime.sink_send_error(sink, error);
+    }
 }
 
 ///
@@ -227,10 +236,15 @@ pub extern "C" fn scene_guest_postcard_sink_send_error(runtime: GuestRuntimeHand
 ///
 #[no_mangle]
 pub extern "C" fn scene_guest_postcard_poll_awake(runtime: GuestRuntimeHandle) -> BufferHandle {
-    let runtime     = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
-    let result      = runtime.poll_awake();
-    let serialized  = postcard::to_stdvec(&result).unwrap();
+    let runtime = with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes.get(runtime.0).cloned());
 
+    let result = if let Some(Some(runtime)) = runtime {
+        runtime.poll_awake()
+    } else {
+        vec![]
+    };
+
+    let serialized  = postcard::to_stdvec(&result).unwrap();
     buffer_store(serialized)
 }
 
@@ -239,12 +253,14 @@ pub extern "C" fn scene_guest_postcard_poll_awake(runtime: GuestRuntimeHandle) -
 ///
 #[no_mangle]
 pub extern "C" fn scene_guest_postcard_send_stream(runtime: GuestRuntimeHandle, stream_id: i32, message: BufferHandle) {
-    let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+    let runtime = with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes.get(runtime.0).cloned());
     let message = claim_buffer(message);
 
     let stream_id = if stream_id >= 0 { SerializationId::MyStream(stream_id as _) } else { SerializationId::TheirStream(-(stream_id+1) as _) };
 
-    runtime.send_stream(stream_id, message);
+    if let Some(Some(runtime)) = runtime {
+        runtime.send_stream(stream_id, message);
+    }
 }
 
 ///
@@ -252,11 +268,13 @@ pub extern "C" fn scene_guest_postcard_send_stream(runtime: GuestRuntimeHandle, 
 ///
 #[no_mangle]
 pub extern "C" fn scene_guest_postcard_ready_stream(runtime: GuestRuntimeHandle, stream_id: i32) {
-    let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+    let runtime = with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes.get(runtime.0).cloned());
 
     let stream_id = if stream_id >= 0 { SerializationId::MyStream(stream_id as _) } else { SerializationId::TheirStream(-(stream_id+1) as _) };
 
-    runtime.ready_stream(stream_id);
+    if let Some(Some(runtime)) = runtime {
+        runtime.ready_stream(stream_id);
+    }
 }
 
 ///
@@ -264,9 +282,11 @@ pub extern "C" fn scene_guest_postcard_ready_stream(runtime: GuestRuntimeHandle,
 ///
 #[no_mangle]
 pub extern "C" fn scene_guest_postcard_close_stream(runtime: GuestRuntimeHandle, stream_id: i32) {
-    let runtime = GUEST_POSTCARD_RUNTIMES.lock().unwrap().get(&runtime).unwrap().clone();
+    let runtime = with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes.get(runtime.0).cloned());
 
     let stream_id = if stream_id >= 0 { SerializationId::MyStream(stream_id as _) } else { SerializationId::TheirStream(-(stream_id+1) as _) };
 
-    runtime.close_stream(stream_id);
+    if let Some(Some(runtime)) = runtime {
+        runtime.close_stream(stream_id);
+    }
 }
