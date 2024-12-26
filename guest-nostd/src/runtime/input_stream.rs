@@ -101,7 +101,13 @@ where
         match next_message {
             Poll::Pending               => Poll::Pending,
             Poll::Ready(None)           => Poll::Ready(None),
-            Poll::Ready(Some(bytes))    => Poll::Ready(Some(TMessageType::from_guest_message(&bytes, &self.serialization_context).unwrap())),
+            Poll::Ready(Some(bytes))    => {
+                if let Ok(msg) = TMessageType::from_guest_message(&bytes, &self.serialization_context) {
+                    Poll::Ready(Some(msg))
+                } else {
+                    Poll::Ready(None)
+                }
+            },
         }
     }
 }
