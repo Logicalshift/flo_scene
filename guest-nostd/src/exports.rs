@@ -13,11 +13,11 @@ use alloc::sync::*;
 use alloc::vec::*;
 
 /// Guest runtimes using the Postcard encoding
-static GUEST_RUNTIMES: OnceBox<Shared<Vec<Option<Arc<GuestRuntime>>>>> = OnceBox::new();
+static GUEST_RUNTIMES: OnceBox<Shared<Vec<Option<Arc<GuestRuntime>>>>>      = OnceBox::new();
 
-static BUFFERS:         OnceBox<Shared<Vec<UnsafeCell<Vec<u8>>>>>   = OnceBox::new();
-static FREE_BUFFERS:    OnceBox<Shared<Vec<BufferHandle>>>          = OnceBox::new();
-static NEXT_BUFFER:     AtomicUsize                                 = AtomicUsize::new(0);
+static BUFFERS:         OnceBox<Shared<Vec<Option<UnsafeCell<Vec<u8>>>>>>   = OnceBox::new();
+static FREE_BUFFERS:    OnceBox<Shared<Vec<BufferHandle>>>                  = OnceBox::new();
+static NEXT_BUFFER:     AtomicUsize                                         = AtomicUsize::new(0);
 
 #[inline]
 fn guest_runtimes<'a>() -> &'a Shared<Vec<Option<Arc<GuestRuntime>>>> {
@@ -25,7 +25,7 @@ fn guest_runtimes<'a>() -> &'a Shared<Vec<Option<Arc<GuestRuntime>>>> {
 }
 
 #[inline]
-fn buffers<'a>() -> &'a Shared<Vec<UnsafeCell<Vec<u8>>>> {
+fn buffers<'a>() -> &'a Shared<Vec<Option<UnsafeCell<Vec<u8>>>>> {
     &*BUFFERS.get_or_init(|| Box::new(share(Vec::new())))
 }
 
@@ -73,17 +73,18 @@ pub unsafe extern "C" fn scene_new_buffer() -> BufferHandle {
 #[no_mangle]
 pub unsafe extern "C" fn scene_borrow_buffer(buffer_handle: BufferHandle, buffer_size: usize) -> *mut u8 {
     // Retrieve the buffer (assuming nothing else is using it!)
-    let mut buffers = BUFFERS.lock().unwrap();
-    let buffer      = buffers.entry(buffer_handle).or_insert_with(|| UnsafeCell::new(vec![0; buffer_size]));
-    let contents    = buffer.get();
+    with_shared(buffers(), |buffers| {
+        let buffer      = buffers.entry(buffer_handle).or_insert_with(|| UnsafeCell::new(vec![0; buffer_size]));
+        let contents    = buffer.get();
 
-    // Resize it if needed
-    if (*contents).len() != buffer_size {
-        (*contents).resize(buffer_size, 0);
-    }
+        // Resize it if needed
+        if (*contents).len() != buffer_size {
+            (*contents).resize(buffer_size, 0);
+        }
 
-    // Return the buffer to the caller
-    (*contents).as_mut_ptr()
+        // Return the buffer to the caller
+        (*contents).as_mut_ptr()
+    })
 }
 
 ///
@@ -91,13 +92,13 @@ pub unsafe extern "C" fn scene_borrow_buffer(buffer_handle: BufferHandle, buffer
 ///
 #[no_mangle]
 pub unsafe extern "C" fn scene_buffer_size(buffer_handle: BufferHandle) -> usize {
-    let buffers = BUFFERS.lock().unwrap();
-
-    if let Some(buffer) = buffers.get(&buffer_handle) {
-        unsafe { (*buffer.get()).len() }
-    } else {
-        0
-    }
+    with_shared(buffers(), |buffers| {
+        if let Some(buffer) = buffers.get(&buffer_handle) {
+            unsafe { (*buffer.get()).len() }
+        } else {
+            0
+        }
+    })
 }
 
 ///
@@ -105,29 +106,29 @@ pub unsafe extern "C" fn scene_buffer_size(buffer_handle: BufferHandle) -> usize
 ///
 #[no_mangle]
 pub unsafe extern "C" fn scene_free_buffer(buffer_handle: BufferHandle) {
-    let mut buffers = BUFFERS.lock().unwrap();
-
-    if let Some(_) = buffers.remove(&buffer_handle) {
-        // Add to the set of free buffers so we'll re-use this handle
-        FREE_BUFFERS.lock().unwrap().push(buffer_handle);
-    }
+    with_shared(buffers(), |buffers| {
+        if let Some(_) = buffers.remove(&buffer_handle) {
+            // Add to the set of free buffers so we'll re-use this handle
+            FREE_BUFFERS.lock().unwrap().push(buffer_handle);
+        }
+    })
 }
 
 ///
 /// Claims a buffer from the native side
 ///
 pub fn claim_buffer(buffer_handle: BufferHandle) -> Vec<u8> {
-    let mut buffers = BUFFERS.lock().unwrap();
+    with_shared(buffers(), |buffers| {
+        // Remove the buffer from the BTreeMap and return it after unwrapping it from its cell
+        if let Some(buffer) = buffers.remove(&buffer_handle) {
+            // Add to the set of free buffers so we'll re-use this handle
+            FREE_BUFFERS.lock().unwrap().push(buffer_handle);
 
-    // Remove the buffer from the BTreeMap and return it after unwrapping it from its cell
-    if let Some(buffer) = buffers.remove(&buffer_handle) {
-        // Add to the set of free buffers so we'll re-use this handle
-        FREE_BUFFERS.lock().unwrap().push(buffer_handle);
-
-        buffer.into_inner()
-    } else {
-        Vec::new()
-    }
+            buffer.into_inner()
+        } else {
+            Vec::new()
+        }
+    })
 }
 
 ///
@@ -135,8 +136,26 @@ pub fn claim_buffer(buffer_handle: BufferHandle) -> Vec<u8> {
 ///
 pub (super) fn buffer_store(data: Vec<u8>) -> BufferHandle {
     let handle = BufferHandle::new();
-    BUFFERS.lock().unwrap().insert(handle, UnsafeCell::new(data));
+    with_shared(buffers(), move |buffers| {
+        let handle = handle.0;
+        while buffers.len() <= handle {
+            buffers.push(None);
+        }
+
+        buffers[handle] = Some(UnsafeCell::new(data));
+    });
     handle
+}
+
+///
+/// Assigns a new guest runtime handle
+///
+fn allocate_handle() -> GuestRuntimeHandle {
+    // The next handle to assign
+    static NEXT_HANDLE: AtomicUsize = AtomicUsize::new(0);
+
+    let this_handle = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed);
+    GuestRuntimeHandle(this_handle)
 }
 
 ///
