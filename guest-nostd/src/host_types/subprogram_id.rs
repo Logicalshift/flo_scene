@@ -232,3 +232,25 @@ impl<'de> Deserialize<'de> for SubProgramNameId {
         Ok(id_for_name(&name_string))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use serde_json::{json};
+
+    #[test]
+    pub fn serialize_name() {
+        let subprogram_id   = id_for_name("test");
+        let json_name       = subprogram_id.serialize(serde_json::value::Serializer).unwrap();
+
+        assert!(json_name == json!["test"]);
+    }
+
+    #[test]
+    pub fn deserialize_name() {
+        let deserialized_name = SubProgramNameId::deserialize(json!["another_test"]).unwrap();
+
+        assert!(deserialized_name == id_for_name("another_test"));
+    }
+}

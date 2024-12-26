@@ -31,3 +31,6 @@ uuid            = { version = "1.0", default-features = false, features = [ "ser
 spin            = { version = "0.9", default-features = false, optional = true, features = [ "mutex", "spin_mutex" ] }
 serde_json      = { version = "1.0", optional = true }
 once_cell       = { version = "1.18", default-features = false }
+
+[dev-dependencies]
+serde_json      = { version = "1.0" }
