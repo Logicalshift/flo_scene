@@ -27,10 +27,10 @@ pub (crate) struct GuestRuntimeCore {
     pile_is_awake: bool,
 
     /// The input stream cores used in the runtime
-    input_streams: BTreeMap<usize, Shared<GuestInputStreamCore>>,
+    input_streams: Vec<Option<Shared<GuestInputStreamCore>>>,
 
     /// Sink handles
-    pub (super) sink_handles: BTreeMap<usize, GuestSink>,
+    pub (super) sink_handles: Vec<Option<GuestSink>>,
 
     /// The handle to assign to the next input stream we assign
     next_stream_handle: usize,
@@ -66,8 +66,8 @@ impl GuestRuntimeCore {
         let future_pile         = pile;
         let pile_is_awake       = true;
         let future_runner       = Some(runner.run_forever().boxed());
-        let input_streams       = BTreeMap::new();
-        let sink_handles        = BTreeMap::new();
+        let input_streams       = Vec::new();
+        let sink_handles        = Vec::new();
         let next_stream_handle  = 0;
         let next_sink_handle    = 0;
         let next_serialization_id = 0;
@@ -98,7 +98,8 @@ impl GuestRuntimeCore {
             let input_stream    = GuestInputStream::new(GuestSubProgramHandle(stream_handle), runtime_core, serialization_context);
             let input_core      = input_stream.core().clone();
 
-            core.input_streams.insert(stream_handle, input_core);
+            while core.input_streams.len() <= stream_handle { core.input_streams.push(None); }
+            core.input_streams[stream_handle] = Some(input_core);
 
             (stream_handle, input_stream)
         })
@@ -160,10 +161,10 @@ impl GuestRuntimeCore {
             let GuestSubProgramHandle(target_id) = target;
 
             // Get the input stream, if we can
-            core.input_streams.get(&target_id).cloned()
+            core.input_streams.get(target_id).cloned()
         });
 
-        let waker = if let Some(input_stream) = input_stream {
+        let waker = if let Some(Some(input_stream)) = input_stream {
             GuestInputStreamCore::send_message(&input_stream, message)
         } else {
             // This program is not running
@@ -195,7 +196,8 @@ impl GuestRuntimeCore {
         let proposed_sink_handle = with_shared(&core, |core| {
             let handle   = core.next_sink_handle;
 
-            core.sink_handles.insert(handle, GuestSink { waker: None, status: GuestSinkStatus::Busy });
+            while core.sink_handles.len() <= handle { core.sink_handles.push(None); }
+            core.sink_handles[handle] = Some(GuestSink { waker: None, status: GuestSinkStatus::Busy });
             core.next_sink_handle += 1;
 
             handle
@@ -206,7 +208,7 @@ impl GuestRuntimeCore {
 
         // Poll until the sink moves to the ready state
         future::poll_fn(move |context| with_shared(&core, |core| {
-            if let Some(sink_data) = core.sink_handles.get_mut(&proposed_sink_handle) {
+            if let Some(Some(sink_data)) = core.sink_handles.get_mut(proposed_sink_handle) {
                 match &sink_data.status {
                     GuestSinkStatus::Busy => {
                         // Sink is still waiting for data
@@ -222,13 +224,13 @@ impl GuestRuntimeCore {
                     GuestSinkStatus::ConnectionError(error) => {
                         // Sink could not connect
                         let error = error.clone();
-                        core.sink_handles.remove(&proposed_sink_handle);
+                        core.sink_handles[proposed_sink_handle] = None;
                         Poll::Ready(Err(error))
                     }
 
                     GuestSinkStatus::SendError(_error) => {
                         // Unexpected error as we're not trying to send anything to the sink at this point
-                        core.sink_handles.remove(&proposed_sink_handle);
+                        core.sink_handles[proposed_sink_handle] = None;
                         Poll::Ready(Err(ConnectionError::Cancelled))
                     }
                 }
@@ -250,7 +252,7 @@ impl GuestRuntimeCore {
         let HostSinkHandle(sink) = sink;
 
         future::poll_fn(move |context| with_shared(&core, |core| {
-            if let Some(sink_data) = core.sink_handles.get_mut(&sink) {
+            if let Some(Some(sink_data)) = core.sink_handles.get_mut(sink) {
                 match &sink_data.status {
                     GuestSinkStatus::Busy => {
                         // Sink is still waiting for data
@@ -283,7 +285,7 @@ impl GuestRuntimeCore {
                     GuestSinkStatus::SendError(error) => {
                         // Unexpected error as we're not trying to send anything to the sink at this point
                         let error = error.clone();
-                        core.sink_handles.remove(&sink);
+                        core.sink_handles[sink] = None;
                         Poll::Ready(Err(error))
                     }
                 }

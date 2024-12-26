@@ -116,7 +116,7 @@ impl GuestRuntime {
     ///
     pub fn sink_ready(&self, HostSinkHandle(sink): HostSinkHandle) {
         let waker = with_shared(&self.core, |core| {
-            if let Some(sink_data) = core.sink_handles.get_mut(&sink) {
+            if let Some(Some(sink_data)) = core.sink_handles.get_mut(sink) {
                 // Set the sink to ready and wake it up
                 sink_data.status = GuestSinkStatus::Ready;
                 sink_data.waker.take()
@@ -137,7 +137,7 @@ impl GuestRuntime {
     ///
     pub fn sink_connection_error(&self, HostSinkHandle(sink): HostSinkHandle, error: ConnectionError) {
         let waker = with_shared(&self.core, |core| {
-            if let Some(sink_data) = core.sink_handles.get_mut(&sink) {
+            if let Some(Some(sink_data)) = core.sink_handles.get_mut(sink) {
                 // Set the sink to the error state
                 sink_data.status = GuestSinkStatus::ConnectionError(error);
                 sink_data.waker.take()
@@ -158,7 +158,7 @@ impl GuestRuntime {
     ///
     pub fn sink_send_error(&self, HostSinkHandle(sink): HostSinkHandle, error: SceneSendError<Vec<u8>>) {
         let waker = with_shared(&self.core, |core| {
-            if let Some(sink_data) = core.sink_handles.get_mut(&sink) {
+            if let Some(Some(sink_data)) = core.sink_handles.get_mut(sink) {
                 // Set the sink to the error state
                 sink_data.status = GuestSinkStatus::SendError(error);
                 sink_data.waker.take()
