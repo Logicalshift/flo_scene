@@ -184,10 +184,10 @@ impl SubProgramId {
 impl Debug for SubProgramId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self.0 {
-            SubProgramIdValue::Guid(guid)                   => write!(f, "SubProgramId({})", guid),
-            SubProgramIdValue::Named(name_idx)              => write!(f, "SubProgramId::called({:?} <{}>)", name_for_id(*name_idx).unwrap(), name_idx.0),
-            SubProgramIdValue::GuidTask(guid, task_idx)     => write!(f, "SubProgramId({}).task({})", guid, task_idx),
-            SubProgramIdValue::NamedTask(name_idx,task_idx) => write!(f, "SubProgramId::called({:?}).task({})", name_for_id(*name_idx), task_idx),
+            SubProgramIdValue::Guid(guid)                   => f.write_str(&("SubProgramId(".to_string() + &guid.to_string() + ")")),
+            SubProgramIdValue::Named(name_idx)              => f.write_str(&("SubProgramId::called(\"".to_string() + &name_for_id(*name_idx).unwrap() + "\" <" + &name_idx.0.to_string() + ">)")),
+            SubProgramIdValue::GuidTask(guid, task_idx)     => f.write_str(&("SubProgramId(".to_string() + &guid.to_string() + ").task(" + &task_idx.to_string() + ")")),
+            SubProgramIdValue::NamedTask(name_idx,task_idx) => f.write_str(&("SubProgramId::called(\"".to_string() + &name_for_id(*name_idx).unwrap() + "\").task(" + &task_idx.to_string() + ")")),
         }
     }
 }
