@@ -111,7 +111,7 @@ pub unsafe extern "C" fn scene_free_buffer(buffer_handle: BufferHandle) {
     with_shared(buffers(), |buffers| {
         if let Some(_) = buffers[buffer_handle.0].take() {
             // Add to the set of free buffers so we'll re-use this handle
-            FREE_BUFFERS.lock().unwrap().push(buffer_handle);
+            with_shared(free_buffers(), |free_buffers| free_buffers.push(buffer_handle));
         }
     })
 }
@@ -124,7 +124,7 @@ pub fn claim_buffer(buffer_handle: BufferHandle) -> Vec<u8> {
         // Remove the buffer from the BTreeMap and return it after unwrapping it from its cell
         if let Some(buffer) = buffers[buffer_handle.0].take() {
             // Add to the set of free buffers so we'll re-use this handle
-            FREE_BUFFERS.lock().unwrap().push(buffer_handle);
+            with_shared(free_buffers(), |free_buffers| free_buffers.push(buffer_handle));
 
             buffer.into_inner()
         } else {
