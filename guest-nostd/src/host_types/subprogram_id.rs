@@ -70,7 +70,6 @@ pub struct SubProgramId(SubProgramIdValue);
 /// A subprogram name ID
 ///
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Debug)]
-#[derive(Serialize, Deserialize)]       // TODO!
 struct SubProgramNameId(usize);
 
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Debug)]
@@ -188,5 +187,48 @@ impl Debug for SubProgramId {
             SubProgramIdValue::GuidTask(guid, task_idx)     => write!(f, "SubProgramId({}).task({})", guid, task_idx),
             SubProgramIdValue::NamedTask(name_idx,task_idx) => write!(f, "SubProgramId::called({:?}).task({})", name_for_id(*name_idx), task_idx),
         }
+    }
+}
+
+impl Serialize for SubProgramNameId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer 
+    {
+        let name_string = name_for_id(*self).unwrap();
+        serializer.serialize_str(&name_string)
+    }
+}
+
+impl<'de> Deserialize<'de> for SubProgramNameId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de> 
+    {
+        struct StrVisitor;
+        impl<'de> Visitor<'de> for StrVisitor {
+            type Value = String;
+
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                formatter.write_str("A string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(value.to_string())
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(value)
+            }
+        }
+
+        let name_string = deserializer.deserialize_str(StrVisitor)?;
+        Ok(id_for_name(&name_string))
     }
 }
