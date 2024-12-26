@@ -8,15 +8,31 @@ use crate::runtime::*;
 use once_cell::race::{OnceBox};
 use core::cell::{UnsafeCell};
 use core::sync::atomic::{AtomicUsize, Ordering};
-use alloc::vec::*;
+use alloc::boxed::*;
 use alloc::sync::*;
+use alloc::vec::*;
 
 /// Guest runtimes using the Postcard encoding
-static GUEST_POSTCARD_RUNTIMES: OnceBox<Shared<Vec<Option<Arc<GuestRuntime>>>>> = OnceBox::new();
+static GUEST_RUNTIMES: OnceBox<Shared<Vec<Option<Arc<GuestRuntime>>>>> = OnceBox::new();
 
 static BUFFERS:         OnceBox<Shared<Vec<UnsafeCell<Vec<u8>>>>>   = OnceBox::new();
 static FREE_BUFFERS:    OnceBox<Shared<Vec<BufferHandle>>>          = OnceBox::new();
 static NEXT_BUFFER:     AtomicUsize                                 = AtomicUsize::new(0);
+
+#[inline]
+fn guest_runtimes<'a>() -> &'a Shared<Vec<Option<Arc<GuestRuntime>>>> {
+    &*GUEST_RUNTIMES.get_or_init(|| Box::new(share(Vec::new())))
+}
+
+#[inline]
+fn buffers<'a>() -> &'a Shared<Vec<UnsafeCell<Vec<u8>>>> {
+    &*BUFFERS.get_or_init(|| Box::new(share(Vec::new())))
+}
+
+#[inline]
+fn free_buffers<'a>() -> &'a Shared<Vec<BufferHandle>> {
+    &*FREE_BUFFERS.get_or_init(|| Box::new(share(Vec::new())))
+}
 
 ///
 /// Handle to a buffer in a scene (these are used for transferring data to and from a webassembly module)
@@ -40,7 +56,7 @@ impl BufferHandle {
 ///
 #[no_mangle]
 pub unsafe extern "C" fn scene_new_buffer() -> BufferHandle {
-    if let Some(reused_handle) = FREE_BUFFERS.lock().unwrap().pop() {
+    if let Some(reused_handle) = with_shared(free_buffers(), |free_buffers| free_buffers.pop()) {
         reused_handle
     } else {
         BufferHandle::new()
