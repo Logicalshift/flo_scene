@@ -164,7 +164,7 @@ fn allocate_handle() -> GuestRuntimeHandle {
 ///
 /// Registers a guest runtime and returns the handle which can be passed on to the host side of things
 ///
-pub fn register_postcard_runtime(new_runtime: GuestRuntime) -> GuestRuntimeHandle {
+pub fn register_runtime(new_runtime: GuestRuntime) -> GuestRuntimeHandle {
     // Assign a handle and store in the guest list
     let handle = allocate_handle();
     with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes[handle.0] = Some(Arc::new(new_runtime)));
