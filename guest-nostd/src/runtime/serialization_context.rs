@@ -78,7 +78,7 @@ impl SerializationContext for GuestSerializationContext {
 
                         // Poll for the next message from the stream
                         if received_message.is_none() {
-                            if let Poll::Ready(message) = poll_message.as_mut().unwrap().poll_unpin(ctxt) {
+                            if let Some(Poll::Ready(message)) = poll_message.as_mut().map(|poll_message| poll_message.poll_unpin(ctxt)) {
                                 if message.is_none() {
                                     // Don't need the other side to be ready if the stream is closed
                                     return Poll::Ready(ReadyMessage::Ready(None));
