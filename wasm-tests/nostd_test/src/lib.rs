@@ -33,13 +33,15 @@ impl SceneGuestMessage for SampleMessage {
 pub extern "C" fn start_test_subprogram() -> GuestRuntimeHandle {
     // Start a runtime with a default subprogram that just echoes messages back again
     let runtime = GuestRuntime::with_default_subprogram(SubProgramId::new(), |input, context| async move {
-        let mut input = input;
-        let mut sender = context.send(()).unwrap();
+        let mut input   = input;
+        let sender      = context.send::<SampleMessage>(());
 
-        while let Some(msg) = input.next().await {
-            let msg: SampleMessage = msg;
+        if let Ok(mut sender) = sender {
+            while let Some(msg) = input.next().await {
+                let msg: SampleMessage = msg;
 
-            sender.send(msg).await.unwrap();
+                sender.send(msg).await.ok();
+            }
         }
     });
 
