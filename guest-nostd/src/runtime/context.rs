@@ -59,20 +59,21 @@ impl GuestSceneContext {
             Box::pin(async move {
                 let mut connection = match connection {
                     None => {
-                        let core    = core.unwrap();
-                        let target  = target.unwrap();
+                        if let (Some(core), Some(target)) = (core, target) {
+                            // Create the connection
+                            let connection = GuestRuntimeCore::create_output_sink(&core, target).await;
 
-                        // Create the connection
-                        let connection = GuestRuntimeCore::create_output_sink(&core, target).await;
+                            match connection {
+                                Ok(connection) => {
+                                    connection
+                                }
 
-                        match connection {
-                            Ok(connection) => {
-                                connection
+                                Err(err) => {
+                                    return Err(SceneSendError::CouldNotConnect(err));
+                                }
                             }
-
-                            Err(err) => {
-                                return Err(SceneSendError::CouldNotConnect(err));
-                            }
+                        } else {
+                            return Err(SceneSendError::CouldNotConnect(ConnectionError::TargetNotReady));
                         }
                     }
 
