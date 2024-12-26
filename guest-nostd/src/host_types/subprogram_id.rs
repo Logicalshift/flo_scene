@@ -14,6 +14,8 @@ use alloc::vec::*;
 use core::fmt;
 use core::fmt::{Debug, Formatter};
 
+// There aren't many options for no-std 'once' type initialisations (OnceLock is not available)
+
 static IDS_FOR_NAMES: OnceBox<Shared<BTreeMap<String, SubProgramNameId>>>  = OnceBox::new();
 static NAMES_FOR_IDS: OnceBox<Shared<Vec<String>>>                         = OnceBox::new();
 
