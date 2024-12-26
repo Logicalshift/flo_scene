@@ -59,6 +59,30 @@ pub (crate) struct GuestRuntimeCore {
 
 impl GuestRuntimeCore {
     ///
+    /// Creates a new empty core
+    ///
+    pub (crate) fn new() -> Self {
+        let (pile, runner)      = FuturePile::new();
+        let future_pile         = pile;
+        let pile_is_awake       = true;
+        let future_runner       = Some(runner.run_forever().boxed());
+        let input_streams       = BTreeMap::new();
+        let sink_handles        = BTreeMap::new();
+        let next_stream_handle  = 0;
+        let next_sink_handle    = 0;
+        let next_serialization_id = 0;
+        let pending_results     = Vec::new();
+        let ready_streams       = BTreeSet::new();
+        let closed_streams      = BTreeSet::new();
+        let when_ready          = BTreeMap::new();
+        let pending_streams     = BTreeMap::new();
+
+        let core = GuestRuntimeCore { future_runner, future_pile, pile_is_awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, next_serialization_id, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
+
+        core
+    }
+
+    ///
     /// Creates a new input stream in a runtime core
     ///
     pub (crate) fn create_input_stream<TMessageType: SceneGuestMessage>(runtime_core: &Shared<Self>) -> (usize, GuestInputStream<TMessageType>) {

@@ -42,25 +42,13 @@ impl GuestRuntime {
         TFuture:        'static + Send + Future<Output=()>,
     {
         // Create the runtime
-        let (pile, runner)      = FuturePile::new();
-        let future_pile         = pile.clone();
-        let pile_is_awake       = true;
-        let future_runner       = Some(runner.run_forever().boxed());
-        let input_streams       = BTreeMap::new();
-        let sink_handles        = BTreeMap::new();
-        let next_stream_handle  = 0;
-        let next_sink_handle    = 0;
-        let next_serialization_id = 0;
-        let program_handle      = GuestSubProgramHandle::default();
-        let mut pending_results = Vec::new();
-        let ready_streams       = BTreeSet::new();
-        let closed_streams      = BTreeSet::new();
-        let when_ready          = BTreeMap::new();
-        let pending_streams     = BTreeMap::new();
+        let mut core        = GuestRuntimeCore::new();
+        let pile            = core.future_pile.clone();
+        let program_handle  = GuestSubProgramHandle::default();
 
-        pending_results.push(GuestResult::CreateSubprogram(program_id, program_handle, HostStreamId::for_message::<TMessageType>()));
+        // Indicate that the subprogram is starting
+        core.pending_results.push(GuestResult::CreateSubprogram(program_id, program_handle, HostStreamId::for_message::<TMessageType>()));
 
-        let core = GuestRuntimeCore { future_runner, future_pile, pile_is_awake, input_streams, sink_handles, next_stream_handle, next_sink_handle, next_serialization_id, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
         let core = share(core);
 
         let runtime             = GuestRuntime { core: core.clone() };
