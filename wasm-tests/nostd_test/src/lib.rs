@@ -15,7 +15,6 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 ///
 #[no_mangle]
 pub extern "C" fn start_test_subprogram() -> GuestRuntimeHandle {
-    /*
     // Start a runtime with a default subprogram that just echoes messages back again
     let runtime = GuestRuntime::with_default_subprogram(SubProgramId::new(), |input, context| async move {
         let mut input = input;
@@ -30,6 +29,4 @@ pub extern "C" fn start_test_subprogram() -> GuestRuntimeHandle {
 
     // Register using postcard as the encoding scheme
     register_postcard_runtime(runtime)
-    */
-    GuestRuntimeHandle(0)
 }

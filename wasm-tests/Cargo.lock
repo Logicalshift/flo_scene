@@ -76,8 +76,10 @@ name = "flo_scene_nostd"
 version = "0.2.0"
 dependencies = [
  "futures",
+ "once_cell",
  "postcard",
  "serde",
+ "spin",
  "uuid",
 ]
 
