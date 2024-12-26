@@ -207,10 +207,10 @@ pub extern "C" fn scene_guest_postcard_sink_ready(runtime: GuestRuntimeHandle, s
 #[no_mangle]
 pub extern "C" fn scene_guest_postcard_sink_connection_error(runtime: GuestRuntimeHandle, sink: HostSinkHandle, postcard_error: BufferHandle) {
     let postcard_error  = claim_buffer(postcard_error);
-    let error           = postcard::from_bytes(&postcard_error).unwrap();
+    let error           = postcard::from_bytes(&postcard_error);
 
     let runtime = with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes.get(runtime.0).cloned());
-    if let Some(Some(runtime)) = runtime {
+    if let (Some(Some(runtime)), Ok(error)) = (runtime, error) {
         runtime.sink_connection_error(sink, error);
     }
 }
@@ -221,10 +221,10 @@ pub extern "C" fn scene_guest_postcard_sink_connection_error(runtime: GuestRunti
 #[no_mangle]
 pub extern "C" fn scene_guest_postcard_sink_send_error(runtime: GuestRuntimeHandle, sink: HostSinkHandle, postcard_error: BufferHandle) {
     let postcard_error  = claim_buffer(postcard_error);
-    let error           = postcard::from_bytes(&postcard_error).unwrap();
+    let error           = postcard::from_bytes(&postcard_error);
 
     let runtime = with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes.get(runtime.0).cloned());
-    if let Some(Some(runtime)) = runtime {
+    if let (Some(Some(runtime)), Ok(error)) = (runtime, error) {
         runtime.sink_send_error(sink, error);
     }
 }
@@ -245,7 +245,7 @@ pub extern "C" fn scene_guest_postcard_poll_awake(runtime: GuestRuntimeHandle) -
         vec![]
     };
 
-    let serialized  = postcard::to_stdvec(&result).unwrap();
+    let serialized = postcard::to_stdvec(&result).unwrap_or_else(|_| vec![]);
     buffer_store(serialized)
 }
 
