@@ -2,16 +2,21 @@
 //! The functions that are exported to the host in order to allow it to communicate with the guest
 //!
 
-use super::guest_types::*;
+use crate::guest_types::*;
+use crate::runtime::*;
 
+use once_cell::race::{OnceBox};
+use core::cell::{UnsafeCell};
+use core::sync::atomic::{AtomicUsize, Ordering};
 use alloc::vec::*;
+use alloc::sync::*;
 
 /// Guest runtimes using the Postcard encoding
-static GUEST_POSTCARD_RUNTIMES: Lazy<Mutex<HashMap<GuestRuntimeHandle, Arc<GuestRuntime>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static GUEST_POSTCARD_RUNTIMES: OnceBox<Shared<Vec<Option<Arc<GuestRuntime>>>>> = OnceBox::new();
 
-static BUFFERS: Lazy<Mutex<HashMap<BufferHandle, UnsafeCell<Vec<u8>>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-static FREE_BUFFERS: Lazy<Mutex<Vec<BufferHandle>>>                     = Lazy::new(|| Mutex::new(Vec::new()));
-static NEXT_BUFFER: AtomicUsize                                         = AtomicUsize::new(0);
+static BUFFERS:         OnceBox<Shared<Vec<UnsafeCell<Vec<u8>>>>>   = OnceBox::new();
+static FREE_BUFFERS:    OnceBox<Shared<Vec<BufferHandle>>>          = OnceBox::new();
+static NEXT_BUFFER:     AtomicUsize                                 = AtomicUsize::new(0);
 
 ///
 /// Handle to a buffer in a scene (these are used for transferring data to and from a webassembly module)
@@ -98,7 +103,7 @@ pub unsafe extern "C" fn scene_free_buffer(buffer_handle: BufferHandle) {
 pub fn claim_buffer(buffer_handle: BufferHandle) -> Vec<u8> {
     let mut buffers = BUFFERS.lock().unwrap();
 
-    // Remove the buffer from the hashmap and return it after unwrapping it from its cell
+    // Remove the buffer from the BTreeMap and return it after unwrapping it from its cell
     if let Some(buffer) = buffers.remove(&buffer_handle) {
         // Add to the set of free buffers so we'll re-use this handle
         FREE_BUFFERS.lock().unwrap().push(buffer_handle);
