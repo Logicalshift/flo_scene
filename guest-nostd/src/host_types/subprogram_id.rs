@@ -153,9 +153,9 @@ impl SubProgramId {
     pub fn to_string(&self) -> String {
         match &self.0 {
             SubProgramIdValue::Guid(guid)                   => guid.to_string(),
-            SubProgramIdValue::Named(name_idx)              => name_for_id(*name_idx).unwrap(),
+            SubProgramIdValue::Named(name_idx)              => name_for_id(*name_idx).unwrap_or_else(|| "<NO NAME>".to_string()),
             SubProgramIdValue::GuidTask(guid, task_idx)     => guid.to_string() + ".task(" + &task_idx.to_string() + ")",
-            SubProgramIdValue::NamedTask(name_idx,task_idx) => name_for_id(*name_idx).unwrap() + ".task(" + &task_idx.to_string() + ")",
+            SubProgramIdValue::NamedTask(name_idx,task_idx) => name_for_id(*name_idx).unwrap_or_else(|| "<NO NAME>".to_string()) + ".task(" + &task_idx.to_string() + ")",
         }
     }
 
