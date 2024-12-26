@@ -74,7 +74,9 @@ pub unsafe extern "C" fn scene_new_buffer() -> BufferHandle {
 pub unsafe extern "C" fn scene_borrow_buffer(buffer_handle: BufferHandle, buffer_size: usize) -> *mut u8 {
     // Retrieve the buffer (assuming nothing else is using it!)
     with_shared(buffers(), |buffers| {
-        let buffer      = buffers.entry(buffer_handle).or_insert_with(|| UnsafeCell::new(vec![0; buffer_size]));
+        while buffers.len() <= buffer_handle.0 { buffers.push(None); }
+
+        let buffer      = buffers[buffer_handle.0].get_or_insert_with(|| UnsafeCell::new(vec![0; buffer_size]));
         let contents    = buffer.get();
 
         // Resize it if needed
@@ -93,7 +95,7 @@ pub unsafe extern "C" fn scene_borrow_buffer(buffer_handle: BufferHandle, buffer
 #[no_mangle]
 pub unsafe extern "C" fn scene_buffer_size(buffer_handle: BufferHandle) -> usize {
     with_shared(buffers(), |buffers| {
-        if let Some(buffer) = buffers.get(&buffer_handle) {
+        if let Some(Some(buffer)) = buffers.get(buffer_handle.0) {
             unsafe { (*buffer.get()).len() }
         } else {
             0
@@ -107,7 +109,7 @@ pub unsafe extern "C" fn scene_buffer_size(buffer_handle: BufferHandle) -> usize
 #[no_mangle]
 pub unsafe extern "C" fn scene_free_buffer(buffer_handle: BufferHandle) {
     with_shared(buffers(), |buffers| {
-        if let Some(_) = buffers.remove(&buffer_handle) {
+        if let Some(_) = buffers[buffer_handle.0].take() {
             // Add to the set of free buffers so we'll re-use this handle
             FREE_BUFFERS.lock().unwrap().push(buffer_handle);
         }
@@ -120,7 +122,7 @@ pub unsafe extern "C" fn scene_free_buffer(buffer_handle: BufferHandle) {
 pub fn claim_buffer(buffer_handle: BufferHandle) -> Vec<u8> {
     with_shared(buffers(), |buffers| {
         // Remove the buffer from the BTreeMap and return it after unwrapping it from its cell
-        if let Some(buffer) = buffers.remove(&buffer_handle) {
+        if let Some(buffer) = buffers[buffer_handle.0].take() {
             // Add to the set of free buffers so we'll re-use this handle
             FREE_BUFFERS.lock().unwrap().push(buffer_handle);
 
