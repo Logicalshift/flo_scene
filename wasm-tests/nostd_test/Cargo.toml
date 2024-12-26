@@ -9,3 +9,5 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 flo_scene_nostd = { version = "0.2" }
 wee_alloc       = "0.4"
+futures         = "0.3"
+serde           = "1.0"

@@ -3,12 +3,28 @@
 extern crate alloc;
 
 use flo_scene_nostd::*;
+use serde::*;
+use futures::prelude::*;
+
+use alloc::string::*;
 
 extern crate wee_alloc;
 
 // Use `wee_alloc` as the global allocator.
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+/// All the test program does is re-send the sample messages sent to it, which gives a basic test of a running subprogram
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SampleMessage {
+    value: String
+}
+
+impl SceneGuestMessage for SampleMessage {
+    fn message_type_name() -> String {
+        "flo_scene_tests::guest_subprogram_tests::SimpleTestMessage".into()
+    }
+}
 
 ///
 /// Creates a subprogram running in a guest runtime
