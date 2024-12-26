@@ -1,3 +1,5 @@
+use crate::host_types::*;
+
 use serde::*;
 use alloc::string::*;
 
@@ -18,5 +20,13 @@ impl HostStreamId {
     #[inline]
     pub fn with_name(name: impl Into<String>) -> Self {
         HostStreamId(name.into())
+    }
+
+    ///
+    /// Creates a HostStreamId for a message with a type
+    ///
+    #[inline]
+    pub fn for_message<TMessage: SceneGuestMessage>() -> Self {
+        HostStreamId(TMessage::message_type_name())
     }
 }
