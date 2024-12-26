@@ -30,7 +30,7 @@ pub (crate) struct GuestRuntimeCore {
     input_streams: BTreeMap<usize, Shared<GuestInputStreamCore>>,
 
     /// Sink handles
-    sink_handles: BTreeMap<usize, GuestSink>,
+    pub (super) sink_handles: BTreeMap<usize, GuestSink>,
 
     /// The handle to assign to the next input stream we assign
     next_stream_handle: usize,
@@ -54,7 +54,7 @@ pub (crate) struct GuestRuntimeCore {
     pub (super) when_ready: BTreeMap<SerializationId, Option<Waker>>,
 
     /// The streams with pending data from the host side
-    pending_streams: BTreeMap<SerializationId, Shared<GuestStreamCore>>,
+    pub (super) pending_streams: BTreeMap<SerializationId, Shared<GuestStreamCore>>,
 }
 
 impl GuestRuntimeCore {
