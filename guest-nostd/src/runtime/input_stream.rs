@@ -64,8 +64,6 @@ where
     type Item = TMessageType;
 
     fn poll_next(self: core::pin::Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        use core::mem;
-
         // Read the encoded form of the next message from the core
         let mut signal_ready    = false;
         let next_message        = with_shared(&self.core, |core| {
