@@ -12,6 +12,7 @@ use super::stream_core::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
+use futures::task::{Waker};
 
 use alloc::boxed::*;
 use alloc::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -235,30 +236,48 @@ impl GuestRuntime {
     /// has been dropped.
     ///
     pub fn close_stream(&self, stream_id: SerializationId) {
-        use core::mem;
+        enum CloseAction {
+            None,
+            Wake(Waker),
+            CloseGuestStream(Shared<GuestStreamCore>),
+        }
 
         // Add this stream ID to the list that's 'ready', and wake up anything that's waiting
-        let waker = with_shared(&self.core, |core| {
+        let action = with_shared(&self.core, |core| {
             if let Some(guest_stream) = core.pending_streams.get_mut(&stream_id).cloned() {
                 // Remove the guest stream and then mark it as closed
                 core.pending_streams.remove(&stream_id);
-                mem::drop(core);
 
                 // Need to lock the guest stream after releasing the core (which does create a window where the guest stream is not in the core and not closed)
-                let mut guest_stream = guest_stream.lock().unwrap();
-                guest_stream.closed = true;
-                guest_stream.waker.take()
+                CloseAction::CloseGuestStream(guest_stream)
             } else {
                 // If it's not a guest stream, must be a host stream: mark it as deleted
                 core.closed_streams.insert(stream_id);
-                core.when_ready.get_mut(&stream_id)
+                let waker = core.when_ready.get_mut(&stream_id)
                     .map(|waker| waker.take())
-                    .unwrap_or(None)
+                    .unwrap_or(None);
+
+                match waker {
+                    None        => CloseAction::None,
+                    Some(waker) => CloseAction::Wake(waker),
+                }
             }
         });
 
-        if let Some(waker) = waker {
-            waker.wake();
+        match action {
+            CloseAction::None           => { }
+            CloseAction::Wake(waker)    => { waker.wake(); }
+
+            CloseAction::CloseGuestStream(guest_stream) => {
+                let waker = with_shared(&guest_stream, |guest_stream| {
+                    guest_stream.closed = true;
+                    guest_stream.waker.take()
+                });
+
+                if let Some(waker) = waker {
+                    waker.wake();
+                }
+            }
         }
     }
 
