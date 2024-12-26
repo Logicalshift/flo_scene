@@ -31,4 +31,5 @@ pub use uuid;
 
 pub use guest_types::*;
 pub use host_types::*;
+pub use runtime::{GuestRuntime};
 pub use exports::{register_runtime};
