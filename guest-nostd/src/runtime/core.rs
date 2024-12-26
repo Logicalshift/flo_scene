@@ -275,9 +275,9 @@ impl GuestRuntimeCore {
                         }
                     }
 
-                    GuestSinkStatus::ConnectionError(_error) => {
+                    GuestSinkStatus::ConnectionError(error) => {
                         // Unexpected error
-                        panic!("Connection error (stream should already be connected");
+                        Poll::Ready(Err(SceneSendError::CouldNotConnect(error.clone())))
                     }
 
                     GuestSinkStatus::SendError(error) => {
