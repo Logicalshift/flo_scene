@@ -1,3 +1,5 @@
+use super::scene_send_error::*;
+
 use serde::*;
 
 use alloc::string::*;
@@ -89,4 +91,22 @@ pub enum ConnectionError {
 
     /// An operation could not be completed because of an I/O problem
     IoError(String),
+}
+
+impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
+    fn from(err: SceneSendError<TMessage>) -> ConnectionError {
+        match err {
+            SceneSendError::CouldNotConnect(err)                        => err,
+            SceneSendError::TargetProgramEndedBeforeReady               => ConnectionError::TargetNotInScene,
+            SceneSendError::StreamClosed(_)                             => ConnectionError::TargetNotAvailable,
+            SceneSendError::TargetProgramEnded(_)                       => ConnectionError::TargetNotInScene,
+            SceneSendError::StreamDisconnected(_)                       => ConnectionError::TargetNotAvailable,
+            SceneSendError::CannotReEnterTargetProgram                  => ConnectionError::CannotStealThread,
+            SceneSendError::CannotAcceptMoreInputUntilSceneIsIdle(_)    => ConnectionError::TargetNotReady,
+            SceneSendError::CannotSerialize(_, _)                       => ConnectionError::TargetCannotSerialize,
+            SceneSendError::CannotDeserialize(_, _)                     => ConnectionError::TargetCannotDeserialize,
+            SceneSendError::ErrorAfterDeserialization                   => ConnectionError::TargetCannotDeserialize,
+            SceneSendError::NoConnection(_)                             => ConnectionError::TargetCannotDeserialize,
+        }
+    }
 }
