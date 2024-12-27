@@ -1,4 +1,5 @@
 use alloc::vec::*;
+use core::borrow::{Borrow};
 
 ///
 /// Simple mapping structure that stores data in an ordered list.
@@ -45,8 +46,12 @@ where
     ///
     /// Retrieves a value from this ordered vec if it exists
     ///
-    pub fn get(&self, key: &TKey) -> Option<&TValue> {
-        match self.values.binary_search_by_key(&key, |(key, _val)| key) {
+    pub fn get<TBorrowKey>(&self, key: &TBorrowKey) -> Option<&TValue> 
+    where
+        TKey:       Borrow<TBorrowKey>,
+        TBorrowKey: Ord + ?Sized,
+    {
+        match self.values.binary_search_by(|(probe_key, _val)| probe_key.borrow().cmp(key)) {
             Ok(idx) => self.values.get(idx).map(|(_, val)| val),
             Err(_)  => None
         }
@@ -102,6 +107,7 @@ where
         }
     }
 }
+
 impl<'a, TKey, TValue> OrderedVecEntry<'a, TKey, TValue> 
 where
     TKey:   Ord,
