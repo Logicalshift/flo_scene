@@ -17,6 +17,7 @@ use serde::*;
 
 /// Bytecode for the tests
 static SUBPROGRAM_TEST_WASM: &'static [u8] = include_bytes!("../../../wasm-tests/wasm/flo_scene_wasm_subprogram_test.wasm");
+static SUBPROGRAM_TEST_WASM_NOSTD: &'static [u8] = include_bytes!("../../../wasm-tests/wasm/flo_scene_wasm_nostd_test.wasm");
 
 /// SampleMessage is defined in the subprogram_tests crate in wasm-tests; this should match it exactly
 #[derive(Serialize, Deserialize, Debug)]
@@ -48,6 +49,46 @@ pub fn send_and_receive_single_message() {
         // Load the module and start the subprogram (we have two messages here as this gives us a way to start many subprograms)
         println!("Loading module...");
         context.send_message(WasmControl::LoadModule(wasm_module_id, (*SUBPROGRAM_TEST_WASM).into(), Some(test_program_id.into()))).await.unwrap();
+        println!("Running subprogram...");
+        context.send_message(WasmControl::RunModule(wasm_module_id, wasm_program_id, WasmMaxInputWaiting(0))).await.unwrap();
+
+        println!("Started subprogram");
+
+        // Should be able to send messages to it now (the program relays them to the default target, which is our test program)
+        let mut wasm_target = context.send(wasm_program_id).unwrap();
+
+        wasm_target.send(SampleMessage { value: "Hello".into() }).await.unwrap();
+        wasm_target.send(SampleMessage { value: "Goodbyte".into() }).await.unwrap();
+
+        println!("Sent messages");
+    }, 0);
+
+    TestBuilder::new()
+        .expect_message(|loaded_module: WasmUpdate| { if let WasmUpdate::ModuleLoaded(_) = loaded_module { println!("Module loaded"); Ok(()) } else { Err(format!("Unexpected update: {:?}", loaded_module)) } })
+        .expect_message(|running_module: WasmUpdate| { if let WasmUpdate::RunningModule(_, _) = running_module { println!("Module running");Ok(()) } else { Err(format!("Unexpected update: {:?}", running_module)) } })
+        .expect_message(|msg1: SampleMessage| { if &msg1.value == "Hello" { Ok(()) } else { Err(format!("Received wrong message ({})", msg1.value)) } })
+        .expect_message(|msg2: SampleMessage| { if &msg2.value == "Goodbyte" { Ok(()) } else { Err(format!("Received wrong message ({})", msg2.value)) } })
+        .run_in_scene(&scene, test_program_id);
+}
+
+#[test]
+pub fn send_and_receive_single_message_nostd() {
+    // Create a default scene
+    let scene               = Scene::default();
+    let test_program_id     = SubProgramId::called("host_test_program");
+    let start_program_id    = SubProgramId::called("start_wasm_program");
+    let wasm_program_id     = SubProgramId::called("test");
+    let wasm_module_id      = WasmModuleId::new();
+
+    // Send any messages sent to the default target to the test subprogram
+    scene.connect_programs((), test_program_id, StreamId::with_message_type::<SampleMessage>()).unwrap();
+    scene.connect_programs((), test_program_id, StreamId::with_message_type::<WasmUpdate>()).unwrap();
+
+    // Start a WASM subprogram (there's a default WASM control program that will start if we use the message type, so we just need a program that makes a request to start it up)
+    scene.add_subprogram(start_program_id, |_input: InputStream<()>, context| async move {
+        // Load the module and start the subprogram (we have two messages here as this gives us a way to start many subprograms)
+        println!("Loading module...");
+        context.send_message(WasmControl::LoadModule(wasm_module_id, (*SUBPROGRAM_TEST_WASM_NOSTD).into(), Some(test_program_id.into()))).await.unwrap();
         println!("Running subprogram...");
         context.send_message(WasmControl::RunModule(wasm_module_id, wasm_program_id, WasmMaxInputWaiting(0))).await.unwrap();
 
