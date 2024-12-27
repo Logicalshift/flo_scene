@@ -1,11 +1,11 @@
 use crate::guest_types::*;
+use crate::util::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
 use futures::task::{waker, ArcWake, Poll, Waker, Context};
 
 use alloc::sync::*;
-use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::*;
 
 ///
@@ -16,10 +16,10 @@ struct FuturePileCore {
     next_id: usize,
 
     /// The futures that are waiting to be run in the pile (set to None when we take them out to poll them)
-    futures: BTreeMap<usize, Option<BoxFuture<'static, ()>>>,
+    futures: OrderedVec<usize, Option<BoxFuture<'static, ()>>>,
 
     /// The futures that have been woken up and need to be polled
-    awake_futures: BTreeSet<usize>,
+    awake_futures: OrderedVec<usize, ()>,
 
     /// Number of futures that consider themselves 'busy'
     busy_count: usize,
@@ -67,8 +67,8 @@ impl FuturePile {
         // Create a new core
         let core = FuturePileCore {
             next_id:        0,
-            futures:        BTreeMap::new(),
-            awake_futures:  BTreeSet::new(),
+            futures:        OrderedVec::new(),
+            awake_futures:  OrderedVec::new(),
             busy_count:     0,
             when_idle:      None,
             waker:          None,
@@ -92,7 +92,7 @@ impl FuturePile {
             core.next_id += 1;
 
             core.futures.insert(future_id, Some(new_future.boxed()));
-            core.awake_futures.insert(future_id);
+            core.awake_futures.insert(future_id, ());
 
             core.waker.take()
         });
@@ -147,7 +147,7 @@ impl ArcWake for PileWaker {
 
         // Add the future ID to the list of awake futures
         let waker = with_weak_shared(core, |core| {
-            core.awake_futures.insert(future_id);
+            core.awake_futures.insert(future_id, ());
 
             core.waker.take()
         });
@@ -176,12 +176,12 @@ impl FuturePileRunner {
                     let mut awake_futures = Vec::with_capacity(core.awake_futures.len());
 
                     // Take the futures that need polling from the core
-                    let mut awake_future_ids = BTreeSet::new();
+                    let mut awake_future_ids = OrderedVec::new();
                     mem::swap(&mut core.awake_futures, &mut awake_future_ids);
 
                     let futures = &mut core.futures;
 
-                    for future_id in awake_future_ids.into_iter() {
+                    for future_id in awake_future_ids.into_iter().map(|(id, _)| id) {
                         let future = futures.get_mut(&future_id).map(|future| future.take());
 
                         if let Some(Some(future)) = future {
