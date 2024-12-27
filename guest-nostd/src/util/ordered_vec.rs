@@ -18,6 +18,18 @@ where
     values: Vec<(TKey, TValue)>,
 }
 
+///
+/// Represents a reference to an entry in an ordered vec
+///
+pub enum OrderedVecEntry<'a, TKey, TValue> 
+where 
+    TKey:   Ord + Sized,
+    TValue: Sized,
+{
+    Present(&'a mut (TKey, TValue)),
+    Absent(&'a mut OrderedVec<TKey, TValue>, usize, TKey)
+}
+
 impl<TKey, TValue> OrderedVec<TKey, TValue> 
 where
     TKey:   Ord,
@@ -41,6 +53,26 @@ where
     }
 
     ///
+    /// Retrieves a value from this ordered vec if it exists
+    ///
+    pub fn get_mut(&mut self, key: &TKey) -> Option<&mut TValue> {
+        match self.values.binary_search_by_key(&key, |(key, _val)| key) {
+            Ok(idx) => self.values.get_mut(idx).map(|(_, val)| val),
+            Err(_)  => None
+        }
+    }
+
+    ///
+    /// True if the value is contained within this vec
+    ///
+    pub fn contains(&self, key: &TKey) -> bool {
+        match self.values.binary_search_by_key(&key, |(key, _val)| key) {
+            Ok(_)  => true,
+            Err(_) => false
+        }
+    }
+
+    ///
     /// Associates a value with a key
     ///
     pub fn insert(&mut self, key: TKey, value: TValue) {
@@ -57,6 +89,47 @@ where
         match self.values.binary_search_by_key(&key, |(key, _val)| key) {
             Ok(idx) => { Some(self.values.remove(idx).1) }
             Err(_)  => { None }
+        }
+    }
+
+    ///
+    /// Reads an entry for this ordered vec
+    ///
+    pub fn entry(&mut self, key: TKey) -> OrderedVecEntry<'_, TKey, TValue> {
+        match self.values.binary_search_by_key(&&key, |(key, _val)| key) {
+            Ok(idx)  => { OrderedVecEntry::Present(&mut self.values[idx]) }
+            Err(idx) => { OrderedVecEntry::Absent(self, idx, key) }
+        }
+    }
+}
+impl<'a, TKey, TValue> OrderedVecEntry<'a, TKey, TValue> 
+where
+    TKey:   Ord,
+    TValue: Sized
+{
+    ///
+    /// Inserts a value if it doesn't exist in the vec, returns the resulting value in the vec
+    ///
+    pub fn or_insert(self, val: TValue) -> &'a mut TValue {
+        match self {
+            OrderedVecEntry::Present((_, value))    => value,
+            OrderedVecEntry::Absent(vec, idx, key)  => {
+                vec.values.insert(idx, (key, val));
+                &mut vec.values[idx].1
+            }
+        }
+    }
+
+    ///
+    /// Inserts a value if it doesn't exist in the vec, returns the resulting value in the vec
+    ///
+    pub fn or_insert_with(self, val: impl FnOnce() -> TValue) -> &'a mut TValue {
+        match self {
+            OrderedVecEntry::Present((_, value))    => value,
+            OrderedVecEntry::Absent(vec, idx, key)  => {
+                vec.values.insert(idx, (key, val()));
+                &mut vec.values[idx].1
+            }
         }
     }
 }
