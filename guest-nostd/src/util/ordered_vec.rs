@@ -44,6 +44,20 @@ where
     }
 
     ///
+    /// True if this vec is empty
+    ///
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    ///
+    /// Returns this number of values in this list
+    ///
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    ///
     /// Retrieves a value from this ordered vec if it exists
     ///
     pub fn get<TBorrowKey>(&self, key: &TBorrowKey) -> Option<&TValue> 
@@ -105,6 +119,13 @@ where
             Ok(idx)  => { OrderedVecEntry::Present(&mut self.values[idx]) }
             Err(idx) => { OrderedVecEntry::Absent(self, idx, key) }
         }
+    }
+
+    ///
+    /// Iterates over the values in this vec and disposes of it
+    ///
+    pub fn into_iter(self) -> impl Iterator<Item=(TKey, TValue)> {
+        self.values.into_iter()
     }
 }
 
