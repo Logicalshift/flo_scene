@@ -1,5 +1,6 @@
 use crate::guest_types::*;
 use crate::imports::*;
+use crate::util::*;
 
 use ::serde::*;
 use ::serde::de::*;
@@ -8,7 +9,6 @@ use uuid::*;
 use once_cell::race::{OnceBox};
 
 use alloc::boxed::*;
-use alloc::collections::{BTreeMap};
 use alloc::string::*;
 use alloc::vec::*;
 
@@ -17,11 +17,11 @@ use core::fmt::{Debug, Formatter};
 
 // There aren't many options for no-std 'once' type initialisations (OnceLock is not available)
 
-static IDS_FOR_NAMES: OnceBox<Shared<BTreeMap<String, SubProgramNameId>>>  = OnceBox::new();
-static NAMES_FOR_IDS: OnceBox<Shared<Vec<String>>>                         = OnceBox::new();
+static IDS_FOR_NAMES: OnceBox<Shared<OrderedVec<String, SubProgramNameId>>> = OnceBox::new();
+static NAMES_FOR_IDS: OnceBox<Shared<Vec<String>>>                          = OnceBox::new();
 
 fn id_for_name(name: &str) -> SubProgramNameId {
-    let ids_for_names   = IDS_FOR_NAMES.get_or_init(|| Box::new(share(BTreeMap::new())));
+    let ids_for_names   = IDS_FOR_NAMES.get_or_init(|| Box::new(share(OrderedVec::new())));
     let names_for_ids   = NAMES_FOR_IDS.get_or_init(|| Box::new(share(Vec::new())));
 
     let id = with_shared(&*ids_for_names, |ids_for_names| ids_for_names.get(name).copied());
