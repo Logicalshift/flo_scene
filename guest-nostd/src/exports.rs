@@ -167,7 +167,11 @@ fn allocate_handle() -> GuestRuntimeHandle {
 pub fn register_runtime(new_runtime: GuestRuntime) -> GuestRuntimeHandle {
     // Assign a handle and store in the guest list
     let handle = allocate_handle();
-    with_shared(guest_runtimes(), |guest_runtimes| guest_runtimes[handle.0] = Some(Arc::new(new_runtime)));
+    with_shared(guest_runtimes(), move |guest_runtimes| {
+        while guest_runtimes.len() <= handle.0 { guest_runtimes.push(None); }
+
+        guest_runtimes[handle.0] = Some(Arc::new(new_runtime))
+    });
 
     handle
 }
