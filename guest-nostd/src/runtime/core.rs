@@ -12,7 +12,7 @@ use futures::prelude::*;
 use futures::future::{BoxFuture};
 use futures::task::{Waker, Poll, Context, ArcWake, waker};
 
-use alloc::collections::{BTreeMap, BTreeSet, VecDeque};
+use alloc::collections::{VecDeque};
 use alloc::sync::*;
 use alloc::vec::*;
 
@@ -48,16 +48,16 @@ pub (crate) struct GuestRuntimeCore {
     next_serialization_id: usize,
 
     /// The streams that are marked as ready on the host side
-    pub (super) ready_streams: BTreeSet<SerializationId>,
+    pub (super) ready_streams: OrderedVec<SerializationId, ()>,
 
     /// The streams that are marked closed (and which still exist on the guest side)
-    pub (super) closed_streams: BTreeSet<SerializationId>,
+    pub (super) closed_streams: OrderedVec<SerializationId, ()>,
 
     /// Wakers to notify when a stream becomes ready or is closed
-    pub (super) when_ready: BTreeMap<SerializationId, Option<Waker>>,
+    pub (super) when_ready: OrderedVec<SerializationId, Option<Waker>>,
 
     /// The streams with pending data from the host side
-    pub (super) pending_streams: BTreeMap<SerializationId, Shared<GuestStreamCore>>,
+    pub (super) pending_streams: OrderedVec<SerializationId, Shared<GuestStreamCore>>,
 }
 
 impl GuestRuntimeCore {
@@ -76,10 +76,10 @@ impl GuestRuntimeCore {
         let next_sink_handle    = 0;
         let next_serialization_id = 0;
         let pending_results     = Vec::new();
-        let ready_streams       = BTreeSet::new();
-        let closed_streams      = BTreeSet::new();
-        let when_ready          = BTreeMap::new();
-        let pending_streams     = BTreeMap::new();
+        let ready_streams       = OrderedVec::new();
+        let closed_streams      = OrderedVec::new();
+        let when_ready          = OrderedVec::new();
+        let pending_streams     = OrderedVec::new();
 
         let core = GuestRuntimeCore { future_runner, future_pile, pile_is_awake, input_streams, sink_handles, free_sink_handles, next_stream_handle, next_sink_handle, next_serialization_id, pending_results, ready_streams, closed_streams, when_ready, pending_streams };
 

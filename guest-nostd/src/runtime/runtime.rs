@@ -205,7 +205,7 @@ impl GuestRuntime {
     pub fn ready_stream(&self, stream_id: SerializationId) {
         // Add this stream ID to the list that's 'ready', and wake up anything that's waiting
         let waker = with_shared(&self.core, |core| {
-            core.ready_streams.insert(stream_id);
+            core.ready_streams.insert(stream_id, ());
             core.when_ready.get_mut(&stream_id)
                 .map(|waker| waker.take())
                 .unwrap_or(None)
@@ -239,7 +239,7 @@ impl GuestRuntime {
                 CloseAction::CloseGuestStream(guest_stream)
             } else {
                 // If it's not a guest stream, must be a host stream: mark it as deleted
-                core.closed_streams.insert(stream_id);
+                core.closed_streams.insert(stream_id, ());
                 let waker = core.when_ready.get_mut(&stream_id)
                     .map(|waker| waker.take())
                     .unwrap_or(None);
