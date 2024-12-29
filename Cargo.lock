@@ -729,6 +729,7 @@ dependencies = [
 name = "flo_scene"
 version = "0.2.0"
 dependencies = [
+ "flo_scene_guest",
  "futures",
  "futures-timer",
  "once_cell",
@@ -740,11 +741,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "flo_scene_macros"
-version = "0.2.0"
-
-[[package]]
-name = "flo_scene_nostd"
+name = "flo_scene_guest"
 version = "0.2.0"
 dependencies = [
  "futures",
@@ -755,6 +752,10 @@ dependencies = [
  "spin",
  "uuid",
 ]
+
+[[package]]
+name = "flo_scene_macros"
+version = "0.2.0"
 
 [[package]]
 name = "flo_scene_pipe"

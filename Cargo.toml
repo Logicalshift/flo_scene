@@ -13,4 +13,4 @@ flo_scene               = { path = "./scene" }
 flo_scene_macros        = { path = "./macros" }
 flo_scene_pipe          = { path = "./pipe" }
 flo_scene_wasm          = { path = "./wasm" }
-flo_scene_nostd         = { path = "./guest-nostd" }
+flo_scene_guest         = { path = "./guest-nostd" }
