@@ -32,7 +32,7 @@ mod std_sharing_types {
     }
 
     #[inline]
-    pub fn shared_upgrade<T>(shared: WeakShared<T>) -> Option<Shared<T>> {
+    pub fn shared_upgrade<T>(shared: &WeakShared<T>) -> Option<Shared<T>> {
         shared.upgrade()
     }
 
