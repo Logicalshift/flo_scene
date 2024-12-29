@@ -116,7 +116,7 @@ impl SubProgramId {
     ///
     /// Creates a command subprogram ID (with a particular sequence number)
     ///
-    pub (crate) fn with_command_id(&self, command_sequence_number: usize) -> SubProgramId {
+    pub fn with_command_id(&self, command_sequence_number: usize) -> SubProgramId {
         match self.0 {
             SubProgramIdValue::Named(name_num)          |
             SubProgramIdValue::NamedTask(name_num, _)   => SubProgramId(SubProgramIdValue::NamedTask(name_num, command_sequence_number)),
