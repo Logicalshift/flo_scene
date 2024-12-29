@@ -9,7 +9,7 @@ mod uuid_impl {
         ///
         /// Externally-provided function that generates a UUID for use by this guest program
         ///
-        #[cfg(not(feature="std"))]
+        #[cfg(not(feature="random"))]
         fn scene_request_new_uuid(bytes: &mut [u8; 16]);
     }
 
@@ -22,7 +22,7 @@ mod uuid_impl {
     /// Uuid::new_v4 is not usually available for flo_scene wasm modules as it uses wbindgen to get random valeus and these modules 
     /// are not usually run in a javascript environment.
     ///
-    #[cfg(not(feature="std"))]
+    #[cfg(not(feature="random"))]
     #[inline]
     pub fn new_uuid() -> Uuid {
         let mut bytes = [0; 16];
@@ -41,7 +41,7 @@ mod uuid_impl {
     /// Uuid::new_v4 is not usually available for flo_scene wasm modules as it uses wbindgen to get random valeus and these modules 
     /// are not usually run in a javascript environment.
     ///
-    #[cfg(feature="std")]
+    #[cfg(feature="random")]
     #[inline]
     pub fn new_uuid() -> Uuid {
         Uuid::new_v4()

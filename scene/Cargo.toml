@@ -16,7 +16,7 @@ guest_programs  = [ "json", "postcard" ]
 tokio_support   = [ "tokio" ]
 
 [dependencies]
-flo_scene_guest = { version = "0.2", default-features = false, features = [ "std" ] }
+flo_scene_guest = { version = "0.2", default-features = false, features = [ "std", "random" ] }
 once_cell       = "1.18"
 futures         = "0.3"
 futures-timer   = "3.0"
