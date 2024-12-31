@@ -1,3 +1,4 @@
+pub (crate) mod initialisation_context;
 pub (crate) mod scene;
 pub (crate) mod scene_core;
 pub (crate) mod subprogram_core;
@@ -22,6 +23,7 @@ pub mod programs;
 pub mod commands;
 
 pub use scene::*;
+pub use initialisation_context::*;
 pub use scene_context::*;
 pub use subprogram_id::*;
 pub use stream_id::*;

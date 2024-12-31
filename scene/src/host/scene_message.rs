@@ -1,6 +1,6 @@
 use crate::host::error::*;
 use crate::host::filter::*;
-use crate::host::scene::*;
+use crate::host::initialisation_context::*;
 use crate::host::serialization::*;
 use crate::host::serialization_context::*;
 use crate::host::stream_target::*;
@@ -128,7 +128,7 @@ pub trait SceneMessage :
     /// Sets up this message type in a scene. This can be an opportunity to set up default filters and connections for a
     /// particular message type. This is called the first time that a message is referenced in a scene.
     ///
-    fn initialise(scene: &Scene) { let _ = scene; }
+    fn initialise(init_context: &impl SceneInitialisationContext) { let _ = init_context; }
 
     ///
     /// True if input streams for this message type should allow thread stealing by default
