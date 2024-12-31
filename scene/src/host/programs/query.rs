@@ -1,5 +1,6 @@
 use crate::host::error::*;
 use crate::host::filter::*;
+use crate::host::initialisation_context::*;
 use crate::host::scene::*;
 use crate::host::scene_message::*;
 use crate::host::serialization::*;
@@ -63,7 +64,7 @@ impl<TResponseData: Send + Unpin + SceneMessage> SceneMessage for Query<TRespons
     #[inline]
     fn message_type_name() -> String { format!("query::{}", TResponseData::message_type_name()) }
 
-    fn initialise(_: &Scene) {
+    fn initialise(_: &impl SceneInitialisationContext) {
         #[cfg(feature="json")]
         install_serializable_type(|msg: TResponseData| msg.to_json(), |json| TResponseData::from_json(json)).unwrap();
     }
@@ -76,7 +77,7 @@ struct SerializedQueryResponse(SerializationId);
 impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryResponse<TResponseData> {
     fn serializable() -> bool { false }
 
-    fn initialise(scene: &Scene) {
+    fn initialise(scene: &impl SceneInitialisationContext) {
         use std::iter;
 
         let filters = iter::empty();

@@ -65,7 +65,7 @@ impl SceneMessage for ErrorOutput {
     fn allow_thread_stealing_by_default() -> bool   { true }
     fn message_type_name() -> String                { "flo_scene::ErrorOutput".into() }
 
-    fn initialise(scene: &Scene) {
+    fn initialise(scene: &impl SceneInitialisationContext) {
         // Convert ErrorOutput into TextOutput when sending to STDERR
         scene.connect_programs((), StreamTarget::Filtered(*ERROR_TO_TEXT_FILTER, *STDERR_PROGRAM), StreamId::with_message_type::<ErrorOutput>()).ok();
     }

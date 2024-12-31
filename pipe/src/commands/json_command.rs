@@ -97,7 +97,7 @@ impl JsonCommand {
 /// Starts a dispatcher that will forward `RunCommand<serde_json::Value, CommandResponse>` requests to the
 /// program that can handle them.
 ///
-pub fn start_json_command_dispatcher(scene: &Scene, program_id: SubProgramId) {
+pub fn start_json_command_dispatcher(scene: &impl SceneInitialisationContext, program_id: SubProgramId) {
     scene.add_subprogram(program_id, command_dispatcher_subprogram::<JsonParameter, CommandResponse>, 1)
 }
 
@@ -109,7 +109,7 @@ impl SceneMessage for JsonCommand {
     #[inline]
     fn message_type_name() -> String { "flo_scene_pipe::JsonCommand".into() }
 
-    fn initialise(scene: &Scene) {
+    fn initialise(scene: &impl SceneInitialisationContext) {
         // Always run a JSON command dispatcher (this dispatches the 'run command' request)
         start_json_command_dispatcher(scene, *JSON_DISPATCHER_SUBPROGRAM);
 

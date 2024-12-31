@@ -1,6 +1,7 @@
 use crate::host::error::*;
 use crate::host::filter::*;
 use crate::host::input_stream::*;
+use crate::host::initialisation_context::*;
 use crate::host::scene_context::*;
 use crate::host::scene::*;
 use crate::host::scene_core::*;
@@ -194,7 +195,7 @@ impl SceneMessage for SceneControl {
         (*SCENE_CONTROL_PROGRAM).into()
     }
 
-    fn initialise(scene: &Scene) {
+    fn initialise(scene: &impl SceneInitialisationContext) {
         scene.connect_programs(StreamSource::Filtered(*SCENE_CONTROL_SUBSCRIBE_FILTER), (), StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
         scene.connect_programs(StreamSource::Filtered(*SCENE_CONTROL_QUERY_FILTER), (), StreamId::with_message_type::<Query<SceneUpdate>>()).unwrap();
 

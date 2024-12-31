@@ -59,7 +59,7 @@ pub enum CommandSessionRequest {
 pub struct CommandVariable(pub String, pub serde_json::Value);
 
 impl SceneMessage for CommandSessionRequest {
-    fn initialise(scene: &Scene) {
+    fn initialise(scene: &impl SceneInitialisationContext) {
         scene.connect_programs(StreamSource::Filtered(*COMMAND_SESSION_VARIABLE_QUERY_FILTER), (), StreamId::with_message_type::<Query<CommandVariable>>()).unwrap();
     }
 

@@ -11,7 +11,7 @@ fn auto_start_on_first_message() {
     struct AutoStartMessage;
 
     impl SceneMessage for AutoStartMessage {
-        fn initialise(scene: &Scene) {
+        fn initialise(scene: &impl SceneInitialisationContext) {
             // When the message is initialised, create a program and redirect everything there
             scene.add_subprogram(SubProgramId::called("AutoStart"),
                 |mut input_stream: InputStream<AutoStartMessage>, _context| async move {
@@ -39,7 +39,7 @@ fn auto_start_on_connect() {
     struct AutoStartMessage;
 
     impl SceneMessage for AutoStartMessage {
-        fn initialise(scene: &Scene) {
+        fn initialise(scene: &impl SceneInitialisationContext) {
             // When the message is initialised, create a program and redirect everything there
             scene.add_subprogram(SubProgramId::called("AutoStart"),
                 |mut input_stream: InputStream<AutoStartMessage>, _context| async move {

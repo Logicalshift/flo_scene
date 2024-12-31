@@ -1,6 +1,6 @@
 use crate::host::error::*;
 use crate::host::output_sink::*;
-use crate::host::scene::*;
+use crate::host::initialisation_context::*;
 use crate::host::scene_context::*;
 use crate::host::scene_message::*;
 use crate::host::serialization::*;
@@ -29,7 +29,7 @@ use serde::*;
 pub struct Subscribe<TMessageType: SceneMessage>(StreamTarget, PhantomData<TMessageType>);
 
 impl<TMessageType: SceneMessage> SceneMessage for Subscribe<TMessageType> { 
-    fn initialise(_: &Scene) {
+    fn initialise(_: &impl SceneInitialisationContext) {
         #[cfg(feature="json")]
         install_serializable_type(|msg: TMessageType| msg.to_json(), |json| TMessageType::from_json(json)).unwrap();
     }
