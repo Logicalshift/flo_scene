@@ -4,6 +4,7 @@ use crate::host::scene::*;
 use crate::host::scene_message::*;
 use crate::host::serialization::*;
 use crate::host::serialization_context::*;
+use crate::host::stream_source::*;
 use crate::host::stream_target::*;
 
 use futures::prelude::*;
@@ -75,7 +76,7 @@ struct SerializedQueryResponse(SerializationId);
 impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryResponse<TResponseData> {
     fn serializable() -> bool { false }
 
-    fn create_serializer_filters() -> Vec<FilterHandle> {
+    fn initialise(scene: &Scene) {
         use std::iter;
 
         let filters = iter::empty();
@@ -115,7 +116,9 @@ impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryRespons
             filters.chain([to_json, from_json])
         };
 
-        filters.collect()
+        filters.for_each(|filter| {
+            scene.connect_programs(StreamSource::Filtered(filter), (), filter.source_stream_id_any().unwrap()).ok();
+        });
     }
 
     #[inline]
