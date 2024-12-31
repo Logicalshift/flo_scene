@@ -277,7 +277,11 @@ impl StreamTypeFunctions {
                             existing_filters.clone()
                         } else {
                             // Create the filters for this type
-                            let new_filters = TMessageType::create_serializer_filters();
+                            let new_filters = if TMessageType::serializable() {
+                                create_default_serializer_filters::<TMessageType>()
+                            } else {
+                                vec![]
+                            };
                             filters.insert(TypeId::of::<TMessageType>(), new_filters.clone());
 
                             new_filters
