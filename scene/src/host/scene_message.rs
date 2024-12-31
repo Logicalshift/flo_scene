@@ -131,27 +131,6 @@ pub trait SceneMessage :
     fn initialise(scene: &Scene) { let _ = scene; }
 
     ///
-    /// Creates the serializer filter handles for this type
-    ///
-    /// This is an action performed when this type is initialised. This can be overridden to change the default set of 
-    /// serialization filters that are installed for this type. Note that this is called even if serializable returns
-    /// false, so this can be a way to provide extra filters for a type. 
-    ///
-    /// The result of this call is cached, so it's not necessary to cache the filters in any other way. The filters returned
-    /// here are always installed as stream source filters, so it's better to use `initialise()` for installing any
-    /// filters that aren't directly related to serialization.
-    ///
-    fn create_serializer_filters() -> Vec<FilterHandle> {
-        if Self::serializable() {
-            // Create some actual serialization filters
-            create_default_serializer_filters::<Self>()
-        } else {
-            // No filters to create
-            vec![]
-        }
-    }
-
-    ///
     /// True if input streams for this message type should allow thread stealing by default
     ///
     /// Thread stealing will immediately run a future when a message is queued instead of waiting for the future to be
