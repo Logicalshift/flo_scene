@@ -1,7 +1,6 @@
 use crate::host::error::*;
 use crate::host::filter::*;
 use crate::host::initialisation_context::*;
-use crate::host::scene::*;
 use crate::host::scene_message::*;
 use crate::host::serialization::*;
 use crate::host::serialization_context::*;

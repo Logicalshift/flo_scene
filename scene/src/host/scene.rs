@@ -100,45 +100,6 @@ impl Scene {
     }
 
     ///
-    /// Adds a subprogram to run in this scene
-    ///
-    pub fn add_subprogram<'a, TProgramFn, TInputMessage, TFuture>(&'a self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)
-    where
-        TFuture:        'static + Send + Future<Output=()>,
-        TInputMessage:  'static + SceneMessage,
-        TProgramFn:     'a + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
-    {
-        // Create the context and input stream for the program
-        let input_stream    = InputStream::new(program_id, &self.core, max_input_waiting);
-        let input_core      = input_stream.core();
-
-        // Create the future that will be used to run the future
-        let (send_context, recv_context) = oneshot::channel::<(TFuture, SceneContext)>();
-        let run_program = async move {
-            if let Ok((program, scene_context)) = recv_context.await {
-                // Start the program running
-                pin_mut!(program);
-
-                // Poll the program with the scene context set
-                poll_fn(|context| {
-                    with_scene_context(&scene_context, || {
-                        program.as_mut().poll(context)
-                    })
-                }).await;
-            }
-        };
-
-        // Start the program running
-        let subprogram = SceneCore::start_subprogram(&self.core, program_id, run_program, input_core);
-
-        // Call the start function to create the future, and pass it into the program that was started
-        let context = SceneContext::new(&self.core, &subprogram);
-        let program = with_scene_context(&context, || program(input_stream, context.clone()));
-
-        send_context.send((program, context)).ok();
-    }
-
-    ///
     /// Creates a stream that can be used to send messages into this scene from elsewhere
     ///
     /// This scene must have a `OUTSIDE_SCENE_PROGRAM` running in order to act as a source for these messages (and this can also be used to
@@ -336,5 +297,44 @@ impl SceneInitialisationContext for Scene {
         let stream = stream.into();
 
         SceneCore::connect_programs(&self.core, source, target, stream)
+    }
+
+    ///
+    /// Adds a subprogram to run in this scene
+    ///
+    fn add_subprogram<'a, TProgramFn, TInputMessage, TFuture>(&'a self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)
+    where
+        TFuture:        'static + Send + Future<Output=()>,
+        TInputMessage:  'static + SceneMessage,
+        TProgramFn:     'a + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
+    {
+        // Create the context and input stream for the program
+        let input_stream    = InputStream::new(program_id, &self.core, max_input_waiting);
+        let input_core      = input_stream.core();
+
+        // Create the future that will be used to run the future
+        let (send_context, recv_context) = oneshot::channel::<(TFuture, SceneContext)>();
+        let run_program = async move {
+            if let Ok((program, scene_context)) = recv_context.await {
+                // Start the program running
+                pin_mut!(program);
+
+                // Poll the program with the scene context set
+                poll_fn(|context| {
+                    with_scene_context(&scene_context, || {
+                        program.as_mut().poll(context)
+                    })
+                }).await;
+            }
+        };
+
+        // Start the program running
+        let subprogram = SceneCore::start_subprogram(&self.core, program_id, run_program, input_core);
+
+        // Call the start function to create the future, and pass it into the program that was started
+        let context = SceneContext::new(&self.core, &subprogram);
+        let program = with_scene_context(&context, || program(input_stream, context.clone()));
+
+        send_context.send((program, context)).ok();
     }
 }

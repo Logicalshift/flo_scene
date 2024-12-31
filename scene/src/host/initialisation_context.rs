@@ -1,8 +1,14 @@
 use crate::host::connect_result::*;
 use crate::host::error::*;
+use crate::host::input_stream::*;
+use crate::host::scene_context::*;
+use crate::host::scene_message::*;
 use crate::host::stream_source::*;
 use crate::host::stream_target::*;
 use crate::host::stream_id::*;
+use crate::host::subprogram_id::*;
+
+use futures::prelude::*;
 
 ///
 /// The initialisation context is used when setting up scenes and messages within scenes: it provides
@@ -12,6 +18,15 @@ use crate::host::stream_id::*;
 /// `SceneControl` messages)
 ///
 pub trait SceneInitialisationContext {
+    ///
+    /// Adds a subprogram to run in this scene
+    ///
+    fn add_subprogram<'a, TProgramFn, TInputMessage, TFuture>(&'a self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)
+    where
+        TFuture:        'static + Send + Future<Output=()>,
+        TInputMessage:  'static + SceneMessage,
+        TProgramFn:     'a + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture;
+
     ///
     /// Connects the output `stream` of the `source` program to the input of `target`
     ///
