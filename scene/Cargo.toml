@@ -11,7 +11,7 @@ categories      = [ "concurrency", "data-structures" ]
 keywords        = [ "message-queue" ]
 
 [features]
-json            = [ "serde_json" ]
+json            = [ "serde_json", "flo_scene_guest/json" ]
 guest_programs  = [ "json", "postcard" ]
 tokio_support   = [ "tokio" ]
 

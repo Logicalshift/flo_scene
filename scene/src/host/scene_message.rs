@@ -261,6 +261,7 @@ pub fn create_default_serializer_filters<TMessage: SceneMessage>() -> Vec<Filter
     filters.collect()
 }
 
+/*
 impl SceneMessage for ()                { fn message_type_name() -> String { "()".into() } }
 impl SceneMessage for String            { fn message_type_name() -> String { "String".into() } }
 impl SceneMessage for Cow<'static, str> { fn message_type_name() -> String { "Cow::str".into() } }
@@ -277,3 +278,4 @@ impl SceneMessage for i64               { fn message_type_name() -> String { "i6
 impl SceneMessage for u64               { fn message_type_name() -> String { "u64".into() } }
 impl SceneMessage for i128              { fn message_type_name() -> String { "i128".into() } }
 impl SceneMessage for u128              { fn message_type_name() -> String { "u128".into() } }
+*/
