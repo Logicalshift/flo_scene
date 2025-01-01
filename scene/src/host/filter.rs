@@ -1,3 +1,5 @@
+pub use flo_scene_guest::host_types::{FilterHandle};
+
 use crate::host::error::*;
 use crate::host::input_stream::*;
 use crate::host::scene_core::*;
@@ -13,11 +15,8 @@ use once_cell::sync::{Lazy};
 
 use std::any::*;
 use std::collections::{HashMap};
-use std::fmt;
 use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
-
-use serde::*;
 
 type CreateInputStreamFn = Box<dyn Send + Sync + Fn(SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>;
 type StreamIdForTargetFn = Box<dyn Send + Sync + Fn(Option<SubProgramId>) -> StreamId>;
@@ -35,14 +34,7 @@ static SOURCE_STREAM_ID:        Lazy<RwLock<HashMap<FilterHandle, StreamId>>>   
 
 // TODO: filter handles are shareable out of necessity, so we can send stream sources and targets to other programs, but they currently will be invalid after being sent
 
-///
-/// A filter is a way to convert from a stream of one message type to another, and a filter
-/// handle references a predefined filter.
-///
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
-pub struct FilterHandle(usize);
-
+/*
 impl fmt::Debug for FilterHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let source_stream_id = (*SOURCE_STREAM_ID).read().unwrap().get(self).cloned();
@@ -55,15 +47,74 @@ impl fmt::Debug for FilterHandle {
         }
     }
 }
+*/
 
-impl FilterHandle {
+pub trait FilterHandleExt {
     ///
     /// Returns a filter handle for a filtering function
     ///
     /// A filter can be used to convert between an output of one subprogram and the input of another when they are different types. This makes it
     /// possible to connect subprograms without needing an intermediate program that performs the conversion.
     ///
-    pub fn for_filter<TSourceMessage, TTargetStream>(filter: impl 'static + Send + Sync + Fn(InputStream<TSourceMessage>) -> TTargetStream) -> FilterHandle
+    fn for_filter<TSourceMessage, TTargetStream>(filter: impl 'static + Send + Sync + Fn(InputStream<TSourceMessage>) -> TTargetStream) -> FilterHandle
+    where
+        TSourceMessage:         'static + Unpin + SceneMessage,
+        TTargetStream:          'static + Send + Stream,
+        TTargetStream::Item:    'static + Unpin + SceneMessage;
+
+    ///
+    /// Creates a filter that converts between two message types that implements `From`
+    ///
+    /// This will cache the filter handle for specific message types so this won't allocate additional filters every time it's called
+    ///
+    fn conversion_filter<TSourceMessage, TTargetMessage>() -> FilterHandle
+    where
+        TSourceMessage: 'static + SceneMessage + Into<TTargetMessage>,
+        TTargetMessage: 'static + SceneMessage;
+
+    ///
+    /// Returns the stream ID for the source of this filter
+    ///
+    fn source_stream_id_any(&self) -> Result<StreamId, ConnectionError>;
+
+    ///
+    /// Returns the stream ID for the target of this filter
+    ///
+    fn target_stream_id_any(&self) -> Result<StreamId, ConnectionError>;
+}
+
+pub (crate) trait FilterHandleCrateExt {
+    ///
+    /// Creates an input stream core which will filter its results using this filter and send them to a target core
+    ///
+    /// This is an input stream that accepts the 'source' type of the filter, and sends its results to the target core, as if they came 
+    /// from the specified sending program. The core returned by this function should be closed when disconnected, or it will leave
+    /// behind a process in the scene that can never run.
+    ///
+    fn create_input_stream_core(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError>;
+
+    ///
+    /// Chains this filter with a following filter.
+    ///
+    /// This generates an input stream that first applies this filter, and then sends its results through another filter. `next_filter` must have an input type
+    /// that matches the output type of this filter.
+    ///
+    fn chain_filters(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, next_filter: FilterHandle, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError>;
+
+    ///
+    /// Creates a stream ID for the output of a filter and a target program
+    ///
+    fn target_stream_id(&self, target_program: SubProgramId) -> Result<StreamId, ConnectionError>;
+}
+
+impl FilterHandleExt for FilterHandle {
+    ///
+    /// Returns a filter handle for a filtering function
+    ///
+    /// A filter can be used to convert between an output of one subprogram and the input of another when they are different types. This makes it
+    /// possible to connect subprograms without needing an intermediate program that performs the conversion.
+    ///
+    fn for_filter<TSourceMessage, TTargetStream>(filter: impl 'static + Send + Sync + Fn(InputStream<TSourceMessage>) -> TTargetStream) -> FilterHandle
     where
         TSourceMessage:         'static + Unpin + SceneMessage,
         TTargetStream:          'static + Send + Stream,
@@ -184,7 +235,7 @@ impl FilterHandle {
     ///
     /// This will cache the filter handle for specific message types so this won't allocate additional filters every time it's called
     ///
-    pub fn conversion_filter<TSourceMessage, TTargetMessage>() -> FilterHandle
+    fn conversion_filter<TSourceMessage, TTargetMessage>() -> FilterHandle
     where
         TSourceMessage: 'static + SceneMessage + Into<TTargetMessage>,
         TTargetMessage: 'static + SceneMessage,
@@ -212,13 +263,35 @@ impl FilterHandle {
     }
 
     ///
+    /// Returns the stream ID for the source of this filter
+    ///
+    fn source_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
+        let source_stream_id = SOURCE_STREAM_ID.read().unwrap();
+        let source_stream_id = source_stream_id.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
+
+        Ok(source_stream_id.clone())
+    }
+
+    ///
+    /// Returns the stream ID for the target of this filter
+    ///
+    fn target_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
+        let stream_id_for_target    = STREAM_ID_FOR_TARGET.read().unwrap();
+        let create_stream_id        = stream_id_for_target.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
+
+        Ok(create_stream_id(None))
+    }
+}
+
+impl FilterHandleCrateExt for FilterHandle {
+    ///
     /// Creates an input stream core which will filter its results using this filter and send them to a target core
     ///
     /// This is an input stream that accepts the 'source' type of the filter, and sends its results to the target core, as if they came 
     /// from the specified sending program. The core returned by this function should be closed when disconnected, or it will leave
     /// behind a process in the scene that can never run.
     ///
-    pub (crate) fn create_input_stream_core(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
+    fn create_input_stream_core(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
         // Create a future that will run the filter
         let (send_future, filtering_input_core) = {
             let create_input_stream = CREATE_INPUT_STREAM.read().unwrap();
@@ -248,7 +321,7 @@ impl FilterHandle {
     /// This generates an input stream that first applies this filter, and then sends its results through another filter. `next_filter` must have an input type
     /// that matches the output type of this filter.
     ///
-    pub (crate) fn chain_filters(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, next_filter: FilterHandle, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
+    fn chain_filters(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, next_filter: FilterHandle, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
         // Send to the target from the filter that follows this one
         let following_filter = next_filter.create_input_stream_core(scene_core, sending_program, target_input_core)?;
 
@@ -257,29 +330,9 @@ impl FilterHandle {
     }
 
     ///
-    /// Returns the stream ID for the source of this filter
-    ///
-    pub fn source_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
-        let source_stream_id = SOURCE_STREAM_ID.read().unwrap();
-        let source_stream_id = source_stream_id.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
-
-        Ok(source_stream_id.clone())
-    }
-
-    ///
-    /// Returns the stream ID for the target of this filter
-    ///
-    pub fn target_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
-        let stream_id_for_target    = STREAM_ID_FOR_TARGET.read().unwrap();
-        let create_stream_id        = stream_id_for_target.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
-
-        Ok(create_stream_id(None))
-    }
-
-    ///
     /// Creates a stream ID for the output of a filter and a target program
     ///
-    pub (crate) fn target_stream_id(&self, target_program: SubProgramId) -> Result<StreamId, ConnectionError> {
+    fn target_stream_id(&self, target_program: SubProgramId) -> Result<StreamId, ConnectionError> {
         let stream_id_for_target    = STREAM_ID_FOR_TARGET.read().unwrap();
         let create_stream_id        = stream_id_for_target.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
 

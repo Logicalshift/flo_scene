@@ -1,3 +1,6 @@
+pub use flo_scene_guest::host_types::{StreamTarget};
+
+/*
 use crate::host::filter::*;
 use crate::host::subprogram_id::*;
 
@@ -64,3 +67,4 @@ impl From<()> for StreamTarget {
         StreamTarget::Any
     }
 }
+*/

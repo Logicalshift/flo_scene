@@ -1,5 +1,6 @@
 use crate::host::command_trait::*;
 use crate::host::error::*;
+use crate::host::filter::*;
 use crate::host::input_stream::*;
 use crate::host::output_sink::*;
 use crate::host::programs::*;
