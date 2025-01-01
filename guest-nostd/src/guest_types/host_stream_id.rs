@@ -1,4 +1,4 @@
-use crate::host_types::*;
+use super::scene_guest_message::*;
 
 use serde::*;
 use alloc::string::*;

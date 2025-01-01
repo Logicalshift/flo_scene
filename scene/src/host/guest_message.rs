@@ -2,7 +2,7 @@ use crate::host::scene_message::*;
 use crate::host::error::*;
 use crate::host::serialization_context::*;
 
-pub use flo_scene_guest::host_types::{SceneGuestMessage};
+pub use flo_scene_guest::guest_types::{SceneGuestMessage};
 
 ///
 /// SceneGuestMessage is a cut-down version of SceneMessage: implicitly implement SceneMessage for every guest message
