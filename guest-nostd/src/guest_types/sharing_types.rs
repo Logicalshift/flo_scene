@@ -1,4 +1,4 @@
-#[cfg(feature="std")]
+#[cfg(feature="use-std")]
 mod std_sharing_types {
     use std::sync::*;
 
@@ -53,7 +53,7 @@ mod std_sharing_types {
     }
 }
 
-#[cfg(all(feature="one_thread", not(feature="std")))]
+#[cfg(all(feature="one_thread", not(feature="use-std")))]
 mod one_thread_sharing_types {
     use alloc::sync::*;
     use spin::{Mutex};
@@ -102,8 +102,8 @@ mod one_thread_sharing_types {
     }
 }
 
-#[cfg(feature="std")]
+#[cfg(feature="use-std")]
 pub (crate) use std_sharing_types::*;
 
-#[cfg(all(feature="one_thread", not(feature="std")))]
+#[cfg(all(feature="one_thread", not(feature="use-std")))]
 pub (crate) use one_thread_sharing_types::*;

@@ -15,7 +15,7 @@ keywords        = [ "message-queue" ]
 default         = [ "one_thread" ]
 
 # Use std after all, protect shared data with shared mutexes
-std             = [ ]
+use-std         = [ ]
 
 # If std is not applied, assume that we're running in single-threaded mode
 one_thread      = [ "spin" ]
@@ -24,7 +24,7 @@ one_thread      = [ "spin" ]
 json            = [ "serde_json" ]
 
 # Allow internal random number generation (for generating UUIDs)
-random          = [ "uuid/v4" ]
+use-random      = [ "uuid/v4" ]
 
 [dependencies]
 postcard        = { version = "1.0", features = [ "alloc" ] }
