@@ -6,6 +6,7 @@ use serde::*;
 ///
 /// Adapter that converts a SceneMessage into a SceneGuestMessage, used when a message is not already a SceneGuestMessage
 ///
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GuestMessageWrapper<TMessage>(pub TMessage);
 
 impl<TMessage: Serialize> Serialize for GuestMessageWrapper<TMessage> {
