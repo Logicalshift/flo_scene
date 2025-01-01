@@ -197,4 +197,7 @@ pub use guest::*;
 
 // #[cfg(target_family="wasm")]
 #[cfg(any(feature="postcard", target_family="wasm"))]
-pub mod wasm_rt;
+pub mod wasm_rt {
+    pub use flo_scene_guest::exports::{register_runtime, claim_buffer};
+    pub use flo_scene_guest::guest_types::{BufferHandle};
+}
