@@ -1,6 +1,6 @@
 pub use flo_scene_guest::errors::*;
 
-#[cfg(feature="tokio")]
+#[cfg(feature="tokio_support")]
 mod tokio_errors {
     use super::*;
     use tokio::io::{Error, ErrorKind};
@@ -39,4 +39,5 @@ mod tokio_errors {
     }
 }
 
+#[cfg(feature="tokio_support")]
 pub use tokio_errors::*;
