@@ -18,9 +18,11 @@
 pub use flo_scene_guest::guest_types::*;
 pub use flo_scene_guest::runtime::*;
 
+mod guest_message_wrapper;
 mod host_subprogram;
 mod stream_target;
 
+pub use guest_message_wrapper::*;
 pub use host_subprogram::*;
 pub use stream_target::*;
 
