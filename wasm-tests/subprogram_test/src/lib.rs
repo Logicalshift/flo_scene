@@ -35,7 +35,7 @@ pub extern "C" fn start_test_subprogram() -> GuestRuntimeHandle {
     });
 
     // Register using postcard as the encoding scheme
-    register_postcard_runtime(runtime)
+    register_runtime(runtime)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -63,5 +63,5 @@ pub extern "C" fn start_uuid_subprogram() -> GuestRuntimeHandle {
     });
 
     // Register using postcard as the encoding scheme
-    register_postcard_runtime(runtime)
+    register_runtime(runtime)
 }
