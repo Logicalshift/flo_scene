@@ -1,3 +1,8 @@
+pub use flo_scene_guest::guest_types::{BufferHandle};
+pub use flo_scene_guest::exports::{scene_borrow_buffer, scene_new_buffer, scene_buffer_size, scene_free_buffer, claim_buffer};
+pub (super) use flo_scene_guest::exports::{buffer_store};
+
+/*
 use once_cell::sync::{Lazy};
 
 use std::cell::{UnsafeCell};
@@ -113,3 +118,4 @@ pub (super) fn buffer_store(data: Vec<u8>) -> BufferHandle {
     BUFFERS.lock().unwrap().insert(handle, UnsafeCell::new(data));
     handle
 }
+*/
