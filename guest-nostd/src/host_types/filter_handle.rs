@@ -7,4 +7,4 @@ use serde::*;
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize)]
 #[derive(Debug)]        // TODO
-pub struct FilterHandle(usize);
+pub struct FilterHandle(pub usize);
