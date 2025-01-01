@@ -63,6 +63,7 @@ checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 name = "flo_scene"
 version = "0.2.0"
 dependencies = [
+ "flo_scene_guest",
  "futures",
  "futures-timer",
  "once_cell",
@@ -72,7 +73,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "flo_scene_nostd"
+name = "flo_scene_guest"
 version = "0.2.0"
 dependencies = [
  "futures",
@@ -94,7 +95,7 @@ dependencies = [
 name = "flo_scene_wasm_nostd_test"
 version = "0.1.0"
 dependencies = [
- "flo_scene_nostd",
+ "flo_scene_guest",
  "futures",
  "serde",
  "wee_alloc",
