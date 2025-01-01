@@ -1,7 +1,5 @@
 use crate::errors::*;
 use crate::guest_types::*;
-use crate::guest_result::*;
-use crate::guest_action::*;
 use crate::host_types::*;
 use super::context::*;
 use super::core::*;

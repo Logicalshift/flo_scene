@@ -21,8 +21,6 @@ pub mod host_types;
 pub mod errors;
 pub mod runtime;
 pub mod util;
-mod guest_action;
-mod guest_result;
 
 pub use serde;
 pub use postcard;

@@ -1,4 +1,5 @@
-use crate::guest_types::*;
+use super::sink::*;
+use super::subprogram_handle::*;
 use crate::host_types::*;
 use crate::errors::*;
 

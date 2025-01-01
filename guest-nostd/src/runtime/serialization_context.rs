@@ -2,7 +2,6 @@ use crate::errors::*;
 use crate::guest_types::*;
 use crate::host_types::*;
 use crate::util::*;
-use crate::guest_result::*;
 use super::core::*;
 
 use futures::prelude::*;

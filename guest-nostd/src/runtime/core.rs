@@ -1,7 +1,6 @@
 use crate::errors::*;
 use crate::guest_types::*;
 use crate::host_types::*;
-use crate::guest_result::*;
 use crate::util::*;
 use super::input_stream::*;
 use super::input_stream_core::*;
