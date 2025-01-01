@@ -13,8 +13,6 @@ use serde_json;
 #[cfg(feature="postcard")]
 use postcard;
 
-use std::borrow::{Cow};
-
 ///
 /// Trait implemented by messages that can be sent via a scene
 ///
@@ -260,22 +258,3 @@ pub fn create_default_serializer_filters<TMessage: SceneMessage>() -> Vec<Filter
 
     filters.collect()
 }
-
-/*
-impl SceneMessage for ()                { fn message_type_name() -> String { "()".into() } }
-impl SceneMessage for String            { fn message_type_name() -> String { "String".into() } }
-impl SceneMessage for Cow<'static, str> { fn message_type_name() -> String { "Cow::str".into() } }
-impl SceneMessage for char              { fn message_type_name() -> String { "char".into() } }
-impl SceneMessage for usize             { fn message_type_name() -> String { "usize".into() } }
-impl SceneMessage for isize             { fn message_type_name() -> String { "isize".into() } }
-impl SceneMessage for i8                { fn message_type_name() -> String { "i8".into() } }
-impl SceneMessage for u8                { fn message_type_name() -> String { "u8".into() } }
-impl SceneMessage for i16               { fn message_type_name() -> String { "i16".into() } }
-impl SceneMessage for u16               { fn message_type_name() -> String { "u16".into() } }
-impl SceneMessage for i32               { fn message_type_name() -> String { "i32".into() } }
-impl SceneMessage for u32               { fn message_type_name() -> String { "u32".into() } }
-impl SceneMessage for i64               { fn message_type_name() -> String { "i64".into() } }
-impl SceneMessage for u64               { fn message_type_name() -> String { "u64".into() } }
-impl SceneMessage for i128              { fn message_type_name() -> String { "i128".into() } }
-impl SceneMessage for u128              { fn message_type_name() -> String { "u128".into() } }
-*/
