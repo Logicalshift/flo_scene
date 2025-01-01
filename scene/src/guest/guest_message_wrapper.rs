@@ -57,3 +57,13 @@ impl<TMessage: SceneMessage> SceneGuestMessage for GuestMessageWrapper<TMessage>
             .map(|val| GuestMessageWrapper(val))
     }
 }
+
+pub trait SceneMessageGuestExt : SceneMessage {
+    /// Converts this scene message into a guest message
+    fn as_guest_message(self) -> GuestMessageWrapper<Self>;
+}
+
+impl<TMessage: SceneMessage> SceneMessageGuestExt for TMessage {
+    #[inline]
+    fn as_guest_message(self) -> GuestMessageWrapper<Self> { GuestMessageWrapper(self) }
+}
