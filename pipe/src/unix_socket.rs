@@ -47,7 +47,7 @@ where
                 async move {
                     let connection = our_listener.accept().await
                         .map(|(socket, _addr)| socket.into_split())
-                        .map_err(|tokio_err| tokio_err.into());
+                        .map_err(|tokio_err| tokio_err.to_connection_error());
 
                     *listener.lock().unwrap() = Some(our_listener);
 

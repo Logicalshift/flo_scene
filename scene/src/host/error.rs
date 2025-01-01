@@ -217,22 +217,27 @@ impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {
         }
     }
 }
+*/
 
 #[cfg(feature="tokio")]
 mod tokio_errors {
     use super::*;
     use tokio::io::{Error, ErrorKind};
 
-    impl From<Error> for ConnectionError {
-        fn from(err: Error) -> ConnectionError {
-            match err.kind() {
+    pub trait ConnectionErrorTokioExt {
+        fn to_connection_error(self) -> ConnectionError;
+    }
+
+    impl ConnectionErrorTokioExt for Error {
+        fn to_connection_error(self) -> ConnectionError {
+            match self.kind() {
                 ErrorKind::NotFound             => ConnectionError::TargetNotAvailable,
                 ErrorKind::PermissionDenied     => ConnectionError::TargetPermissionRefused,
                 ErrorKind::ConnectionRefused    => ConnectionError::TargetConnectionRefused,
                 ErrorKind::ConnectionReset      |
                 ErrorKind::BrokenPipe           |
                 ErrorKind::ConnectionAborted    => ConnectionError::Cancelled,
-                ErrorKind::NotConnected         => ConnectionError::IoError(format!("{}", err)),
+                ErrorKind::NotConnected         => ConnectionError::IoError(format!("{}", self)),
                 ErrorKind::AddrInUse            |
                 ErrorKind::AddrNotAvailable     |
                 ErrorKind::AlreadyExists        |
@@ -246,10 +251,11 @@ mod tokio_errors {
                 ErrorKind::UnexpectedEof        |
                 ErrorKind::OutOfMemory          |
                 ErrorKind::Other                |
-                _                               => ConnectionError::IoError(err.to_string()),
+                _                               => ConnectionError::IoError(self.to_string()),
 
             }
         }
     }
 }
-*/
+
+pub use tokio_errors::*;

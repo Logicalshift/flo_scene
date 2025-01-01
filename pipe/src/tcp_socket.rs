@@ -43,7 +43,7 @@ where
                         socket.set_nodelay(true).ok();
                         socket.into_split()
                     })
-                    .map_err(|tokio_err| tokio_err.into())
+                    .map_err(|tokio_err| tokio_err.to_connection_error())
             }).map_ok_or_else(|_cancelled| Err(ConnectionError::Cancelled), |ok| ok),
             create_input_messages,
             create_output_messages).await;

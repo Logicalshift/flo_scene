@@ -40,3 +40,6 @@ pub use connect_result::*;
 pub use error::{ConnectionError, SceneSendError};
 pub use serialization::*;
 pub use serialization_context::*;
+
+#[cfg(feature="tokio")]
+pub use error::{ConnectionErrorTokioExt};
