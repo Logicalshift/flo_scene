@@ -1,4 +1,3 @@
-use crate::host_types::*;
 use crate::guest_types::*;
 use super::core::*;
 use super::input_stream_core::*;
