@@ -28,7 +28,7 @@ pub fn send_postcard_message_to_runtime() {
     // Create a runtime that receives messages using the postcard encoder
     let messages        = Arc::clone(&received);
     let awake           = Arc::clone(&woken);
-    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), move |input_stream: GuestInputStream<SimpleTestMessage>, _context| async move {
+    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), move |input_stream: GuestInputStream<GuestMessageWrapper<SimpleTestMessage>>, _context| async move {
         (*awake.lock().unwrap()) = true;
 
         let mut input_stream = input_stream;
@@ -55,7 +55,7 @@ pub fn send_postcard_message_to_runtime() {
     // Message should have been received and properly decoded
     let received = received.lock().unwrap();
     assert!(received.len() == 1, "{:?}", received);
-    assert!(received[0] == SimpleTestMessage { value: "Test".into() }, "{:?}", received);
+    assert!(received[0].0 == SimpleTestMessage { value: "Test".into() }, "{:?}", received);
     assert!(result.contains(&GuestResult::Ready(GuestSubProgramHandle::default())));
 
     // Program isn't doing anything so it doesn't get more ready
@@ -66,10 +66,10 @@ pub fn send_postcard_message_to_runtime() {
 #[test]
 pub fn receive_message_from_runtime() {
     // Create a runtime that sends a message to the host
-    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), move |_input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
+    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), move |_input_stream: GuestInputStream<GuestMessageWrapper<SimpleTestMessage>>, context| async move {
         // Send the message to the default target
-        let mut message_sink = context.send::<SimpleTestMessage>(()).unwrap();
-        message_sink.send(SimpleTestMessage { value: "From remote".into() }).await.unwrap();
+        let mut message_sink = context.send::<GuestMessageWrapper<SimpleTestMessage>>(()).unwrap();
+        message_sink.send(SimpleTestMessage { value: "From remote".into() }.as_guest_message()).await.unwrap();
     });
 
     // We now need to send the expected responses back for the sink that was just opened up
@@ -86,7 +86,7 @@ pub fn receive_message_from_runtime() {
         unreachable!()
     };
 
-    assert!(stream_target == HostStreamTarget::Any(HostStreamId::for_message::<SimpleTestMessage>()));
+    assert!(stream_target == HostStreamTarget::Any(HostStreamId::for_message::<GuestMessageWrapper<SimpleTestMessage>>()));
 
     // We need to send a connection back
     guest_runtime.sink_ready(sink_handle);
@@ -112,11 +112,11 @@ pub fn receive_message_from_runtime() {
 #[test]
 pub fn receive_several_messages_from_runtime() {
     // Create a runtime that sends a message to the host
-    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), move |_input_stream: GuestInputStream<SimpleTestMessage>, context| async move {
+    let guest_runtime   = GuestRuntime::with_default_subprogram(SubProgramId::new(), move |_input_stream: GuestInputStream<GuestMessageWrapper<SimpleTestMessage>>, context| async move {
         // Send the message to the default target
-        let mut message_sink = context.send::<SimpleTestMessage>(()).unwrap();
-        message_sink.send(SimpleTestMessage { value: "From remote".into() }).await.unwrap();
-        message_sink.send(SimpleTestMessage { value: "Another message".into() }).await.unwrap();
+        let mut message_sink = context.send::<GuestMessageWrapper<SimpleTestMessage>>(()).unwrap();
+        message_sink.send(SimpleTestMessage { value: "From remote".into() }.as_guest_message()).await.unwrap();
+        message_sink.send(SimpleTestMessage { value: "Another message".into() }.as_guest_message()).await.unwrap();
     });
 
     // We now need to send the expected responses back for the sink that was just opened up
@@ -133,7 +133,7 @@ pub fn receive_several_messages_from_runtime() {
         unreachable!()
     };
 
-    assert!(stream_target == HostStreamTarget::Any(HostStreamId::for_message::<SimpleTestMessage>()));
+    assert!(stream_target == HostStreamTarget::Any(HostStreamId::for_message::<GuestMessageWrapper<SimpleTestMessage>>()));
 
     // We need to send a connection back
     guest_runtime.sink_ready(sink_handle);

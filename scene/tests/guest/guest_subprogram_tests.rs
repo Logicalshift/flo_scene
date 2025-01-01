@@ -16,13 +16,13 @@ pub struct SimpleResponseMessage {
     value: String,
 }
 
-impl SceneMessage for SimpleTestMessage {
+impl SceneGuestMessage for SimpleTestMessage {
     fn message_type_name() -> String {
         "flo_scene_tests::guest_subprogram_tests::SimpleTestMessage".into()
     }
 }
 
-impl SceneMessage for SimpleResponseMessage {
+impl SceneGuestMessage for SimpleResponseMessage {
     fn message_type_name() -> String {
         "flo_scene_tests::guest_subprogram_tests::SimpleResponseMessage".into()
     }

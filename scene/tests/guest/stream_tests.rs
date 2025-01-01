@@ -15,7 +15,7 @@ pub struct SimpleTestMessage {
     value: String,
 }
 
-impl SceneMessage for SimpleTestMessage {
+impl SceneGuestMessage for SimpleTestMessage {
     fn message_type_name() -> String {
         "flo_scene_tests::stream_tests::SimpleTestMessage".into()
     }
@@ -78,10 +78,10 @@ fn send_query_response_from_guest() {
     // Start a guest runtime that mirrors messages
     let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, move |_: GuestInputStream<SimpleTestMessage>, context| async move {
         // Send responses to the defualt target for the scene
-        let mut response = context.send::<QueryResponse<String>>(()).unwrap();
+        let mut response = context.send::<GuestMessageWrapper<QueryResponse<String>>>(()).unwrap();
         let (send, recv) = mpsc::channel(0);
 
-        response.send(QueryResponse::with_stream(recv)).await.unwrap();
+        response.send(QueryResponse::with_stream(recv).as_guest_message()).await.unwrap();
 
         let mut send = send;
         println!("Send: Hello");
@@ -130,11 +130,12 @@ fn send_query_response_from_host() {
     let test_subprogram_id      = SubProgramId::called("Test subprogram");
 
     // Start a guest runtime that mirrors messages
-    let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, move |input: GuestInputStream<QueryResponse<String>>, context| async move {
+    let guest_runtime = GuestRuntime::with_default_subprogram(guest_subprogram_id, move |input: GuestInputStream<GuestMessageWrapper<QueryResponse<String>>>, context| async move {
         println!("Waiting for input");
 
         let mut input           = input;
-        let mut query_response  = input.next().await.unwrap();
+        let query_response      = input.next().await.unwrap();
+        let mut query_response  = query_response.0;
         let mut test_messages   = context.send(test_subprogram_id).unwrap();
 
         println!("Receiving from query");

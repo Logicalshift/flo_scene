@@ -16,7 +16,7 @@ pub struct SimpleTestMessage {
     value: String,
 }
 
-impl SceneMessage for SimpleTestMessage {
+impl SceneGuestMessage for SimpleTestMessage {
     fn message_type_name() -> String {
         "flo_scene_tests::function_tests::SimpleTestMessage".into()
     }
@@ -31,7 +31,7 @@ pub struct TestFunctionMessage(Arc<dyn Send + Sync + Fn(Vec<u8>) -> BoxFuture<'s
 #[derive(Serialize, Deserialize)]
 struct SerializedTestFunctionMessage(SerializationId);
 
-impl SceneMessage for TestFunctionMessage {
+impl SceneGuestMessage for TestFunctionMessage {
     #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
     fn to_guest_message(self, context: &impl SerializationContext) -> Result<Vec<u8>, SceneSendError<Self>> {
@@ -108,7 +108,7 @@ fn send_function_from_guest() {
                 let msg = postcard::from_bytes::<String>(&msg).unwrap();
                 results.send(SimpleTestMessage { value: msg }).await.unwrap();
             }.boxed()
-        }))).await.unwrap();
+        })).as_guest_message()).await.unwrap();
 
         // Read input forever to keep the guest running so the function can be called
         let mut input = input;
