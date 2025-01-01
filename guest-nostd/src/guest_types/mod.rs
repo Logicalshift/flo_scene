@@ -13,3 +13,5 @@ pub use runtime_handle::*;
 pub (crate) use sharing_types::*;
 pub use sink::*;
 pub use subprogram_handle::*;
+pub use super::guest_action::*;
+pub use super::guest_result::*;
