@@ -34,7 +34,7 @@ impl<T: SceneGuestMessage> SceneMessage for T {
     #[cfg(feature="json")]
     #[inline]
     fn from_json(value: &serde_json::Value) -> Result<Self, SceneSendError<()>> {
-        <T as SceneGuestMessage>::from_json(self)
+        <T as SceneGuestMessage>::from_json(value)
     }
 
     ///
