@@ -53,7 +53,7 @@ mod std_sharing_types {
     }
 }
 
-#[cfg(feature="one_thread")]
+#[cfg(all(feature="one_thread", not(feature="std")))]
 mod one_thread_sharing_types {
     use alloc::sync::*;
     use spin::{Mutex};
