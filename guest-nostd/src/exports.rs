@@ -35,13 +35,6 @@ fn free_buffers<'a>() -> &'a Shared<Vec<BufferHandle>> {
     &*FREE_BUFFERS.get_or_init(|| Box::new(share(Vec::new())))
 }
 
-///
-/// Handle to a buffer in a scene (these are used for transferring data to and from a webassembly module)
-///
-#[derive(Clone, Copy, PartialEq, Debug, Eq, Hash)]
-#[repr(transparent)]
-pub struct BufferHandle(usize);
-
 impl BufferHandle {
     ///
     /// Allocates a new buffer
@@ -137,7 +130,7 @@ pub fn claim_buffer(buffer_handle: BufferHandle) -> Vec<u8> {
 ///
 /// Stores a Vec<u8> as a buffer and returns the handle
 ///
-pub (super) fn buffer_store(data: Vec<u8>) -> BufferHandle {
+pub fn buffer_store(data: Vec<u8>) -> BufferHandle {
     let handle = BufferHandle::new();
     with_shared(buffers(), move |buffers| {
         let handle = handle.0;
