@@ -18,7 +18,6 @@ static GUEST_RUNTIMES: OnceBox<Shared<Vec<Option<Arc<GuestRuntime>>>>>      = On
 
 static BUFFERS:         OnceBox<Shared<Vec<Option<UnsafeCell<Vec<u8>>>>>>   = OnceBox::new();
 static FREE_BUFFERS:    OnceBox<Shared<Vec<BufferHandle>>>                  = OnceBox::new();
-static NEXT_BUFFER:     AtomicUsize                                         = AtomicUsize::new(0);
 
 #[inline]
 fn guest_runtimes<'a>() -> &'a Shared<Vec<Option<Arc<GuestRuntime>>>> {
@@ -33,16 +32,6 @@ fn buffers<'a>() -> &'a Shared<Vec<Option<UnsafeCell<Vec<u8>>>>> {
 #[inline]
 fn free_buffers<'a>() -> &'a Shared<Vec<BufferHandle>> {
     &*FREE_BUFFERS.get_or_init(|| Box::new(share(Vec::new())))
-}
-
-impl BufferHandle {
-    ///
-    /// Allocates a new buffer
-    ///
-    #[inline]
-    pub fn new() -> Self {
-        BufferHandle(NEXT_BUFFER.fetch_add(1, Ordering::Relaxed))
-    }
 }
 
 ///
