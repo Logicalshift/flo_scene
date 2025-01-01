@@ -1,4 +1,5 @@
 use flo_scene_guest::guest_types::*;
+use super::stream_target::*;
 use crate::host::*;
 use crate::util::*;
 

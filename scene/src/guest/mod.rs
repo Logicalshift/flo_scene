@@ -19,8 +19,10 @@ pub use flo_scene_guest::guest_types::*;
 pub use flo_scene_guest::runtime::*;
 
 mod host_subprogram;
+mod stream_target;
 
 pub use host_subprogram::*;
+pub use stream_target::*;
 
 /*
 mod traits;
