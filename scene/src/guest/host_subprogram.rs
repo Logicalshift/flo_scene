@@ -1,7 +1,8 @@
-use flo_scene_guest::guest_types::*;
+use super::guest_message_wrapper::*;
 use super::stream_target::*;
 use crate::host::*;
 use crate::util::*;
+use flo_scene_guest::guest_types::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
@@ -90,10 +91,10 @@ where
     }
 
     // Guest program has started: perform 'pre-flight' checks
-    if guest_stream_id != HostStreamId::for_message::<TMessageType>() {
+    if guest_stream_id != HostStreamId::for_message::<GuestMessageWrapper::<TMessageType>>() {
         // The guest program must generate the same stream ID as the host
         // TODO: log/soft error instead of panicking
-        panic!("Was expecting a guest program generating message type {:?}, but got {:?}", HostStreamId::for_message::<TMessageType>(), guest_stream_id);
+        panic!("Was expecting a guest program generating message type {:?}, but got {:?}", HostStreamId::for_message::<GuestMessageWrapper::<TMessageType>>(), guest_stream_id);
     }
 
     // Signal used to indicate when we can send a message we've received that's destined for this program. This is basically just a semaphore we can poll for
