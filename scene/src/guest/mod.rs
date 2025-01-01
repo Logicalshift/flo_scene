@@ -25,33 +25,3 @@ mod stream_target;
 pub use guest_message_wrapper::*;
 pub use host_subprogram::*;
 pub use stream_target::*;
-
-/*
-mod traits;
-mod poll_action;
-mod poll_result;
-mod runtime;
-mod runtime_handle;
-mod guest_context;
-mod sink_handle;
-mod stream_id;
-mod stream_target;
-mod subprogram_handle;
-mod input_stream;
-mod host_subprogram;
-mod guest_stream_core;
-mod guest_serialization_context;
-
-pub use traits::*;
-pub use poll_action::*;
-pub use poll_result::*;
-pub use runtime::*;
-pub use runtime_handle::*;
-pub use guest_context::*;
-pub use sink_handle::*;
-pub use stream_id::*;
-pub use stream_target::*;
-pub use subprogram_handle::*;
-pub use input_stream::*;
-pub use host_subprogram::*;
-*/
