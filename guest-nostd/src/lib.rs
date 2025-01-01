@@ -1,5 +1,5 @@
 //!
-//! # flo_scene_nostd
+//! # flo_scene_guest
 //!
 //! `flo_scene` is a runtime system for Rust that provides a platform for building large software 
 //! out of much smaller components. See the `flo_scene` crate for details.

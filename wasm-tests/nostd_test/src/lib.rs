@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use flo_scene_nostd::*;
+use flo_scene_guest::*;
 use serde::*;
 use futures::prelude::*;
 
