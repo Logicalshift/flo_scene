@@ -15,6 +15,14 @@
 //! process.
 //!
 
+pub use flo_scene_guest::guest_types::*;
+pub use flo_scene_guest::runtime::*;
+
+mod host_subprogram;
+
+pub use host_subprogram::*;
+
+/*
 mod traits;
 mod poll_action;
 mod poll_result;
@@ -42,3 +50,4 @@ pub use stream_target::*;
 pub use subprogram_handle::*;
 pub use input_stream::*;
 pub use host_subprogram::*;
+*/

@@ -1,6 +1,4 @@
-use super::poll_action::*;
-use super::poll_result::*;
-use super::stream_id::*;
+use flo_scene_guest::guest_types::*;
 use crate::host::*;
 use crate::util::*;
 
