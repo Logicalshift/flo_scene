@@ -45,14 +45,14 @@ impl GuestSceneContext {
     /// The `None` target will discard any messages received while the stream is disconnected, but the `Any` target will block until something
     /// connects the stream. Streams with a specified target will connect to that target immediately.
     ///
-    pub fn send<TMessageType>(&self, target: impl Into<StreamTarget>) -> Result<impl Unpin + Sink<TMessageType, Error=SceneSendError<Vec<u8>>>, ConnectionError>
+    pub fn send<TMessageType>(&self, target: impl ToHostStreamTarget) -> Result<impl Unpin + Sink<TMessageType, Error=SceneSendError<Vec<u8>>>, ConnectionError>
     where
         TMessageType: 'static + SceneGuestMessage,
     {
         // Set up the state
         let connection              = None;
         let core                    = Some(self.core.clone());
-        let target                  = Some(HostStreamTarget::from_stream_target::<TMessageType>(target)?);
+        let target                  = Some(target.to_host_stream_target::<TMessageType>()?);
         let serialization_context   = self.serialization_context.clone();
 
         Ok(sink::unfold((connection, core, target, serialization_context), move |(connection, core, target, serialization_context), item: TMessageType| {

@@ -15,6 +15,35 @@ pub enum HostStreamTarget {
     Program(SubProgramId, HostStreamId)
 }
 
+pub trait ToHostStreamTarget {
+    ///
+    /// Converts this to a HostStreamTarget type (where the target stream has the given message type)
+    ///
+    fn to_host_stream_target<TMessageType: SceneGuestMessage>(self) -> Result<HostStreamTarget, ConnectionError>;
+}
+
+impl ToHostStreamTarget for HostStreamTarget {
+    fn to_host_stream_target<TMessageType: SceneGuestMessage>(self) -> Result<HostStreamTarget, ConnectionError> {
+        Ok(self)
+    }
+}
+
+impl ToHostStreamTarget for () {
+    fn to_host_stream_target<TMessageType: SceneGuestMessage>(self) -> Result<HostStreamTarget, ConnectionError> {
+        let stream_id = HostStreamId::for_message::<TMessageType>();
+
+        Ok(HostStreamTarget::Any(stream_id))
+    }
+}
+
+impl ToHostStreamTarget for SubProgramId {
+    fn to_host_stream_target<TMessageType: SceneGuestMessage>(self) -> Result<HostStreamTarget, ConnectionError> {
+        let stream_id = HostStreamId::for_message::<TMessageType>();
+
+        Ok(HostStreamTarget::Program(self, stream_id))
+    }
+}
+
 impl HostStreamTarget {
     ///
     /// Changes a stream target into a host stream target if possible
