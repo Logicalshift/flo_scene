@@ -79,11 +79,11 @@ pub trait SceneInitialisationContext {
     /// scene.connect_programs(&source_program, &other_program, StreamId::with_message_type::<ExampleMessage>().for_target(&subprogram));
     ///
     /// // Use a filter to accept a different incoming message type for a target program
-    /// scene.connect_programs((), StreamTarget::Filtered(example_filter, other_program), StreamId::with_message_type::<FilteredMessage>());
-    /// scene.connect_programs(StreamSource::Filtered(example_filter), StreamTarget::Program(other_program), StreamId::with_message_type::<FilteredMessage>());
+    /// scene.connect_programs((), StreamTarget::Filtered(example_filter.clone(), other_program), StreamId::with_message_type::<FilteredMessage>());
+    /// scene.connect_programs(&example_filter, StreamTarget::Program(other_program), StreamId::with_message_type::<FilteredMessage>());
     ///
     /// // Filter any output if it's connected to an input of a specified type
-    /// scene.connect_programs(StreamSource::Filtered(example_filter), (), StreamId::with_message_type::<FilteredMessage>().for_target(&subprogram));
+    /// scene.connect_programs(&example_filter, (), StreamId::with_message_type::<FilteredMessage>().for_target(&subprogram));
     /// ```
     ///
     fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<ConnectionResult, ConnectionError>;
