@@ -181,6 +181,14 @@ impl SceneMessage for CommandHelp {
                                         .map(|(name, description)| format!("| {} | {} |\n", name, description.description))
                                         .collect::<String>()
                                     ).into()
+                            } else if topic == "topics" {
+                                format!("# Available topics are:\n\n| | |\n| -- | -- |\n{}",
+                                    topics.iter()
+                                        .filter(|(_, topic_description)| !topic_description.hidden)
+                                        .sorted_by_key(|(topic, _)| *topic)
+                                        .map(|(topic, topic_description)| format!("| {} | {} |\n", topic, topic_description.description))
+                                        .collect::<String>()
+                                    ).into()
                             } else if let Some(command) = commands.get(&topic) {
                                 // If there's a command, this takes priority over the topic, if there's one that matches
                                 command.markdown.clone()
