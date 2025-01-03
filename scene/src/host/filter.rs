@@ -337,7 +337,7 @@ impl FilterHandleCrateExt for FilterHandle {
     ///
     fn target_stream_id(&self, target_program: SubProgramId) -> Result<StreamId, ConnectionError> {
         if let Ok(data) = self.data.clone().downcast::<FilterData>() {
-           Ok((data.stream_id_for_target)(target_program))
+           Ok((data.stream_id_for_target)(Some(target_program)))
         } else {
             Err(ConnectionError::FilterHandleNotFound)
         }
