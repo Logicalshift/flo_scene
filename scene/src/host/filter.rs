@@ -20,6 +20,7 @@ use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 // TODO: rename FilterHandle, it's just a filter now
+// TODO: filter handles are shareable out of necessity, so we can send stream sources and targets to other programs, but they currently will be invalid after being sent
 
 type CreateInputStreamFn = Arc<dyn Send + Sync + Fn(SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>;
 type StreamIdForTargetFn = Arc<dyn Send + Sync + Fn(Option<SubProgramId>) -> StreamId>;
@@ -48,16 +49,6 @@ struct FilterData {
 
     /// The stream ID for the source of this filter
     source_stream_id:       StreamId,
-}
-
-impl Debug for FilterHandle {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("FilterHandle(")?;
-        f.write_str(&self.serial.to_string())?;
-        f.write_str(")")?;
-
-        Ok(())
-    }
 }
 
 impl PartialEq for FilterHandle {
@@ -95,22 +86,14 @@ impl<'de> Deserialize<'de> for FilterHandle {
     }
 }
 
-// TODO: filter handles are shareable out of necessity, so we can send stream sources and targets to other programs, but they currently will be invalid after being sent
+impl Debug for FilterHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let source_stream_id = self.data.source_stream_id.clone();
+        let target_stream_id = (self.data.stream_id_for_target)(None);
 
-/*
-impl fmt::Debug for FilterHandle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let source_stream_id = (*SOURCE_STREAM_ID).read().unwrap().get(self).cloned();
-        let target_stream_id = (*STREAM_ID_FOR_TARGET).read().unwrap().get(self).map(|stream_id_fn| stream_id_fn(None));
-
-        if let (Some(source_stream_id), Some(target_stream_id)) = (source_stream_id, target_stream_id) {
-            write!(f, "FilterHandle({}: {} -> {})", self.0, source_stream_id.message_type_name(), target_stream_id.message_type_name())
-        } else {
-            write!(f, "FilterHandle({})", self.0)
-        }
+        write!(f, "FilterHandle({}: {} -> {})", self.serial, source_stream_id.message_type_name(), target_stream_id.message_type_name())
     }
 }
-*/
 
 pub trait FilterHandleExt {
     ///
