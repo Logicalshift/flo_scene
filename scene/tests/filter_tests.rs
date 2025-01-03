@@ -448,6 +448,7 @@ fn disconnect_filter_target() {
     println!("Create number program");
     let number_program  = SubProgramId::new();
     let scene2          = scene.clone();
+    let usize_to_string2 = usize_to_string.clone();
     scene.add_subprogram(
         number_program, 
         move |_: InputStream<()>, context| async move {
@@ -470,7 +471,7 @@ fn disconnect_filter_target() {
 
             // Reconnect the two programs
             println!("Reconnecting filter stream...");
-            scene2.connect_programs(number_program, StreamTarget::Filtered(usize_to_string, string_program), StreamId::with_message_type::<usize>()).unwrap();
+            scene2.connect_programs(number_program, StreamTarget::Filtered(usize_to_string2, string_program), StreamId::with_message_type::<usize>()).unwrap();
             println!("   ... reconnected");
 
             // Final two messages

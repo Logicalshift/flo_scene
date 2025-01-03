@@ -99,7 +99,8 @@ fn connect_filter_source_in_command() {
     // Create a test command that sends some usize values to its output
     let cmd_scene = scene.clone();
     let test_command = FnCommand::<(), usize>::new(move |_input, context| {
-        let cmd_scene = cmd_scene.clone();
+        let cmd_scene       = cmd_scene.clone();
+        let filter_handle   = filter_handle.clone();
         async move {
             // Connect the usize output
             let mut output = context.send::<usize>(()).unwrap();
