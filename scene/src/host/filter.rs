@@ -23,14 +23,15 @@ type StreamIdForTargetFn = Box<dyn Send + Sync + Fn(Option<SubProgramId>) -> Str
 
 static NEXT_FILTER_HANDLE:      AtomicUsize                                                 = AtomicUsize::new(0);
 
-/// Creates an input stream core that will send the filter result to a target input core (which must match the types in the filter)
-static CREATE_INPUT_STREAM:     Lazy<RwLock<HashMap<FilterHandle, CreateInputStreamFn>>>    = Lazy::new(|| RwLock::new(HashMap::new()));
-
-/// Function that returns the stream ID of a target subprogram
-static STREAM_ID_FOR_TARGET:    Lazy<RwLock<HashMap<FilterHandle, StreamIdForTargetFn>>>    = Lazy::new(|| RwLock::new(HashMap::new()));
-
-/// Maps filter handles to the stream ID of the source
-static SOURCE_STREAM_ID:        Lazy<RwLock<HashMap<FilterHandle, StreamId>>>               = Lazy::new(|| RwLock::new(HashMap::new()));
+///
+/// Data that's associated with a valid scene filter
+///
+struct FilterData
+{
+    create_input_stream:    CreateInputStreamFn,
+    stream_id_for_target:   StreamIdForTargetFn,
+    source_stream_id:       StreamId,
+}
 
 // TODO: filter handles are shareable out of necessity, so we can send stream sources and targets to other programs, but they currently will be invalid after being sent
 
@@ -120,18 +121,14 @@ impl FilterHandleExt for FilterHandle {
         TTargetStream:          'static + Send + Stream,
         TTargetStream::Item:    'static + Unpin + SceneMessage,
     {
-        use std::mem;
-
         // Create a new filter handle
         let handle = NEXT_FILTER_HANDLE.fetch_add(1, Ordering::Relaxed);
-        let handle = FilterHandle(handle);
 
         // Create a reference to the filter so we can share it in more than one function if needed
         let filter = Arc::new(filter);
 
         // Generate the filter functions for this filter
-        let mut create_input_stream = CREATE_INPUT_STREAM.write().unwrap();
-        create_input_stream.insert(handle, Box::new(move |sending_program, target_input_core| {
+        let create_input_stream: CreateInputStreamFn = Box::new(move |sending_program, target_input_core| {
             // Downcast the source and target to the expected types
             let target_input_core   = target_input_core.downcast::<Mutex<InputStreamCore<TTargetStream::Item>>>().or(Err(ConnectionError::FilterOutputDoesNotMatch))?;
             let buffer_size         = target_input_core.lock().unwrap().num_slots();
@@ -209,25 +206,31 @@ impl FilterHandleExt for FilterHandle {
             };
 
             Ok((run_filter.boxed(), source_core))
-        }));
-
-        mem::drop(create_input_stream);
+        });
 
         // Store the stream ID functions
-        let mut stream_id_for_target = STREAM_ID_FOR_TARGET.write().unwrap();
-        stream_id_for_target.insert(handle, Box::new(|maybe_target_program| {
+        let stream_id_for_target = Box::new(|maybe_target_program| {
             if let Some(target_program) = maybe_target_program {
                 StreamId::with_message_type::<TTargetStream::Item>().for_target(target_program)
             } else {
                 StreamId::with_message_type::<TTargetStream::Item>()
             }
-        }));
+        });
 
-        mem::drop(stream_id_for_target);
+        let source_stream_id = StreamId::with_message_type::<TSourceMessage>();
 
-        SOURCE_STREAM_ID.write().unwrap().insert(handle, StreamId::with_message_type::<TSourceMessage>());
+        // Create the filter data object for this filter
+        let filter_data = FilterData {
+            create_input_stream,
+            stream_id_for_target,
+            source_stream_id
+        };
 
-        handle
+        // Create the filter for this handle
+        FilterHandle {
+            data:   Arc::new(filter_data),
+            serial: handle
+        }
     }
 
     ///
@@ -249,14 +252,14 @@ impl FilterHandleExt for FilterHandle {
         // Try to fetch the existing filter if there is one
         let existing_filters = EXISTING_FILTERS.read().unwrap();
         if let Some(existing) = existing_filters.get(&conversion_type) {
-            *existing
+            existing.clone()
         } else {
             // Create a new filter and cache it
             mem::drop(existing_filters);
             let mut existing_filters = EXISTING_FILTERS.write().unwrap();
 
             let new_filter = Self::for_filter(|input| input.map(|source_message: TSourceMessage| source_message.into()));
-            existing_filters.insert(conversion_type, new_filter);
+            existing_filters.insert(conversion_type, new_filter.clone());
 
             new_filter
         }
@@ -266,20 +269,22 @@ impl FilterHandleExt for FilterHandle {
     /// Returns the stream ID for the source of this filter
     ///
     fn source_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
-        let source_stream_id = SOURCE_STREAM_ID.read().unwrap();
-        let source_stream_id = source_stream_id.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
-
-        Ok(source_stream_id.clone())
+        if let Ok(data) = self.data.clone().downcast::<FilterData>() {
+            Ok(data.source_stream_id.clone())
+        } else {
+            Err(ConnectionError::FilterHandleNotFound)
+        }
     }
 
     ///
     /// Returns the stream ID for the target of this filter
     ///
     fn target_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
-        let stream_id_for_target    = STREAM_ID_FOR_TARGET.read().unwrap();
-        let create_stream_id        = stream_id_for_target.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
-
-        Ok(create_stream_id(None))
+        if let Ok(data) = self.data.clone().downcast::<FilterData>() {
+           Ok((data.stream_id_for_target)(None))
+        } else {
+            Err(ConnectionError::FilterHandleNotFound)
+        }
     }
 }
 
@@ -294,10 +299,8 @@ impl FilterHandleCrateExt for FilterHandle {
     fn create_input_stream_core(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
         // Create a future that will run the filter
         let (send_future, filtering_input_core) = {
-            let create_input_stream = CREATE_INPUT_STREAM.read().unwrap();
-            let create_future       = create_input_stream.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
-
-            create_future(sending_program, target_input_core)
+            let data = self.data.clone().downcast::<FilterData>().map_err(|_| ConnectionError::FilterHandleNotFound)?;
+            (data.create_input_stream)(sending_program, target_input_core)
         }?;
 
         // Start it as a process in the core
@@ -333,9 +336,10 @@ impl FilterHandleCrateExt for FilterHandle {
     /// Creates a stream ID for the output of a filter and a target program
     ///
     fn target_stream_id(&self, target_program: SubProgramId) -> Result<StreamId, ConnectionError> {
-        let stream_id_for_target    = STREAM_ID_FOR_TARGET.read().unwrap();
-        let create_stream_id        = stream_id_for_target.get(self).ok_or(ConnectionError::FilterHandleNotFound)?;
-
-        Ok(create_stream_id(Some(target_program)))
+        if let Ok(data) = self.data.clone().downcast::<FilterData>() {
+           Ok((data.stream_id_for_target)(target_program))
+        } else {
+            Err(ConnectionError::FilterHandleNotFound)
+        }
     }
 }
