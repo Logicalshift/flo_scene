@@ -78,7 +78,7 @@ impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryRespons
     fn initialise(scene: &impl SceneInitialisationContext) {
         use std::iter;
 
-        let filters = iter::empty();
+        let filters = iter::empty::<FilterHandle>();
 
         // Create filters that convert the message type to its serialized equivalent
         #[cfg(feature="json")]
