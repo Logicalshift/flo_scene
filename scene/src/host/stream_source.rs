@@ -56,7 +56,7 @@ impl From<FilterHandle> for StreamSource {
 impl<'a> From<&'a FilterHandle> for StreamSource {
     #[inline]
     fn from(filter: &'a FilterHandle) -> StreamSource {
-        StreamSource::Filtered(*filter)
+        StreamSource::Filtered(filter.clone())
     }
 }
 

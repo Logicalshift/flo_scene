@@ -225,7 +225,7 @@ impl SceneMessage for HelpQueryTopic {
 
     fn initialise(scene: &impl SceneInitialisationContext) {
         // Convert help queries to CommandHelp requests
-        scene.connect_programs(StreamSource::Filtered(*HELP_QUERY_FILTER), (), StreamId::with_message_type::<HelpQueryTopic>()).unwrap();
+        scene.connect_programs(&*HELP_QUERY_FILTER, (), StreamId::with_message_type::<HelpQueryTopic>()).unwrap();
     }
 }
 

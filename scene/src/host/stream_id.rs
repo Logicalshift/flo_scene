@@ -292,7 +292,7 @@ impl StreamTypeFunctions {
 
                 // Install the default filters for this type
                 for filter in serialization_filters.iter() {
-                    scene.connect_programs(StreamSource::Filtered(*filter), (), filter.source_stream_id_any().unwrap()).ok();
+                    scene.connect_programs(StreamSource::Filtered(filter.clone()), (), filter.source_stream_id_any().unwrap()).ok();
                 }
 
                 // Call the message-specific initialisation

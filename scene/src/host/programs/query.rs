@@ -4,7 +4,6 @@ use crate::host::initialisation_context::*;
 use crate::host::scene_message::*;
 use crate::host::serialization::*;
 use crate::host::serialization_context::*;
-use crate::host::stream_source::*;
 use crate::host::stream_target::*;
 
 use futures::prelude::*;
@@ -117,7 +116,7 @@ impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryRespons
         };
 
         filters.for_each(|filter| {
-            scene.connect_programs(StreamSource::Filtered(filter), (), filter.source_stream_id_any().unwrap()).ok();
+            scene.connect_programs(&filter, (), filter.source_stream_id_any().unwrap()).ok();
         });
     }
 

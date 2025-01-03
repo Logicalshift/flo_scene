@@ -254,10 +254,11 @@ impl TestBuilder {
         let stream_id = StreamId::with_message_type::<TMessage>().for_target(target);
 
         // Create a filter for the message type
-        let filter_handle = *self.filters.entry(StreamId::with_message_type::<TMessage>())
+        let filter_handle = self.filters.entry(StreamId::with_message_type::<TMessage>())
             .or_insert_with(|| {
                 FilterHandle::for_filter(|source_stream: InputStream<TMessage>| source_stream.map(|msg| TestRequest::AnyMessage(Box::new(msg))))
-            });
+            })
+            .clone();
 
         self.actions.push(Box::new(move |input_stream, context, failed_assertions| { 
             let program_id  = context.current_program_id().unwrap();
@@ -305,7 +306,7 @@ impl TestBuilder {
 
         // Set up filters for the expected message types
         for (stream_id, filter_handle) in self.filters.iter() {
-            scene.connect_programs((), StreamTarget::Filtered(*filter_handle, test_subprogram), stream_id.clone()).unwrap();
+            scene.connect_programs((), StreamTarget::Filtered(filter_handle.clone(), test_subprogram), stream_id.clone()).unwrap();
         }
 
         // Run the scene on the current thread, until the test actions have been finished

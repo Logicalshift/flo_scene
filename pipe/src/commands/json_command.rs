@@ -114,6 +114,6 @@ impl SceneMessage for JsonCommand {
         start_json_command_dispatcher(scene, *JSON_DISPATCHER_SUBPROGRAM);
 
         // JsonCommand requests can get converted when sent to the default dispatcher
-        scene.connect_programs((), StreamTarget::Filtered(*FILTER_CONVERT_JSON_COMMAND, *JSON_DISPATCHER_SUBPROGRAM), StreamId::with_message_type::<JsonCommand>()).unwrap();
+        scene.connect_programs((), StreamTarget::Filtered(FILTER_CONVERT_JSON_COMMAND.clone(), *JSON_DISPATCHER_SUBPROGRAM), StreamId::with_message_type::<JsonCommand>()).unwrap();
     }
 }

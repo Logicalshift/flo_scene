@@ -196,8 +196,8 @@ impl SceneMessage for SceneControl {
     }
 
     fn initialise(scene: &impl SceneInitialisationContext) {
-        scene.connect_programs(StreamSource::Filtered(*SCENE_CONTROL_SUBSCRIBE_FILTER), (), StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
-        scene.connect_programs(StreamSource::Filtered(*SCENE_CONTROL_QUERY_FILTER), (), StreamId::with_message_type::<Query<SceneUpdate>>()).unwrap();
+        scene.connect_programs(&*SCENE_CONTROL_SUBSCRIBE_FILTER, (), StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
+        scene.connect_programs(&*SCENE_CONTROL_QUERY_FILTER, (), StreamId::with_message_type::<Query<SceneUpdate>>()).unwrap();
 
         // TODO: this is done in the scene 'with_standard_programs' right now because you can't connect before a program is added
         // scene.connect_programs((), *SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();

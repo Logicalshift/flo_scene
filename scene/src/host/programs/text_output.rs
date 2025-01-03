@@ -67,7 +67,7 @@ impl SceneMessage for ErrorOutput {
 
     fn initialise(scene: &impl SceneInitialisationContext) {
         // Convert ErrorOutput into TextOutput when sending to STDERR
-        scene.connect_programs((), StreamTarget::Filtered(*ERROR_TO_TEXT_FILTER, *STDERR_PROGRAM), StreamId::with_message_type::<ErrorOutput>()).ok();
+        scene.connect_programs((), StreamTarget::Filtered(ERROR_TO_TEXT_FILTER.clone(), *STDERR_PROGRAM), StreamId::with_message_type::<ErrorOutput>()).ok();
     }
 }
 

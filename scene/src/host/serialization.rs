@@ -277,7 +277,7 @@ where
         });
 
         // Store for future use
-        filters_for_type.insert(message_type, vec![filter_raw_type, filter_query_responses]);
+        filters_for_type.insert(message_type, vec![filter_raw_type.clone(), filter_query_responses.clone()]);
 
         // Result is the new filter
         Ok(vec![filter_raw_type, filter_query_responses])
