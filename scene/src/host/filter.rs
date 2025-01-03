@@ -24,7 +24,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 type CreateInputStreamFn = Arc<dyn Send + Sync + Fn(SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>;
 type StreamIdForTargetFn = Arc<dyn Send + Sync + Fn(Option<SubProgramId>) -> StreamId>;
 
-static NEXT_FILTER_HANDLE:      AtomicUsize                                                 = AtomicUsize::new(0);
+static NEXT_FILTER_HANDLE: AtomicUsize = AtomicUsize::new(0);
 
 ///
 /// A filter is a way to convert from a stream of one message type to another, and a filter
@@ -32,6 +32,14 @@ static NEXT_FILTER_HANDLE:      AtomicUsize                                     
 ///
 #[derive(Clone)]
 pub struct FilterHandle {
+    /// The data that defines this filter (which we wrap in an Arc so it's cloneable and only needs reference)
+    data: Arc<FilterData>,
+
+    /// Serial number for the filter (used to determine if two filters represent the same underlying object)
+    serial: usize,
+}
+
+struct FilterData {
     /// Creates an input stream core from a source input stream core that filters the source type and reads values as the target type
     create_input_stream:    CreateInputStreamFn,
 
@@ -39,10 +47,7 @@ pub struct FilterHandle {
     stream_id_for_target:   StreamIdForTargetFn,
 
     /// The stream ID for the source of this filter
-    source_stream_id:       Arc<StreamId>,
-    
-    /// Serial number for the filter (used to determine if two filters represent the same underlying object)
-    serial:                 usize,
+    source_stream_id:       StreamId,
 }
 
 impl Debug for FilterHandle {
@@ -274,14 +279,16 @@ impl FilterHandleExt for FilterHandle {
             }
         });
 
-        let source_stream_id = Arc::new(StreamId::with_message_type::<TSourceMessage>());
+        let source_stream_id = StreamId::with_message_type::<TSourceMessage>();
 
         // Create the filter for this handle
         FilterHandle {
-            create_input_stream,
-            stream_id_for_target,
-            source_stream_id,
-            serial: handle
+            serial: handle,
+            data:   Arc::new(FilterData {
+                create_input_stream,
+                stream_id_for_target,
+                source_stream_id,
+            }),
         }
     }
 
@@ -321,14 +328,14 @@ impl FilterHandleExt for FilterHandle {
     /// Returns the stream ID for the source of this filter
     ///
     fn source_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
-        Ok((*self.source_stream_id).clone())
+        Ok((self.data.source_stream_id).clone())
     }
 
     ///
     /// Returns the stream ID for the target of this filter
     ///
     fn target_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
-       Ok((self.stream_id_for_target)(None))
+       Ok((self.data.stream_id_for_target)(None))
     }
 }
 
@@ -342,7 +349,7 @@ impl FilterHandleCrateExt for FilterHandle {
     ///
     fn create_input_stream_core(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
         // Create a future that will run the filter
-        let (send_future, filtering_input_core) = (self.create_input_stream)(sending_program, target_input_core)?;
+        let (send_future, filtering_input_core) = (self.data.create_input_stream)(sending_program, target_input_core)?;
 
         // Start it as a process in the core
         let (_process_handle, waker) = {
@@ -377,6 +384,6 @@ impl FilterHandleCrateExt for FilterHandle {
     /// Creates a stream ID for the output of a filter and a target program
     ///
     fn target_stream_id(&self, target_program: SubProgramId) -> Result<StreamId, ConnectionError> {
-       Ok((self.stream_id_for_target)(Some(target_program)))
+       Ok((self.data.stream_id_for_target)(Some(target_program)))
     }
 }
