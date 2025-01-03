@@ -354,11 +354,11 @@ impl SceneCore {
         Self::initialise_message_type(core, stream_id.clone());
 
         if let StreamSource::Filtered(filter) = &source {
-            Self::initialise_filter(core, *filter);
+            Self::initialise_filter(core, filter.clone());
         }
 
         if let StreamTarget::Filtered(filter, _) = &target {
-            Self::initialise_filter(core, *filter);
+            Self::initialise_filter(core, filter.clone());
         }
 
         // Check source/target filter streams
@@ -467,7 +467,7 @@ impl SceneCore {
 
             // Store this filter handle as a possible conversion for a mismatched input
             let mut core = core.lock().unwrap();
-            core.filter_conversions.insert((source_stream.clone(), target_stream.clone()), *source_filter);
+            core.filter_conversions.insert((source_stream.clone(), target_stream.clone()), source_filter.clone());
 
             match target {
                 StreamTarget::None | StreamTarget::Program(_) | StreamTarget::Filtered(_, _) => { 
