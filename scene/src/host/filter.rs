@@ -1,5 +1,3 @@
-pub use flo_scene_guest::host_types::{FilterHandle};
-
 use crate::host::error::*;
 use crate::host::input_stream::*;
 use crate::host::scene_core::*;
@@ -12,16 +10,34 @@ use futures::{pin_mut};
 use futures::future::{poll_fn, BoxFuture};
 use futures::task::{Poll};
 use once_cell::sync::{Lazy};
+use serde::*;
 
 use std::any::*;
 use std::collections::{HashMap};
+use std::fmt::{Debug};
+use std::hash::{Hash, Hasher};
 use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+// TODO: rename FilterHandle, it's just a filter now
 
 type CreateInputStreamFn = Box<dyn Send + Sync + Fn(SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>;
 type StreamIdForTargetFn = Box<dyn Send + Sync + Fn(Option<SubProgramId>) -> StreamId>;
 
 static NEXT_FILTER_HANDLE:      AtomicUsize                                                 = AtomicUsize::new(0);
+
+///
+/// A filter is a way to convert from a stream of one message type to another, and a filter
+/// handle references a predefined filter.
+///
+#[derive(Clone)]
+pub struct FilterHandle {
+    /// Internal data that defines the filter for the scene
+    data: Arc<dyn Send + Sync + Any>,
+    
+    /// Serial number for the filter (used to determine if two filters represent the same underlying object)
+    serial: usize,
+}
 
 ///
 /// Data that's associated with a valid scene filter
@@ -31,6 +47,51 @@ struct FilterData
     create_input_stream:    CreateInputStreamFn,
     stream_id_for_target:   StreamIdForTargetFn,
     source_stream_id:       StreamId,
+}
+
+impl Debug for FilterHandle {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("FilterHandle(")?;
+        f.write_str(&self.serial.to_string())?;
+        f.write_str(")")?;
+
+        Ok(())
+    }
+}
+
+impl PartialEq for FilterHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.serial == other.serial
+    }
+}
+
+impl Eq for FilterHandle {
+}
+
+impl Hash for FilterHandle {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.serial.hash(state)
+    }
+}
+
+impl Serialize for FilterHandle {
+    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer 
+    {
+        use serde::ser::{Error};
+        Err(S::Error::custom("Filters cannot be serialized"))
+    }
+}
+
+impl<'de> Deserialize<'de> for FilterHandle {
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de> 
+    {
+        use serde::de::{Error};
+        Err(D::Error::custom("Filters cannot be deserialized"))
+    }
 }
 
 // TODO: filter handles are shareable out of necessity, so we can send stream sources and targets to other programs, but they currently will be invalid after being sent
