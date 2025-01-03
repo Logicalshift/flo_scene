@@ -7,6 +7,9 @@ use core::fmt::{Debug};
 use core::hash::{Hash, Hasher};
 use alloc::sync::{Arc};
 
+// TODO: rename FilterHandle, it's just a filter now
+// TODO: try to move StreamTarget/FilterHandle into Scene from Guest if we can (the public fields here are just to support having the implementation in the other crate, which is awkward)
+
 ///
 /// A filter is a way to convert from a stream of one message type to another, and a filter
 /// handle references a predefined filter.
