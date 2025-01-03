@@ -633,7 +633,7 @@ impl SceneCore {
         // If a source filter is applied to the output of the program, then the filter input might not match the source stream ID (we'll need to apply a conversion filter)
         if filter_input != source_stream_id {
             // The filter needs further mapping to change the source stream to its input
-            let initial_filter = core.lock().unwrap().filter_conversions.get(&(source_stream_id, filter_input)).copied();
+            let initial_filter = core.lock().unwrap().filter_conversions.get(&(source_stream_id, filter_input)).cloned();
 
             if let Some(initial_filter) = initial_filter {
                 // Chain the filter we found to the filter that was requested
@@ -670,7 +670,7 @@ impl SceneCore {
         // Look up a direct filter between the source and target programs
         let filter = {
             let core    = scene_core.lock().unwrap();
-            let filter  = core.filter_conversions.get(&(source_id.clone(), target_id.clone())).copied();
+            let filter  = core.filter_conversions.get(&(source_id.clone(), target_id.clone())).cloned();
 
             filter
         };
@@ -702,7 +702,7 @@ impl SceneCore {
                 // filtered_connection will contain a connection if there's a filter we can apply to the source that will connect to the target
                 if let Some((connection, filter_output_stream_id)) = filtered_connection {
                     // Get the filter conversion for the source stream
-                    let input_filter = core.filter_conversions.get(&(source_id.clone(), filter_output_stream_id)).copied();
+                    let input_filter = core.filter_conversions.get(&(source_id.clone(), filter_output_stream_id)).cloned();
 
                     // Get the filter conversion and 'true' target for the connection
                     let (output_filter, target_program) = match connection {
@@ -828,7 +828,7 @@ impl SceneCore {
                 // TODO: (is there actually a way to do this? I think you have to redirect specific streams to do this)
                 if filter_target == target_program {
                     // The 'all' input for this stream has a filter on it, so override the target to use the same filter
-                    Ok(StreamTarget::Filtered(*filter_handle, *target_program))
+                    Ok(StreamTarget::Filtered(filter_handle.clone(), *target_program))
                 } else {
                     // There is a filter, but it's also redirecting to another program, and we want to target this program specifically, so don't remap anything
                     Ok(mapped_target)
@@ -857,7 +857,7 @@ impl SceneCore {
 
         // Get the filter we're using as the output for the current stream
         let output_filter = match &target {
-            StreamTarget::Filtered(filter, _)   => Some(*filter),
+            StreamTarget::Filtered(filter, _)   => Some(filter.clone()),
             _                                   => None,
         };
 
