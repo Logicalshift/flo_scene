@@ -6,8 +6,6 @@ mod tokenizer;
 mod parse_json;
 mod json_parse_error;
 
-pub mod main_scene;
-pub mod sub_scene;
 pub mod parser;
 pub mod commands;
 pub mod standard_json_commands;
