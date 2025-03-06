@@ -13,6 +13,8 @@ use crate::host::stream_source::*;
 use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 use crate::host::programs::{SceneControl};
+
+#[cfg(feature="guest-programs")]
 use crate::guest::*;
 
 use futures::prelude::*;
@@ -38,8 +40,10 @@ type DefaultTargetFn            = Arc<dyn Send + Sync + Fn() -> StreamTarget>;
 type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>>;
 type ReconnectSinkFn            = Arc<dyn Send + Sync + Fn(&Arc<Mutex<SceneCore>>, &Arc<dyn Send + Sync + Any>, SubProgramId, StreamTarget) -> Result<Option<Waker>, ConnectionError>>;
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
-type RunHostSubProgramFn        = Arc<dyn Send + Sync + Fn(SubProgramId, usize, Sender<GuestAction>, BoxStream<'static, GuestResult>) -> SceneControl>;
 type SendGuestMessagesFn        = Arc<dyn Send + Sync + Fn(StreamTarget, &SceneContext, Box<dyn SerializationContext>) -> Result<Box<dyn 'static + Send + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>, ConnectionError>>;
+
+#[cfg(feature="guest-programs")]
+type RunHostSubProgramFn        = Arc<dyn Send + Sync + Fn(SubProgramId, usize, Sender<GuestAction>, BoxStream<'static, GuestResult>) -> SceneControl>;
 
 ///
 /// Functions that work on the 'Any' versions of various streams, used for creating connections
@@ -73,7 +77,7 @@ struct StreamTypeFunctions {
     reconnect_sink: ReconnectSinkFn,
 
     /// Runs a host subprogram using this stream type as input and the postcard encoder
-    #[cfg(feature="postcard")]
+    #[cfg(all(feature="postcard", feature="guest-programs"))]
     run_host_subprogram_postcard: RunHostSubProgramFn,
 
     /// Sends deserialized guest messages from a Vec<u8> sink
