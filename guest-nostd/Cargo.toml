@@ -15,7 +15,7 @@ keywords        = [ "message-queue" ]
 default         = [ "one_thread" ]
 
 # Use std after all, protect shared data with shared mutexes
-use-std         = [ ]
+use-std         = [ "postcard/use-std" ]
 
 # If std is not applied, assume that we're running in single-threaded mode
 one_thread      = [ "spin" ]
