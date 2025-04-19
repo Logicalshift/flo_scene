@@ -117,7 +117,7 @@ pub fn claim_buffer(buffer_handle: BufferHandle) -> Vec<u8> {
 }
 
 ///
-/// Stores a Vec<u8> as a buffer and returns the handle
+/// Stores a `Vec<u8>` as a buffer and returns the handle
 ///
 pub fn buffer_store(data: Vec<u8>) -> BufferHandle {
     let handle = BufferHandle::new();

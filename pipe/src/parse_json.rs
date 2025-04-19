@@ -50,10 +50,10 @@ pub enum ParsedJson {
     /// :my_var
     Variable(String),
 
-    /// <command>
+    /// `<command>`
     Command(Box<CommandRequest>),
 
-    /// :object[1] or :object["Key"]
+    /// `:object[1]` or `:object["Key"]`
     ArrayAccess(Box<ParsedJson>, Box<ParsedJson>),
 }
 
