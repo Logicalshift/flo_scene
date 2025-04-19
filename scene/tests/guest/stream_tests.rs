@@ -1,5 +1,4 @@
 use flo_scene::*;
-use flo_scene::guest::*;
 use flo_scene::programs::*;
 
 use futures::prelude::*;
@@ -22,7 +21,10 @@ impl SceneGuestMessage for SimpleTestMessage {
 }
 
 #[test]
+#[cfg(feature="guest_programs")]
 pub fn send_postcard_message_to_runtime_using_stream() {
+    use flo_scene::guest::*;
+
     // The results from the guest (we're not doing any isolation stuff so we can share variables this way)
     let received = Arc::new(Mutex::new(vec![]));
     let woken    = Arc::new(Mutex::new(false));
@@ -68,7 +70,10 @@ pub fn send_postcard_message_to_runtime_using_stream() {
 }
 
 #[test]
+#[cfg(feature="guest_programs")]
 fn send_query_response_from_guest() {
+    use flo_scene::guest::*;
+
     let scene = Scene::default();
 
     let guest_subprogram_id     = SubProgramId::called("Guest subprogram");
@@ -122,7 +127,10 @@ fn send_query_response_from_guest() {
 }
 
 #[test]
+#[cfg(feature="guest_programs")]
 fn send_query_response_from_host() {
+    use flo_scene::guest::*;
+
     let scene = Scene::default();
 
     let guest_subprogram_id     = SubProgramId::called("Guest subprogram");

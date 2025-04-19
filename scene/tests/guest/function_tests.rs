@@ -1,5 +1,4 @@
 use flo_scene::*;
-use flo_scene::guest::*;
 use flo_scene::programs::*;
 
 use futures::prelude::*;
@@ -87,7 +86,10 @@ impl<'a> Deserialize<'a> for TestFunctionMessage {
 }
 
 #[test]
+#[cfg(feature="guest_programs")]
 fn send_function_from_guest() {
+    use flo_scene::guest::*;
+
     let scene = Scene::default();
 
     let guest_subprogram_id     = SubProgramId::called("Guest subprogram");
@@ -146,7 +148,10 @@ fn send_function_from_guest() {
 }
 
 #[test]
+#[cfg(feature="guest_programs")]
 fn send_function_from_host() {
+    use flo_scene::guest::*;
+
     let scene = Scene::default();
 
     let guest_subprogram_id     = SubProgramId::called("Guest subprogram");

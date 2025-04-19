@@ -15,6 +15,7 @@ mod with_serde_support {
     impl SceneMessage for TestMessage { }
 
     #[test]
+    #[cfg(feature="json")]
     fn serialize_deserialize() {
         let scene = Scene::default();
 
@@ -79,6 +80,7 @@ mod with_serde_support {
     }
 
     #[test]
+    #[cfg(feature="json")]
     fn serialize_deserialize_postcard() {
         let scene = Scene::default();
 
@@ -318,6 +320,7 @@ mod with_postcard_support {
     }
 
     #[test]
+    #[cfg(feature="guest_programs")]
     fn round_trip_msg_postcard() {
         let msg     = SimpleResponseMessage { value: "Hello".into() };
 
