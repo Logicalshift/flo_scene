@@ -14,7 +14,7 @@ use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 use crate::host::programs::{SceneControl};
 
-#[cfg(feature="guest-programs")]
+#[cfg(feature="guest_programs")]
 use crate::guest::*;
 
 use futures::prelude::*;
@@ -42,7 +42,7 @@ type ReconnectSinkFn            = Arc<dyn Send + Sync + Fn(&Arc<Mutex<SceneCore>
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
 type SendGuestMessagesFn        = Arc<dyn Send + Sync + Fn(StreamTarget, &SceneContext, Box<dyn SerializationContext>) -> Result<Box<dyn 'static + Send + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>, ConnectionError>>;
 
-#[cfg(feature="guest-programs")]
+#[cfg(feature="guest_programs")]
 type RunHostSubProgramFn        = Arc<dyn Send + Sync + Fn(SubProgramId, usize, Sender<GuestAction>, BoxStream<'static, GuestResult>) -> SceneControl>;
 
 ///
@@ -77,7 +77,7 @@ struct StreamTypeFunctions {
     reconnect_sink: ReconnectSinkFn,
 
     /// Runs a host subprogram using this stream type as input and the postcard encoder
-    #[cfg(all(feature="postcard", feature="guest-programs"))]
+    #[cfg(all(feature="postcard", feature="guest_programs"))]
     run_host_subprogram_postcard: RunHostSubProgramFn,
 
     /// Sends deserialized guest messages from a Vec<u8> sink
@@ -386,7 +386,7 @@ impl StreamTypeFunctions {
             .map(|all_functions| Arc::clone(&all_functions.reconnect_sink))
     }
 
-    #[cfg(feature="postcard")]
+    #[cfg(all(feature="postcard", feature="guest_programs"))]
     pub fn run_host_subprogram_postcard(type_id: &TypeId) -> Option<RunHostSubProgramFn> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
@@ -645,7 +645,7 @@ impl StreamId {
     ///
     /// Returns the scene control message required to start a guest host subprogram using the postcard encoding for messages 
     ///
-    #[cfg(feature="postcard")]
+    #[cfg(all(feature="postcard", feature="guest_programs"))]
     pub fn run_host_subprogram_postcard(&self, program_id: SubProgramId, max_input_waiting: usize, actions: Sender<GuestAction>, results: impl 'static + Send + Stream<Item=GuestResult>) -> Result<SceneControl, ConnectionError> {
         let message_type = self.message_type();
 
