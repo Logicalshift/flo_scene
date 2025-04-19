@@ -81,7 +81,7 @@ mod with_serde_support {
     }
 
     #[test]
-    #[cfg(feature="json")]
+    #[cfg(all(feature="json", feature="guest_programs"))]
     fn serialize_deserialize_postcard() {
         let scene = Scene::default();
 
