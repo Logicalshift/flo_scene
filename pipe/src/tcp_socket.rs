@@ -16,7 +16,7 @@ use ::desync::*;
 /// message. Typically, there's only one subscriber but in the event multiple are connected, they are informed of connections in
 /// a round-robin fashion.
 ///
-pub fn start_unencrpted_tcp_socket<TInputStream, TOutputMessage>(
+pub fn start_unencrypted_tcp_socket<TInputStream, TOutputMessage>(
         scene:                  &Scene, 
         program_id:             SubProgramId, 
         address:                impl 'static + Send + ToSocketAddrs, 
