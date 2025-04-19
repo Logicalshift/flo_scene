@@ -5,6 +5,10 @@
 //! 'sub-programs' that communicate via messages. This simplifies dependencies over more traditional
 //! object-oriented techniques, as sub-programs do not need to directly depend on each other. There
 //! are also benefits in terms of testing, code re-use and configurability.
+//!
+//! flo_scene has some companion crates: `flo_scene_pipe` adds sockets for inter-process communication
+//! and a command interface for interacting directly with the scene. `flo_scene_wasm` allows components
+//! compiled as wasm to be loaded into a scene. `flo_scene_guest` can be used to write such components.
 //! 
 //! ## Basic usage
 //! 
