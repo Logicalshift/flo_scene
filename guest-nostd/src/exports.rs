@@ -231,7 +231,10 @@ pub extern "C" fn scene_guest_postcard_poll_awake(runtime: GuestRuntimeHandle) -
         vec![]
     };
 
+    #[cfg(feature="use-std")]
     let serialized = postcard::to_stdvec(&result).unwrap_or_else(|_| vec![]);
+    #[cfg(not(feature="use-std"))]
+    let serialized = postcard::to_allocvec(&result).unwrap_or_else(|_| vec![]);
     buffer_store(serialized)
 }
 
