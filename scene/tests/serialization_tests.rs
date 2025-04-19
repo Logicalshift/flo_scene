@@ -1,3 +1,4 @@
+#[cfg(any(feature="json", feature="guest_programs"))]
 mod with_serde_support {
     use flo_scene::*;
     use flo_scene::programs::*;
