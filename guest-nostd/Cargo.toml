@@ -15,7 +15,7 @@ keywords        = [ "message-queue" ]
 default         = [ "one_thread" ]
 
 # Use std after all, protect shared data with shared mutexes
-use-std         = [ "postcard/use-std" ]
+use-std         = [ "postcard/use-std", "futures/std" ]
 
 # If std is not applied, assume that we're running in single-threaded mode
 one_thread      = [ "spin" ]
@@ -28,7 +28,7 @@ use-random      = [ "uuid/v4" ]
 
 [dependencies]
 postcard        = { version = "1.0", features = [ "alloc" ] }
-futures         = { version = "0.3", default-features = false, features = [ "alloc", "std" ] }
+futures         = { version = "0.3", default-features = false, features = [ "alloc" ] }
 serde           = { version = "1.0", default-features = false, features = [ "derive" ] }
 uuid            = { version = "1.0", default-features = false, features = [ "serde" ] }
 spin            = { version = "0.9", default-features = false, optional = true, features = [ "mutex", "spin_mutex" ] }
