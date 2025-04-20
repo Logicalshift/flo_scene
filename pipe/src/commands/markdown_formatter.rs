@@ -217,6 +217,8 @@ impl Formatter {
             NodeValue::Subscript                                        => { },
             NodeValue::SpoileredText                                    => { },
             NodeValue::EscapedTag(_)                                    => { },
+            NodeValue::Raw(_raw_text)                                   => { },
+            NodeValue::Alert(_alert)                                    => { },
         }
     }
 
