@@ -727,7 +727,7 @@ dependencies = [
 
 [[package]]
 name = "flo_scene"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "flo_scene_guest",
  "futures",
@@ -742,7 +742,7 @@ dependencies = [
 
 [[package]]
 name = "flo_scene_guest"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "futures",
  "once_cell",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "flo_scene_pipe"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "comrak",
  "desync",
@@ -773,7 +773,7 @@ dependencies = [
 
 [[package]]
 name = "flo_scene_wasm"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "flo_scene",
  "futures",
