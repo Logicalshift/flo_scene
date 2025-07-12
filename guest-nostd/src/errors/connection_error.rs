@@ -47,6 +47,9 @@ pub enum ConnectionError {
     /// The target cannot accept a message because it's not ready
     TargetNotReady,
 
+    /// The target of a message was still disconnected when the scene became idle (ie, the scene is performing no action that could connect the target)
+    OutputFailedToConnect,
+
     /// The input to a filter does not match what was expected
     FilterInputDoesNotMatch,
 

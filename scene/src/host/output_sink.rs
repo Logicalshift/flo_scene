@@ -1,9 +1,11 @@
 use crate::host::error::*;
 use crate::host::input_stream::*;
 use crate::host::scene_core::*;
+use crate::host::scene_context::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
+use futures::future::{BoxFuture};
 use futures::task::{Poll, Waker};
 
 use std::pin::*;
@@ -65,6 +67,9 @@ pub struct OutputSink<TMessage: 'static + Send> {
 
     /// Waker that is notified when a pending message is sent
     when_message_sent: Option<Waker>,
+
+    /// Future used to detect the scene going idle while we're waiting for a connection (if the scene becomes idle while creating a connection, then we return an error)
+    wait_for_idle: Option<BoxFuture<'static, ()>>,
 }
 
 impl<TMessage> Clone for OutputSinkTarget<TMessage> 
@@ -177,6 +182,7 @@ where
             waiting_message:        None,
             yield_after_sending:    false,
             when_message_sent:      None,
+            wait_for_idle:          None,
         }
     }
 
@@ -398,6 +404,19 @@ where
 
             match &core.target {
                 OutputSinkTarget::Disconnected => {
+                    // TODO: if the core becomes idle except for disconnected streams, then return an error
+                    //
+                    // Idea is that if the stream becomes idle, the disconnected streams are not going to connect, so we should return an error
+                    // rather than jam up the scene.
+                    //
+                    // Should add a way to wait for the stream to connect if we're expecting this.
+                    //
+                    // Can use the routines from wait_for_idle() in scene_context to make the idle check work, then we just need a way of re-awakening this
+                    // sink.
+                    //
+                    // (The tricky bit here is that the subprograms waiting for disconnected streams won't be idle, but every other program will be.
+                    // Plus a program might be waiting on more than one future using `select`, though I think for practical reasons we have to assume 
+                    // that they mostly won't be)
                     core.when_target_changed = Some(context.waker().clone());
                     Poll::Pending
                 },
@@ -425,6 +444,7 @@ where
         use std::mem;
 
         self.yield_after_sending = false;
+        self.wait_for_idle       = None;
 
         let mut core = self.core.lock().unwrap();
         match &core.target {
@@ -539,6 +559,50 @@ where
             OutputSinkTarget::Disconnected => {
                 // Wait for the target to change
                 core.when_target_changed = Some(context.waker().clone());
+                mem::drop(core);
+
+                // Trigger or wait for an idle message
+                let wait_for_idle = &mut self.wait_for_idle;
+                let wait_for_idle = if let Some(wait_for_idle) = wait_for_idle {
+                    Some(wait_for_idle)
+                } else if let Some(scene_context) = scene_context() {
+                    let wait_for_idle_task = async move {
+                        // Start by yielding
+                        let mut polled = false;
+                        future::poll_fn(move |ctxt| {
+                            if !polled {
+                                // Set that we've polled and wait to be called back by the runtime
+                                polled = true;
+                                ctxt.waker().clone().wake();
+                                Poll::Pending
+                            } else {
+                                // We've already been polled once, so yield
+                                Poll::Ready(())
+                            }
+                        }).await;
+
+                        // Then wait for the scene to become idle
+                        // TODO: the '1000' here is arbitrary, it causes backpressure errors if enough messages are queued up while we're blocked waiting for this target to connect
+                        // TODO: this behaviour may be unexpected and cause backpressure problems at times of high load
+                        // TODO: maybe pick something based on the queue length requested by the program?
+                        scene_context.wait_for_idle(1000).await;
+                    };
+
+                    *wait_for_idle = Some(wait_for_idle_task.boxed());
+                    wait_for_idle.as_mut()
+                } else {
+                    None
+                };
+
+                // If the 'wait for idle' task completes, then the result here is an error
+                if let Some(wait_for_idle) = wait_for_idle {
+                    if let Poll::Ready(()) = wait_for_idle.poll_unpin(context) {
+                        // The scene became idle before we managed to establish a connection
+                        // TODO: we could return the message to the caller here if we used an error other than CouldNotConnect
+                        return Poll::Ready(Err(SceneSendError::CouldNotConnect(ConnectionError::OutputFailedToConnect)));
+                    }
+                }
+
                 Poll::Pending
             },
 
@@ -547,6 +611,7 @@ where
                 mem::drop(core);
                 if let Some(when_message_sent) = self.when_message_sent.take() { when_message_sent.wake(); }
                 self.waiting_message = None;
+                self.wait_for_idle = None;
                 Poll::Ready(Ok(()))
             },
 
@@ -556,6 +621,8 @@ where
                 // Try to send to the attached core
                 if let Some(input_core) = input_core.upgrade() {
                     mem::drop(core);
+
+                    self.wait_for_idle = None;
 
                     if let Some(message) = self.waiting_message.take() {
                         // Try sending the waiting message
@@ -640,6 +707,7 @@ mod test {
                 waiting_message:        None,
                 yield_after_sending:    false,
                 when_message_sent:      None,
+                wait_for_idle:          None,
             }
         }
 

@@ -331,7 +331,7 @@ impl SceneContext {
     /// Waits for the scene to become idle
     ///
     /// 'Idle' means that all active messages have finished processing and the scene is waiting for input from an external source. This is useful
-    /// for things like waiting for a message to finish processing before performing an update or 
+    /// for things like waiting for a message to finish processing before performing an update.
     ///
     /// This is similar to sending the `IdleRequest::WhenIdle()` message except it will queue input for the current program instead of waiting for the
     /// current program's input to be consumed before sending the message. This call can be more convenient, but senders will be sent 
