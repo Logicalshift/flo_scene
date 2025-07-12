@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-flo_scene               = { version = "0.2", features = [ "json" ], default-features = false }
+flo_scene               = { version = "0.3", features = [ "json" ], default-features = false }
 futures                 = "0.3"
 wasi                    = "0.13"
 wit-bindgen             = "0.30.0"

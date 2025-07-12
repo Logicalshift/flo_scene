@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-flo_scene_guest = { version = "0.2" }
+flo_scene_guest = { version = "0.3" }
 wee_alloc       = "0.4"
 futures         = "0.3"
 serde           = "1.0"

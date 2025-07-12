@@ -833,26 +833,9 @@ dependencies = [
 
 [[package]]
 name = "flo_scene"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "234b7faeb60f16c06a178918bbda13acd8aa731781966e2a886caee78bd22748"
-dependencies = [
- "flo_scene_guest 0.2.0",
- "futures",
- "futures-timer",
- "once_cell",
- "postcard",
- "serde",
- "serde_json",
- "tokio",
- "uuid",
-]
-
-[[package]]
-name = "flo_scene"
 version = "0.3.0"
 dependencies = [
- "flo_scene_guest 0.2.0",
+ "flo_scene_guest",
  "futures",
  "futures-timer",
  "once_cell",
@@ -860,20 +843,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "uuid",
-]
-
-[[package]]
-name = "flo_scene_guest"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23c87f1d5094c5565302483378e92b7e7298bb58ea7be8615c1795a9abbf5386"
-dependencies = [
- "futures",
- "once_cell",
- "postcard",
- "serde",
- "serde_json",
  "uuid",
 ]
 
@@ -896,7 +865,7 @@ version = "0.3.0"
 dependencies = [
  "comrak",
  "desync",
- "flo_scene 0.2.0",
+ "flo_scene",
  "flo_stream",
  "futures",
  "itertools 0.14.0",
@@ -912,7 +881,7 @@ dependencies = [
 name = "flo_scene_wasm"
 version = "0.3.0"
 dependencies = [
- "flo_scene 0.2.0",
+ "flo_scene",
  "futures",
  "postcard",
  "serde",

@@ -24,12 +24,12 @@ serde_json      = { version = "1.0", optional = true }
 tokio           = { version = "1.37", features = [ "rt" ], optional = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-flo_scene_guest = { version = "0.2", default-features = false, features = [ "use-std", "use-random" ] }
+flo_scene_guest = { version = "0.3", default-features = false, features = [ "use-std", "use-random" ] }
 uuid            = { version = "1.0", features = [ "v4", "serde" ] }
 postcard        = { version = "1.0", optional = true, features = [ "use-std" ] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-flo_scene_guest = { version = "0.2", default-features = false, features = [ "use-std" ] }
+flo_scene_guest = { version = "0.3", default-features = false, features = [ "use-std" ] }
 uuid            = { version = "1.0", default-features = false, features = [ "serde" ] }
 postcard        = { version = "1.0", optional = false, features = [ "use-std" ] }
 

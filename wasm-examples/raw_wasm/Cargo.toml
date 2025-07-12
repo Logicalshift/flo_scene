@@ -7,4 +7,4 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-flo_scene = "0.2"
+flo_scene = "0.3"
