@@ -393,6 +393,8 @@ where
     type Error = SceneSendError<TMessage>;
 
     fn poll_ready(mut self: Pin<&mut Self>, context: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        use std::mem;
+
         // Say we're waiting if there's an input value waiting
         if self.waiting_message.is_some() {
             // Wait for the message to finish sending
@@ -404,20 +406,52 @@ where
 
             match &core.target {
                 OutputSinkTarget::Disconnected => {
-                    // TODO: if the core becomes idle except for disconnected streams, then return an error
-                    //
-                    // Idea is that if the stream becomes idle, the disconnected streams are not going to connect, so we should return an error
-                    // rather than jam up the scene.
-                    //
-                    // Should add a way to wait for the stream to connect if we're expecting this.
-                    //
-                    // Can use the routines from wait_for_idle() in scene_context to make the idle check work, then we just need a way of re-awakening this
-                    // sink.
-                    //
-                    // (The tricky bit here is that the subprograms waiting for disconnected streams won't be idle, but every other program will be.
-                    // Plus a program might be waiting on more than one future using `select`, though I think for practical reasons we have to assume 
-                    // that they mostly won't be)
                     core.when_target_changed = Some(context.waker().clone());
+                    mem::drop(core);
+
+                    // TODO: this is duplicated in poll_flush
+                    // Trigger or wait for an idle message
+                    let wait_for_idle = &mut self.wait_for_idle;
+                    let wait_for_idle = if let Some(wait_for_idle) = wait_for_idle {
+                        Some(wait_for_idle)
+                    } else if let Some(scene_context) = scene_context() {
+                        let wait_for_idle_task = async move {
+                            // Start by yielding
+                            let mut polled = false;
+                            future::poll_fn(move |ctxt| {
+                                if !polled {
+                                    // Set that we've polled and wait to be called back by the runtime
+                                    polled = true;
+                                    ctxt.waker().clone().wake();
+                                    Poll::Pending
+                                } else {
+                                    // We've already been polled once, so yield
+                                    Poll::Ready(())
+                                }
+                            }).await;
+
+                            // Then wait for the scene to become idle
+                            // TODO: the '1000' here is arbitrary, it causes backpressure errors if enough messages are queued up while we're blocked waiting for this target to connect
+                            // TODO: this behaviour may be unexpected and cause backpressure problems at times of high load
+                            // TODO: maybe pick something based on the queue length requested by the program?
+                            scene_context.wait_for_idle(1000).await;
+                        };
+
+                        *wait_for_idle = Some(wait_for_idle_task.boxed());
+                        wait_for_idle.as_mut()
+                    } else {
+                        None
+                    };
+
+                    // If the 'wait for idle' task completes, then the result here is an error
+                    if let Some(wait_for_idle) = wait_for_idle {
+                        if let Poll::Ready(()) = wait_for_idle.poll_unpin(context) {
+                            // The scene became idle before we managed to establish a connection
+                            // TODO: we could return the message to the caller here if we used an error other than CouldNotConnect
+                            return Poll::Ready(Err(SceneSendError::CouldNotConnect(ConnectionError::OutputFailedToConnect)));
+                        }
+                    }
+
                     Poll::Pending
                 },
                 OutputSinkTarget::Discard => Poll::Ready(Ok(())),
@@ -429,10 +463,16 @@ where
                         // Downgrade to a disconnected core so the sending can be retried
                         core.target = OutputSinkTarget::Disconnected;
 
+                        mem::drop(core);
+                        self.wait_for_idle = None;
+
                         // Error if the target program is not running any more
                         Poll::Ready(Err(SceneSendError::TargetProgramEndedBeforeReady))
                     } else {
                         // Can send the message
+                        mem::drop(core);
+                        self.wait_for_idle = None;
+
                         Poll::Ready(Ok(()))
                     }
                 }
