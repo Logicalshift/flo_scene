@@ -1157,7 +1157,6 @@ fn connect_single_source_to_single_target() {
         .run_in_scene(&scene, test_subprogram_id);
 }
 
-
 #[test]
 fn connect_single_source_to_single_target_before_creation() {
     let scene = Scene::default();
@@ -1198,6 +1197,37 @@ fn connect_single_source_to_single_target_before_creation() {
         .run_in_scene(&scene, test_subprogram_id);
 }
 
-// TODO: both these tests set up the connection before the connection is made, we also need to test making the connection later on
+#[test]
+fn error_if_scene_is_idle_before_connection() {
+    let scene = Scene::default();
+
+    let guest_subprogram_id     = SubProgramId::called("Guest subprogram");
+    let sender_subprogram_id    = SubProgramId::called("Sender subprogram");
+    let test_subprogram_id      = SubProgramId::called("Test subprogram");
+
+    // Set the default output of just the program we created to the test program (but not the default for every message of this type)
+    scene.connect_programs(guest_subprogram_id, test_subprogram_id, StreamId::with_message_type::<SimpleResponseMessage>()).unwrap();
+
+    // Run another program to send messages to the first one
+    scene.add_subprogram(sender_subprogram_id, move |_input: InputStream<()>, context| async move {
+        let mut test_messages = context.send(()).unwrap();
+
+        println!("Sending message...");
+        let should_be_error = test_messages.send(SimpleTestMessage { value: "Hello".into() }).await;
+
+        if let Err(err) = should_be_error {
+            println!("Error (expected): {:?}", err);
+            context.send_message(SimpleResponseMessage { value: format!("{:?}", err) }).await.unwrap();
+        } else {
+            println!("Success (unexpected)");
+        }
+    }, 0);
+
+    TestBuilder::new()
+        .expect_message(|_: SimpleResponseMessage| { Ok(()) })
+        .run_in_scene(&scene, test_subprogram_id);
+}
+
+// TODO: these tests set up the connection before the connection is made, we also need to test making the connection later on
 // TODO: `connect_single_source_to_single_target` but with source and target filters
 
