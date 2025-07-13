@@ -1230,13 +1230,18 @@ impl SceneCore {
 
             // Return the notifiers to the core
             let mut locked_core = core.lock().unwrap();
+            let mut to_discard  = vec![];
 
             for (idx, notifier) in notifiers.drain(..) {
                 if notifier.is_none() {
                     // This notifier was disconnected (or is still disconnected)
-                    locked_core.when_idle[idx] = None;
+                    to_discard.push(locked_core.when_idle[idx].take());
                 }
             }
+
+            // When we drop a sender, it might try to wake the future, which can try to re-lock the core, so we drop them all after releasing the core
+            mem::drop(locked_core);
+            mem::drop(to_discard);
 
             // Indicate to the caller that a notification occurred
             true
