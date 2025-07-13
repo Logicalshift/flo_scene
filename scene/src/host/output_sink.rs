@@ -494,6 +494,7 @@ where
                         if let Poll::Ready(()) = wait_for_idle.poll_unpin(context) {
                             // The scene became idle before we managed to establish a connection
                             // TODO: we could return the message to the caller here if we used an error other than CouldNotConnect
+                            self.wait_for_idle = None;
                             return Poll::Ready(Err(SceneSendError::CouldNotConnect(ConnectionError::OutputFailedToConnect)));
                         }
                     }
