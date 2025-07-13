@@ -200,6 +200,52 @@ where
     }
 
     ///
+    /// Waits for this sink to reach an 'attached' state
+    ///
+    /// This will block until this output sink is attached to something. The send functions will return an error
+    /// if the sink was connected and becomes disconnected, or if the sink is still disconnected by the time the
+    /// rest of the scene becomes idle. This will block indefinitely until something connects the sink, so can be
+    /// used in cases where the intention is to wait as long as is needed for the sink to receive a connection.
+    ///
+    /// Note that sending a message to the sink might still error out if the sink becomes disconnected again
+    /// before the message could be sent, so something that wants to block until a message is sent might need
+    /// to handle the `TargetProgramEndedBeforeReady` error.
+    ///
+    pub async fn wait_for_attachment(&mut self) {
+        future::poll_fn(|context| {
+            // Always say that we're ready (we store the message in the sink while we're flushing instead)
+            let mut core = self.core.lock().unwrap();
+
+            match &core.target {
+                // Wake whenever the target of thiis core changes
+                OutputSinkTarget::Disconnected => {
+                    core.when_target_changed = Some(context.waker().clone());
+                    Poll::Pending
+                },
+
+                // 'Discard' cores will throw away messages, but they're technically connected
+                OutputSinkTarget::Discard                       => Poll::Ready(()),
+
+                // Cores are connected if the input core hasn't been dropped 
+                OutputSinkTarget::Input(input_core)             |
+                OutputSinkTarget::FixedInput(input_core)        |
+                OutputSinkTarget::CloseWhenDropped(input_core)  => {
+                    if input_core.upgrade().is_none() {
+                        // Downgrade to a disconnected core so the sending can be retried
+                        core.target                 = OutputSinkTarget::Disconnected;
+                        core.when_target_changed    = Some(context.waker().clone());
+
+                        Poll::Pending
+                    } else {
+                        // Can send the message
+                        Poll::Ready(())
+                    }
+                }
+            }
+        }).await;
+    }
+
+    ///
     /// Returns true if this output sink is still attached to a target program
     ///
     pub fn is_attached(&self) -> bool {
