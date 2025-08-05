@@ -208,4 +208,6 @@ impl SceneMessage for BindingProgram {
         init_context.connect_programs(StreamSource::Filtered(FilterHandle::for_filter(|scene_updates| scene_updates.map(|update| BindingProgram::Update(update)))), (), StreamId::with_message_type::<SceneUpdate>()).ok();
         init_context.connect_programs(StreamSource::Filtered(FilterHandle::for_filter(|idle_updates| idle_updates.map(|_: IdleNotification| BindingProgram::Idle))), (), StreamId::with_message_type::<IdleNotification>()).ok();
     }
+
+    fn message_type_name() -> String { "flo_scene_binding::BindingProgram".into() }
 }
