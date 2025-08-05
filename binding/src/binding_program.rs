@@ -66,7 +66,7 @@ pub async fn binding_program<TValue, TFn, TFuture>(
     binding:        impl Into<BindRef<TValue>>,
     action:         BindingAction<TValue, TFn, TFuture>)
 where
-    TFn:        Send + FnMut(TValue, &SceneContext) -> TFuture,
+    TFn:        Send + FnMut(TValue, SceneContext) -> TFuture,
     TFuture:    Send + Future<Output=()>,
 {
     let mut action  = action;
@@ -86,7 +86,7 @@ where
     // Run the binding action with the initial program
     let mut tracker     = Some(binding.when_changed(NotifySubprogram::send(BindingProgram::BindingChanged, &context, our_program_id)));
     let initial_value   = binding.get();
-    (action.action)(initial_value, &context).await;
+    (action.action)(initial_value, context.clone()).await;
 
     let mut input_stream = input_stream;
     while let Some(msg) = input_stream.next().await {
@@ -102,7 +102,7 @@ where
                         // Read the binding immediately
                         tracker         = Some(binding.when_changed(NotifySubprogram::send(BindingProgram::BindingChanged, &context, our_program_id)));
                         let new_value   = binding.get();
-                        (action.action)(new_value, &context).await;
+                        (action.action)(new_value, context.clone()).await;
                     }
 
                     BindingTrigger::WaitForIdle => {
@@ -116,7 +116,7 @@ where
                 // Callback from BindingChanged if we're configured to wait for idle messages: perform the action and wait for a new value
                 tracker         = Some(binding.when_changed(NotifySubprogram::send(BindingProgram::BindingChanged, &context, our_program_id)));
                 let new_value   = binding.get();
-                (action.action)(new_value, &context).await;
+                (action.action)(new_value, context.clone()).await;
             }
 
             BindingProgram::Update(SceneUpdate::Stopped(prog_id)) => {
@@ -138,7 +138,7 @@ where
 
 impl<TValue, TFn, TFuture> BindingAction<TValue, TFn, TFuture>
 where
-    TFn:        Send + FnMut(TValue, &SceneContext) -> TFuture,
+    TFn:        Send + FnMut(TValue, SceneContext) -> TFuture,
     TFuture:    Send + Future<Output=()>,
 {
     ///
