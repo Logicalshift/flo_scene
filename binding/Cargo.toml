@@ -14,6 +14,4 @@ keywords        = [ "message-queue" ]
 flo_scene   = "0.3"
 flo_binding = "2.2"
 futures     = "0.3"
-
-[dev-dependencies]
 serde       = { version = "1.0", features = [ "derive" ] }
