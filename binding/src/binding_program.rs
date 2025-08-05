@@ -30,7 +30,7 @@ pub struct BindingAction<TValue, TFn, TFuture> {
     action: TFn,
 
     /// The action to perform when the program is closed down
-    on_stop: Option<Box<dyn 'static + Send + for<'a> FnOnce(&'a SceneContext) -> BoxFuture<'a, ()>>>,
+    on_stop: Option<Box<dyn 'static + Send + FnOnce(SceneContext) -> BoxFuture<'static, ()>>>,
 
     /// We'll stop tracking the binding whenever this program finishes
     parent_program: Option<SubProgramId>,
@@ -132,7 +132,7 @@ where
 
     // Perform any shutdown actions when the program ends
     if let Some(on_stop) = action.on_stop.take() {
-        (on_stop)(&context).await;
+        (on_stop)(context.clone()).await;
     }
 }
 
@@ -176,8 +176,11 @@ where
     ///
     /// Sets the action to perform when the binding program stops
     ///
-    pub fn with_stop_action(mut self, on_stop: impl 'static + Send + for<'a> FnOnce(&'a SceneContext) -> BoxFuture<'a, ()>) -> Self {
-        self.on_stop = Some(Box::new(on_stop));
+    pub fn with_stop_action<TStopFuture>(mut self, on_stop: impl 'static + Send + FnOnce(SceneContext) -> TStopFuture) -> Self 
+    where 
+        TStopFuture: 'static + Send + Future<Output=()>,
+    {
+        self.on_stop = Some(Box::new(move |context| on_stop(context).boxed()));
         self
     }
 }
