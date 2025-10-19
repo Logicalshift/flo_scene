@@ -201,11 +201,23 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
         }
     };
 
+    // Set the 'allow thread stealing' flag if set in the attributes
+    let thread_stealing = if attributes.allow_thread_stealing {
+        quote! {
+            fn allow_thread_stealing_by_default() -> bool { true }
+        }
+    } else {
+        quote! {
+            fn allow_thread_stealing_by_default() -> bool { false }
+        }
+    };
+
     // Put together the scene message definition
     quote! {
         impl #prefix::SceneMessage for #type_name {
             #default_target
             #initialise
+            #thread_stealing
             #serializable
             #message_type_name
         }
