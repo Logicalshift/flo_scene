@@ -185,9 +185,6 @@ name = "bitflags"
 version = "2.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2261d10cca569e4643e526d8dc2e62e433cc8aba21ab764233731f8d369bf394"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "block-buffer"
@@ -907,7 +904,6 @@ dependencies = [
  "futures",
  "itertools 0.14.0",
  "once_cell",
- "ron",
  "serde",
  "serde_json",
  "tokio",
@@ -1799,19 +1795,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.107",
-]
-
-[[package]]
-name = "ron"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "beceb6f7bf81c73e73aeef6dd1356d9a1b2b4909e1f0fc3e59b034f9572d7b7f"
-dependencies = [
- "base64",
- "bitflags 2.9.4",
- "serde",
- "serde_derive",
- "unicode-ident",
 ]
 
 [[package]]
