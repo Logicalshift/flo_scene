@@ -72,3 +72,17 @@ pub fn default_target(_attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn has_initialisation(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
+
+///
+/// `#[allow_thread_stealing_by_default]` sets the 'allow thread stealing' for any output stream sending this message. This causes
+/// the target program to be invoked directly from the sending program rather than from a pass through the event loop, causing the
+/// event to be delivered and processed much more quickly, at the cost of nesting in the stack and blocking the sender while the
+/// message is processed.
+///
+/// This has several pitfalls so generally shouldn't be used, but can be useful for messages that need to be delivered with a high
+/// priority or messages that need to be processed in a single-threaded context.
+///
+#[proc_macro_attribute]
+pub fn allow_thread_stealing_by_default(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}

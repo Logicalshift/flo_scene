@@ -18,11 +18,12 @@ pub enum SceneMessageDefaultTarget {
 /// Description of the attributes 
 ///
 pub struct SceneMessageAttributes {
-    pub (crate) crate_name:         String,
-    pub (crate) message_type_name:  String,
-    pub (crate) not_serializable:   bool,
-    pub (crate) default_target:     SceneMessageDefaultTarget,
-    pub (crate) has_initialisation: bool,
+    pub (crate) crate_name:             String,
+    pub (crate) message_type_name:      String,
+    pub (crate) not_serializable:       bool,
+    pub (crate) default_target:         SceneMessageDefaultTarget,
+    pub (crate) has_initialisation:     bool,
+    pub (crate) allow_thread_stealing:  bool,
 }
 
 impl SceneMessageAttributes {
@@ -32,11 +33,12 @@ impl SceneMessageAttributes {
     pub fn from_ast(crate_name: &str, ast: &DeriveInput) -> Self {
         // Set up with the default values
         let mut attributes = Self {
-            crate_name:         crate_name.into(),
-            message_type_name:  Self::type_name_from_ast(ast),
-            not_serializable:   false,
-            default_target:     SceneMessageDefaultTarget::Any,
-            has_initialisation: false
+            crate_name:             crate_name.into(),
+            message_type_name:      Self::type_name_from_ast(ast),
+            not_serializable:       false,
+            default_target:         SceneMessageDefaultTarget::Any,
+            has_initialisation:     false,
+            allow_thread_stealing:  false,
         };
 
         // Read through the AST to discover the attributes the user might have set on the structure
@@ -55,6 +57,10 @@ impl SceneMessageAttributes {
 
             if attr.path().is_ident("has_initialisation") {
                 attributes.has_initialisation = true;
+            }
+
+            if attr.path().is_ident("allow_thread_stealing_by_default") {
+                attributes.allow_thread_stealing = true;
             }
         }
 
