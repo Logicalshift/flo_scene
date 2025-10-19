@@ -80,9 +80,28 @@ impl SceneMessageAttributes {
 /// Creates the SceneMessage implementation for a type
 ///
 pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessageAttributes) -> TokenStream {
+    // Start with the message type name
+    let message_type_name = format!("{}::{}", attributes.crate_name, attributes.message_type_name);
+    let message_type_name = quote! {
+        fn message_type_name() -> String { #message_type_name.into() }
+    };
+
+    // If a default target is defined, point it at the appropriate subprogram ID
+    let default_target = if let Some(default_target_name) = attributes.default_target.clone() {
+        quote! { 
+            fn default_target() -> ::flo_scene::StreamTarget { ::flo_scene::StreamTarget::Program(::flo_scene::SubProgramId::called(#default_target_name)) }
+        }
+    } else {
+        quote! {
+            fn default_target() -> ::flo_scene::StreamTarget { ::flo_scene::StreamTarget::Any }
+        }
+    };
+
+    // Put together the scene message definition
     quote! {
         impl ::flo_scene::SceneMessage for #type_name {
-
+            #default_target
+            #message_type_name
         }
     }.into()
 }
