@@ -46,7 +46,7 @@ pub struct HelpQueryTopic(pub StreamTarget, pub String);
 ///
 /// Response from a request for the markdown for a help topic
 ///
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SceneMessage)]
 pub struct HelpMarkdown(pub Cow<'static, str>);
 
 /// Stores the help data for topics
@@ -227,9 +227,6 @@ impl SceneMessage for HelpQueryTopic {
         // Convert help queries to CommandHelp requests
         scene.connect_programs(&*HELP_QUERY_FILTER, (), StreamId::with_message_type::<HelpQueryTopic>()).unwrap();
     }
-}
-
-impl SceneMessage for HelpMarkdown { 
 }
 
 impl QueryRequest for HelpQueryTopic {
