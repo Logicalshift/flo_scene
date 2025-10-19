@@ -208,3 +208,5 @@ pub mod wasm_rt {
     pub use flo_scene_guest::exports::{register_runtime, claim_buffer};
     pub use flo_scene_guest::guest_types::{BufferHandle};
 }
+
+pub use flo_scene_macros::*;
