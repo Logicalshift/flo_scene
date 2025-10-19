@@ -187,7 +187,7 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
                 }
             }
 
-            impl ::serde::Deserialize<'a> for #type_name {
+            impl<'a> ::serde::Deserialize<'a> for #type_name {
                 fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
                 where
                     D: ::serde::Deserializer<'a> 
