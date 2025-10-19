@@ -1,6 +1,7 @@
 use crate::host::*;
 use super::text_output::*;
 
+use flo_scene_macros::*;
 use futures::prelude::*;
 use futures::channel::mpsc;
 use futures::executor;
@@ -18,7 +19,8 @@ pub static STDIN_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_s
 /// Text input programs read from an input stream and sends `TextInputResult` messages to a target program
 ///
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SceneMessage)]
+#[default_target("flo_scene::stdin")]
 pub enum TextInput {
     /// Reads a single character from an input stream and sends it as a TextInputResult to a target program
     RequestCharacter(SubProgramId),
@@ -34,25 +36,13 @@ pub enum TextInput {
 /// The message that's sent as a response to a text input request
 ///
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash, Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SceneMessage)]
 pub enum TextInputResult {
     /// The stream produced some characters as a result of a request
     Characters(String),
 
     /// The input stream was closed before the input could be generated
     Eof,
-}
-
-impl SceneMessage for TextInputResult {
-    #[inline]
-    fn message_type_name() -> String { "flo_scene::TextInputResult".into() }
-}
-
-impl SceneMessage for TextInput {
-    fn default_target() -> StreamTarget { (*STDIN_PROGRAM).into() }
-
-    #[inline]
-    fn message_type_name() -> String { "flo_scene::TextInput".into() }
 }
 
 ///

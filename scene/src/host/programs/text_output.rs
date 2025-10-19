@@ -1,5 +1,6 @@
 use crate::host::*;
 
+use flo_scene_macros::*;
 use futures::prelude::*;
 use futures::{pin_mut};
 use once_cell::sync::{Lazy};
@@ -16,7 +17,9 @@ static ERROR_TO_TEXT_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for
 /// Messages for writing text to an output stream
 ///
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SceneMessage)]
+#[default_target("flo_scene::stdout")]
+#[allow_thread_stealing_by_default]
 pub enum TextOutput {
     /// Writes a single character to the output
     Character(char),
@@ -32,7 +35,10 @@ pub enum TextOutput {
 /// Messages for writing text to an error stream
 ///
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SceneMessage)]
+#[default_target("flo_scene::stderr")]
+#[allow_thread_stealing_by_default]
+#[has_initialisation]
 pub enum ErrorOutput {
     /// Writes a single character to the output
     Character(char),
@@ -54,18 +60,8 @@ impl From<ErrorOutput> for TextOutput {
     }
 }
 
-impl SceneMessage for TextOutput {
-    fn default_target() -> StreamTarget             { (*STDOUT_PROGRAM).into() }
-    fn allow_thread_stealing_by_default() -> bool   { true }
-    fn message_type_name() -> String                { "flo_scene::TextOutput".into() }
-}
-
-impl SceneMessage for ErrorOutput {
-    fn default_target() -> StreamTarget             { (*STDERR_PROGRAM).into() }
-    fn allow_thread_stealing_by_default() -> bool   { true }
-    fn message_type_name() -> String                { "flo_scene::ErrorOutput".into() }
-
-    fn initialise(scene: &impl SceneInitialisationContext) {
+impl ErrorOutput {
+    fn initialise_message(scene: &impl SceneInitialisationContext) {
         // Convert ErrorOutput into TextOutput when sending to STDERR
         scene.connect_programs((), StreamTarget::Filtered(ERROR_TO_TEXT_FILTER.clone(), *STDERR_PROGRAM), StreamId::with_message_type::<ErrorOutput>()).ok();
     }
