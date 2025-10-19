@@ -174,6 +174,8 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
     };
 
     let serialization_traits = if attributes.not_serializable {
+        let error = format!("{} cannot be serialized", type_name);
+
         quote! {
             impl ::serde::Serialize for #type_name {
                 fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
@@ -181,7 +183,7 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
                     S: ::serde::Serializer 
                 {
                     use serde::ser::{Error as SeError};
-                    Err(S::Error::custom("BindingMessage cannot be serialized"))
+                    Err(S::Error::custom(#error))
                 }
             }
 
@@ -191,7 +193,7 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
                     D: ::serde::Deserializer<'a> 
                 {
                     use serde::de::{Error as DeError};
-                    Err(D::Error::custom("BindingMessage cannot be serialized"))
+                    Err(D::Error::custom(#error))
                 }
             }
         }
