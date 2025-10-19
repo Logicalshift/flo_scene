@@ -5,6 +5,7 @@ members     = [
     "wasm",
     "guest-nostd",
     "binding",
+    "macros"
 ]
 resolver    = "2"
 
@@ -14,3 +15,4 @@ flo_scene_pipe          = { path = "./pipe" }
 flo_scene_wasm          = { path = "./wasm" }
 flo_scene_guest         = { path = "./guest-nostd" }
 flo_scene_binding       = { path = "./binding" }
+flo_scene_macros        = { path = "./macros" }

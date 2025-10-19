@@ -894,6 +894,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "flo_scene_macros"
+version = "0.3.0"
+dependencies = [
+ "quote",
+ "syn 2.0.107",
+]
+
+[[package]]
 name = "flo_scene_pipe"
 version = "0.3.0"
 dependencies = [

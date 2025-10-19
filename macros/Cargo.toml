@@ -10,4 +10,9 @@ description     = "Macros for flo_scene - declaring subprograms and WASM guest s
 categories      = [ "concurrency", "data-structures" ]
 keywords        = [ "message-queue" ]
 
+[lib]
+proc-macro = true
+
 [dependencies]
+syn     = "2.0"
+quote   = "1.0"
