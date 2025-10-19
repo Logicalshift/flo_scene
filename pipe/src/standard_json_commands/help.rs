@@ -22,7 +22,9 @@ static DEFAULT_MSG: &'static [u8] = include_bytes!("help-intro.md");
 ///
 /// Message used to configure the responses to the 'help' command in a scene
 ///
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SceneMessage)]
+#[default_target("flo_scene_pipe::CommandHelp")]
+#[has_initialisation]
 pub enum CommandHelp {
     /// Queries the markdown text for a help topic (returning a query response with the markdown for this topic)
     Query(StreamTarget, String),
@@ -40,7 +42,9 @@ pub enum CommandHelp {
 ///
 /// Request sent to query a help topic
 ///
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SceneMessage)]
+#[default_target("flo_scene_pipe::CommandHelp")]
+#[has_initialisation]
 pub struct HelpQueryTopic(pub StreamTarget, pub String);
 
 ///
@@ -127,15 +131,10 @@ async fn read_new_commands(context: &SceneContext, known_subprograms: &mut HashS
     new_commands
 }
 
-impl SceneMessage for CommandHelp {
-    fn default_target() -> StreamTarget {
-        StreamTarget::Program(SubProgramId::called("flo_scene_pipe::CommandHelp"))
-    }
-
-    fn initialise(scene: &impl SceneInitialisationContext) {
+impl CommandHelp {
+    fn initialise_message(scene: &impl SceneInitialisationContext) {
         // Default behaviour for the CommandHelp subprogram
-        scene.add_subprogram(SubProgramId::called(
-            "flo_scene_pipe::CommandHelp"), 
+        scene.add_subprogram(SubProgramId::called("flo_scene_pipe::CommandHelp"), 
             |input, context| async move {
                 // The topics store the messages we return for different help requests, with the exception of a few custom ones that do things like list the available commands
                 let mut topics      = HashMap::new();
@@ -218,12 +217,8 @@ impl SceneMessage for CommandHelp {
     }
 }
 
-impl SceneMessage for HelpQueryTopic {
-    fn default_target() -> StreamTarget {
-        StreamTarget::Program(SubProgramId::called("flo_scene_pipe::CommandHelp"))
-    }
-
-    fn initialise(scene: &impl SceneInitialisationContext) {
+impl HelpQueryTopic {
+    fn initialise_message(scene: &impl SceneInitialisationContext) {
         // Convert help queries to CommandHelp requests
         scene.connect_programs(&*HELP_QUERY_FILTER, (), StreamId::with_message_type::<HelpQueryTopic>()).unwrap();
     }
