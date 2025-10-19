@@ -1,6 +1,7 @@
 use crate::host::*;
 use crate::host::scene_core::*;
 
+use flo_scene_macros::*;
 use futures::prelude::*;
 use futures::future;
 use futures::stream;
@@ -26,7 +27,9 @@ pub static IDLE_NOTIFICATION_PROGRAM: StaticSubProgramId = StaticSubProgramId::c
 /// now in a state where it can be rendered without further updates ocurring.
 ///
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SceneMessage)]
+#[default_target("flo_scene::idle_request")]
+#[allow_thread_stealing_by_default]
 pub enum IdleRequest {
     ///
     /// When the scene next becomes idle, send a message to the specified subprogram ID
@@ -48,24 +51,9 @@ pub enum IdleRequest {
 /// Message sent when the scene becomes idle, after a request is sent to IdleRequest
 ///
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SceneMessage)]
+#[default_target(None)]
 pub struct IdleNotification;
-
-impl SceneMessage for IdleRequest {
-    fn default_target() -> StreamTarget { (*IDLE_NOTIFICATION_PROGRAM).into() }
-
-    fn allow_thread_stealing_by_default() -> bool { true }
-
-    #[inline]
-    fn message_type_name() -> String { "flo_scene::IdleRequest".into() }
-}
-
-impl SceneMessage for IdleNotification {
-    fn default_target() -> StreamTarget { StreamTarget::None }
-
-    #[inline]
-    fn message_type_name() -> String { "flo_scene::IdleNotification".into() }
-}
 
 ///
 /// The messages that can be received by the idle program
