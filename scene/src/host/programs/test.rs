@@ -10,10 +10,6 @@ use futures::future::{BoxFuture};
 use futures::channel::mpsc;
 use futures_timer::{Delay};
 
-use serde::*;
-use serde::de::{Error as DeError};
-use serde::ser::{Error as SeError};
-
 use std::any::*;
 use std::collections::{HashMap};
 use std::time::{Duration};
