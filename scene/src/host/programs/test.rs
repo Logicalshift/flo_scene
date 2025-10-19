@@ -2,6 +2,7 @@ use crate::host::*;
 use super::control::*;
 use super::query::*;
 
+use flo_scene_macros::*;
 use futures::prelude::*;
 use futures::executor;
 use futures::future;
@@ -22,36 +23,11 @@ type ActionFn = Box<dyn Send + FnOnce(InputStream<TestRequest>, &SceneContext, m
 ///
 /// Request sent to a test subprogram
 ///
+#[derive(SceneMessage)]
+#[not_serializable]
 enum TestRequest {
     /// A converted message from another source
     AnyMessage(Box<dyn Send + Any>),
-}
-
-impl SceneMessage for TestRequest {
-    fn serializable() -> bool {
-        false
-    }
-
-    #[inline]
-    fn message_type_name() -> String { "flo_scene::TestRequest".into() }
-}
-
-impl Serialize for TestRequest {
-    fn serialize<S>(&self, _: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer 
-    {
-        Err(S::Error::custom("TestRequest cannot be serialized"))
-    }
-}
-
-impl<'a> Deserialize<'a> for TestRequest {
-    fn deserialize<D>(_: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'a> 
-    {
-        Err(D::Error::custom("TestRequest cannot be serialized"))
-    }
 }
 
 ///
