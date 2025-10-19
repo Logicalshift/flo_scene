@@ -97,11 +97,69 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
         }
     };
 
+    // If the initialisation attribute is defined, we pass control on to a function defined in the 'impl' for the type
+    let initialise = if attributes.has_initialisation {
+        quote! {
+            #[inline]
+            fn initialise(context: &impl ::flo_scene::SceneInitialisationContext) {
+                Self::initialise_message(context);
+            }
+        }
+    } else {
+        quote! {
+            #[inline]
+            fn initialise(_: &impl ::flo_scene::SceneInitialisationContext) { }
+        }
+    };
+
+    // If the 'not serializable' attribute is set, return false from 'serializable' and also implement the serde serialization/deserialization structs with a dummy implementation
+    let serializable = if attributes.not_serializable {
+        quote! {
+            fn serializable() -> bool { false }
+        }
+    } else {
+        quote! {
+            fn serializable() -> bool { true }
+        }
+    };
+
+    let serialization_traits = if attributes.not_serializable {
+        quote! {
+            impl ::serde::Serialize for #type_name {
+                fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+                where
+                    S: ::serde::Serializer 
+                {
+                    use serde::ser::{Error as SeError};
+                    Err(S::Error::custom("BindingMessage cannot be serialized"))
+                }
+            }
+
+            impl ::serde::Deserialize<'a> for #type_name {
+                fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+                where
+                    D: ::serde::Deserializer<'a> 
+                {
+                    use serde::de::{Error as DeError};
+                    Err(D::Error::custom("BindingMessage cannot be serialized"))
+                }
+            }
+        }
+    } else {
+        quote! {
+
+        }
+    };
+
     // Put together the scene message definition
     quote! {
         impl ::flo_scene::SceneMessage for #type_name {
             #default_target
+            #initialise
+            #serializable
             #message_type_name
         }
+
+        #serialization_traits
     }.into()
 }
