@@ -3,13 +3,23 @@ use proc_macro::{TokenStream};
 use quote::{quote};
 
 ///
+/// Possible default targets for a scene message
+///
+#[derive(Clone)]
+pub enum SceneMessageDefaultTarget {
+    None,
+    Any,
+    SubProgramCalled(String),
+}
+
+///
 /// Description of the attributes 
 ///
 pub struct SceneMessageAttributes {
     pub (crate) crate_name:         String,
     pub (crate) message_type_name:  String,
     pub (crate) not_serializable:   bool,
-    pub (crate) default_target:     Option<String>,
+    pub (crate) default_target:     SceneMessageDefaultTarget,
     pub (crate) has_initialisation: bool,
 }
 
@@ -23,7 +33,7 @@ impl SceneMessageAttributes {
             crate_name:         crate_name.into(),
             message_type_name:  Self::type_name_from_ast(ast),
             not_serializable:   false,
-            default_target:     None,
+            default_target:     SceneMessageDefaultTarget::Any,
             has_initialisation: false
         };
 
@@ -70,9 +80,19 @@ impl SceneMessageAttributes {
     /// Sets the default target subprogram name from a `#[default_target]` attribute
     ///
     fn set_default_target_from_attribute(&mut self, attribute: &Attribute) {
-        let Ok(args): Result<LitStr> = attribute.parse_args() else { panic!("#[default_target] should be used with a string with the default subprogram name in it (#[default(target(\"my_crate::my_program\")])"); };
-
-        self.default_target = Some(args.value());
+        self.default_target = if let Ok(args) = attribute.parse_args::<LitStr>() {
+            SceneMessageDefaultTarget::SubProgramCalled(args.value())
+        } else if let Ok(args) = attribute.parse_args::<Ident>() {
+            if &args.to_string() == "None" {
+                SceneMessageDefaultTarget::None
+            } else if &args.to_string() == "Any" {
+                SceneMessageDefaultTarget::Any
+            } else {
+                panic!("#[default_target] should be used with a string with the default subprogram name in it (#[default(target(\"my_crate::my_program\")])");
+            }
+        } else {
+            panic!("#[default_target] should be used with a string with the default subprogram name in it (#[default(target(\"my_crate::my_program\")])");
+        };
     }
 }
 
@@ -87,13 +107,23 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
     };
 
     // If a default target is defined, point it at the appropriate subprogram ID
-    let default_target = if let Some(default_target_name) = attributes.default_target.clone() {
-        quote! { 
-            fn default_target() -> ::flo_scene::StreamTarget { ::flo_scene::StreamTarget::Program(::flo_scene::SubProgramId::called(#default_target_name)) }
+    let default_target = match attributes.default_target.clone() {
+        SceneMessageDefaultTarget::SubProgramCalled(default_target_name) => {
+            quote! { 
+                fn default_target() -> ::flo_scene::StreamTarget { ::flo_scene::StreamTarget::Program(::flo_scene::SubProgramId::called(#default_target_name)) }
+            }
         }
-    } else {
-        quote! {
-            fn default_target() -> ::flo_scene::StreamTarget { ::flo_scene::StreamTarget::Any }
+
+        SceneMessageDefaultTarget::Any => {
+            quote! {
+                fn default_target() -> ::flo_scene::StreamTarget { ::flo_scene::StreamTarget::Any }
+            }
+        }
+
+        SceneMessageDefaultTarget::None => {
+            quote! {
+                fn default_target() -> ::flo_scene::StreamTarget { ::flo_scene::StreamTarget::None }
+            }
         }
     };
 

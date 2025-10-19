@@ -51,6 +51,12 @@ pub fn not_serializable(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// `#[default_target("target_subprogram_name")]` sets the default stream target of the message to be 
 /// `SubProgramId::called("target_program_name")`
 ///
+/// `#[default_target(None)]` can also be used to specify that the default target is `StreamTarget::None`,
+/// indicating that these messages should be dropped by default.
+///
+/// `#[default_target(Any)]` is the default, indicating that `StreamTarget::Any` should be used, which
+/// means that messages will be queued until a target becomes available by default.
+///
 #[proc_macro_attribute]
 pub fn default_target(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
