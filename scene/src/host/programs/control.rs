@@ -494,7 +494,7 @@ mod test {
 
     #[test]
     fn control_message_name() {
-        assert!(SceneControl::message_type_name() == "flo_scene::SceneUpdate".to_string());
+        assert!(SceneControl::message_type_name() == "flo_scene::SceneControl".to_string());
     }
 
     #[test]
