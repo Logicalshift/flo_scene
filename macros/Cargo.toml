@@ -14,5 +14,5 @@ keywords        = [ "message-queue" ]
 proc-macro = true
 
 [dependencies]
-syn     = "2.0"
-quote   = "1.0"
+syn             = { version = "2.0", features = [ "parsing", "derive" ] }
+quote           = "1.0"
