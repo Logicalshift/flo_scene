@@ -492,18 +492,22 @@ impl<'a> Deserialize<'a> for SceneControl {
 mod test {
     use super::*;
 
+    #[test]
     fn control_message_name() {
         assert!(SceneControl::message_type_name() == "flo_scene::SceneUpdate".to_string());
     }
 
+    #[test]
     fn control_default_target() {
         assert!(SceneControl::default_target() == (*SCENE_CONTROL_PROGRAM).into());
     }
 
+    #[test]
     fn update_message_name() {
         assert!(SceneUpdate::message_type_name() == "flo_scene::SceneUpdate");
     }
 
+    #[test]
     fn update_default_target() {
         assert!(SceneUpdate::default_target() == StreamTarget::None);
     }
