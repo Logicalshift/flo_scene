@@ -2,6 +2,8 @@ use syn::*;
 use proc_macro::{TokenStream};
 use quote::{quote};
 
+use std::env;
+
 ///
 /// Possible default targets for a scene message
 ///
@@ -100,6 +102,12 @@ impl SceneMessageAttributes {
 /// Creates the SceneMessage implementation for a type
 ///
 pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessageAttributes) -> TokenStream {
+    let prefix = if env::var("CARGO_PKG_NAME") == Ok("flo_scene".into()) {
+        quote! { crate }
+    } else {
+        quote! { ::flo_scene }
+    };
+
     // Start with the message type name
     let message_type_name = format!("{}::{}", attributes.crate_name, attributes.message_type_name);
     let message_type_name = quote! {
@@ -110,19 +118,25 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
     let default_target = match attributes.default_target.clone() {
         SceneMessageDefaultTarget::SubProgramCalled(default_target_name) => {
             quote! { 
-                fn default_target() -> ::flo_scene::StreamTarget { ::flo_scene::StreamTarget::Program(::flo_scene::SubProgramId::called(#default_target_name)) }
+                fn default_target() -> #prefix::StreamTarget {
+                    #prefix::StreamTarget::Program(#prefix::SubProgramId::called(#default_target_name))
+                }
             }
         }
 
         SceneMessageDefaultTarget::Any => {
             quote! {
-                fn default_target() -> ::flo_scene::StreamTarget { ::flo_scene::StreamTarget::Any }
+                fn default_target() -> #prefix::StreamTarget {
+                    #prefix::StreamTarget::Any
+                }
             }
         }
 
         SceneMessageDefaultTarget::None => {
             quote! {
-                fn default_target() -> ::flo_scene::StreamTarget { ::flo_scene::StreamTarget::None }
+                fn default_target() -> #prefix::StreamTarget {
+                    #prefix::StreamTarget::None
+                }
             }
         }
     };
@@ -131,14 +145,14 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
     let initialise = if attributes.has_initialisation {
         quote! {
             #[inline]
-            fn initialise(context: &impl ::flo_scene::SceneInitialisationContext) {
+            fn initialise(context: &impl #prefix::SceneInitialisationContext) {
                 Self::initialise_message(context);
             }
         }
     } else {
         quote! {
             #[inline]
-            fn initialise(_: &impl ::flo_scene::SceneInitialisationContext) { }
+            fn initialise(_: &impl #prefix::SceneInitialisationContext) { }
         }
     };
 
@@ -183,7 +197,7 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
 
     // Put together the scene message definition
     quote! {
-        impl ::flo_scene::SceneMessage for #type_name {
+        impl #prefix::SceneMessage for #type_name {
             #default_target
             #initialise
             #serializable
