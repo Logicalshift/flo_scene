@@ -1,5 +1,6 @@
 use crate::host::*;
 
+use flo_scene_macros::*;
 use futures::prelude::*;
 use futures::{pin_mut};
 use futures::future::{poll_fn, BoxFuture};
@@ -18,7 +19,8 @@ pub static TIMER_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_s
 /// The timer program can be used to sent one-off or recurring timer events
 ///
 #[derive(Copy, Clone, Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SceneMessage)]
+#[default_target("flo_scene::timer")]
 pub enum TimerRequest {
     /// Sends a `TimeOut` message to a subprogram with the specified ID attached
     CallAfter(SubProgramId, usize, Duration),
@@ -37,22 +39,8 @@ pub enum TimerRequest {
 /// Duration is the true time since the first request was made
 ///
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SceneMessage)]
 pub struct TimeOut(pub usize, pub Duration);
-
-impl SceneMessage for TimerRequest {
-    fn default_target() -> StreamTarget {
-        (*TIMER_PROGRAM).into()
-    }
-
-    #[inline]
-    fn message_type_name() -> String { "flo_scene::TimerRequest".into() }
-}
-
-impl SceneMessage for TimeOut {
-    #[inline]
-    fn message_type_name() -> String { "flo_scene::TimeOut".into() }
-}
 
 struct Timer {
     target_program:     SubProgramId,
