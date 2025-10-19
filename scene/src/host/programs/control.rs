@@ -15,6 +15,7 @@ use super::idle_request::*;
 use super::subscription::*;
 use super::query::*;
 
+use flo_scene_macros::*;
 use futures::prelude::*;
 use futures::future::{poll_fn};
 use futures::channel::oneshot;
@@ -48,7 +49,10 @@ pub struct SceneProgramFn(Box<dyn Send + FnOnce(Arc<Mutex<SceneCore>>)>);
 ///
 /// Messages that can be sent to the main scene control program
 ///
-#[derive(Debug)]
+#[derive(Debug, SceneMessage)]
+#[message_type_name(SceneControl)]
+#[has_initialisation]
+#[default_target("flo_scene::scene_control")]
 pub enum SceneControl {
     ///
     /// Starts a new sub-program in this scene
@@ -189,22 +193,14 @@ impl Debug for SceneProgramFn {
     }
 }
 
-impl SceneMessage for SceneControl { 
-    fn default_target() -> StreamTarget {
-        // Send control messages to the main control program by default
-        (*SCENE_CONTROL_PROGRAM).into()
-    }
-
-    fn initialise(scene: &impl SceneInitialisationContext) {
+impl SceneControl { 
+    fn initialise_message(scene: &impl SceneInitialisationContext) {
         scene.connect_programs(&*SCENE_CONTROL_SUBSCRIBE_FILTER, (), StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
         scene.connect_programs(&*SCENE_CONTROL_QUERY_FILTER, (), StreamId::with_message_type::<Query<SceneUpdate>>()).unwrap();
 
         // TODO: this is done in the scene 'with_standard_programs' right now because you can't connect before a program is added
         // scene.connect_programs((), *SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
     }
-
-    #[inline]
-    fn message_type_name() -> String { "flo_scene::SceneControl".into() }
 }
 
 impl SceneMessage for SceneUpdate { 
@@ -497,5 +493,26 @@ impl<'a> Deserialize<'a> for SceneControl {
             SerializedSceneControl::Subscribe(target)               => Ok(SceneControl::Subscribe(target)),
             SerializedSceneControl::Query(target)                   => Ok(SceneControl::Query(target)),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn control_message_name() {
+        assert!(SceneControl::message_type_name() == "flo_scene::SceneUpdate".to_string());
+    }
+
+    fn control_default_target() {
+        assert!(SceneControl::default_target() == (*SCENE_CONTROL_PROGRAM).into());
+    }
+
+    fn update_message_name() {
+        assert!(SceneUpdate::message_type_name() == "flo_scene::SceneUpdate");
+    }
+
+    fn update_default_target() {
+        assert!(SceneUpdate::default_target() == StreamTarget::None);
     }
 }
