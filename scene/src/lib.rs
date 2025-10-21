@@ -183,7 +183,7 @@
 
 pub mod uuid_impl;
 mod util;
-mod type_description;
+pub mod message_format;
 
 #[cfg(not(target_family="wasm"))]
 mod host;
@@ -210,5 +210,4 @@ pub mod wasm_rt {
     pub use flo_scene_guest::guest_types::{BufferHandle};
 }
 
-pub use type_description::*;
 pub use flo_scene_macros::*;

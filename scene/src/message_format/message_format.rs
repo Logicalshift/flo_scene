@@ -5,12 +5,12 @@
 /// in flo_scene.
 ///
 #[derive(Clone, PartialEq, Debug)]
-pub struct SceneType {
+pub struct MessageFormat {
     /// Documentation for this type, as markdown
     pub markdown_documentation: Option<String>,
 
     /// Describes the type of this value
-    pub descriptor: TypeDescriptor,
+    pub descriptor: FormatDescriptor,
 }
 
 ///
@@ -22,7 +22,7 @@ pub struct Field {
     pub name: String,
 
     /// The type of this field
-    pub field_type: SceneType,
+    pub field_type: MessageFormat,
 }
 
 ///
@@ -34,7 +34,7 @@ pub struct Variant {
     pub name: String,
 
     /// The type of the arguments to this variant (an empty tuple if this variant has no arguments)
-    pub argument_type: SceneType,
+    pub argument_type: MessageFormat,
 }
 
 ///
@@ -62,7 +62,7 @@ pub enum ScalarType {
 /// Describes the format of the type of a message
 ///
 #[derive(Clone, PartialEq, Debug)]
-pub enum TypeDescriptor {
+pub enum FormatDescriptor {
     /// A structured type, with fields
     Struct(Vec<Field>),
 
@@ -70,13 +70,13 @@ pub enum TypeDescriptor {
     Enum(Vec<Variant>),
 
     /// A tuple of types
-    Tuple(Vec<SceneType>),
+    Tuple(Vec<MessageFormat>),
 
     /// A scalar type
     Scalar(ScalarType),
 
     /// An array of values
-    Array(Box<SceneType>),
+    Array(Box<MessageFormat>),
 
     /// A string of UTF-8 characters
     String,
