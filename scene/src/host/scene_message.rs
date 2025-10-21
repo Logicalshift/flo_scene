@@ -4,6 +4,7 @@ use crate::host::initialisation_context::*;
 use crate::host::serialization::*;
 use crate::host::serialization_context::*;
 use crate::host::stream_target::*;
+use crate::message_format::*;
 
 use serde::*;
 
@@ -156,6 +157,11 @@ pub trait SceneMessage :
     /// to override this function to return a specific value.
     ///
     fn message_type_name() -> String { std::any::type_name::<Self>().into() }
+
+    ///
+    /// A description of the data format of this message
+    ///
+    fn message_format() -> Option<MessageFormat> { None }
 
     ///
     /// With the 'json' feature turned on, converts this message to JSON format
