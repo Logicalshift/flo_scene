@@ -81,3 +81,21 @@ pub enum FormatDescriptor {
     /// A string of UTF-8 characters
     String,
 }
+
+impl From<FormatDescriptor> for MessageFormat {
+    fn from(descriptor: FormatDescriptor) -> MessageFormat {
+        MessageFormat {
+            markdown_documentation: None, 
+            descriptor:             descriptor,
+        }
+    }
+}
+
+impl From<ScalarType> for MessageFormat {
+    fn from(descriptor: ScalarType) -> MessageFormat {
+        MessageFormat {
+            markdown_documentation: None, 
+            descriptor:             FormatDescriptor::Scalar(descriptor),
+        }
+    }
+}
