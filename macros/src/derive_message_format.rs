@@ -35,8 +35,10 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
             }.into()
         }
 
-        Data::Union(union_defn) => {
-            todo!()
+        Data::Union(_union_defn) => {
+            quote! {
+                None
+            }
         }
     }
 }
