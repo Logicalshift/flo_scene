@@ -216,6 +216,16 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
         }
     };
 
+    // Generat the type data for this message
+    let message_format_expr = message_format_expression(data);
+    let message_format      = quote! { 
+        fn message_format() -> Option<#prefix::message_format::MessageFormat> {
+            use #prefix::message_format::*;
+
+            #message_format_expr
+        }
+    };
+
     // Put together the scene message definition
     quote! {
         impl #prefix::SceneMessage for #type_name {
@@ -223,6 +233,7 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
             #initialise
             #thread_stealing
             #serializable
+            #message_format
             #message_type_name
         }
 
