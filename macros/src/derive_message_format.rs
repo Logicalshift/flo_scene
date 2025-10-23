@@ -3,13 +3,9 @@ use proc_macro2::{TokenStream};
 use quote::{quote};
 
 ///
-/// Creates a 'message_format' expression for a type definition
+/// Creates a 'message_format' expression for a Data definition (eg, a struct)
 ///
-pub fn message_format_expression(type_definition: &DeriveInput) -> TokenStream {
-    format_data_descriptor(&type_definition.data)
-}
-
-fn format_data_descriptor(data: &Data) -> TokenStream {
+pub fn message_format_expression(data: &Data) -> TokenStream {
     match &data {
         Data::Struct(struct_defn) => {
             match &struct_defn.fields {
