@@ -1,4 +1,5 @@
 mod scene_message_macro;
+mod derive_message_format;
 
 use syn::*;
 use proc_macro::*;
@@ -6,6 +7,7 @@ use proc_macro::*;
 use std::env;
 
 use scene_message_macro::*;
+use derive_message_format::*;
 
 ///
 /// 'derive' macro that will implement the `SceneMessage` trait on a type

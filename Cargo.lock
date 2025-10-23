@@ -898,6 +898,7 @@ dependencies = [
 name = "flo_scene_macros"
 version = "0.3.0"
 dependencies = [
+ "proc-macro2",
  "quote",
  "syn 2.0.107",
 ]
