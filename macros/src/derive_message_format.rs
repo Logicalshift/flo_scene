@@ -15,22 +15,23 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
                         .collect::<Vec<_>>();
 
                     quote! {
-                        FormatDescriptor { Struct(vec![#(#field_defns),*]) }
+                        Some(FormatDescriptor { Struct(vec![#(#field_defns),*]) }.into())
                     }
                 }
 
                 Fields::Unnamed(unnamed_fileds) => {
-                    quote! { }
+                    quote! { None }
                 }
 
                 Fields::Unit => {
-                    quote! { FormatDescriptor::Tuple(vec![]) }
+                    quote! { Some(FormatDescriptor::Tuple(vec![]).into()) }
                 }
             }.into()
         }
 
         Data::Enum(enum_defn) => {
             quote! {
+                None
             }.into()
         }
 
