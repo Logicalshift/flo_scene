@@ -24,7 +24,7 @@ pub fn scene_message_derive(input: TokenStream) -> TokenStream {
     let attributes = SceneMessageAttributes::from_ast(&crate_name, &ast);
 
     // Generate the scene message implementation
-    generate_scene_message(type_name, &attributes).into()
+    generate_scene_message(type_name, &attributes, &ast.data).into()
 }
 
 ///

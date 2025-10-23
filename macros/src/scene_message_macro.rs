@@ -1,3 +1,5 @@
+use super::derive_message_format::*;
+
 use syn::*;
 use proc_macro::{TokenStream};
 use quote::{quote};
@@ -107,7 +109,7 @@ impl SceneMessageAttributes {
 ///
 /// Creates the SceneMessage implementation for a type
 ///
-pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessageAttributes) -> TokenStream {
+pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessageAttributes, data: &Data) -> TokenStream {
     let prefix = if env::var("CARGO_PKG_NAME") == Ok("flo_scene".into()) {
         quote! { crate }
     } else {
