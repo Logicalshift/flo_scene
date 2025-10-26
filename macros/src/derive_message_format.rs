@@ -39,6 +39,7 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
                         Fields::Named(named_fields) => {
                             // EnumVariant { struct_field: u8 }
                             let field_defns = named_fields.named.iter()
+
                                 .map(format_field)
                                 .collect::<Vec<_>>();
 
@@ -62,7 +63,7 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
 
                     quote! { 
                         Variant {
-                            name:          #variant_name,
+                            name:          #variant_name.to_string(),
                             argument_type: #argument_type,
                         }
                     }
@@ -70,7 +71,7 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
                 .collect::<Vec<_>>();
 
             quote! {
-                Some(FormatDescriptor::Enum(vec![#(#variants),*]))
+                Some(FormatDescriptor::Enum(vec![#(#variants),*]).into())
             }.into()
         }
 
@@ -92,7 +93,7 @@ fn format_field(field_defn: &Field) -> TokenStream {
 
     quote! {
         Field {
-            name:       #name,
+            name:       #name.to_string(),
             field_type: #field_type
         }
     }
@@ -103,11 +104,11 @@ fn format_field(field_defn: &Field) -> TokenStream {
 ///
 fn format_type(type_defn: &Type) -> TokenStream {
     match type_defn {
-        Type::Path(type_path) => todo!("{:?}", type_defn),
-        Type::Array(type_array) => todo!("{:?}", type_defn),
-        Type::Tuple(type_tuple) => todo!("{:?}", type_defn),
-        Type::Verbatim(token_stream) => todo!("{:?}", type_defn),
-        Type::Slice(type_slice) => todo!("{:?}", type_defn),
+        Type::Path(type_path)           => format_type_path(type_path),
+        Type::Array(type_array)         => todo!("{:?}", type_defn),
+        Type::Tuple(type_tuple)         => todo!("{:?}", type_defn),
+        Type::Verbatim(token_stream)    => todo!("{:?}", type_defn),
+        Type::Slice(type_slice)         => todo!("{:?}", type_defn),
 
         Type::BareFn(type_bare_fn) => todo!("{:?}", type_defn),
         Type::Group(type_group) => todo!("{:?}", type_defn),
@@ -121,5 +122,14 @@ fn format_type(type_defn: &Type) -> TokenStream {
         Type::TraitObject(type_trait_object) => todo!("{:?}", type_defn),
 
         _ => unimplemented!("{:?}", type_defn),
+    }
+}
+
+///
+/// Formats a patch type
+///
+fn format_type_path(path_defn: &TypePath) -> TokenStream {
+    quote! {
+        #path_defn::message_format()?
     }
 }
