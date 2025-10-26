@@ -217,12 +217,10 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
     };
 
     // Generate the type data for this message
-    let message_format_expr = message_format_expression(data);
     let message_format      = quote! { 
+        #[inline]
         fn format() -> Option<#prefix::message_format::MessageFormat> {
-            use #prefix::message_format::*;
-
-            #message_format_expr
+            Self::message_format()
         }
     };
 
