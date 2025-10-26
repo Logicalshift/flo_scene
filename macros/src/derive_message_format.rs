@@ -21,7 +21,11 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
                 }
 
                 Fields::Unnamed(unnamed_fields) => {
-                    quote! { None }
+                    let field_defns = unnamed_fields.unnamed.iter()
+                        .map(|field_defn| format_type(&field_defn.ty))
+                        .collect::<Vec<_>>();
+
+                    quote! { FormatDescriptor::Tuple(vec![#(#field_defns),*]).into() }
                 }
 
                 Fields::Unit => {
