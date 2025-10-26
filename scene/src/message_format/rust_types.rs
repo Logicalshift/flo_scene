@@ -3,11 +3,13 @@ use super::message_format_trait::*;
 
 use std::time::{Duration};
 
+/* -- can't implement both HasMessageFormat and SceneMessage on the same type
 impl HasMessageFormat for String {
     fn message_format() -> Option<MessageFormat> {
         Some(FormatDescriptor::String.into())
     }
 }
+*/
 
 impl<T> HasMessageFormat for Vec<T>
 where
