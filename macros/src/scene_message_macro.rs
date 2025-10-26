@@ -220,6 +220,8 @@ pub (crate) fn generate_scene_message(type_name: Ident, attributes: &SceneMessag
     let message_format      = quote! { 
         #[inline]
         fn format() -> Option<#prefix::message_format::MessageFormat> {
+            use #prefix::message_format::*;
+
             Self::message_format()
         }
     };
