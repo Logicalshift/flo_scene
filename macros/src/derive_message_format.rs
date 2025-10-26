@@ -9,17 +9,18 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
     match &data {
         Data::Struct(struct_defn) => {
             match &struct_defn.fields {
-                Fields::Named(named_fields) => { 
+                Fields::Named(named_fields) => {
+                    // Basic structure with named fields
                     let field_defns = named_fields.named.iter()
                         .map(format_field)
                         .collect::<Vec<_>>();
 
                     quote! {
-                        Some(FormatDescriptor { Struct(vec![#(#field_defns),*]) }.into())
+                        Some(FormatDescriptor::Struct(vec![#(#field_defns),*]).into())
                     }
                 }
 
-                Fields::Unnamed(unnamed_fileds) => {
+                Fields::Unnamed(unnamed_fields) => {
                     quote! { None }
                 }
 
@@ -30,8 +31,46 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
         }
 
         Data::Enum(enum_defn) => {
+            // Enums are the most common basic message type
+            let variants = enum_defn.variants.iter()
+                .map(|variant| {
+                    let variant_name    = variant.ident.to_string();
+                    let argument_type   = match &variant.fields {
+                        Fields::Named(named_fields) => {
+                            // EnumVariant { struct_field: u8 }
+                            let field_defns = named_fields.named.iter()
+                                .map(format_field)
+                                .collect::<Vec<_>>();
+
+                            quote! { FormatDescriptor::Struct(vec![#(#field_defns),*]) }
+                        }
+
+                        Fields::Unnamed(unnamed_fields) => {
+                            // EnumVariant(type, type, type)
+                            let field_defns = unnamed_fields.unnamed.iter()
+                                .map(|field_defn| format_type(&field_defn.ty))
+                                .collect::<Vec<_>>();
+
+                            quote! { FormatDescriptor::Tuple(vec![#(#field_defns),*]) }
+                        }
+
+                        Fields::Unit => {
+                            // EnumVariant
+                            quote! { FormatDescriptor::Tuple(vec![]).into() }
+                        }
+                    };
+
+                    quote! { 
+                        Variant {
+                            name:          #variant_name,
+                            argument_type: #argument_type,
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+
             quote! {
-                None
+                Some(FormatDescriptor::Enum(vec![#(#variants),*]))
             }.into()
         }
 
@@ -64,23 +103,23 @@ fn format_field(field_defn: &Field) -> TokenStream {
 ///
 fn format_type(type_defn: &Type) -> TokenStream {
     match type_defn {
-        Type::Array(type_array) => todo!(),
-        Type::Tuple(type_tuple) => todo!(),
-        Type::Verbatim(token_stream) => todo!(),
-        Type::Slice(type_slice) => todo!(),
+        Type::Path(type_path) => todo!("{:?}", type_defn),
+        Type::Array(type_array) => todo!("{:?}", type_defn),
+        Type::Tuple(type_tuple) => todo!("{:?}", type_defn),
+        Type::Verbatim(token_stream) => todo!("{:?}", type_defn),
+        Type::Slice(type_slice) => todo!("{:?}", type_defn),
 
-        Type::BareFn(type_bare_fn) => todo!(),
-        Type::Group(type_group) => todo!(),
-        Type::ImplTrait(type_impl_trait) => todo!(),
-        Type::Infer(type_infer) => todo!(),
-        Type::Macro(type_macro) => todo!(),
-        Type::Never(type_never) => todo!(),
-        Type::Paren(type_paren) => todo!(),
-        Type::Path(type_path) => todo!(),
-        Type::Ptr(type_ptr) => todo!(),
-        Type::Reference(type_reference) => todo!(),
-        Type::TraitObject(type_trait_object) => todo!(),
+        Type::BareFn(type_bare_fn) => todo!("{:?}", type_defn),
+        Type::Group(type_group) => todo!("{:?}", type_defn),
+        Type::ImplTrait(type_impl_trait) => todo!("{:?}", type_defn),
+        Type::Infer(type_infer) => todo!("{:?}", type_defn),
+        Type::Macro(type_macro) => todo!("{:?}", type_defn),
+        Type::Never(type_never) => todo!("{:?}", type_defn),
+        Type::Paren(type_paren) => todo!("{:?}", type_defn),
+        Type::Ptr(type_ptr) => todo!("{:?}", type_defn),
+        Type::Reference(type_reference) => todo!("{:?}", type_defn),
+        Type::TraitObject(type_trait_object) => todo!("{:?}", type_defn),
 
-        _ => unimplemented!(),
+        _ => unimplemented!("{:?}", type_defn),
     }
 }
