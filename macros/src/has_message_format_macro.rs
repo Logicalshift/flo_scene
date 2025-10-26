@@ -28,7 +28,7 @@ pub (crate) fn generate_has_message_format(type_name: Ident, data: &Data) -> Tok
 
     // Put together the scene message definition
     quote! {
-        impl #prefix::SceneMessage for #type_name {
+        impl #prefix::message_format::HasMessageFormat for #type_name {
             #message_format
         }
     }.into()
