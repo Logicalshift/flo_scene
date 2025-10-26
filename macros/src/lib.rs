@@ -1,5 +1,6 @@
 mod scene_message_macro;
 mod derive_message_format;
+mod has_message_format_macro;
 
 use syn::*;
 use proc_macro::*;
@@ -7,6 +8,7 @@ use proc_macro::*;
 use std::env;
 
 use scene_message_macro::*;
+use has_message_format_macro::*;
 
 ///
 /// 'derive' macro that will implement the `SceneMessage` trait on a type
@@ -25,6 +27,23 @@ pub fn scene_message_derive(input: TokenStream) -> TokenStream {
 
     // Generate the scene message implementation
     generate_scene_message(type_name, &attributes, &ast.data).into()
+}
+
+///
+/// 'derive' macro that will implement the `HasMessageFormat` trait on a type
+///
+/// Used for types that are used as part of messages but aren't messages themselves
+///
+#[proc_macro_derive(HasMessageFormat)]
+pub fn has_message_format_derive(input: TokenStream) -> TokenStream {
+    // Parse the macro input
+    let ast = parse_macro_input!(input as DeriveInput);
+
+    // Parse the attributes for the new scene message
+    let type_name  = ast.ident.clone();
+
+    // Generate the scene message implementation
+    generate_has_message_format(type_name, &ast.data).into()
 }
 
 ///
