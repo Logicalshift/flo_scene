@@ -161,7 +161,7 @@ pub trait SceneMessage :
     ///
     /// A description of the data format of this message
     ///
-    fn message_format() -> Option<MessageFormat> { None }
+    fn format() -> Option<MessageFormat> { None }
 
     ///
     /// With the 'json' feature turned on, converts this message to JSON format

@@ -4,6 +4,7 @@ mod has_message_format_macro;
 
 use syn::*;
 use proc_macro::*;
+use quote::{quote};
 
 use std::env;
 
@@ -26,7 +27,13 @@ pub fn scene_message_derive(input: TokenStream) -> TokenStream {
     let attributes = SceneMessageAttributes::from_ast(&crate_name, &ast);
 
     // Generate the scene message implementation
-    generate_scene_message(type_name, &attributes, &ast.data).into()
+    let scene_message_defn      = generate_scene_message(type_name.clone(), &attributes, &ast.data);
+    let has_message_format_defn = generate_has_message_format(type_name, &ast.data);
+
+    quote! {
+        #scene_message_defn
+        #has_message_format_defn
+    }.into()
 }
 
 ///
