@@ -43,7 +43,7 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
                                 .map(format_field)
                                 .collect::<Vec<_>>();
 
-                            quote! { FormatDescriptor::Struct(vec![#(#field_defns),*]) }
+                            quote! { FormatDescriptor::Struct(vec![#(#field_defns),*]).into() }
                         }
 
                         Fields::Unnamed(unnamed_fields) => {
@@ -52,7 +52,7 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
                                 .map(|field_defn| format_type(&field_defn.ty))
                                 .collect::<Vec<_>>();
 
-                            quote! { FormatDescriptor::Tuple(vec![#(#field_defns),*]) }
+                            quote! { FormatDescriptor::Tuple(vec![#(#field_defns),*]).into() }
                         }
 
                         Fields::Unit => {
