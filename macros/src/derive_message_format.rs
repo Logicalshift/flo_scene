@@ -25,11 +25,15 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
                         .map(|field_defn| format_type(&field_defn.ty))
                         .collect::<Vec<_>>();
 
-                    quote! { FormatDescriptor::Tuple(vec![#(#field_defns),*]).into() }
+                    quote! { 
+                        Some(FormatDescriptor::Tuple(vec![#(#field_defns),*]).into()) 
+                    }
                 }
 
                 Fields::Unit => {
-                    quote! { Some(FormatDescriptor::Tuple(vec![]).into()) }
+                    quote! {
+                     Some(FormatDescriptor::Tuple(vec![]).into()) 
+                 }
                 }
             }.into()
         }
