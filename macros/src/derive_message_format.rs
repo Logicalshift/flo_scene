@@ -32,8 +32,8 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
 
                 Fields::Unit => {
                     quote! {
-                     Some(FormatDescriptor::Tuple(vec![]).into()) 
-                 }
+                        Some(FormatDescriptor::Tuple(vec![]).into()) 
+                    }
                 }
             }.into()
         }
