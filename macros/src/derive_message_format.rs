@@ -21,12 +21,16 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
                 }
 
                 Fields::Unnamed(unnamed_fields) => {
-                    let field_defns = unnamed_fields.unnamed.iter()
+                    let mut field_defns = unnamed_fields.unnamed.iter()
                         .map(|field_defn| format_type(&field_defn.ty))
                         .collect::<Vec<_>>();
 
-                    quote! { 
-                        Some(FormatDescriptor::Tuple(vec![#(#field_defns),*]).into()) 
+                    if field_defns.len() == 1 {
+                        field_defns.pop().unwrap().into()
+                    } else {
+                        quote! { 
+                            Some(FormatDescriptor::Tuple(vec![#(#field_defns),*]).into()) 
+                        }
                     }
                 }
 
@@ -56,11 +60,15 @@ pub fn message_format_expression(data: &Data) -> TokenStream {
 
                         Fields::Unnamed(unnamed_fields) => {
                             // EnumVariant(type, type, type)
-                            let field_defns = unnamed_fields.unnamed.iter()
+                            let mut field_defns = unnamed_fields.unnamed.iter()
                                 .map(|field_defn| format_type(&field_defn.ty))
                                 .collect::<Vec<_>>();
 
-                            quote! { FormatDescriptor::Tuple(vec![#(#field_defns),*]).into() }
+                            if field_defns.len() == 1 {
+                                field_defns.pop().unwrap().into()
+                            } else {
+                                quote! { FormatDescriptor::Tuple(vec![#(#field_defns),*]).into() }
+                            }
                         }
 
                         Fields::Unit => {
