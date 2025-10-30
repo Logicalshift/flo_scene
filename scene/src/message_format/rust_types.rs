@@ -44,36 +44,33 @@ impl HasMessageFormat for Duration {
 
 impl HasMessageFormat for Uuid {
     fn message_format() -> Option<MessageFormat> {
-        Some(FormatDescriptor::Tuple(vec![FormatDescriptor::Array(Box::new(u8::message_format().unwrap())).into()]).into())
+        Some(FormatDescriptor::Array(Box::new(u8::message_format().unwrap())).into())
     }
 }
 
 impl HasMessageFormat for SubProgramId {
     fn message_format() -> Option<MessageFormat> {
         Some(
-            FormatDescriptor::Tuple(vec![
-                FormatDescriptor::Enum(vec![
-                    Variant {
-                        name:           "Named".into(),
-                        argument_type:  FormatDescriptor::String.into(),
-                    },
+            FormatDescriptor::Enum(vec![
+                Variant {
+                    name:           "Named".into(),
+                    argument_type:  FormatDescriptor::String.into(),
+                },
 
-                    Variant {
-                        name:           "Guid".into(),
-                        argument_type:  Uuid::message_format().unwrap().into(),
-                    },
+                Variant {
+                    name:           "Guid".into(),
+                    argument_type:  Uuid::message_format().unwrap().into(),
+                },
 
-                    Variant {
-                        name:           "NamedTask".into(),
-                        argument_type:  FormatDescriptor::Tuple(vec![FormatDescriptor::String.into(), usize::message_format().unwrap()]).into(),
-                    },
+                Variant {
+                    name:           "NamedTask".into(),
+                    argument_type:  FormatDescriptor::Tuple(vec![FormatDescriptor::String.into(), usize::message_format().unwrap()]).into(),
+                },
 
-                    Variant {
-                        name:           "GuidTask".into(),
-                        argument_type:  FormatDescriptor::Tuple(vec![Uuid::message_format().unwrap().into(), usize::message_format().unwrap()]).into(),
-                    },
-                ]).into()
-            ]).into()
-        )
+                Variant {
+                    name:           "GuidTask".into(),
+                    argument_type:  FormatDescriptor::Tuple(vec![Uuid::message_format().unwrap().into(), usize::message_format().unwrap()]).into(),
+                },
+            ]).into())
     }
 }
