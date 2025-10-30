@@ -1,5 +1,9 @@
+use flo_scene_guest::*;
+
 use super::message_format::*;
 use super::message_format_trait::*;
+
+use uuid::{Uuid};
 
 use std::time::{Duration};
 
@@ -35,5 +39,41 @@ impl HasMessageFormat for Duration {
             u64::message_format()?.into(),
             u32::message_format()?.into(),
         ]).into())
+    }
+}
+
+impl HasMessageFormat for Uuid {
+    fn message_format() -> Option<MessageFormat> {
+        Some(FormatDescriptor::Tuple(vec![FormatDescriptor::Array(Box::new(u8::message_format().unwrap())).into()]).into())
+    }
+}
+
+impl HasMessageFormat for SubProgramId {
+    fn message_format() -> Option<MessageFormat> {
+        Some(
+            FormatDescriptor::Tuple(vec![
+                FormatDescriptor::Enum(vec![
+                    Variant {
+                        name:           "Named".into(),
+                        argument_type:  FormatDescriptor::String.into(),
+                    },
+
+                    Variant {
+                        name:           "Guid".into(),
+                        argument_type:  Uuid::message_format().unwrap().into(),
+                    },
+
+                    Variant {
+                        name:           "NamedTask".into(),
+                        argument_type:  FormatDescriptor::Tuple(vec![FormatDescriptor::String.into(), usize::message_format().unwrap()]).into(),
+                    },
+
+                    Variant {
+                        name:           "GuidTask".into(),
+                        argument_type:  FormatDescriptor::Tuple(vec![Uuid::message_format().unwrap().into(), usize::message_format().unwrap()]).into(),
+                    },
+                ]).into()
+            ]).into()
+        )
     }
 }
