@@ -478,7 +478,8 @@ where
             }
         }, 0);
 
-        // TODO: stop the subprogram if the parent program stops
+        // Stop the subprogram if the parent program stops
+        SceneCore::attach_child_program(&scene_core, parent_program_id, stream_program_id);
 
         stream_program_id
     }
