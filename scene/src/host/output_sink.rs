@@ -1,8 +1,11 @@
 use crate::host::error::*;
+use crate::host::initialisation_context::*;
 use crate::host::input_stream::*;
+use crate::host::scene::*;
 use crate::host::scene_core::*;
 use crate::host::scene_context::*;
 use crate::host::subprogram_id::*;
+use crate::input_stream;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};
@@ -429,6 +432,56 @@ where
         }
 
         Ok(())
+    }
+}
+
+impl<TMessage> OutputSink<TMessage> 
+where
+    TMessage: Send + Unpin,
+{
+    ///
+    /// Sends a stream of data to this sink, using a background subprogram
+    ///
+    /// The subprogram this creates will finish when the program that created this sink finishes, when the stream ends, or
+    /// when there's any error sending to the output sink.
+    ///
+    pub fn send_stream(mut self, stream: impl 'static + Send + Stream<Item=TMessage>) -> SubProgramId {
+        // Assign a subprogram ID. We return this ID even if we can't start the stream
+        let stream_program_id = SubProgramId::new();
+        let parent_program_id = self.program_id;
+
+        // Reconstitute the scene using the core (so we can use it to create the subprogram). We could also send a message to the scene control program here
+        let Some(scene_core) = self.scene_core.upgrade() else { return stream_program_id; };
+        let scene = Scene::with_core(&scene_core);
+
+        // Run a subprogram to monitor the stream
+        scene.add_subprogram(stream_program_id, move |input_stream: InputStream<()>, _| async move {
+            let mut stream          = pin!(stream);
+            let mut input_stream    = input_stream;
+
+            // Read the next message, or detect the end of the stream or the end of the input stream (indicating the subprogram has been stopped)
+            while let Some(msg) = future::poll_fn(|ctxt| {
+                loop {
+                    // Stop if the input stream exhausts itself (or ignore messages)
+                    match input_stream.poll_next_unpin(ctxt)  {
+                        Poll::Ready(None)       => { return Poll::Ready(None); }
+                        Poll::Ready(Some(_))    => { }
+                        Poll::Pending           => { break; }
+                    }
+                }
+
+                // Wait for messages from the stream
+                return stream.poll_next_unpin(ctxt);
+            }).await {
+                if self.send(msg).await.is_err() {
+                    break;
+                }
+            }
+        }, 0);
+
+        // TODO: stop the subprogram if the parent program stops
+
+        stream_program_id
     }
 }
 
