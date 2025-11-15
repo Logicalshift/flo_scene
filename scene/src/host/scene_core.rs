@@ -1327,6 +1327,65 @@ impl SceneCore {
             }
         }
     }
+
+    ///
+    /// Attaches a child program to a parent program
+    ///
+    pub (crate) fn attach_child_program(scene_core: &Arc<Mutex<SceneCore>>, parent: SubProgramId, child: SubProgramId) {
+        if parent == child {
+            return;
+        }
+
+        // Fetch the parent and child subprogram cores from the scene core
+        let (parent_core, child_core) = {
+            let scene_core = scene_core.lock().unwrap();
+
+            let parent_idx  = scene_core.program_indexes.get(&parent);
+            let child_idx   = scene_core.program_indexes.get(&child);
+
+            let parent_core = parent_idx.and_then(|idx| scene_core.sub_programs[*idx].clone());
+            let child_core  = child_idx.and_then(|idx| scene_core.sub_programs[*idx].clone());
+
+            (parent_core, child_core)
+        };
+
+        let Some(parent_core)   = parent_core else { return };
+        let Some(child_core)    = child_core else { return };
+
+        // Start by replacing the parent on the child core (can't really safely lock both)
+        let old_parent = {
+            let mut child_core = child_core.lock().unwrap();
+            child_core.parent_program.take()
+        };
+
+        if let Some(old_parent) = old_parent {
+            // Remove the child from the old parent
+            let old_parent_core = {
+                let scene_core = scene_core.lock().unwrap();
+
+                let old_parent_idx = scene_core.program_indexes.get(&old_parent);
+                old_parent_idx.and_then(|idx| scene_core.sub_programs[*idx].clone())
+            };
+
+            if let Some(old_parent_core) = old_parent_core {
+                let mut old_parent_core = old_parent_core.lock().unwrap();
+                old_parent_core.child_programs.remove(&child);
+            }
+        }
+
+        // Add as child/parent relationship
+        {
+            let mut parent_core = parent_core.lock().unwrap();
+            parent_core.child_programs.insert(child);
+        }
+
+        {
+            let mut child_core = child_core.lock().unwrap();
+            child_core.parent_program = Some(parent);
+        }
+
+        // TODO: if the parent is not running, already shut down or has a closed input stream, then close the child input stream to stop it immediately
+    }
 }
 
 impl SceneCoreWaker {
