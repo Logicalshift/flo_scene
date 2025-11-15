@@ -230,6 +230,8 @@ impl SceneCore {
                 output_high_water:          0,
                 expected_input_type_name:   type_name::<TMessage>(),
                 next_command_sequence:      Arc::new(AtomicUsize::new(0)),
+                parent_program:             None,
+                child_programs:             HashSet::new(),
             };
 
             // Allocate space for the program

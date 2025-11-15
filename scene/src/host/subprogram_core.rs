@@ -41,6 +41,12 @@ pub (crate) struct SubProgramCore {
 
     /// The ID assigned to the next command that this subprogram will launch (shared with any commands launched by this program)
     pub (super) next_command_sequence: Arc<AtomicUsize>,
+
+    /// The 'parent' program for this subprogram (this subprogram will end if this parent program ends)
+    pub (super) parent_program: Option<SubProgramId>,
+
+    /// The 'child' programs for this subprogram (these programs will also end if this program ends)
+    pub (super) child_programs: HashSet<SubProgramId>,
 }
 
 impl SubProgramCore {
