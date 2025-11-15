@@ -203,6 +203,7 @@ impl SceneCore {
                     // Take the subprogram and input core out of the scene
                     let old_sub_program     = core.sub_programs[handle].take();
                     let old_input_core      = core.sub_program_inputs[handle].take();
+                    core.program_indexes.remove(&program_id);
                     core.next_subprogram    = core.next_subprogram.min(handle);
 
                     // Drop in order: first release the core lock, then drop the subprograms (which may re-take it)
