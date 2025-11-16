@@ -1330,6 +1330,28 @@ impl SceneCore {
     }
 
     ///
+    /// Shuts down the input stream for a subprogram (which generally should cause the program itself to stop)
+    ///
+    pub (crate) fn close_subprogram(scene_core: &Arc<Mutex<SceneCore>>, program_id: SubProgramId) {
+        let waker = {
+            let program     = scene_core.lock().unwrap().get_sub_program(program_id);
+            let input_core  = scene_core.lock().unwrap().get_input_stream_core(program_id);
+
+            if let (Some(program), Some(input_core)) = (program, input_core) {
+                let input_stream_id = program.lock().unwrap().input_stream_id();
+
+                input_stream_id.close_input(&input_core)
+            } else {
+                Ok(None)
+            }
+        };
+
+        if let Ok(Some(waker)) = waker {
+            waker.wake()
+        }
+    }
+
+    ///
     /// Attaches a child program to a parent program
     ///
     pub (crate) fn attach_child_program(scene_core: &Arc<Mutex<SceneCore>>, parent: SubProgramId, child: SubProgramId) {
