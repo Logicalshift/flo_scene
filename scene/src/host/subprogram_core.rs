@@ -258,4 +258,35 @@ impl SubProgramCore {
 
         self.id.with_command_id(sequence_number)
     }
+
+    ///
+    /// Closes down this subprogram (shutting down any child programs)
+    ///
+    pub (crate) fn closedown(subprogram_core: &Arc<Mutex<SubProgramCore>>, scene_core: &Arc<Mutex<SceneCore>>) {
+        use std::mem;
+
+        // Fetch the child programs from the core that's shutting down
+        let (parent_program, child_programs, our_program_id) = {
+            let mut subprogram_core = subprogram_core.lock().unwrap();
+
+            if subprogram_core.child_programs.is_empty() {
+                (subprogram_core.parent_program.take(), HashSet::new(), subprogram_core.id)
+            } else {
+                let mut child_programs = HashSet::new();
+                mem::swap(&mut child_programs, &mut subprogram_core.child_programs);
+
+                (subprogram_core.parent_program.take(), child_programs, subprogram_core.id)
+            }
+        };
+
+        // Close down the child programs
+        for child_program_id in child_programs.into_iter() {
+            SceneCore::close_subprogram(scene_core, child_program_id);
+        }
+
+        // Remove this program from the parent program if there is one
+        if let Some(parent_program) = parent_program {
+            SceneCore::detach_child_program(scene_core, parent_program, our_program_id);
+        }
+    }
 }

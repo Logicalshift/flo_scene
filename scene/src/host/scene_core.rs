@@ -211,6 +211,7 @@ impl SceneCore {
 
                     if let Some(old_sub_program) = &old_sub_program {
                         old_sub_program.lock().unwrap().process_id = None;
+                        SubProgramCore::closedown(old_sub_program, &scene_core);
                     }
 
                     mem::drop(old_input_core);
@@ -1409,6 +1410,27 @@ impl SceneCore {
         }
 
         // TODO: potential race condition if the parent shuts down between fetching the core and setting the child subprogram
+    }
+
+    ///
+    /// Removes the specified program from the list of child programs referenced by the parent program
+    ///
+    /// (This leaves the parent program value intact for the child program)
+    ///
+    pub (crate) fn detach_child_program(scene_core: &Arc<Mutex<SceneCore>>, parent_program: SubProgramId, child_program: SubProgramId) {
+        // Fetch the core for the parent program from the scene
+        let parent_core = {
+            let scene_core  = scene_core.lock().unwrap();
+            let parent_idx  = scene_core.program_indexes.get(&parent_program);
+            let parent_core = parent_idx.and_then(|idx| scene_core.sub_programs[*idx].clone());
+
+            parent_core
+        };
+
+        let Some(parent_core) = parent_core else { return; };
+
+        // Remove the child program from the list of subprograms that are children of the parent program
+        parent_core.lock().unwrap().child_programs.remove(&child_program);
     }
 }
 
