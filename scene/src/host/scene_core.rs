@@ -1372,7 +1372,8 @@ impl SceneCore {
             (parent_core, child_core)
         };
 
-        let Some(parent_core)   = parent_core else { return };
+        // Child subprogram is shut down if the parent program doesn't exist at this point
+        let Some(parent_core)   = parent_core else { Self::close_subprogram(scene_core, child); return };
         let Some(child_core)    = child_core else { return };
 
         // Start by replacing the parent on the child core (can't really safely lock both)
@@ -1406,8 +1407,6 @@ impl SceneCore {
             let mut child_core = child_core.lock().unwrap();
             child_core.parent_program = Some(parent);
         }
-
-        // TODO: if the parent is not running, already shut down or has a closed input stream, then close the child input stream to stop it immediately
     }
 }
 
