@@ -1407,6 +1407,8 @@ impl SceneCore {
             let mut child_core = child_core.lock().unwrap();
             child_core.parent_program = Some(parent);
         }
+
+        // TODO: potential race condition if the parent shuts down between fetching the core and setting the child subprogram
     }
 }
 
