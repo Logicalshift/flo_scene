@@ -132,7 +132,7 @@ impl SceneProgramFn {
     ///
     /// Creates a new SceneProgramFn that will start a subprogram in a scene
     ///
-    pub fn new<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
+    pub fn start_program<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
     where
         TFuture:        'static + Send + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
@@ -177,7 +177,7 @@ impl SceneProgramFn {
     ///
     /// Creates a new SceneProgramFn that will start a child subprogram in a scene
     ///
-    pub fn child_program<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, parent_program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
+    pub fn start_child_program<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, parent_program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
     where
         TFuture:        'static + Send + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
@@ -273,7 +273,7 @@ impl SceneControl {
         TInputMessage:  'static + SceneMessage,
         TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
-        let start_fn = SceneProgramFn::new(program_id, program, max_input_waiting);
+        let start_fn = SceneProgramFn::start_program(program_id, program, max_input_waiting);
         SceneControl::Start(start_fn)
     }
 
@@ -286,7 +286,7 @@ impl SceneControl {
         TInputMessage:  'static + SceneMessage,
         TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
-        let start_fn = SceneProgramFn::child_program(program_id, parent_program_id, program, max_input_waiting);
+        let start_fn = SceneProgramFn::start_child_program(program_id, parent_program_id, program, max_input_waiting);
         SceneControl::Start(start_fn)
     }
 
@@ -365,7 +365,7 @@ impl SceneControl {
                     let idle_program    = SubProgramId::new();
                     let scene_control   = context.current_program_id().unwrap();
 
-                    let wait_for_idle   = SceneProgramFn::new(idle_program, move |input: InputStream<IdleNotification>, context| async move {
+                    let wait_for_idle   = SceneProgramFn::start_program(idle_program, move |input: InputStream<IdleNotification>, context| async move {
                         // Request an idle notification
                         if context.send_message(IdleRequest::WhenIdle(idle_program)).await.is_ok() {
                             // Wait for the notification to arrive
