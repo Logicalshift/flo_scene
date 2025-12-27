@@ -175,6 +175,52 @@ impl SceneProgramFn {
     }
 
     ///
+    /// Creates a new SceneProgramFn that will start a child subprogram in a scene
+    ///
+    pub fn child_program<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, parent_program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
+    where
+        TFuture:        'static + Send + Future<Output=()>,
+        TInputMessage:  'static + SceneMessage,
+        TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
+    {
+        // TODO: this is almost the same 'start' procedure as appears in the main 'Scene' type (modified because control requests are cloneable so the start function has to be 'Sync')
+        let start_fn = move |scene_core: Arc<Mutex<SceneCore>>| {
+            // Create the context and input stream for the program
+            let input_stream    = InputStream::new(program_id, &scene_core, max_input_waiting);
+            let input_core      = input_stream.core();
+
+            // Create the future that will be used to run the future
+            let (send_context, recv_context) = oneshot::channel::<(TFuture, SceneContext)>();
+            let run_program = async move {
+                if let Ok((program, scene_context)) = recv_context.await {
+                    // Start the program running
+                    pin_mut!(program);
+
+                    // Poll the program with the scene context set
+                    poll_fn(|context| {
+                        with_scene_context(&scene_context, || {
+                            program.as_mut().poll(context)
+                        })
+                    }).await;
+                }
+            };
+
+            // Start the program running
+            let subprogram = SceneCore::start_subprogram(&scene_core, program_id, run_program, input_core);
+            SceneCore::attach_child_program(&scene_core, parent_program_id, program_id);
+
+            // Create the scene context, and send it to the subprogram
+            let context = SceneContext::new(&scene_core, &subprogram);
+            let program = program(input_stream, context.clone());
+            send_context.send((program, context)).ok();
+        };
+
+        // Turn the function into a SceneProgramFn
+        let start_fn: Box<dyn Send + FnOnce(Arc<Mutex<SceneCore>>)> = Box::new(start_fn);
+        SceneProgramFn(Box::new(start_fn))
+    }
+
+    ///
     /// Adds the program that is started by this function to a scene
     ///
     #[inline]
@@ -228,6 +274,19 @@ impl SceneControl {
         TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
         let start_fn = SceneProgramFn::new(program_id, program, max_input_waiting);
+        SceneControl::Start(start_fn)
+    }
+
+    ///
+    /// Creates a start program message for the scene control subprogram
+    ///
+    pub fn start_child_program<TProgramFn, TInputMessage, TFuture>(program_id: SubProgramId, parent_program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Self
+    where
+        TFuture:        'static + Send + Future<Output=()>,
+        TInputMessage:  'static + SceneMessage,
+        TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
+    {
+        let start_fn = SceneProgramFn::child_program(program_id, parent_program_id, program, max_input_waiting);
         SceneControl::Start(start_fn)
     }
 
