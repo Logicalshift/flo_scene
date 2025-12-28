@@ -15,6 +15,7 @@ use serde::ser::{Error as SeError};
 
 use std::any::*;
 use std::collections::{HashMap};
+use std::fmt::{Debug};
 use std::time::{Duration};
 
 type ActionFn = Box<dyn Send + FnOnce(InputStream<TestRequest>, &SceneContext, mpsc::Sender<String>) -> BoxFuture<'static, (InputStream<TestRequest>, mpsc::Sender<String>)>>;
@@ -239,6 +240,24 @@ impl TestBuilder {
         }));
 
         self
+    }
+
+    ///
+    /// Expects a message exactly matching a template to be received by the test program
+    ///
+    pub fn expect_message_matching<TMessage>(self, expected_message: TMessage, failure_message: impl Into<String>) -> Self
+    where
+        TMessage: 'static + Send + SceneMessage + PartialEq + Debug,
+    {
+        let failure_message = failure_message.into();
+
+        self.expect_message(move |msg: TMessage| {
+            if msg == expected_message {
+                Ok(())
+            } else {
+                Err(format!("{:?}: expecting {:?} but got {:?}", failure_message, expected_message, msg))
+            }
+        })
     }
 
     ///
