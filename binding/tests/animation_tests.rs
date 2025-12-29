@@ -47,10 +47,15 @@ fn linear_animation() {
                     let mut timeout = context.send(program_id).unwrap();
 
                     // Send 4 messages (time=0, time=1 frame, time=1 second, time=10 seconds)
+                    context.wait_for_idle(0).await;
                     timeout.send(TimeOut(timer_id, Duration::from_millis(0))).await.unwrap();
+                    context.wait_for_idle(0).await;
                     timeout.send(TimeOut(timer_id, Duration::from_millis(16))).await.unwrap();
+                    context.wait_for_idle(0).await;
                     timeout.send(TimeOut(timer_id, Duration::from_millis(1000))).await.unwrap();
+                    context.wait_for_idle(0).await;
                     timeout.send(TimeOut(timer_id, Duration::from_millis(10000))).await.unwrap();
+                    context.wait_for_idle(0).await;
                 }
 
                 _ => { }
