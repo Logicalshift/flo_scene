@@ -1,7 +1,6 @@
 use flo_scene::*;
 use flo_scene::programs::*;
 use flo_scene_binding::*;
-use flo_binding::*;
 
 use futures::prelude::*;
 use serde::*;
