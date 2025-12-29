@@ -33,7 +33,7 @@ fn linear_animation() {
         })).await;
 
         let mut input = input;
-        while let Some(input) = input.next().await { }
+        while let Some(_input) = input.next().await { }
     }, 1);
 
     // The fake timing program generates some timeout events immediately when it gets a request
@@ -47,7 +47,7 @@ fn linear_animation() {
                     let mut timeout = context.send(program_id).unwrap();
 
                     // Send 4 messages (time=0, time=1 frame, time=1 second, time=10 seconds)
-                    // Need to wait for idle a few times here as bindings are processed on idle
+                    // Need to wait for idle a few times here as bindings are processed on idle (so a single wait isn't quite enough to trigger the binding action always)
                     context.wait_for_idle(0).await;
                     timeout.send(TimeOut(timer_id, Duration::from_millis(0))).await.unwrap();
                     context.wait_for_idle(0).await;
