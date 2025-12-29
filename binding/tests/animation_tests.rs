@@ -30,7 +30,7 @@ fn linear_animation() {
         run_animation(&context, AnimationDescription::Linear(5.0), 1.0/60.0, |t| t.into(), BindingAction::new(|t, context| async move {
             println!("Action - t={:?}", t);
             context.send_message(AnimationAction((t * 1000.0) as _)).await.unwrap();
-        }));
+        })).await;
 
         let mut input = input;
         while let Some(input) = input.next().await { }
