@@ -57,7 +57,8 @@ impl SceneMessage for TimeOut {
 struct Timer {
     target_program:     SubProgramId,
     timer_id:           usize,
-    callback_offset:    Duration,
+    when_queued:        Duration,
+    timeout:            Duration,
     repeating:          Option<Duration>,
 }
 
@@ -91,7 +92,8 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                         timer_events.lock().unwrap().push_back(Timer { 
                             target_program:     program_id,
                             timer_id:           timer_id,
-                            callback_offset:    now + timeout,
+                            when_queued:        now,
+                            timeout:            timeout,
                             repeating:          None,
                         });
                     },
@@ -101,7 +103,8 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                         timer_events.lock().unwrap().push_back(Timer { 
                             target_program:     program_id,
                             timer_id:           timer_id,
-                            callback_offset:    now + every,
+                            when_queued:        now,
+                            timeout:            every,
                             repeating:          Some(every),
                         });
                     },
@@ -117,7 +120,7 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                 }
 
                 // Every event changes the timers, so we sort them here (there's no race condition because we don't run the futures in parallel)
-                timer_events.lock().unwrap().make_contiguous().sort_by(|a, b| a.callback_offset.cmp(&b.callback_offset));
+                timer_events.lock().unwrap().make_contiguous().sort_by(|a, b| (a.when_queued + a.timeout).cmp(&(b.when_queued + b.timeout)));
             }
         };
 
@@ -140,7 +143,7 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                         next_timeout    = None;
                         next_timer      = None;
                     } else {
-                        let next_callback_time = timer_events[0].callback_offset;
+                        let next_callback_time = timer_events[0].when_queued + timer_events[0].timeout;
 
                         // Stop immediately if the timeout in the first timer is expired
                         if now >= next_callback_time {
@@ -185,7 +188,7 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
 
                 while let Some(next_event) = timer_events_lock.pop_front() {
                     // Stop once we reach an event that's happening after the current time
-                    if next_event.callback_offset > now {
+                    if next_event.when_queued + next_event.timeout > now {
                         timer_events_lock.push_front(next_event);
                         break;
                     }
@@ -199,7 +202,7 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                             // Send the timeout message
                             let now                 = Instant::now().duration_since(start_time);
                             let mut target_stream   = target_stream;
-                            let sent                = target_stream.send(TimeOut(next_event.timer_id, now - next_event.callback_offset)).await.is_ok();
+                            let sent                = target_stream.send(TimeOut(next_event.timer_id, now - next_event.when_queued)).await.is_ok();
 
                             // Requeue the timer if it's repeating (must have sent correctly, and be a non-zero repeat time)
                             if sent {
@@ -208,9 +211,9 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                                     if repeat_duration > Duration::ZERO {
                                         // Decide when the next event should fire
                                         let now             = Instant::now().duration_since(start_time);
-                                        let mut next_offset = next_event.callback_offset;
+                                        let mut next_offset = next_event.timeout + repeat_duration;
 
-                                        while next_offset < now { next_offset += repeat_duration; }
+                                        while next_offset + next_event.when_queued < now { next_offset += repeat_duration; }
 
                                         // Queue a new event for when this is repeated
                                         let mut timer_events_lock = timer_events.lock().unwrap();
@@ -218,10 +221,11 @@ pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneC
                                         timer_events_lock.push_back(Timer {
                                             target_program:     next_event.target_program,
                                             timer_id:           next_event.timer_id,
-                                            callback_offset:    next_offset,
+                                            when_queued:        next_event.when_queued,
+                                            timeout:            next_offset,
                                             repeating:          next_event.repeating,
                                         });
-                                        timer_events_lock.make_contiguous().sort_by(|a, b| a.callback_offset.cmp(&b.callback_offset));
+                                        timer_events_lock.make_contiguous().sort_by(|a, b| (a.when_queued + a.timeout).cmp(&(b.when_queued + b.timeout)));
 
                                         // Reawaken the polling loop to reschedule the timer
                                         let waker = waker.lock().unwrap().take();
