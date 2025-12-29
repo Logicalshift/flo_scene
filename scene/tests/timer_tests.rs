@@ -15,6 +15,17 @@ fn basic_timeout() {
 }
 
 #[test]
+fn basic_timeout_time() {
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+
+    TestBuilder::new()
+        .send_message(TimerRequest::CallAfter(test_program, 1, Duration::from_millis(10)))
+        .expect_message(|timeout: TimeOut| { if timeout.1 < Duration::from_millis(10) { Err(format!("Timeout after {:?} (expecting at least 10ms)", timeout.1)) } else { Ok(()) } })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
 fn multiple_timeouts() {
     let scene           = Scene::default();
     let test_program    = SubProgramId::new();
@@ -26,6 +37,21 @@ fn multiple_timeouts() {
         .expect_message(|TimeOut(id, _)| { if id != 1 { Err(format!("Expected timer 1 first")) } else { Ok(()) } })
         .expect_message(|TimeOut(id, _)| { if id != 2 { Err(format!("Expected timer 2 next")) } else { Ok(()) } })
         .expect_message(|TimeOut(id, _)| { if id != 3 { Err(format!("Expected timer 3 last")) } else { Ok(()) } })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
+fn multiple_timeout_times() {
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+
+    TestBuilder::new()
+        .send_message(TimerRequest::CallAfter(test_program, 3, Duration::from_millis(15)))
+        .send_message(TimerRequest::CallAfter(test_program, 1, Duration::from_millis(5)))
+        .send_message(TimerRequest::CallAfter(test_program, 2, Duration::from_millis(10)))
+        .expect_message(|timeout: TimeOut| { if timeout.1 < Duration::from_millis(5) { Err(format!("Expected timer 5ms first ({:?})", timeout.1)) } else { Ok(()) } })
+        .expect_message(|timeout: TimeOut| { if timeout.1 < Duration::from_millis(10) { Err(format!("Expected timer 10ms next ({:?})", timeout.1)) } else { Ok(()) } })
+        .expect_message(|timeout: TimeOut| { if timeout.1 < Duration::from_millis(15) { Err(format!("Expected timer 15ms last ({:?})", timeout.1)) } else { Ok(()) } })
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
 
