@@ -36,8 +36,8 @@ fn repeating_timeouts() {
 
     TestBuilder::new()
         .send_message(TimerRequest::CallEvery(test_program, 1, Duration::from_millis(5)))
-        .expect_message(|_: TimeOut| { Ok(()) })
-        .expect_message(|_: TimeOut| { Ok(()) })
-        .expect_message(|_: TimeOut| { Ok(()) })
+        .expect_message(|timeout: TimeOut| { if timeout.1 < Duration::from_millis(5) { Err(format!("First timeout at {:?}", timeout.1)) } else { Ok(()) } })
+        .expect_message(|timeout: TimeOut| { if timeout.1 < Duration::from_millis(10) { Err(format!("Second timeout at {:?}", timeout.1)) } else { Ok(()) } })
+        .expect_message(|timeout: TimeOut| { if timeout.1 < Duration::from_millis(15) { Err(format!("Third timeout at {:?}", timeout.1)) } else { Ok(()) } })
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
