@@ -1,3 +1,5 @@
+use super::binding_program::*;
+
 use flo_binding::*;
 use flo_scene::*;
 use flo_scene::programs::*;
@@ -85,6 +87,9 @@ impl AnimationDescription {
     ///
     /// Returns a subprogram that will implement this animation when run
     ///
+    /// This program updates the specified binding every tick of the animation, so it's not very useful by itself. Use the `run_animation`
+    /// function to set up a more full-featured animation subprogram.
+    ///
     pub fn program(&self, t: Binding<f64>, interval: f64) -> impl 'static + Send + Sync + FnOnce(InputStream<TimeOut>, SceneContext) -> BoxFuture<'static, ()> {
         // Fetch state of this animation
         let transform_fn        = self.transform_fn();
@@ -101,9 +106,11 @@ impl AnimationDescription {
                 // Request timeout events
                 context.send_message(TimerRequest::CallEvery(our_program_id, 0, interval)).await.ok();
 
-                let mut input = input;
+                let mut input = input.ready_chunks(100);
                 while let Some(timeout) = input.next().await {
-                    // Get the curren time
+                    let Some(timeout) = timeout.last() else { continue; };
+
+                    // Get the current time
                     let seconds = (timeout.1.as_nanos() as f64) / 1_000_000_000.0;
 
                     // Update the 't' value
@@ -120,4 +127,68 @@ impl AnimationDescription {
             }.boxed()
         }
     }
+}
+
+///
+/// Runs an animation binding in the specified scene context, returning the subprogram ID assigned to the running animation program
+///
+/// The parameter to `binding` is the `t` value for the animation, and the `action` is the action to perform every time the animation
+/// value changes (eg to redraw the thing being animated). The subprogram can be stopped to end the animation early. The 'interval' is
+/// how often the animation runs.
+///
+/// For example:
+///
+/// ```
+/// # use flo_scene::*;
+/// # use flo_scene_binding::*;
+/// # use flo_binding::*;
+/// # use futures::prelude::*;
+/// # use serde::*;
+/// # let scene         = Scene::default();
+/// # let program_id    = SubProgramId::new();
+/// # let binding       = bind(42);
+/// #[derive(Serialize, Deserialize)]
+/// enum DrawMessage { DrawAt(f64, f64) }
+/// impl SceneMessage for DrawMessage { }
+///
+/// let action = BindingAction::new(|value: (f64, f64), context| async move { context.send_message(DrawMessage::DrawAt(value.0, value.1)).await.ok(); });
+/// scene.add_subprogram(program_id, move |input: InputStream<()>, context| async move {
+///     run_animation(&context, AnimationDescription::EaseInOut(1.0), 1.0/60.0, |t| computed(move || (t.get().sin(), t.get().cos())).into(), action).await;
+///     
+///     let mut input = input;
+///     while let Some(_) = input.next().await { }
+/// }, 20);
+/// ```
+///
+/// This function provides a generic interface that makes very few assumptions about how the animation should work. It will often make sense to wrap
+/// this in your own function to deal with specific cases (eg, where you already know the interface, or the binding action is commonly known)
+///
+pub async fn run_animation<TValue, TFn, TFuture>(context: &SceneContext, animation: AnimationDescription, interval: f64, binding: impl FnOnce(BindRef<f64>) -> BindRef<TValue>, action: impl Into<BindingAction<TValue, TFn, TFuture>>) -> SubProgramId
+where
+    TFn:        'static + Send + FnMut(TValue, SceneContext) -> TFuture,
+    TFuture:    'static + Send + Future<Output=()>,
+    TValue:     'static + Send,
+{
+    // TODO: two subprograms to generate each animation action is slightly inefficient. It might be better to combine them (though this is more complex, and it isn't clear if the extra overhead will ever matter)
+
+    // We run two subprograms to run the animation: the animation program updates the binding, and the binding program performs actions based on when that changes
+    let animation_program_id    = SubProgramId::new();
+    let binding_program_id      = SubProgramId::new();
+
+    // Set up the animation binding
+    let t                   = bind(0.0);
+    let animation_program   = animation.program(t.clone(), interval);
+    let binding             = binding(t.into());
+
+    // Start the animation program as a child of the current prorgram
+    let parent_program_id = context.current_program_id().unwrap();
+
+    let Ok(_) = context.send_message(SceneControl::start_child_program(animation_program_id, parent_program_id, animation_program, 20)).await else { return animation_program_id; };
+
+    // Start the binding program as a child of the animation program
+    let action = action.into();
+    context.send_message(SceneControl::start_child_program(binding_program_id, animation_program_id, move |input, context| binding_program(input, context, binding, action), 1)).await.ok();
+
+    // Return result is the animation program ID (binding program runs a child program of this)
+    animation_program_id
 }
