@@ -118,6 +118,8 @@ impl AnimationDescription {
 
                     // Stop once the end of the animation is reached
                     if seconds >= duration_seconds {
+                        // Wait for the scene to become idle a couple of times so the last 't' value can be processed before shutting down
+                        context.wait_for_idle(0).await;
                         break;
                     }
                 }
