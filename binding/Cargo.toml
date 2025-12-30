@@ -10,8 +10,12 @@ description     = "Support for reactive subprograms in flo_scene using flo_bindi
 categories      = [ "concurrency", "data-structures" ]
 keywords        = [ "message-queue" ]
 
+[features]
+enable-postcard = [ "postcard", "flo_scene/postcard" ]
+
 [dependencies]
 flo_scene   = "0.3"
 flo_binding = "2.2"
 futures     = "0.3"
 serde       = { version = "1.0", features = [ "derive" ] }
+postcard    = { version = "1.0", optional = true, features = [ "use-std" ] }

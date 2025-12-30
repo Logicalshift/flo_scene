@@ -1,7 +1,9 @@
 use flo_binding::*;
 use flo_scene::*;
+#[cfg(feature="enable-postcard")]
 use flo_scene::postcard;
 
+#[cfg(feature="enable-postcard")]
 use futures::prelude::*;
 use serde::*;
 use serde::de::{Error as DeError};
@@ -39,6 +41,7 @@ impl<'a, TValue> Deserialize<'a> for BindingMessage<TValue> {
 }
 
 /// Serialization structure for a binding message
+#[cfg(feature="enable-postcard")]
 #[derive(Serialize, Deserialize)]
 struct SerializedBindingMessage(SerializationId);
 
@@ -52,6 +55,7 @@ where
 
     fn serializable() -> bool { false }
 
+    #[cfg(feature="enable-postcard")]
     fn to_guest_message(self, context: &impl flo_scene::SerializationContext) -> Result<Vec<u8>, flo_scene::SceneSendError<Self>> {
         // Create a serialized stream of messages from the stream, and use the context to pass it to the guest
         let BindingMessage(binding)     = self;
@@ -67,6 +71,7 @@ where
         Ok(serialized_response)
     }
 
+    #[cfg(feature="enable-postcard")]
     fn from_guest_message(value: &Vec<u8>, context: &impl flo_scene::SerializationContext) -> Result<Self, flo_scene::SceneSendError<()>> {
         // Deserialize as a serailized binding message
         let serialized_stream = postcard::from_bytes::<SerializedBindingMessage>(value)

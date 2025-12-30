@@ -877,6 +877,7 @@ dependencies = [
  "flo_binding",
  "flo_scene",
  "futures",
+ "postcard",
  "serde",
 ]
 
