@@ -26,7 +26,7 @@ fn linear_animation() {
         println!("Start animation");
 
         // Run a 5s linear animation (at 60fps but this doesn't matter because we fake up our timeouts). Generate animation actions as a result
-        run_animation(&context, AnimationDescription::Linear(5.0), 1.0/60.0, |t| t.into(), BindingAction::new(|t, context| async move {
+        run_animation(&context, AnimationDescription::linear(5.0), 1.0/60.0, |t| t.into(), BindingAction::new(|t, context| async move {
             println!("Action - t={:?}", t);
             context.send_message(AnimationAction((t * 1000.0) as _)).await.unwrap();
         })).await;

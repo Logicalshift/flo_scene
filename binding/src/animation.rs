@@ -12,8 +12,13 @@ use std::time::{Duration};
 ///
 /// Describes an animation function
 ///
+#[derive(Debug, PartialEq)]
+pub struct AnimationDescription {
+    animation_type: AnimationType,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum AnimationDescription {
+enum AnimationType {
     /// Animation that runs linearly for the specified amount of time, in seconds
     Linear(f64),
 
@@ -29,16 +34,52 @@ pub enum AnimationDescription {
 
 impl AnimationDescription {
     ///
+    /// Creates a linear animation that moves at one speed
+    ///
+    pub fn linear(duration_seconds: f64) -> Self {
+        AnimationDescription { 
+            animation_type: AnimationType::Linear(duration_seconds)
+        }
+    }
+
+    ///
+    /// Creates an ease-in animation that speeds up towards the end
+    ///
+    pub fn ease_in(duration_seconds: f64) -> Self {
+        AnimationDescription { 
+            animation_type: AnimationType::EaseIn(duration_seconds)
+        }
+    }
+
+    ///
+    /// Creates an ease-out animation that slows down towards the end
+    ///
+    pub fn ease_out(duration_seconds: f64) -> Self {
+        AnimationDescription { 
+            animation_type: AnimationType::EaseOut(duration_seconds)
+        }
+    }
+
+    ///
+    /// Creates an ease-out animation that speeds up then slows down
+    ///
+    pub fn ease_in_out(duration_seconds: f64) -> Self {
+        AnimationDescription { 
+            animation_type: AnimationType::EaseInOut(duration_seconds)
+        }
+    }
+
+    ///
     /// Returns a function that converts time in seconds to the 0-1 animation range
     ///
     pub fn transform_fn(&self) -> Box<dyn Send + Sync + Fn(f64) -> f64> {
-        use AnimationDescription::*;
+        use AnimationType::*;
 
-        match *self {
-            Linear(time)    => Box::new(move |seconds| Self::linear(seconds, time)),
-            EaseIn(time)    => Box::new(move |seconds| Self::ease_in(Self::linear(seconds, time))),
-            EaseOut(time)   => Box::new(move |seconds| Self::ease_out(Self::linear(seconds, time))),
-            EaseInOut(time) => Box::new(move |seconds| Self::ease_in_out(Self::linear(seconds, time))),
+        match self.animation_type {
+            Linear(time)    => Box::new(move |seconds| Self::linear_t(seconds, time)),
+            EaseIn(time)    => Box::new(move |seconds| Self::ease_in_t(Self::linear_t(seconds, time))),
+            EaseOut(time)   => Box::new(move |seconds| Self::ease_out_t(Self::linear_t(seconds, time))),
+            EaseInOut(time) => Box::new(move |seconds| Self::ease_in_out_t(Self::linear_t(seconds, time))),
         }
     }
 
@@ -46,9 +87,9 @@ impl AnimationDescription {
     /// Returns the duration of this animation in seconds
     ///
     pub fn duration_seconds(&self) -> f64 {
-        use AnimationDescription::*;
+        use AnimationType::*;
 
-        match *self {
+        match self.animation_type {
             Linear(time)    => time,
             EaseIn(time)    => time,
             EaseOut(time)   => time,
@@ -58,29 +99,29 @@ impl AnimationDescription {
 
     /// Converts a time in seconds to a linear animation time
     #[inline]
-    fn linear(seconds: f64, total_time: f64) -> f64 {
+    fn linear_t(seconds: f64, total_time: f64) -> f64 {
         (seconds/total_time).clamp(0.0, 1.0)
     }
 
     /// Converts a linear time to an 'ease-in' time
     #[inline]
-    fn ease_in(t: f64) -> f64 {
+    fn ease_in_t(t: f64) -> f64 {
         (t.clamp(0.0, 1.0)).powi(3)
     }
 
     /// Converts a linear time to an 'ease-out' time
     #[inline]
-    fn ease_out(t: f64) -> f64 {
-        1.0 - Self::ease_in(1.0 - t)
+    fn ease_out_t(t: f64) -> f64 {
+        1.0 - Self::ease_in_t(1.0 - t)
     }
 
     /// Converts a linear time to an 'ease-in-out' time
     #[inline]
-    fn ease_in_out(t: f64) -> f64 {
+    fn ease_in_out_t(t: f64) -> f64 {
         if t < 0.5 {
-            0.5 * Self::ease_in(t * 2.0)
+            0.5 * Self::ease_in_t(t * 2.0)
         } else {
-            0.5 + 0.5 * Self::ease_out((t-0.5) * 2.0)
+            0.5 + 0.5 * Self::ease_out_t((t-0.5) * 2.0)
         }
     }
 
@@ -90,7 +131,7 @@ impl AnimationDescription {
     /// This program updates the specified binding every tick of the animation, so it's not very useful by itself. Use the `run_animation`
     /// function to set up a more full-featured animation subprogram.
     ///
-    pub fn program(&self, t: Binding<f64>, interval: f64) -> impl 'static + Send + Sync + FnOnce(InputStream<TimeOut>, SceneContext) -> BoxFuture<'static, ()> {
+    pub fn program(self, t: Binding<f64>, interval: f64) -> impl 'static + Send + Sync + FnOnce(InputStream<TimeOut>, SceneContext) -> BoxFuture<'static, ()> {
         // Fetch state of this animation
         let transform_fn        = self.transform_fn();
         let duration_seconds    = self.duration_seconds();
@@ -155,7 +196,7 @@ impl AnimationDescription {
 ///
 /// let action = BindingAction::new(|value: (f64, f64), context| async move { context.send_message(DrawMessage::DrawAt(value.0, value.1)).await.ok(); });
 /// scene.add_subprogram(program_id, move |input: InputStream<()>, context| async move {
-///     run_animation(&context, AnimationDescription::EaseInOut(1.0), 1.0/60.0, |t| computed(move || (t.get().sin(), t.get().cos())).into(), action).await;
+///     run_animation(&context, AnimationDescription::ease_in_out(1.0), 1.0/60.0, |t| computed(move || (t.get().sin(), t.get().cos())).into(), action).await;
 ///     
 ///     let mut input = input;
 ///     while let Some(_) = input.next().await { }
