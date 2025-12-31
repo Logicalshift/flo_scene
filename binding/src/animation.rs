@@ -258,3 +258,19 @@ where
     // Return result is the animation program ID (binding program runs a child program of this)
     animation_program_id
 }
+
+///
+/// Runs a subprogram that will animate the specified binding between 0.0-1.0 according to the supplied animation description
+///
+/// The interval is the time in seconds between updates of the binding. The return value is the subprogram ID, which can be used to cancel this animation.
+///
+pub async fn run_binding_animation(context: &SceneContext, animation: AnimationDescription, interval: f64, binding: Binding<f64>) -> SubProgramId {
+    // This just starts the animation program
+    let animation_program_id    = SubProgramId::new();
+    let animation_program       = animation.program(binding, interval);
+    let parent_program_id       = context.current_program_id().unwrap();
+
+    context.send_message(SceneControl::start_child_program(animation_program_id, parent_program_id, move |input, context| animation_program(input, context), 20)).await.ok();
+
+    animation_program_id
+}
