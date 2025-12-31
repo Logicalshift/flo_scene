@@ -12,9 +12,12 @@ use std::time::{Duration};
 ///
 /// Describes an animation function
 ///
-#[derive(Debug, PartialEq)]
 pub struct AnimationDescription {
+    /// The animation to perform
     animation_type: AnimationType,
+
+    /// Action to take once the animation has finished
+    when_finished: Option<Box<dyn Send + Sync + FnOnce(SceneContext) -> BoxFuture<'static, ()>>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -38,7 +41,8 @@ impl AnimationDescription {
     ///
     pub fn linear(duration_seconds: f64) -> Self {
         AnimationDescription { 
-            animation_type: AnimationType::Linear(duration_seconds)
+            animation_type: AnimationType::Linear(duration_seconds),
+            when_finished:  None,
         }
     }
 
@@ -47,7 +51,8 @@ impl AnimationDescription {
     ///
     pub fn ease_in(duration_seconds: f64) -> Self {
         AnimationDescription { 
-            animation_type: AnimationType::EaseIn(duration_seconds)
+            animation_type: AnimationType::EaseIn(duration_seconds),
+            when_finished:  None,
         }
     }
 
@@ -56,7 +61,8 @@ impl AnimationDescription {
     ///
     pub fn ease_out(duration_seconds: f64) -> Self {
         AnimationDescription { 
-            animation_type: AnimationType::EaseOut(duration_seconds)
+            animation_type: AnimationType::EaseOut(duration_seconds),
+            when_finished:  None,
         }
     }
 
@@ -65,8 +71,21 @@ impl AnimationDescription {
     ///
     pub fn ease_in_out(duration_seconds: f64) -> Self {
         AnimationDescription { 
-            animation_type: AnimationType::EaseInOut(duration_seconds)
+            animation_type: AnimationType::EaseInOut(duration_seconds),
+            when_finished:  None,
         }
+    }
+
+    ///
+    /// Adds an action to perform when the animation is completed
+    ///
+    pub fn with_when_finished<TFuture>(mut self, when_finished: impl 'static + Send + Sync + FnOnce(SceneContext) -> TFuture) -> Self 
+    where 
+        TFuture: 'static + Send + Future<Output=()>,
+    {
+        self.when_finished = Some(Box::new(move |context| when_finished(context).boxed()));
+
+        self
     }
 
     ///
@@ -131,7 +150,7 @@ impl AnimationDescription {
     /// This program updates the specified binding every tick of the animation, so it's not very useful by itself. Use the `run_animation`
     /// function to set up a more full-featured animation subprogram.
     ///
-    pub fn program(self, t: Binding<f64>, interval: f64) -> impl 'static + Send + Sync + FnOnce(InputStream<TimeOut>, SceneContext) -> BoxFuture<'static, ()> {
+    pub fn program(mut self, t: Binding<f64>, interval: f64) -> impl 'static + Send + Sync + FnOnce(InputStream<TimeOut>, SceneContext) -> BoxFuture<'static, ()> {
         // Fetch state of this animation
         let transform_fn        = self.transform_fn();
         let duration_seconds    = self.duration_seconds();
@@ -167,6 +186,10 @@ impl AnimationDescription {
 
                 // Ensure the timer is stopped before we exit
                 context.send_message(TimerRequest::Cancel(our_program_id, 0)).await.ok();
+
+                if let Some(when_finished) = self.when_finished.take() {
+                    when_finished(context.clone()).await;
+                }
             }.boxed()
         }
     }
