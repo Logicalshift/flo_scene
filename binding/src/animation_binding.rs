@@ -94,6 +94,13 @@ impl<'a> Deserialize<'a> for AnimationBindingMessage {
 
 impl AnimationBinding {
     ///
+    /// The time when this animation was started, or None if it's not running
+    ///
+    pub fn start_time(&self) -> Option<Instant> {
+        self.core.lock().unwrap().start_time
+    }
+
+    ///
     /// Starts the animation associated with this binding running
     ///
     pub fn start(&self) {
@@ -280,5 +287,63 @@ pub fn animate_binding(description: AnimationDescription, context: &SceneContext
 
     AnimationBinding {
         core
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn update_animation_binding() {
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        pub struct Msg(f64);
+
+        impl SceneMessage for Msg { }
+
+        let scene               = Scene::default();
+        let test_program        = SubProgramId::called("test::test");
+        let animation_program   = SubProgramId::called("test::animation_program");
+
+        // Disable the timer by dumping the messages
+        scene.connect_programs((), StreamTarget::None, StreamId::with_message_type::<TimerRequest>()).unwrap();
+
+        scene.add_subprogram(animation_program, |_input: InputStream<()>, context: SceneContext| async move {
+            // Create our animation binding and start it
+            let animation_binding = animate_binding(AnimationDescription::linear(1.0), &context);
+            animation_binding.start();
+
+            // Need to know the start time to send updates to the animation program
+            let start_time = animation_binding.start_time().unwrap();
+
+            // Follow updates to the animation value
+            let mut updates = follow(animation_binding);
+
+            let tenth   = start_time + Duration::from_millis(100);
+            let half    = start_time + Duration::from_millis(500);
+            let full    = start_time + Duration::from_millis(1000);
+
+            // Timer events should generate messages from the follow
+            let mut animation = context.send::<AnimationBindingMessage>(()).unwrap();
+
+            animation.send(AnimationBindingMessage::Tick(Duration::from_millis(100), tenth)).await.ok();
+            let val = updates.next().await.unwrap();
+            context.send_message(Msg(val)).await.unwrap();
+
+            animation.send(AnimationBindingMessage::Tick(Duration::from_millis(500), half)).await.ok();
+            let val = updates.next().await.unwrap();
+            context.send_message(Msg(val)).await.unwrap();
+
+            animation.send(AnimationBindingMessage::Tick(Duration::from_millis(1000), full)).await.ok();
+            let val = updates.next().await.unwrap();
+            context.send_message(Msg(val)).await.unwrap();
+        }, 1);
+
+        // Run in the test harness
+        TestBuilder::new()
+            .expect_message_matching(Msg(0.1), "Tenth")
+            .expect_message_matching(Msg(0.5), "Half")
+            .expect_message_matching(Msg(1.0), "Full")
+            .run_in_scene(&scene, test_program);
     }
 }
