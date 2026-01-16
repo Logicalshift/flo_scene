@@ -1,13 +1,17 @@
 use super::animation::*;
 
 use flo_binding::*;
+use flo_binding::releasable::*;
 use flo_scene::*;
 use serde::*;
 use serde::de::{Error as DeError};
 use serde::ser::{Error as SeError};
 
 use std::sync::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Instant};
+
+static NEXT_IDENTIFIER: AtomicUsize = AtomicUsize::new(0);
 
 ///
 /// The shared core of an animation binding
@@ -15,6 +19,9 @@ use std::time::{Instant};
 pub (crate) struct AnimationBindingCore {
     /// Unique identifier for this core (used to ensure that we don't cause the same animation to run more than once)
     identifier: usize,
+
+    /// Actions to perform when the value is changed
+    when_changed: Vec<ReleasableNotifiable>,
 
     /// The instant when this animation was started
     start_time: Option<Instant>,
@@ -99,11 +106,23 @@ impl AnimationBinding {
     pub fn stop(&self) {
         self.core.lock().unwrap().start_time = None;
     }
+
+    ///
+    /// If there are any notifiables in this object that aren't in use, remove them
+    ///
+    pub fn filter_unused_notifications(&self) {
+        self.core.lock().unwrap().when_changed.retain(|releasable| releasable.is_in_use());
+    }
 }
 
 impl Changeable for AnimationBinding {
     fn when_changed(&self, what: Arc<dyn Notifiable>) -> Box<dyn Releasable> {
-        todo!()
+        let releasable = ReleasableNotifiable::new(what);
+        self.core.lock().unwrap().when_changed.push(releasable.clone_as_owned());
+
+        self.filter_unused_notifications();
+
+        Box::new(releasable)
     }
 }
 
@@ -118,8 +137,8 @@ impl Bound for AnimationBinding {
         let watch_binding           = self.clone();
         let (watcher, notifiable)   = NotifyWatcher::new(move || watch_binding.get(), what);
 
-        // self.value.lock().unwrap().when_changed.push(notifiable);
-        // self.value.lock().unwrap().filter_unused_notifications();
+        self.core.lock().unwrap().when_changed.push(notifiable);
+        self.filter_unused_notifications();
 
         Arc::new(watcher)
     }
@@ -129,5 +148,18 @@ impl Bound for AnimationBinding {
 /// Creates a stopped animation binding in the specified scene context
 ///
 pub fn animate_binding(description: AnimationDescription, context: &SceneContext) -> AnimationBinding {
-    todo!()    
+    let identifier  = NEXT_IDENTIFIER.fetch_add(1, Ordering::Relaxed);
+    let core        = AnimationBindingCore {
+        identifier:     identifier,
+        when_changed:   vec![],
+        start_time:     None,
+        description:    description,
+        target:         context.send::<AnimationBindingMessage>(()).unwrap(),
+        value:          0.0,
+    };
+    let core        = Arc::new(Mutex::new(core));
+
+    AnimationBinding {
+        core
+    }
 }
