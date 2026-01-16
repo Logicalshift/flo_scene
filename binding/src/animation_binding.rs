@@ -3,15 +3,19 @@ use super::animation::*;
 use flo_binding::*;
 use flo_binding::releasable::*;
 use flo_scene::*;
+use flo_scene::programs::*;
+use futures::prelude::*;
 use serde::*;
 use serde::de::{Error as DeError};
 use serde::ser::{Error as SeError};
 
+use std::collections::{HashSet};
 use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Instant};
+use std::time::{Instant, Duration};
 
-static NEXT_IDENTIFIER: AtomicUsize = AtomicUsize::new(0);
+static NEXT_IDENTIFIER: AtomicUsize                     = AtomicUsize::new(0);
+static ANIMATION_BINDING_SUBPROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene_binding::animation_binding");
 
 ///
 /// The shared core of an animation binding
@@ -27,7 +31,7 @@ pub (crate) struct AnimationBindingCore {
     start_time: Option<Instant>,
 
     /// The description of the animation that should be performed by this binding
-    description: AnimationDescription,
+    description: Box<dyn Send + Sync + Fn(f64) -> f64>,
 
     /// The scene program which updates this message
     target: OutputSink<AnimationBindingMessage>,
@@ -50,14 +54,24 @@ pub struct AnimationBinding {
 ///
 pub (crate) enum AnimationBindingMessage {
     /// 1/60th of a second has passed
-    Tick,
+    Tick(Duration),
+
+    /// Sets the time in seconds between ticks (defaults to 1/60th of a second)
+    SetTickRate(f64),
 
     /// Tracks and updates an animation binding
     AddAnimationBinding(Weak<Mutex<AnimationBindingCore>>),
 }
 
 impl SceneMessage for AnimationBindingMessage {
+    fn default_target() -> StreamTarget { (*ANIMATION_BINDING_SUBPROGRAM).into() }
+
     fn serializable() -> bool { false }
+
+    fn initialise(init_context: &impl SceneInitialisationContext) {
+        init_context.add_subprogram(*ANIMATION_BINDING_SUBPROGRAM, animation_binding_program, 100);
+        init_context.connect_programs((), StreamTarget::Filtered(FilterHandle::for_filter(|msgs| msgs.map(|msg: TimeOut| AnimationBindingMessage::Tick(msg.1))), *ANIMATION_BINDING_SUBPROGRAM), StreamId::with_message_type::<TimeOut>()).unwrap();
+    }
 }
 
 impl Serialize for AnimationBindingMessage {
@@ -113,6 +127,13 @@ impl AnimationBinding {
     pub fn filter_unused_notifications(&self) {
         self.core.lock().unwrap().when_changed.retain(|releasable| releasable.is_in_use());
     }
+
+    ///
+    /// Changes the tick rate of the animations running in the scene
+    ///
+    pub async fn set_tick_rate(new_tick_rate: f64, context: &SceneContext) {
+        context.send_message(AnimationBindingMessage::SetTickRate(new_tick_rate)).await.ok();
+    }
 }
 
 impl Changeable for AnimationBinding {
@@ -145,6 +166,107 @@ impl Bound for AnimationBinding {
 }
 
 ///
+/// The animation binding program is a singleton program that runs in the scene that updates all of the active animation bindings according to the timer
+///
+async fn animation_binding_program(input: InputStream<AnimationBindingMessage>, context: SceneContext) {
+    let program_id  = context.current_program_id().unwrap();
+    let mut timer   = context.send::<TimerRequest>(()).unwrap();
+
+    // State of the animations
+    let mut tick_time       = 1.0/60.0;
+    let mut is_ticking      = false;
+    let mut cores           = vec![];
+    let mut active_cores    = HashSet::new();
+
+    // Run the main loop
+    let mut input = input;
+    while let Some(msg) = input.next().await {
+        match msg {
+            AnimationBindingMessage::AddAnimationBinding(binding_core) => {
+                if let Some(core) = binding_core.upgrade() {
+                    let identifier = core.lock().unwrap().identifier;
+
+                    if !active_cores.contains(&identifier) {
+                        // Add this core to the set that we're monitoring
+                        active_cores.insert(identifier);
+                        cores.push((identifier, binding_core));
+
+                        // Start the timer if necessary
+                        if !is_ticking {
+                            let duration = Duration::from_nanos((1_000_000_000.0 * tick_time) as _);
+                            timer.send(TimerRequest::CallEvery(program_id, 0, duration)).await.ok();
+
+                            is_ticking = true;
+                        }
+                    }
+                }
+            },
+
+            AnimationBindingMessage::SetTickRate(new_tick_time) => {
+                // Change the tick time
+                tick_time = new_tick_time;
+
+                // Re-request the ticks if the timer is running
+                if is_ticking {
+                    let duration = Duration::from_nanos((1_000_000_000.0 * tick_time) as _);
+                    timer.send(TimerRequest::Cancel(program_id, 0)).await.ok();
+                    timer.send(TimerRequest::CallEvery(program_id, 0, duration)).await.ok();
+                }
+            },
+
+            AnimationBindingMessage::Tick(_duration) => {
+                // Use the current instant to update all of the cores
+                let now = Instant::now();
+
+                // Update the cores
+                let mut finished_cores  = vec![];
+                let mut to_notify       = vec![];
+                for (idx, (identifier, core)) in cores.iter().enumerate() {
+                    // Upgrade the core so we can update it
+                    let identifier          = *identifier;
+                    let Some(core)          = core.upgrade() else { finished_cores.push((idx, identifier)); continue; };
+                    let core                = core.lock().unwrap();
+
+                    // If there's a start time, this animation is running (else it's stopped)
+                    let Some(start_time)    = core.start_time else { finished_cores.push((idx, identifier)); continue; };
+
+                    // Update the value
+                    let since_start         = now.duration_since(start_time);
+                    let seconds_since_start = (since_start.as_nanos() as f64) / 1_000_000_000.0;
+                    let new_value           = (core.description)(seconds_since_start);
+
+                    if new_value == core.value { continue; }
+                    if new_value >= 1.0 {
+                        // Animation stops once the value hits 1.0
+                        finished_cores.push((idx, identifier));
+                    }
+
+                    // Notify the bindings
+                    to_notify.extend(core.when_changed.iter().map(|notify| notify.clone_for_inspection()));
+                }
+
+                // Remove any cores that are finished
+                for (finished_idx, identifier) in finished_cores.into_iter().rev() {
+                    cores.remove(finished_idx);
+                    active_cores.remove(&identifier);
+                }
+
+                // Notify the updated bindings
+                for notify in to_notify {
+                    notify.mark_as_changed();
+                }
+
+                // Stop ticking when we run out of cores
+                if cores.is_empty() {
+                    timer.send(TimerRequest::Cancel(program_id, 0)).await.ok();
+                    is_ticking = false;
+                }
+            },
+        }
+    }
+}
+
+///
 /// Creates a stopped animation binding in the specified scene context
 ///
 pub fn animate_binding(description: AnimationDescription, context: &SceneContext) -> AnimationBinding {
@@ -153,7 +275,7 @@ pub fn animate_binding(description: AnimationDescription, context: &SceneContext
         identifier:     identifier,
         when_changed:   vec![],
         start_time:     None,
-        description:    description,
+        description:    description.transform_fn(),
         target:         context.send::<AnimationBindingMessage>(()).unwrap(),
         value:          0.0,
     };
