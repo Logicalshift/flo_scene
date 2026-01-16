@@ -54,7 +54,7 @@ pub struct AnimationBinding {
 ///
 pub (crate) enum AnimationBindingMessage {
     /// 1/60th of a second has passed
-    Tick(Duration),
+    Tick(Duration, Instant),
 
     /// Sets the time in seconds between ticks (defaults to 1/60th of a second)
     SetTickRate(f64),
@@ -70,7 +70,7 @@ impl SceneMessage for AnimationBindingMessage {
 
     fn initialise(init_context: &impl SceneInitialisationContext) {
         init_context.add_subprogram(*ANIMATION_BINDING_SUBPROGRAM, animation_binding_program, 100);
-        init_context.connect_programs((), StreamTarget::Filtered(FilterHandle::for_filter(|msgs| msgs.map(|msg: TimeOut| AnimationBindingMessage::Tick(msg.1))), *ANIMATION_BINDING_SUBPROGRAM), StreamId::with_message_type::<TimeOut>()).unwrap();
+        init_context.connect_programs((), StreamTarget::Filtered(FilterHandle::for_filter(|msgs| msgs.map(|msg: TimeOut| AnimationBindingMessage::Tick(msg.1, Instant::now()))), *ANIMATION_BINDING_SUBPROGRAM), StreamId::with_message_type::<TimeOut>()).unwrap();
     }
 }
 
@@ -214,10 +214,7 @@ async fn animation_binding_program(input: InputStream<AnimationBindingMessage>, 
                 }
             },
 
-            AnimationBindingMessage::Tick(_duration) => {
-                // Use the current instant to update all of the cores
-                let now = Instant::now();
-
+            AnimationBindingMessage::Tick(_duration, now) => {
                 // Update the cores
                 let mut finished_cores  = vec![];
                 let mut to_notify       = vec![];
