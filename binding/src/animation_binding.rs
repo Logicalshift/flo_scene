@@ -129,6 +129,13 @@ impl AnimationBinding {
     }
 
     ///
+    /// Updates the animation performed by this binding
+    ///
+    pub fn change_animation(&self, description: AnimationDescription) {
+        self.core.lock().unwrap().description = description.transform_fn();
+    }
+
+    ///
     /// If there are any notifiables in this object that aren't in use, remove them
     ///
     pub fn filter_unused_notifications(&self) {
