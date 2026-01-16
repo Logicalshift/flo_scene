@@ -30,6 +30,9 @@ pub (crate) struct AnimationBindingCore {
     /// The instant when this animation was started
     start_time: Option<Instant>,
 
+    /// The active animation description
+    description: AnimationDescription,
+
     /// The description of the animation that should be performed by this binding
     transform: Box<dyn Send + Sync + Fn(f64) -> f64>,
 
@@ -132,7 +135,10 @@ impl AnimationBinding {
     /// Updates the animation performed by this binding
     ///
     pub fn change_animation(&self, description: AnimationDescription) {
-        self.core.lock().unwrap().transform = description.transform_fn();
+        let mut core = self.core.lock().unwrap();
+
+        core.transform      = description.transform_fn();
+        core.description    = description;
     }
 
     ///
@@ -289,6 +295,7 @@ pub fn animate_binding(description: AnimationDescription, context: &SceneContext
         when_changed:   vec![],
         start_time:     None,
         transform:      description.transform_fn(),
+        description:    description,
         target:         context.send::<AnimationBindingMessage>(()).unwrap(),
         value:          0.0,
     };
