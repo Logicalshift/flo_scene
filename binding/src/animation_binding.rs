@@ -328,6 +328,9 @@ mod test {
             // Timer events should generate messages from the follow
             let mut animation = context.send::<AnimationBindingMessage>(()).unwrap();
 
+            let val = updates.next().await.unwrap();
+            context.send_message(Msg(val)).await.unwrap();
+
             animation.send(AnimationBindingMessage::Tick(Duration::from_millis(100), tenth)).await.ok();
             let val = updates.next().await.unwrap();
             context.send_message(Msg(val)).await.unwrap();
@@ -343,6 +346,7 @@ mod test {
 
         // Run in the test harness
         TestBuilder::new()
+            .expect_message_matching(Msg(0.0), "Zero")
             .expect_message_matching(Msg(0.1), "Tenth")
             .expect_message_matching(Msg(0.5), "Half")
             .expect_message_matching(Msg(1.0), "Full")
