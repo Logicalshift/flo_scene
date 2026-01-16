@@ -229,7 +229,7 @@ async fn animation_binding_program(input: InputStream<AnimationBindingMessage>, 
                     // Upgrade the core so we can update it
                     let identifier          = *identifier;
                     let Some(core)          = core.upgrade() else { finished_cores.push((idx, identifier)); continue; };
-                    let core                = core.lock().unwrap();
+                    let mut core            = core.lock().unwrap();
 
                     // If there's a start time, this animation is running (else it's stopped)
                     let Some(start_time)    = core.start_time else { finished_cores.push((idx, identifier)); continue; };
@@ -244,6 +244,8 @@ async fn animation_binding_program(input: InputStream<AnimationBindingMessage>, 
                         // Animation stops once the value hits 1.0
                         finished_cores.push((idx, identifier));
                     }
+
+                    core.value = new_value;
 
                     // Notify the bindings
                     to_notify.extend(core.when_changed.iter().map(|notify| notify.clone_for_inspection()));
