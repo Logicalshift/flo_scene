@@ -193,6 +193,13 @@ impl AnimationDescription {
             }.boxed()
         }
     }
+
+    ///
+    /// Takes the 'when finished' function in order to run it
+    ///
+    pub (crate) fn take_when_finished(&mut self) -> Option<Box<dyn Send + Sync + FnOnce(SceneContext) -> BoxFuture<'static, ()>>> {
+        self.when_finished.take()
+    }
 }
 
 ///

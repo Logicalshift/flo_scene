@@ -266,8 +266,20 @@ async fn animation_binding_program(input: InputStream<AnimationBindingMessage>, 
 
                 // Remove any cores that are finished
                 for (finished_idx, identifier) in finished_cores.into_iter().rev() {
-                    cores.remove(finished_idx);
+                    let old_core = cores.remove(finished_idx);
                     active_cores.remove(&identifier);
+
+                    // Call when_finished if the animation provides one
+                    if let Some(old_core) = old_core.1.upgrade() {
+                        let when_finished = {
+                            let mut old_core = old_core.lock().unwrap();
+                            old_core.description.take_when_finished()
+                        };
+
+                        if let Some(when_finished) = when_finished {
+                            (when_finished(context.clone())).await;
+                        }
+                    }
                 }
 
                 // Notify the updated bindings
