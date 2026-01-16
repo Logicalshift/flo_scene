@@ -31,7 +31,7 @@ pub (crate) struct AnimationBindingCore {
     start_time: Option<Instant>,
 
     /// The description of the animation that should be performed by this binding
-    description: Box<dyn Send + Sync + Fn(f64) -> f64>,
+    transform: Box<dyn Send + Sync + Fn(f64) -> f64>,
 
     /// The scene program which updates this message
     target: OutputSink<AnimationBindingMessage>,
@@ -132,7 +132,7 @@ impl AnimationBinding {
     /// Updates the animation performed by this binding
     ///
     pub fn change_animation(&self, description: AnimationDescription) {
-        self.core.lock().unwrap().description = description.transform_fn();
+        self.core.lock().unwrap().transform = description.transform_fn();
     }
 
     ///
@@ -244,7 +244,7 @@ async fn animation_binding_program(input: InputStream<AnimationBindingMessage>, 
                     // Update the value
                     let since_start         = now.duration_since(start_time);
                     let seconds_since_start = (since_start.as_nanos() as f64) / 1_000_000_000.0;
-                    let new_value           = (core.description)(seconds_since_start);
+                    let new_value           = (core.transform)(seconds_since_start);
 
                     if new_value == core.value { continue; }
                     if new_value >= 1.0 {
@@ -288,7 +288,7 @@ pub fn animate_binding(description: AnimationDescription, context: &SceneContext
         identifier:     identifier,
         when_changed:   vec![],
         start_time:     None,
-        description:    description.transform_fn(),
+        transform:      description.transform_fn(),
         target:         context.send::<AnimationBindingMessage>(()).unwrap(),
         value:          0.0,
     };
