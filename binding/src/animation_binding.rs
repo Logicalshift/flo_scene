@@ -126,9 +126,19 @@ impl AnimationBinding {
     }
 
     ///
-    /// Stops this animation from running, resetting its value to 0
+    /// Stops this animation from running, leaving its value wherever it was
     ///
     pub fn stop(&self) {
+        let mut core = self.core.lock().unwrap();
+
+        // Stops the animation from running
+        core.start_time = None;
+    }
+
+    ///
+    /// Stops this animation from running, resetting its value to 0
+    ///
+    pub fn reset(&self) {
         let to_notify = {
             let mut core = self.core.lock().unwrap();
 
