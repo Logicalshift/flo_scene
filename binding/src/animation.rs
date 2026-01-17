@@ -202,6 +202,14 @@ impl AnimationDescription {
     }
 }
 
+impl Default for AnimationDescription {
+    #[inline]
+    fn default() -> Self {
+        Self::linear(1.0)
+    }
+}
+
+
 ///
 /// Runs an animation binding in the specified scene context, returning the subprogram ID assigned to the running animation program
 ///
