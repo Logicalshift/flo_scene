@@ -297,6 +297,15 @@ async fn animation_binding_program(input: InputStream<AnimationBindingMessage>, 
     }
 }
 
+impl PartialEq for AnimationBinding {
+    fn eq(&self, other: &Self) -> bool {
+        let our_id      = self.core.lock().unwrap().identifier;
+        let their_id    = other.core.lock().unwrap().identifier;
+
+        our_id == their_id
+    }
+}
+
 ///
 /// Creates a stopped animation binding in the specified scene context
 ///
