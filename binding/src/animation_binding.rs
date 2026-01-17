@@ -1,6 +1,7 @@
 use super::animation::*;
 
 use flo_binding::*;
+use flo_binding::binding_context::*;
 use flo_binding::releasable::*;
 use flo_scene::*;
 use flo_scene::programs::*;
@@ -171,6 +172,8 @@ impl Bound for AnimationBinding {
     type Value = f64;
 
     fn get(&self) -> Self::Value {
+        BindingContext::add_dependency(self.clone());
+
         self.core.lock().unwrap().value
     }
 
