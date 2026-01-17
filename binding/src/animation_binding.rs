@@ -325,20 +325,22 @@ mod test {
     #[test]
     fn update_animation_binding() {
         #[derive(Serialize, Deserialize, PartialEq, Debug)]
-        pub struct Msg(f64);
+        pub struct Msg(f64, bool);
 
         impl SceneMessage for Msg { }
 
         let scene               = Scene::default();
         let test_program        = SubProgramId::called("test::test");
         let animation_program   = SubProgramId::called("test::animation_program");
+        let is_finished         = Arc::new(Mutex::new(false));
 
         // Disable the timer by dumping the messages
         scene.connect_programs((), StreamTarget::None, StreamId::with_message_type::<TimerRequest>()).unwrap();
 
-        scene.add_subprogram(animation_program, |_input: InputStream<()>, context: SceneContext| async move {
+        scene.add_subprogram(animation_program, move |_input: InputStream<()>, context: SceneContext| async move {
             // Create our animation binding and start it
-            let animation_binding = animate_binding(AnimationDescription::linear(1.0), &context);
+            let mark_is_finished = is_finished.clone();
+            let animation_binding = animate_binding(AnimationDescription::linear(1.0).with_when_finished(move |_| async move { *(mark_is_finished.lock().unwrap()) = true; }), &context);
             animation_binding.start();
 
             // Need to know the start time to send updates to the animation program
@@ -354,28 +356,32 @@ mod test {
             // Timer events should generate messages from the follow
             let mut animation = context.send::<AnimationBindingMessage>(()).unwrap();
 
-            let val = updates.next().await.unwrap();
-            context.send_message(Msg(val)).await.unwrap();
+            let val         = updates.next().await.unwrap();
+            let finished    = *(is_finished.lock().unwrap());
+            context.send_message(Msg(val, finished)).await.unwrap();
 
             animation.send(AnimationBindingMessage::Tick(Duration::from_millis(100), tenth)).await.ok();
-            let val = updates.next().await.unwrap();
-            context.send_message(Msg(val)).await.unwrap();
+            let val         = updates.next().await.unwrap();
+            let finished    = *(is_finished.lock().unwrap());
+            context.send_message(Msg(val, finished)).await.unwrap();
 
             animation.send(AnimationBindingMessage::Tick(Duration::from_millis(500), half)).await.ok();
-            let val = updates.next().await.unwrap();
-            context.send_message(Msg(val)).await.unwrap();
+            let val         = updates.next().await.unwrap();
+            let finished    = *(is_finished.lock().unwrap());
+            context.send_message(Msg(val, finished)).await.unwrap();
 
             animation.send(AnimationBindingMessage::Tick(Duration::from_millis(1000), full)).await.ok();
-            let val = updates.next().await.unwrap();
-            context.send_message(Msg(val)).await.unwrap();
+            let val         = updates.next().await.unwrap();
+            let finished    = *(is_finished.lock().unwrap());
+            context.send_message(Msg(val, finished)).await.unwrap();
         }, 1);
 
         // Run in the test harness
         TestBuilder::new()
-            .expect_message_matching(Msg(0.0), "Zero")
-            .expect_message_matching(Msg(0.1), "Tenth")
-            .expect_message_matching(Msg(0.5), "Half")
-            .expect_message_matching(Msg(1.0), "Full")
+            .expect_message_matching(Msg(0.0, false), "Zero")
+            .expect_message_matching(Msg(0.1, false), "Tenth")
+            .expect_message_matching(Msg(0.5, false), "Half")
+            .expect_message_matching(Msg(1.0, true), "Full")
             .run_in_scene(&scene, test_program);
     }
 }
