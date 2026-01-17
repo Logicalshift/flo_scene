@@ -126,10 +126,28 @@ impl AnimationBinding {
     }
 
     ///
-    /// Stops this animation from running
+    /// Stops this animation from running, resetting its value to 0
     ///
     pub fn stop(&self) {
-        self.core.lock().unwrap().start_time = None;
+        let to_notify = {
+            let mut core = self.core.lock().unwrap();
+
+            // Stops the animation from running
+            core.start_time = None;
+
+            if core.value != 0.0 {
+                // Reset the value
+                core.value = 0.0;
+                core.when_changed.iter().map(|changed| changed.clone_for_inspection()).collect::<Vec<_>>()
+            } else {
+                vec![]
+            }
+        };
+
+        // Notify anything that's listening that the value has reset to zero
+        for notify in to_notify.into_iter() {
+            notify.mark_as_changed();
+        }
     }
 
     ///
@@ -246,6 +264,8 @@ async fn animation_binding_program(input: InputStream<AnimationBindingMessage>, 
                     let identifier          = *identifier;
                     let Some(core)          = core.upgrade() else { finished_cores.push((idx, identifier)); continue; };
                     let mut core            = core.lock().unwrap();
+
+                    core.when_changed.retain(|releasable| releasable.is_in_use());
 
                     // If there's a start time, this animation is running (else it's stopped)
                     let Some(start_time)    = core.start_time else { finished_cores.push((idx, identifier)); continue; };
