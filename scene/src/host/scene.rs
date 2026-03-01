@@ -198,12 +198,39 @@ impl Scene {
             let mut stoppers: Vec<oneshot::Sender<()>>  = vec![];
             let mut join_handles                        = vec![];
 
+            // Detect if we're running in a tokio context so we can set up the same runtime in the spawned threads
+            #[cfg(feature = "tokio_support")]
+            let use_tokio = tokio::runtime::Handle::try_current().is_ok();
+
             for _ in 1..num_threads {
                 // Create the channel used to signal the thread to stop
                 let (send_stop, recv_stop) = oneshot::channel();
 
                 // Create the thread itself
-                let core        = Arc::clone(&core);
+                let core = Arc::clone(&core);
+
+                #[cfg(feature = "tokio_support")]
+                let join_handle = if use_tokio {
+                    thread::spawn(move || {
+                        tokio::runtime::Builder::new_current_thread()
+                            .enable_all()
+                            .build()
+                            .unwrap()
+                            .block_on(async move {
+                                // Run the scene until the scene itself stops or the 'stop' event is triggered
+                                future::select(run_core(&core), recv_stop.map(|_| ())).await;
+                            });
+                    })
+                } else {
+                    thread::spawn(move || {
+                        executor::block_on(async move {
+                            // Run the scene until the scene itself stops or the 'stop' event is triggered
+                            future::select(run_core(&core), recv_stop.map(|_| ())).await;
+                        });
+                    })
+                };
+
+                #[cfg(not(feature = "tokio_support"))]
                 let join_handle = thread::spawn(move || {
                     executor::block_on(async move {
                         // Run the scene until the scene itself stops or the 'stop' event is triggered
