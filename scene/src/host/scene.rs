@@ -211,15 +211,13 @@ impl Scene {
 
                 #[cfg(feature = "tokio_support")]
                 let join_handle = if use_tokio {
+                    // Assume if we want threads that the tokio runtime is a multi-threaded runtime
+                    let handle = tokio::runtime::Handle::current();
                     thread::spawn(move || {
-                        tokio::runtime::Builder::new_current_thread()
-                            .enable_all()
-                            .build()
-                            .unwrap()
-                            .block_on(async move {
-                                // Run the scene until the scene itself stops or the 'stop' event is triggered
-                                future::select(run_core(&core), recv_stop.map(|_| ())).await;
-                            });
+                        let _guard = handle.enter();
+                        futures::executor::block_on(async move {
+                            future::select(run_core(&core), recv_stop.map(|_| ())).await;
+                        });
                     })
                 } else {
                     thread::spawn(move || {
