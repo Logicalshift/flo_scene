@@ -29,6 +29,108 @@ fn simple_command() {
 }
 
 #[test]
+fn simple_query() {
+    let scene = Scene::default();
+
+    // The result for our test query
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct TestQuery(usize);
+
+    impl SceneMessage for TestQuery { }
+
+    // Request type for the query
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct TestQueryRequest(StreamTarget);
+
+    impl SceneMessage for TestQueryRequest { }
+
+    impl QueryRequest for TestQueryRequest {
+        type ResponseData = TestQuery;
+
+        fn with_new_target(self, new_target: StreamTarget) -> Self {
+            Self(new_target)
+        }
+    }
+
+    // Create a subprogram to respond to queries
+    let test_subprogram = SubProgramId::called("QueryTest");
+
+    scene.add_subprogram(test_subprogram, |input, context| async move {
+        let mut input = input;
+
+        while let Some(TestQueryRequest(target)) = input.next().await {
+            let mut response = context.send(target).unwrap();
+
+            response.send(QueryResponse::with_iterator(vec![
+                TestQuery(1),
+                TestQuery(2),
+                TestQuery(3),
+                TestQuery(4),
+            ])).await.ok();
+        }
+    }, 100);
+
+    // Run the command using the test builder
+    let test_program = SubProgramId::new();
+    TestBuilder::new()
+        .run_query(ReadCommand::default(), TestQueryRequest(StreamTarget::None), test_subprogram, |output| if &output != &vec![TestQuery(1), TestQuery(2), TestQuery(3), TestQuery(4)] { Err(format!("Unexpected command output: {:?}", output)) } else { Ok(()) })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
+fn simple_query_x1000() {
+    let scene = Scene::default();
+
+    // The result for our test query
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct TestQuery(usize);
+
+    impl SceneMessage for TestQuery { }
+
+    // Request type for the query
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct TestQueryRequest(StreamTarget);
+
+    impl SceneMessage for TestQueryRequest { }
+
+    impl QueryRequest for TestQueryRequest {
+        type ResponseData = TestQuery;
+
+        fn with_new_target(self, new_target: StreamTarget) -> Self {
+            Self(new_target)
+        }
+    }
+
+    // Create a subprogram to respond to queries
+    let test_subprogram = SubProgramId::called("QueryTest");
+
+    scene.add_subprogram(test_subprogram, |input, context| async move {
+        let mut input = input;
+
+        while let Some(TestQueryRequest(target)) = input.next().await {
+            let mut response = context.send(target).unwrap();
+
+            response.send(QueryResponse::with_iterator(vec![
+                TestQuery(1),
+                TestQuery(2),
+                TestQuery(3),
+                TestQuery(4),
+            ])).await.ok();
+        }
+    }, 100);
+
+    // Run the command using the test builder
+    let test_program = SubProgramId::new();
+    let mut test = TestBuilder::new();
+
+    for _ in 0..1000 {
+        test = test.run_query(ReadCommand::default(), TestQueryRequest(StreamTarget::None), test_subprogram, |output| if &output != &vec![TestQuery(1), TestQuery(2), TestQuery(3), TestQuery(4)] { Err(format!("Unexpected command output: {:?}", output)) } else { Ok(()) })
+    }
+
+    test.run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
 fn simple_command_x1000() {
     let scene = Scene::default();
 
