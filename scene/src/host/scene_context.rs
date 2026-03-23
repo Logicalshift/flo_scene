@@ -203,15 +203,17 @@ impl SceneContext {
             // (There's a bit of fragility over the output stream here, if it gets reconnected it will stop sending to us)
             SceneCore::connect_programs(&scene_core, task_program_id.into(), StreamTarget::Any, StreamId::with_message_type::<TCommand::Output>()).unwrap();
 
-            // Send the context to the waiting program (needs to be after the connection is made as the default behaviour in subtasks is to discard output)
             let subtask_context = SceneContext::new(&scene_core, &subtask);
-            send_context.send(subtask_context.clone()).ok();
 
             // Create a stream from the command output stream (this is an extra input stream for the target program)
+            // Do this while the subtask is blocked waiting for the context so that everything is connected when the task is unblocked
             let mut target_output_sink  = subtask_context.send::<TCommand::Output>(())?;
             let command_result_core     = command_result.core();
 
             target_output_sink.fix_target_stream(&command_result_core);
+
+            // Send the context to the waiting program (needs to be after the connection is made as the default behaviour in subtasks is to discard output)
+            send_context.send(subtask_context.clone()).ok();
 
             Ok(command_result)
         } else {
@@ -310,15 +312,17 @@ impl SceneContext {
             // (There's a bit of fragility over the output stream here, if it gets reconnected it will stop sending to us)
             SceneCore::connect_programs(&scene_core, task_program_id.into(), StreamTarget::Any, StreamId::with_message_type::<TCommand::Output>()).unwrap();
 
-            // Send the context to the waiting program (needs to be after the connection is made as the default behaviour in subtasks is to discard output)
-            let subtask_context = SceneContext::new(&scene_core, &subtask);
-            send_context.send(subtask_context.clone()).ok();
+            // Context for the subtask
+            let subtask_context         = SceneContext::new(&scene_core, &subtask);
 
-            // Create a stream from the command output stream (this is an extra input stream for the target program)
+            // Create a stream from the command output stream (this is an extra input stream for the target program), set it up while the subtask is blocked waiting for the context
             let mut target_output_sink  = subtask_context.send::<TCommand::Output>(())?;
-            let command_result_core     = command_result.core();
 
+            let command_result_core     = command_result.core();
             target_output_sink.fix_target_stream(&command_result_core);
+
+            // Send the context to the waiting program (needs to be after the connection is made as the default behaviour in subtasks is to discard output)
+            send_context.send(subtask_context.clone()).ok();
 
             Ok(command_result)
         } else {
