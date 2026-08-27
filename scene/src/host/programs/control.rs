@@ -52,7 +52,7 @@ pub struct SceneProgramFn(Box<dyn Send + FnOnce(Arc<Mutex<SceneCore>>)>);
 /// of programs. Each program can have any number of tags attached to it (typically only one
 /// name, but this isn't a strict limit)
 ///
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum SceneProgramTag {
     /// The name of this program
     Name(String),
@@ -116,6 +116,14 @@ pub enum SceneControl {
     StopScene,
 
     ///
+    /// Adds a tag to a subprogram
+    ///
+    /// Tags are cleared once a program stops and the scene has become idle. Tags can be applied to programs that
+    /// are not yet running (or programs that stopped long ago).
+    ///
+    Tag(SubProgramId, SceneProgramTag),
+
+    ///
     /// Subscribes the specified program to `SceneUpdate` events from the controller. This will send messages for the
     /// current state of the control before the new messages so the entire state can be determined
     ///
@@ -152,6 +160,9 @@ pub enum SceneUpdate {
 
     /// A subprogram has finished running
     Stopped(SubProgramId),
+
+    /// A tag has been applied to a subprogram ID
+    Tagged(SubProgramId, SceneProgramTag),
 }
 
 impl SceneProgramFn {
@@ -331,6 +342,7 @@ impl SceneControl {
         // This state is kept separate from the scene core state so that if we're starting a subscription we won't send a pending update more than once (ie, the events we've sent can be out of date with respect to the actual scene core state)
         let mut started_subprograms = HashSet::<SubProgramId>::new();
         let mut active_connections  = HashMap::<(SubProgramId, StreamId), SubProgramId>::new();
+        let mut tags                = HashMap::<SubProgramId, HashSet<SceneProgramTag>>::new();
 
         // Most of the scene control program's functionality is performed by manipulating the scene core directly
         let scene_core              = context.scene_core();
@@ -492,6 +504,7 @@ impl SceneControl {
                         let response = running_subprograms.iter()
                             .flat_map(|prog| scene_core.lock().unwrap().get_sub_program(*prog).map(|core| (prog, core)))
                             .map(|(prog, core)| SceneUpdate::Started(*prog, core.lock().unwrap().input_stream_id.clone()))
+                            .chain(tags.iter().flat_map(|(program_id, tags)| tags.iter().cloned().map(|tag| SceneUpdate::Tagged(*program_id, tag.clone()))))
                             //.chain(active_connections.iter().map(|((source, stream_id), target)| SceneUpdate::Connected(*source, *target, stream_id.clone())))
                             .chain(active_connections.iter().map(|(source, (stream_id, target))| SceneUpdate::Connected(*source, *target, stream_id.clone())))
                             .collect::<Vec<_>>();
@@ -501,13 +514,24 @@ impl SceneControl {
                     }
                 }
 
+                Control(Tag(program_id, tag)) => {
+                    // Add the tag
+                    tags.entry(program_id).or_insert_with(|| HashSet::new())
+                        .insert(tag.clone());
+
+                    // Notify subscribers
+                    update_subscribers.send(SceneUpdate::Tagged(program_id, tag)).await;
+                }
+
                 Update(update) => {
                     // Update our internal state
+                    // TODO: remove tags on stop! (request idle too)
                     match &update {
                         SceneUpdate::Started(program_id, _input_stream_id)  => { started_subprograms.insert(*program_id); },
                         SceneUpdate::Connected(source, target, stream_id)   => { active_connections.insert((*source, stream_id.clone()), *target); },
                         SceneUpdate::Disconnected(source, stream_id)        => { active_connections.remove(&(*source, stream_id.clone())); },
                         SceneUpdate::Stopped(program_id)                    => { started_subprograms.remove(program_id); },
+                        SceneUpdate::Tagged(_, _)                           => { /* We manage the tags rather than update them */ },
 
                         SceneUpdate::FailedConnection(_, _, _, _)           => { },
                     }
@@ -531,6 +555,7 @@ enum SerializedSceneControl {
     StopScene,
     Subscribe(StreamTarget),
     Query(StreamTarget),
+    Tag(SubProgramId, SceneProgramTag),
 }
 
 impl Serialize for SceneControl {
@@ -545,6 +570,7 @@ impl Serialize for SceneControl {
             SceneControl::StopScene                         => Ok(SerializedSceneControl::StopScene),
             SceneControl::Subscribe(target)                 => Ok(SerializedSceneControl::Subscribe(target.clone())),
             SceneControl::Query(target)                     => Ok(SerializedSceneControl::Query(target.clone())),
+            SceneControl::Tag(program_id, tag)              => Ok(SerializedSceneControl::Tag(*program_id, tag.clone())),
             SceneControl::Start(_)                          => Err(S::Error::custom("SceneControl::Start cannot be serialized (uses a function)"))
         }?;
 
@@ -566,6 +592,7 @@ impl<'a> Deserialize<'a> for SceneControl {
             SerializedSceneControl::StopScene                       => Ok(SceneControl::StopScene),
             SerializedSceneControl::Subscribe(target)               => Ok(SceneControl::Subscribe(target)),
             SerializedSceneControl::Query(target)                   => Ok(SceneControl::Query(target)),
+            SerializedSceneControl::Tag(program_id, tag)            => Ok(SceneControl::Tag(program_id, tag)),
         }
     }
 }
