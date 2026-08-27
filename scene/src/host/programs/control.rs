@@ -46,6 +46,32 @@ static SCENE_CONTROL_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandl
 pub struct SceneProgramFn(Box<dyn Send + FnOnce(Arc<Mutex<SceneCore>>)>);
 
 ///
+/// A tag attached to a program in a scene
+///
+/// These are useful for identifying programs that don't use named subprogram IDs, or groups
+/// of programs. Each program can have any number of tags attached to it (typically only one
+/// name, but this isn't a strict limit)
+///
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SceneProgramTag {
+    /// The name of this program
+    Name(String),
+
+    /// The task that this program is carrying out
+    ///
+    /// This is used for cases where a program might have several instances: the name can identify the
+    /// program as a whole, and the task(s) assigned to each program identifies what they do (eg:
+    /// Name: TCP socket, Task: Connection from 127.0.0.1, Task: Port 1234)
+    Task(String),
+
+    /// A keyword associated with this program
+    Keyword(String),
+
+    /// A namespace, grouping together a set of programs
+    Namespace(String),
+}
+
+///
 /// Messages that can be sent to the main scene control program
 ///
 #[derive(Debug)]
