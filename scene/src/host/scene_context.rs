@@ -412,6 +412,14 @@ impl SceneContext {
         let Some(program_core)  = self.program_core.upgrade() else { return };
         let Some(scene_core)    = self.scene_core.upgrade() else { return; };
 
+        // Lock the input stream so it can't go idle while the background task is running
+        let (stream_id, program_id) = { 
+            let Ok(program_core) = program_core.lock() else { return };
+            (program_core.input_stream_id.clone(), *program_core.program_id()) 
+        };
+        let Some(input_stream_core) = scene_core.lock().unwrap().get_input_stream_core(program_id) else { return };
+        let mut not_idle            = Some(stream_id.not_idle(&input_stream_core));
+
         let (process_handle, waker) = {
             // The background process handle is used to clear the future from the scene core when we're done
             let background_process_handle: Option<ProcessHandle> = None;
@@ -437,6 +445,9 @@ impl SceneContext {
                             program_core.process_id.retain(|old_handle| old_handle != &process_handle);
                         }
 
+                        // Input core can be idle again
+                        drop(not_idle.take());
+
                         // Stop the main process
                         Poll::Ready(())
                     },
@@ -444,7 +455,6 @@ impl SceneContext {
             });
 
             // Start the background process running in the core
-            // TODO: hold the scene as 'not idle' while the process_id count for this subprogram is >1
             let Ok(mut scene_core)  = scene_core.lock() else { return; };
 
             // Store the background process handle so when the background process completes we clear it out properly
