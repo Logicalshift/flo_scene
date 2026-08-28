@@ -459,6 +459,13 @@ impl SceneControl {
                         for ((source, stream), target) in active_connections.iter() {
                             subscriber.send(SceneUpdate::Connected(*source, *target, stream.clone())).await.ok();
                         }
+
+                        // Send all of the tags
+                        for (program_id, tags) in tags.iter() {
+                            for tag in tags.iter() {
+                                subscriber.send(SceneUpdate::Tagged(*program_id, tag.clone())).await.ok();
+                            }
+                        }
                     }
                 },
 
