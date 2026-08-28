@@ -399,6 +399,10 @@ impl SceneContext {
     ///
     /// Adds a short background process to this subprogram
     ///
+    /// Background processes are complete in an arbitrary order (they're all run in parallel). We always poll the
+    /// supplied future immediately to speed up the very common case where a background task doesn't need to block
+    /// at all before scheduling it as a process in the scene.
+    ///
     /// This should be a short task rather than anything long-running: background tasks are completed rather than
     /// discarded when a subprogram ends, and the scene is not idle while any background programs are running.
     ///
@@ -424,6 +428,7 @@ impl SceneContext {
                 fn wake_by_ref(_arc_self: &Arc<Self>) { }
             }
 
+            // Poll with a waker that we throw away (gets replaced when we queue in the background)
             let oneshot_waker       = task::waker(Arc::new(OneShotWaker { }));
             let mut oneshot_context = task::Context::from_waker(&oneshot_waker);
 
