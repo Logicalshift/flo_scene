@@ -4,6 +4,7 @@ use crate::host::filter::*;
 use crate::host::input_stream::*;
 use crate::host::output_sink::*;
 use crate::host::programs::*;
+use crate::host::process_core::*;
 use crate::host::scene_core::*;
 use crate::host::scene_message::*;
 use crate::host::stream_id::*;
@@ -412,13 +413,45 @@ impl SceneContext {
         let Some(scene_core)    = self.scene_core.upgrade() else { return; };
 
         let (process_handle, waker) = {
+            // The background process handle is used to clear the future from the scene core when we're done
+            let background_process_handle: Option<ProcessHandle> = None;
+            let background_process_handle = Arc::new(Mutex::new(background_process_handle));
+
+            // Decorate the future to set the context and tidy up when it's done
+            let context         = self.clone();
+            let mut future      = Box::pin(future);
+            let process_handle  = background_process_handle.clone();
+
+            let future          = future::poll_fn(move |ctxt| {
+                use futures::task::{Poll};
+
+                // Poll the future with the scene context set
+                let poll_result = with_scene_context(&context, || future.poll_unpin(ctxt));
+
+                match poll_result {
+                    Poll::Pending   => Poll::Pending,
+                    Poll::Ready(()) => {
+                        // Tidy up by removing ourselves from the list of program IDs
+                        if let (Some(program_core), Some(process_handle)) = (context.program_core.upgrade(), process_handle.lock().ok().and_then(|mut handle| handle.take())) {
+                            let mut program_core = program_core.lock().unwrap();
+                            program_core.process_id.retain(|old_handle| old_handle != &process_handle);
+                        }
+
+                        // Stop the main process
+                        Poll::Ready(())
+                    },
+                }
+            });
+
             // Start the background process running in the core
-            // TODO: add in this context to the future that we run
-            // TODO: when done, clear the process handle from the subprogram
             // TODO: hold the scene as 'not idle' while the process_id count for this subprogram is >1
             let Ok(mut scene_core)  = scene_core.lock() else { return; };
 
-            scene_core.start_process(future)
+            // Store the background process handle so when the background process completes we clear it out properly
+            let (process_handle, waker) = scene_core.start_process(future);
+            *(background_process_handle.lock().unwrap()) = Some(process_handle);
+
+            (process_handle, waker)
         };
 
         {
