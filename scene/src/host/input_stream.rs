@@ -46,6 +46,12 @@ pub (crate) struct InputStreamCore<TMessage> {
     /// True if this stream has been polled while empty, false if this stream has recently returned a value
     idle: bool,
 
+    /// Handles of things blocking this stream from being idle
+    idle_blockers: Vec<usize>,
+
+    /// Next handle to assign to an idle blocker
+    next_idle_blocker: usize,
+
     /// True if the input stream has been dropped
     dropped: bool,
 
@@ -124,6 +130,35 @@ impl<TMessage> InputStreamBlocker<TMessage> {
     }
 }
 
+///
+/// Struct that blocks an input stream from becoming idle, even if it's waiting for messages (this stops the scene as a whole
+/// from becoming idle)
+///
+pub (crate) struct InputStreamIdleBlocker<TMessage>(Weak<Mutex<InputStreamCore<TMessage>>>, usize);
+
+impl<TMessage> Drop for InputStreamIdleBlocker<TMessage> {
+    fn drop(&mut self) {
+        // Remove this blocker from the input core
+        let check_if_idle_scene = {
+            let Some(core)      = self.0.upgrade() else { return; };
+            let Ok(mut core)    = core.lock() else { return; };
+
+            core.idle_blockers.retain(|handle| handle != &self.1);
+
+            if core.idle && core.idle_blockers.is_empty() {
+                core.scene_core.upgrade()
+            } else {
+                None
+            }
+        };
+
+        // If the input core went idle, then tell the core to check if idle
+        if let Some(scene) = check_if_idle_scene {
+            SceneCore::check_if_idle(&scene);
+        }
+    }
+}
+
 impl<TMessage> InputStream<TMessage> 
 where
     TMessage: SceneMessage,
@@ -144,6 +179,8 @@ where
             allow_thread_stealing:  TMessage::allow_thread_stealing_by_default(),
             closed:                 false,
             idle:                   false,
+            idle_blockers:          vec![],
+            next_idle_blocker:      0,
             dropped:                false,
             waiting_for_idle:       0,
         };
@@ -183,6 +220,32 @@ where
     #[inline]
     pub fn blocker(&self) -> InputStreamBlocker<TMessage> {
         InputStreamBlocker(Arc::downgrade(&self.core))
+    }
+
+    ///
+    /// Sets the input stream to 'not idle', preventing idle messages from being generated even if we're waiting 
+    /// for a message.
+    ///
+    /// Drop the returned object to allow the stream to become idle again. This is useful if some background work
+    /// is triggered outside of the current subprogram that should still keep the scene busy.
+    ///
+    /// (SceneContext::run_in_background() is the main user-facing way of triggering this state)
+    ///
+    #[inline]
+    pub (crate) fn not_idle(&self) -> InputStreamIdleBlocker<TMessage> {
+        // Assign a handle and add it to the list of blockers
+        let handle = {
+            let mut core = self.core.lock().unwrap();
+
+            let handle = core.next_idle_blocker;
+            core.next_idle_blocker += 1;
+
+            core.idle_blockers.push(handle);
+            handle
+        };
+
+        // Return the idle blocker object
+        InputStreamIdleBlocker(Arc::downgrade(&self.core), handle)
     }
 
     ///
@@ -333,7 +396,9 @@ where
     ///
     #[inline]
     pub (crate) fn is_idle(&self) -> bool {
-        (self.idle && self.waiting_messages.is_empty()) || (self.waiting_for_idle > 0) || (self.dropped)
+        (self.idle && self.idle_blockers.is_empty() && self.waiting_messages.is_empty()) 
+            || (self.waiting_for_idle > 0 && self.idle_blockers.is_empty()) 
+            || (self.dropped)
     }
 
     ///
