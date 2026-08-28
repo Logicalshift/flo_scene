@@ -418,20 +418,33 @@ impl SceneContext {
         let Some(program_core)  = self.program_core.upgrade() else { return };
         let Some(scene_core)    = self.scene_core.upgrade() else { return; };
 
+        // We'll first try polling as a one-shot
+        use futures::task;
+
+        struct OneShotWaker {
+            /// In case the one-shot waker is used to try to awaken the future later on
+            upgraded_waker: Mutex<Option<task::Waker>>,
+        }
+        impl task::ArcWake for OneShotWaker {
+            fn wake_by_ref(arc_self: &Arc<Self>) {
+                let waker = { arc_self.upgraded_waker.lock().ok().and_then(|mut waker| waker.take()) };
+
+                if let Some(waker) = waker {
+                    waker.wake();
+                }
+            }
+        }
+
+        let oneshot_waker = Arc::new(OneShotWaker {
+            upgraded_waker: Mutex::new(None),
+        });
+
         // If we're already in a scene context, poll the background task once to give it a chance to immediately complete before we queue it up
         // We'll already be blocking an input stream going idle here, and we'll be in the futures context of whatever scene is running
         if scene_context().is_some() {
-            use futures::task;
-
-            struct OneShotWaker { }
-            impl task::ArcWake for OneShotWaker {
-                fn wake_by_ref(_arc_self: &Arc<Self>) { }
-            }
-
             // Poll with a waker that we throw away (gets replaced when we queue in the background)
-            let oneshot_waker       = task::waker(Arc::new(OneShotWaker { }));
+            let oneshot_waker       = task::waker(oneshot_waker.clone());
             let mut oneshot_context = task::Context::from_waker(&oneshot_waker);
-
             let poll_result         = with_scene_context(self, || future.poll_unpin(&mut oneshot_context));
 
             match poll_result {
@@ -462,9 +475,15 @@ impl SceneContext {
             // Decorate the future to set the context and tidy up when it's done
             let context         = self.clone();
             let process_handle  = background_process_handle.clone();
+            let mut older_waker = Some(oneshot_waker);
 
             let future          = future::poll_fn(move |ctxt| {
                 use futures::task::{Poll};
+
+                // Wake this new future instead of nothing if something has taken a copy of the oneshot waker from before
+                if let Some(old_waker) = older_waker.take() {
+                    if let Ok(mut upgrade) = old_waker.upgraded_waker.lock() { *upgrade = Some(ctxt.waker().clone()); }
+                }
 
                 // Poll the future with the scene context set
                 let poll_result = with_scene_context(&context, || future.poll_unpin(ctxt));
