@@ -8,8 +8,11 @@ use flo_scene::programs::*;
 
 use futures::prelude::*;
 use futures::future;
+use futures::channel::oneshot;
 
 use serde::*;
+
+use std::time::{Duration};
 
 #[test]
 fn notify_on_idle() {
@@ -311,4 +314,59 @@ fn wait_for_idle_program_queues_extra_requests_100_times() {
             .expect_message(|TrySend| { Ok(()) })
             .run_in_scene_with_threads(&scene, test_program, 5);
     }
+}
+
+#[test]
+fn never_becomes_idle_with_background_processes() {
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    enum TestMessage {
+        IsIdle,
+        TimerExpired,
+    }
+
+    impl SceneMessage for TestMessage { }
+
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+
+    let idle_program    = SubProgramId::new();
+    let (send, recv)    = oneshot::channel::<()>();
+
+    // Add a program with a background task and an idle request
+    scene.add_subprogram(idle_program, move |input: InputStream<IdleNotification>, context| async move {
+        // Wait for the recv to be sent (blocks the idle notification)
+        context.run_in_background(async move {
+            recv.await.unwrap();
+        });
+
+        // Request an idle notification
+        context.send_message(IdleRequest::WhenIdle(idle_program)).await.unwrap();
+
+        // We never reach here until the background process is unblocked
+        let mut input = input;
+        while let Some(_input) = input.next().await {
+            context.send_message(TestMessage::IsIdle).await.unwrap();
+        }
+    }, 5);
+
+    // Add a program that runs a timer and unblocks the recv task when it fires
+    let timer_program = SubProgramId::new();
+    scene.add_subprogram(timer_program, move |input: InputStream<TimeOut>, context| async move {
+        // Needs to be long enough that the idle program will usually win the race
+        context.send_message(TimerRequest::CallAfter(timer_program, 0, Duration::from_millis(500))).await.unwrap();
+
+        let mut input = input;
+        input.next().await;
+
+        // Notify that the timer ran out, and unblock the other thread
+        context.send_message(TestMessage::TimerExpired).await.unwrap();
+        send.send(()).unwrap();
+    }, 5);
+
+    TestBuilder::new()
+        .send_message(IdleRequest::WhenIdle(test_program))
+        .expect_message_matching(TestMessage::TimerExpired, "Timer did not expire first")
+        .expect_message_matching(TestMessage::IsIdle, "Did not become idle after releaing the background task")
+        .timeout_after(Duration::from_millis(30_000))
+        .run_in_scene_with_threads(&scene, test_program, 5);
 }
