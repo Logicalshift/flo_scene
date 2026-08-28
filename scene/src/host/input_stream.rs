@@ -223,32 +223,6 @@ where
     }
 
     ///
-    /// Sets the input stream to 'not idle', preventing idle messages from being generated even if we're waiting 
-    /// for a message.
-    ///
-    /// Drop the returned object to allow the stream to become idle again. This is useful if some background work
-    /// is triggered outside of the current subprogram that should still keep the scene busy.
-    ///
-    /// (SceneContext::run_in_background() is the main user-facing way of triggering this state)
-    ///
-    #[inline]
-    pub (crate) fn not_idle(&self) -> InputStreamIdleBlocker<TMessage> {
-        // Assign a handle and add it to the list of blockers
-        let handle = {
-            let mut core = self.core.lock().unwrap();
-
-            let handle = core.next_idle_blocker;
-            core.next_idle_blocker += 1;
-
-            core.idle_blockers.push(handle);
-            handle
-        };
-
-        // Return the idle blocker object
-        InputStreamIdleBlocker(Arc::downgrade(&self.core), handle)
-    }
-
-    ///
     /// Sets whether or not thread stealing is enabled for subprograms that want to use this input stream for immediate output
     ///
     /// Thread stealing is turned off by default. Turning it on can result in sent messages being processed immediately
@@ -443,6 +417,32 @@ where
         when_slots_available.into_iter().for_each(|waker| waker.wake());
 
         idle_dropper
+    }
+
+    ///
+    /// Sets the input stream to 'not idle', preventing idle messages from being generated even if we're waiting 
+    /// for a message.
+    ///
+    /// Drop the returned object to allow the stream to become idle again. This is useful if some background work
+    /// is triggered outside of the current subprogram that should still keep the scene busy.
+    ///
+    /// (SceneContext::run_in_background() is the main user-facing way of triggering this state)
+    ///
+    #[inline]
+    pub (crate) fn not_idle(core: &Arc<Mutex<Self>>) -> InputStreamIdleBlocker<TMessage> {
+        // Assign a handle and add it to the list of blockers
+        let handle = {
+            let mut core = core.lock().unwrap();
+
+            let handle = core.next_idle_blocker;
+            core.next_idle_blocker += 1;
+
+            core.idle_blockers.push(handle);
+            handle
+        };
+
+        // Return the idle blocker object
+        InputStreamIdleBlocker(Arc::downgrade(core), handle)
     }
 }
 
