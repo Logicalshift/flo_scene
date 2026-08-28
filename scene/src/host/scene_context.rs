@@ -394,6 +394,44 @@ impl SceneContext {
             }
         }
     }
+
+    ///
+    /// Adds a short background process to this subprogram
+    ///
+    /// This should be a short task rather than anything long-running: background tasks are completed rather than
+    /// discarded when a subprogram ends, and the scene is not idle while any background programs are running.
+    ///
+    /// Background programs won't run until there's a free slot in the scheduler so if the scene is single-threaded,
+    /// the background process won't run until the current future yields. There's no limit on the number of background
+    /// processes a subprogram can spawn, so some care should be taken not to spawn too many processes (it's better
+    /// to spawn a single background process that handles many requests than one process per request)
+    ///
+    pub fn run_in_background(&self, future: impl 'static + Send + Future<Output=()>) {
+        // TODO: some sort of backpressure mechanism would be good here in case the queue starts to get very large
+        let Some(program_core)  = self.program_core.upgrade() else { return };
+        let Some(scene_core)    = self.scene_core.upgrade() else { return; };
+
+        let (process_handle, waker) = {
+            // Start the background process running in the core
+            // TODO: add in this context to the future that we run
+            // TODO: when done, clear the process handle from the subprogram
+            // TODO: hold the scene as 'not idle' while the process_id count for this subprogram is >1
+            let Ok(mut scene_core)  = scene_core.lock() else { return; };
+
+            scene_core.start_process(future)
+        };
+
+        {
+            // Add to the subprogram
+            let Ok(mut program_core) = program_core.lock() else { return; };
+            program_core.process_id.push(process_handle);
+        }
+
+        // Poke the waker when we're done
+        if let Some(waker) = waker {
+            waker.wake()
+        }
+    }
 }
 
 thread_local! {
