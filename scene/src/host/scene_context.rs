@@ -427,7 +427,7 @@ impl SceneContext {
             let oneshot_waker       = task::waker(Arc::new(OneShotWaker { }));
             let mut oneshot_context = task::Context::from_waker(&oneshot_waker);
 
-            let poll_result         = future.poll_unpin(&mut oneshot_context);
+            let poll_result         = with_scene_context(self, || future.poll_unpin(&mut oneshot_context));
 
             match poll_result {
                 task::Poll::Ready(()) => {
