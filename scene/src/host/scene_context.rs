@@ -406,10 +406,9 @@ impl SceneContext {
     /// This should be a short task rather than anything long-running: background tasks are completed rather than
     /// discarded when a subprogram ends, and the scene is not idle while any background programs are running.
     ///
-    /// Background programs won't run until there's a free slot in the scheduler so if the scene is single-threaded,
-    /// the background process won't run until the current future yields. There's no limit on the number of background
-    /// processes a subprogram can spawn, so some care should be taken not to spawn too many processes (it's better
-    /// to spawn a single background process that handles many requests than one process per request)
+    /// There's no limit on the number of background processes a subprogram can spawn, so some care should be taken 
+    /// not to spawn too many processes (it's better to spawn a single background process that handles many requests 
+    /// than one process per request)
     ///
     pub fn run_in_background(&self, future: impl 'static + Send + Future<Output=()>) {
         // TODO: some sort of backpressure mechanism would be good here in case the queue starts to get very large
@@ -518,6 +517,7 @@ impl SceneContext {
 
         {
             // Add to the subprogram
+            // TODO: if another thread picks up and runs the process, we hit the 'end of process' code before adding to the program core (so the process ID leaks)
             let Ok(mut program_core) = program_core.lock() else { return; };
             program_core.process_id.push(process_handle);
         }
