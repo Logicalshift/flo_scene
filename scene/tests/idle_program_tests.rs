@@ -363,6 +363,7 @@ fn never_becomes_idle_with_background_processes() {
         send.send(()).unwrap();
     }, 5);
 
+    // The order of the messages will change if the idle event is not blocked (scene is idle while waiting for the timer to fire)
     TestBuilder::new()
         .send_message(IdleRequest::WhenIdle(test_program))
         .expect_message_matching(TestMessage::TimerExpired, "Timer did not expire first")
