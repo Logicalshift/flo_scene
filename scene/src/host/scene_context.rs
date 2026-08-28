@@ -409,8 +409,37 @@ impl SceneContext {
     ///
     pub fn run_in_background(&self, future: impl 'static + Send + Future<Output=()>) {
         // TODO: some sort of backpressure mechanism would be good here in case the queue starts to get very large
+        let mut future          = Box::pin(future);
+
         let Some(program_core)  = self.program_core.upgrade() else { return };
         let Some(scene_core)    = self.scene_core.upgrade() else { return; };
+
+        // If we're already in a scene context, poll the background task once to give it a chance to immediately complete before we queue it up
+        // We'll already be blocking an input stream going idle here, and we'll be in the futures context of whatever scene is running
+        if scene_context().is_some() {
+            use futures::task;
+
+            struct OneShotWaker { }
+            impl task::ArcWake for OneShotWaker {
+                fn wake_by_ref(_arc_self: &Arc<Self>) { }
+            }
+
+            let oneshot_waker       = task::waker(Arc::new(OneShotWaker { }));
+            let mut oneshot_context = task::Context::from_waker(&oneshot_waker);
+
+            let poll_result         = future.poll_unpin(&mut oneshot_context);
+
+            match poll_result {
+                task::Poll::Ready(()) => {
+                    // Future fast-completed without needing to be assigned a process
+                    return;
+                }
+
+                task::Poll::Pending => {
+                    // Task is busy (we'll do the heavyweight thing of queuing it up as a full process, and reawaken it there)
+                }
+            }
+        }
 
         // Lock the input stream so it can't go idle while the background task is running
         let (stream_id, program_id) = { 
@@ -427,7 +456,6 @@ impl SceneContext {
 
             // Decorate the future to set the context and tidy up when it's done
             let context         = self.clone();
-            let mut future      = Box::pin(future);
             let process_handle  = background_process_handle.clone();
 
             let future          = future::poll_fn(move |ctxt| {
