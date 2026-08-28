@@ -27,8 +27,8 @@ pub (crate) struct SubProgramCore {
     /// The source of the last message that this subprogram received via its input stream
     pub (super) last_message_source: Option<SubProgramId>,
 
-    /// The handle of the process that this subprogram is running on (or None if the program has finished)
-    pub (super) process_id: Option<ProcessHandle>,
+    /// The handle of the processes that this subprogram is running on (empty if the program has finished)
+    pub (super) process_id: Vec<ProcessHandle>,
 
     /// The output sink cores for the outputs of this sub-program
     pub (super) outputs: HashMap<StreamId, Arc<dyn Send + Sync + Any>>,
