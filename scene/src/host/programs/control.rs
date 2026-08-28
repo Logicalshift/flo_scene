@@ -14,6 +14,7 @@ use crate::host::subprogram_id::*;
 use super::idle_request::*;
 use super::subscription::*;
 use super::query::*;
+use super::control_ext::*;
 
 use futures::prelude::*;
 use futures::future::{poll_fn};
@@ -338,6 +339,9 @@ impl SceneControl {
     /// Runs the scene control program
     ///
     pub (crate) async fn scene_control_program(input: InputStream<Self>, context: SceneContext, updates: InputStream<SceneUpdate>) {
+        context.i_am("SceneControl");
+        context.tag(SceneProgramTag::Namespace("flo_scene".into())).ok();
+
         // We store the state by monitoring the updates (used to respond to queries or new subscription requests)
         // This state is kept separate from the scene core state so that if we're starting a subscription we won't send a pending update more than once (ie, the events we've sent can be out of date with respect to the actual scene core state)
         let mut started_subprograms = HashSet::<SubProgramId>::new();

@@ -1,6 +1,9 @@
 use crate::host::*;
 use super::text_output::*;
 
+use super::control::*;
+use super::control_ext::*;
+
 use futures::prelude::*;
 use futures::channel::mpsc;
 use futures::executor;
@@ -63,6 +66,9 @@ impl SceneMessage for TextInput {
 /// as the number of streams increases)
 ///
 pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messages: impl Stream<Item=TextInput>, context: SceneContext) {
+    context.i_am("TextInput");
+    context.tag(SceneProgramTag::Namespace("flo_scene".into())).ok();
+
     use std::mem;
 
     let mut text_output = context.send(()).unwrap();

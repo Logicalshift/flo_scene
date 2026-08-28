@@ -1,6 +1,9 @@
 use crate::host::*;
 use crate::host::scene_core::*;
 
+use super::control::*;
+use super::control_ext::*;
+
 use futures::prelude::*;
 use futures::future;
 use futures::stream;
@@ -79,6 +82,9 @@ enum IdleProgramMsg {
 /// Runs the idle notification program 
 ///
 pub (crate) async fn idle_subprogram(input_stream: InputStream<IdleRequest>, context: SceneContext) {
+    context.i_am("IdleRequest");
+    context.tag(SceneProgramTag::Namespace("flo_scene".into())).ok();
+
     let input_stream                = input_stream.messages_with_sources();
     let mut suppressions            = HashMap::new();
     let mut pending_notifications   = vec![];

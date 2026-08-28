@@ -2,6 +2,9 @@ use crate::host::subprogram_id::*;
 use crate::host::input_stream::*;
 use crate::host::scene_context::*;
 
+use super::control::*;
+use super::control_ext::*;
+
 use futures::prelude::*;
 
 ///
@@ -14,7 +17,10 @@ pub static OUTSIDE_SCENE_PROGRAM: StaticSubProgramId = StaticSubProgramId::calle
 ///
 /// Runs the outside scene program
 ///
-pub (crate) async fn outside_scene_program(input: InputStream<()>, _context: SceneContext) {
+pub (crate) async fn outside_scene_program(input: InputStream<()>, context: SceneContext) {
+    context.i_am("OutsideScene");
+    context.tag(SceneProgramTag::Namespace("flo_scene".into())).ok();
+
     // All this program does is ignore its messages until it finishes
     let mut input = input;
     while let Some(_input) = input.next().await { }

@@ -1,5 +1,8 @@
 use crate::host::*;
 
+use super::control::*;
+use super::control_ext::*;
+
 use futures::prelude::*;
 use futures::{pin_mut};
 use futures::future::{poll_fn, BoxFuture};
@@ -63,6 +66,9 @@ struct Timer {
 }
 
 pub fn timer_subprogram(input_stream: InputStream<TimerRequest>, context: SceneContext) -> impl Future<Output=()> {
+    context.i_am("TimerRequest");
+    context.tag(SceneProgramTag::Namespace("flo_scene".into())).ok();
+
     // Thread stealing will ensure that timers are started promptly in most cases
     input_stream.allow_thread_stealing(true);
 

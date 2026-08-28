@@ -1,5 +1,8 @@
 use crate::host::*;
 
+use super::control::*;
+use super::control_ext::*;
+
 use futures::prelude::*;
 use futures::{pin_mut};
 use once_cell::sync::{Lazy};
@@ -74,7 +77,10 @@ impl SceneMessage for ErrorOutput {
 ///
 /// The runtime for a text output subprogram, which will write messages to the specified target stream
 ///
-pub async fn text_io_subprogram(target: impl Send + Write, messages: impl Stream<Item=TextOutput>, _: SceneContext) {
+pub async fn text_io_subprogram(target: impl Send + Write, messages: impl Stream<Item=TextOutput>, context: SceneContext) {
+    context.i_am("TextOutput");
+    context.tag(SceneProgramTag::Namespace("flo_scene".into())).ok();
+
     pin_mut!(messages);
 
     let mut target              = target;
