@@ -236,6 +236,7 @@ impl SceneCore {
                 next_command_sequence:      Arc::new(AtomicUsize::new(0)),
                 parent_program:             None,
                 child_programs:             HashSet::new(),
+                data:                       HashMap::new(),
             };
 
             // Allocate space for the program

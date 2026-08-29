@@ -16,6 +16,7 @@ use futures::prelude::*;
 use futures::channel::oneshot;
 use futures::channel::mpsc;
 
+use std::any::*;
 use std::cell::*;
 use std::sync::*;
 
@@ -526,6 +527,40 @@ impl SceneContext {
         if let Some(waker) = waker {
             waker.wake()
         }
+    }
+
+    ///
+    /// Stores data associated with this context
+    ///
+    /// This can be used for things that need to store state associated with a subprogram but don't
+    /// have storage of their own (eg, an 'Ext' trait that adds extra functionality)
+    ///
+    pub fn set<TData>(&self, value: TData)
+    where 
+        TData: 'static + Send + Clone + Any,
+    {
+        let Some(program_core)      = self.program_core.upgrade() else { return; };
+        let Ok(mut program_core)    = program_core.lock() else { return; };
+
+        let type_id = TypeId::of::<TData>();
+        program_core.data.insert(type_id, Box::new(value));
+    }
+
+    ///
+    /// Retrieves data associated with this context
+    ///
+    pub fn get<TData>(&self) -> Option<TData>
+    where 
+        TData: 'static + Send + Clone + Any,
+    {
+        let Some(program_core)  = self.program_core.upgrade() else { return None; };
+        let Ok(program_core)    = program_core.lock() else { return None; };
+
+        let type_id     = TypeId::of::<TData>();
+        let maybe_data  = program_core.data.get(&type_id);
+        let maybe_data  = maybe_data.and_then(|data| data.downcast_ref::<TData>());
+
+        maybe_data.cloned()
     }
 }
 

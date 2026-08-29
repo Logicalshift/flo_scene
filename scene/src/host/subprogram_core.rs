@@ -47,6 +47,9 @@ pub (crate) struct SubProgramCore {
 
     /// The 'child' programs for this subprogram (these programs will also end if this program ends)
     pub (super) child_programs: HashSet<SubProgramId>,
+
+    /// Data associated with this subprogram
+    pub (super) data: HashMap<TypeId, Box<dyn 'static + Send + Any>>,
 }
 
 impl SubProgramCore {
