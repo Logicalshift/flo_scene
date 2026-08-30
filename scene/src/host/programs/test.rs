@@ -17,6 +17,7 @@ use std::any::*;
 use std::collections::{HashMap};
 use std::fmt::{Debug};
 use std::time::{Duration};
+use std::sync::*;
 
 type ActionFn = Box<dyn Send + FnOnce(InputStream<TestRequest>, &SceneContext, mpsc::Sender<String>) -> BoxFuture<'static, (InputStream<TestRequest>, mpsc::Sender<String>)>>;
 
@@ -302,11 +303,14 @@ impl TestBuilder {
         use std::mem;
 
         // Create the test subprogram
+        let tests_finished      = Arc::new(Mutex::new(false));
         let (sender, receiver)  = mpsc::channel(100);
         let mut actions         = vec![];
         mem::swap(&mut self.actions, &mut actions);
 
         scene.add_subprogram(test_subprogram, |input_stream: InputStream<TestRequest>, context| {
+            let tests_finished = tests_finished.clone();
+
             async move {
                 let mut input_stream    = input_stream;
                 let mut sender          = sender;
@@ -320,6 +324,8 @@ impl TestBuilder {
 
                 // Close the assertions stream (which will end the test)
                 mem::drop(sender);
+
+                *tests_finished.lock().unwrap() = true;
             }
         }, 100);
 
@@ -335,13 +341,7 @@ impl TestBuilder {
         let mut timed_out       = false;
         let mut scene_finished  = false;
 
-        executor::block_on(future::select(async {
-                // Run the scene
-                runner.await;
-
-                scene_finished = true;
-            }.boxed(),
-
+        executor::block_on(future::select(
             future::select(
                 async move {
                     // Wait for assertion failures and add them to the list
@@ -359,6 +359,14 @@ impl TestBuilder {
                     Delay::new(timeout).await;
                     timed_out = true;
                 }.boxed()).boxed(),
+
+            async {
+                // Run the scene
+                runner.await;
+
+                // Note that it's finished
+                scene_finished = true;
+            }.boxed(),
         ));
 
         // If we timed out, that counts as an assertion failure
@@ -366,7 +374,7 @@ impl TestBuilder {
             failures.push(format!("Tests took more than {:?} to complete", timeout));
         }
 
-        if scene_finished {
+        if scene_finished && !*tests_finished.lock().unwrap() {
             failures.push(format!("Scene finished before tests completed"));
         }
 
