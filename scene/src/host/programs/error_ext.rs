@@ -9,11 +9,16 @@ use std::fmt::{Debug};
 ///
 /// Extension functions for generating errors in a scene
 ///
+/// Using these we can write, say, `some_task.with_report().await.ok()` to report but ignore errors,
+/// or `some_task.or_fail().await` to fail the current program if there's an error. `or_fail()` is
+/// nicer than `unwrap()` as it doesn't panic and it shuts down the current scene.
+///
 pub trait SceneErrorExt<'a, TVal, TErr> {
     /// If an error occurs, report it but otherwise continue
     fn with_report(self) -> impl 'a + Send + Future<Output=Result<TVal, TErr>>;
 
     /// If an error occurs, report a failure and immediately stop the running subprogram without returning
+    /// Failures usually shut down the scene as well.
     fn or_fail(self) -> impl 'a + Send + Future<Output=TVal>;
 }
 
