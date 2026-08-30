@@ -284,7 +284,7 @@ impl SubProgramCore {
 
                 Poll::Pending
             } else {
-                // No 
+                // No more background processes are waiting
                 Poll::Ready(())
             }
         })
