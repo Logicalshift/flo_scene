@@ -223,7 +223,7 @@ impl SceneCore {
                     mem::drop(core);
 
                     if let Some(old_sub_program) = &old_sub_program {
-                        old_sub_program.lock().unwrap().process_id = vec![];
+                        old_sub_program.lock().unwrap().process_ids = vec![];
                         SubProgramCore::closedown(old_sub_program, &scene_core);
                     }
 
@@ -238,7 +238,7 @@ impl SceneCore {
             // Create the sub-program data
             let subprogram = SubProgramCore {
                 id:                         program_id,
-                process_id:                 vec![process_handle],
+                process_ids:                 vec![process_handle],
                 last_message_source:        None,
                 input_stream_id:            StreamId::with_message_type::<TMessage>(),
                 outputs:                    HashMap::new(),
@@ -1059,7 +1059,7 @@ impl SceneCore {
             loop {
                 // We lock both the core and the subprogram here so that the process cannot end before we get the future
                 let mut core    = core.lock().unwrap();
-                let process_id  = subprogram.lock().unwrap().process_id.get(0).copied().ok_or(SceneSendError::TargetProgramEndedBeforeReady)?;
+                let process_id  = subprogram.lock().unwrap().process_ids.get(0).copied().ok_or(SceneSendError::TargetProgramEndedBeforeReady)?;
 
                 let process     = core.processes.get_mut(process_id.0)
                     .map(|process| process.as_mut())

@@ -29,7 +29,7 @@ pub (crate) struct SubProgramCore {
     pub (super) last_message_source: Option<SubProgramId>,
 
     /// The handle of the processes that this subprogram is running on (empty if the program has finished)
-    pub (super) process_id: Vec<ProcessHandle>,
+    pub (super) process_ids: Vec<ProcessHandle>,
 
     /// The output sink cores for the outputs of this sub-program
     pub (super) outputs: HashMap<StreamId, Arc<dyn Send + Sync + Any>>,
@@ -274,7 +274,7 @@ impl SubProgramCore {
             let mut scene_core  = scene_core.lock().unwrap();
             let subprogram_core = subprogram_core.lock().unwrap();
 
-            if subprogram_core.process_id.len() > 1 {
+            if subprogram_core.process_ids.len() > 1 {
                 // More than one process remaining for this subprogram (the first process is always the program itself, except when it's dead)
                 // Reawaken this whenever a process has finished stopping
                 scene_core.on_stop.push(ctxt.waker().clone());

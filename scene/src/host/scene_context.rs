@@ -494,7 +494,7 @@ impl SceneContext {
                         // Tidy up by removing ourselves from the list of program IDs
                         if let (Some(program_core), Some(process_handle)) = (context.program_core.upgrade(), process_handle.lock().ok().and_then(|mut handle| handle.take())) {
                             let mut program_core = program_core.lock().unwrap();
-                            program_core.process_id.retain(|old_handle| old_handle != &process_handle);
+                            program_core.process_ids.retain(|old_handle| old_handle != &process_handle);
                         }
 
                         // Input core can be idle again
@@ -520,7 +520,7 @@ impl SceneContext {
             // Add to the subprogram
             // TODO: if another thread picks up and runs the process, we hit the 'end of process' code before adding to the program core (so the process ID leaks)
             let Ok(mut program_core) = program_core.lock() else { return; };
-            program_core.process_id.push(process_handle);
+            program_core.process_ids.push(process_handle);
         }
 
         // Poke the waker when we're done
