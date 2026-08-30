@@ -1,4 +1,5 @@
 use crate::host::scene_context::*;
+use crate::host::scene_core::*;
 
 use super::error::*;
 
@@ -68,9 +69,14 @@ where
                             panic!("UNEXPECTED FAILURE: {:?} ({:?} when sending)", err, send_fail);
                         }
 
-                        // TODO: abort the current process/program
+                        // Abort the current process/program
+                        if let (Some(scene_core), Some(program_core)) = (context.scene_core().upgrade(), context.subprogram_core().upgrade()) {
+                            SceneCore::abort_subprogram(&scene_core, &program_core);
+                        } else {
+                            panic!("UNEXPECTED FAILURE: {:?} (program/scene went away while sending)", err);
+                        }
                     } else {
-                        // This is a panic if it happens outside of a scene
+                        // This is a panic if it happens outside of a scene or a running subprogram
                         panic!("UNEXPECTED FAILURE: {:?}", err);
                     }
 

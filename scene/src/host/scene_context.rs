@@ -154,6 +154,13 @@ impl SceneContext {
     }
 
     ///
+    /// Retrieves the subprogram core for this context
+    ///
+    pub (crate) fn subprogram_core(&self) -> Weak<Mutex<SubProgramCore>> {
+        self.program_core.clone()
+    }
+
+    ///
     /// Spawns a command to run in this scene, returning the command's standard output
     ///
     pub fn spawn_command<TCommand>(&self, command: TCommand, input: impl 'static + Send + Stream<Item=TCommand::Input>) -> Result<impl 'static + Stream<Item=TCommand::Output>, ConnectionError>
