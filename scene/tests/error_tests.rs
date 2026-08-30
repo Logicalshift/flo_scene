@@ -16,18 +16,34 @@ fn notify_on_error() {
     let test_program    = SubProgramId::new();
 
     let error_program   = SubProgramId::new();
+    let relay_program   = SubProgramId::new();
 
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct TestMessage(Error);
+
+    impl SceneMessage for TestMessage { }
+
+    // Error_program throws an error
     scene.add_subprogram(error_program, 
         move |_: InputStream<()>, context| async move {
             // Subscribe the test program to receive errors
-            context.send_message(ErrorSubscription::SubscribeToAll(test_program.into())).or_fail().await;
+            context.send_message(ErrorSubscription::SubscribeToAll(relay_program.into())).or_fail().await;
 
             // Try an 'or error' message
             async { Result::<(), String>::Err(format!("Goodbye, world")) }.with_report().await.ok();
         }, 0);
 
+    // Relay program passes any generated errors on to the main program
+    scene.add_subprogram(relay_program,
+        move |input, context| async move {
+            let mut input = input;
+            while let Some(error) = input.next().await {
+                context.send_message(TestMessage(error)).await.ok();
+            }
+        }, 5);
+
     TestBuilder::new()
-        .expect_message_matching(Error::Error { source: error_program, message: "\"Goodbye, world\"".into() }, "Was expecting an error message from our subprogram")
+        .expect_message_matching(TestMessage(Error::Error { source: error_program, message: "\"Goodbye, world\"".into() }), "Was expecting an error message from our subprogram")
         .expect_running_scene()
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
