@@ -50,7 +50,7 @@ fn ask_control_to_stop_scene() {
 }
 
 #[test]
-fn ask_control_to_stop_scene_when_idle() {
+fn ask_control_to_stop_scene_when_idle_1() {
     // The default scene has the 'control' program in it
     let scene       = Scene::default();
     scene.add_subprogram(
@@ -77,6 +77,27 @@ fn ask_control_to_stop_scene_when_idle() {
 
     // Should have stopped the scene and not just timed out
     assert!(has_stopped, "Scene did not stop");
+}
+
+#[test]
+fn ask_control_to_stop_scene_when_idle_2() {
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+
+    TestBuilder::new()
+        .send_message(SceneControl::StopSceneWhenIdle)
+        .expect_stopped_scene()
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+fn does_not_stop_normally() {
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+
+    TestBuilder::new()
+        .expect_running_scene()
+        .run_in_scene(&scene, test_program);
 }
 
 #[test]
