@@ -9,6 +9,7 @@ use flo_scene::programs::*;
 use futures::prelude::*;
 use futures::future;
 use futures::channel::oneshot;
+use futures_timer::{Delay};
 
 use serde::*;
 
@@ -369,5 +370,80 @@ fn never_becomes_idle_with_background_processes() {
         .expect_message_matching(TestMessage::TimerExpired, "Timer did not expire first")
         .expect_message_matching(TestMessage::IsIdle, "Did not become idle after releaing the background task")
         .timeout_after(Duration::from_millis(30_000))
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
+fn background_task_awaited_during_shutdown() {
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    enum TestMessage {
+        /// Sent by the background task to prove its context is still valid
+        BackgroundTaskUsedContext,
+
+        /// Sent when the background program stops
+        BackgroundProgramStopped,
+    }
+    impl SceneMessage for TestMessage { }
+
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+    let parent_program  = SubProgramId::new();
+
+    // The parent program: spawns a background task, then finishes its main future immediately
+    scene.add_subprogram(parent_program, move |_: InputStream<TestMessage>, context| {
+        let background_context = context.clone();
+        async move {
+            // Spawn a background task that sleeps, then uses the context
+            context.run_in_background(async move {
+                // Sleep to allow the parent program to finish
+                Delay::new(Duration::from_millis(500)).await;
+
+                // The context should still be valid (ie, the program isn't quite dead yet)
+                assert_eq!(
+                    background_context.current_program_id(),
+                    Some(parent_program),
+                    "SceneContext should still be valid in a background task after the parent program has stopped"
+                );
+
+                // Send a message to prove the context can still be used to communicate
+                background_context.send_message(TestMessage::BackgroundTaskUsedContext)
+                    .await
+                    .expect("send_message should succeed in a background task while the scene awaits its completion");
+            });
+
+            // The parent's main future finishes here, while the background task is still asleep
+        }
+    }, 0);
+
+    // Add a program that waits for SceneControl to indicate that parent_program has stopped
+    let stop_monitor = SubProgramId::new();
+    scene.add_subprogram(stop_monitor, move |input, context| async move {
+        context.send_message(SceneControl::Subscribe(stop_monitor.into())).await.unwrap();
+
+        let mut input = input;
+
+        while let Some(msg) = input.next().await {
+            match msg {
+                SceneUpdate::Stopped(program_id) => {
+                    if program_id == parent_program {
+                        context.send_message(TestMessage::BackgroundProgramStopped).await.unwrap();
+                    }
+                }
+
+                _ => { }
+            }
+        }
+    }, 0);
+
+    // Wait for the expected message
+    TestBuilder::new()
+        .timeout_after(Duration::from_millis(30_000))
+        .expect_message_matching(
+            TestMessage::BackgroundTaskUsedContext,
+            "Background task should be able to use its context after the parent program has stopped",
+        )
+        .expect_message_matching(
+            TestMessage::BackgroundProgramStopped, 
+            "Background program indicates that it's stopped after the background task stops")
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
