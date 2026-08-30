@@ -27,3 +27,25 @@ fn notify_on_error() {
         .expect_message_matching(Error::Error { source: error_program, message: "\"Goodbye, world\"".into() }, "Was expecting an error message from our subprogram")
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
+
+#[test]
+fn notify_on_failure() {
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+
+    let error_program   = SubProgramId::new();
+
+    // or_fail() shuts the scene down but waits for it to become idle, so we can still receive the message that the error occurred
+    scene.add_subprogram(error_program, 
+        move |_: InputStream<()>, context| async move {
+            // Subscribe the test program to receive errors
+            context.send_message(ErrorSubscription::SubscribeToAll(test_program.into())).or_fail().await;
+
+            // Try an 'or error' message
+            async { Result::<(), String>::Err(format!("Goodbye, world")) }.or_fail().await;
+        }, 0);
+
+    TestBuilder::new()
+        .expect_message_matching(Error::Failure { source: error_program, message: "\"Goodbye, world\"".into() }, "Was expecting an error message from our subprogram")
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
