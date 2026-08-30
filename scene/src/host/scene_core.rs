@@ -1644,7 +1644,8 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                         }
                     } else {
                         // This process has terminated abnormally
-                        let on_stop = { unlocked_core.lock().unwrap().on_stop.drain(..).collect::<Vec<_>>() };
+                        let on_stop = core.on_stop.drain(..).collect::<Vec<_>>();
+                        drop(core);
 
                         // Wake up anything that wants to be notified when a process stops
                         for stop_notification in on_stop {
