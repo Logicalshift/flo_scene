@@ -151,6 +151,15 @@ impl Error {
                     // Always dump failure messages to stderr (these are never supposed to happen)
                     eprintln!("FAILURE: {:?}: {:?}", source, message);
 
+                    // Shut down the scene
+                    if failure_count > 1 {
+                        // Ask the scene to stop politely
+                        context.send_message(SceneControl::StopSceneWhenIdle).await.ok();
+                    } else {
+                        // Stop impolitely as the scene is producing multiple fatal errors
+                        context.send_message(SceneControl::StopScene).await.ok();
+                    }
+
                     // Send to all subscribers
                     if let Some(program_subscriber) = program_subscribers.get_mut(&source) {
                         if !program_subscriber.send(Error::Failure { source, message: message.clone() }).await {
@@ -162,15 +171,6 @@ impl Error {
                     all_subscribers
                         .send(Error::Failure { source, message })
                         .await;
-
-                    // Shut down the scene
-                    if failure_count > 1 {
-                        // Ask the scene to stop politely
-                        context.send_message(SceneControl::StopSceneWhenIdle).await.ok();
-                    } else {
-                        // Stop impolitely as the scene is producing multiple fatal errors
-                        context.send_message(SceneControl::StopScene).await.ok();
-                    }
                 },
             }
         }
