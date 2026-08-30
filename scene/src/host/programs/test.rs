@@ -70,6 +70,12 @@ pub struct TestBuilder {
 
     /// Timeout before the tests are considered to have failed
     timeout: Duration,
+
+    /// True if we're expecting the scene to terminate by the end of the tests
+    expecting_stopped_scene: bool,
+
+    /// True if we're expecting the scene to still be running by the end of the tests
+    expecting_running_scene: bool,
 }
 
 impl TestBuilder {
@@ -79,9 +85,11 @@ impl TestBuilder {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         TestBuilder {
-            actions:            vec![],
-            filters:            HashMap::new(),
-            timeout:            Duration::from_millis(5000),
+            actions:                    vec![],
+            filters:                    HashMap::new(),
+            timeout:                    Duration::from_millis(5000),
+            expecting_stopped_scene:    false,
+            expecting_running_scene:    false,
         }
     }
 
@@ -262,6 +270,22 @@ impl TestBuilder {
     }
 
     ///
+    /// Indicates that the scene should be stopped after the tests are run
+    ///
+    pub fn expect_stopped_scene(mut self) -> Self {
+        self.expecting_stopped_scene = true;
+        self
+    }
+
+    ///
+    /// Indicats that the scene should be still be running after the tests are run
+    ///
+    pub fn expect_running_scene(mut self) -> Self {
+        self.expecting_running_scene = true;
+        self
+    }
+
+    ///
     /// Creates a test action that redirects the input for a particular message type to the test program (optionally for a specific target subprogram)
     ///
     /// Note that `expect_message` will redirect the default target of a message to the test program already, so this is generally used to redirect
@@ -340,6 +364,7 @@ impl TestBuilder {
         let future_failures     = &mut failures;
         let timeout             = self.timeout;
         let mut timed_out       = false;
+        let mut timed_out_2     = false;
         let mut scene_finished  = false;
         let mut received_all    = false;
 
@@ -384,17 +409,34 @@ impl TestBuilder {
             // (Results will finish because the sender should get dropped when the scene stops)
             match completed {
                 future::Either::Right((_scene, results))    => { results.await; },
-                future::Either::Left(_)                     => { /* Fetching results finished */ },
+                future::Either::Left((_results, scene))     => {
+                    if self.expecting_stopped_scene {
+                        // Wait for the scene to stop
+                        future::select(
+                            async {
+                                // Stop when the timeout is reached and set the 'timed_out' flag
+                                Delay::new(timeout).await;
+                                timed_out_2 = true;
+                            }.boxed(),
+
+                            scene
+                        ).await;
+                    }
+                },
             }
         });
 
         // If we timed out, that counts as an assertion failure
-        if timed_out {
+        if timed_out || timed_out_2 {
             failures.push(format!("Tests took more than {:?} to complete", timeout));
         }
 
-        if scene_finished && !received_all {
+        if scene_finished && (!received_all || self.expecting_running_scene) {
             failures.push(format!("Scene finished before tests completed"));
+        }
+
+        if !scene_finished && self.expecting_stopped_scene {
+            failures.push(format!("Scene did not stop after tests"));
         }
 
         // Report any assertion failures
