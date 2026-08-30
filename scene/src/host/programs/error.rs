@@ -16,10 +16,9 @@ use serde::*;
 
 use std::borrow::*;
 use std::collections::*;
-use std::sync::*;
 
 /// The identifier for the standard scene error program
-pub static SCENE_ERROR_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::error");
+pub static ERROR_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::error");
 
 ///
 /// Message sent to indicate that an error has occurred with a subprogram
@@ -47,7 +46,7 @@ pub enum ErrorSubscription {
 
 impl SceneMessage for Error {
     fn default_target() -> StreamTarget {
-        (*SCENE_ERROR_PROGRAM).into()
+        (*ERROR_PROGRAM).into()
     }
 
     #[inline]
@@ -57,7 +56,7 @@ impl SceneMessage for Error {
         scene.connect_programs(
             (), 
             StreamTarget::Filtered(FilterHandle::for_filter(|msgs| 
-                msgs.map(|msg| ErrorOrSubscription::ErrorMsg(msg))),*SCENE_ERROR_PROGRAM), 
+                msgs.map(|msg| ErrorOrSubscription::ErrorMsg(msg))), *ERROR_PROGRAM), 
             StreamId::with_message_type::<Subscribe<Error>>()
         ).unwrap();
     }
@@ -65,7 +64,7 @@ impl SceneMessage for Error {
 
 impl SceneMessage for ErrorSubscription {
     fn default_target() -> StreamTarget {
-        (*SCENE_ERROR_PROGRAM).into()
+        (*ERROR_PROGRAM).into()
     }
 
     #[inline]
@@ -75,14 +74,14 @@ impl SceneMessage for ErrorSubscription {
         scene.connect_programs(
             (), 
             StreamTarget::Filtered(FilterHandle::for_filter(|msgs: InputStream<Subscribe<Error>>| 
-                msgs.map(|msg| ErrorOrSubscription::Subscription(ErrorSubscription::SubscribeToAll(msg.target())))),*SCENE_ERROR_PROGRAM), 
+                msgs.map(|msg| ErrorOrSubscription::Subscription(ErrorSubscription::SubscribeToAll(msg.target())))), *ERROR_PROGRAM), 
             StreamId::with_message_type::<Subscribe<Error>>()
         ).unwrap();
 
         scene.connect_programs(
             (), 
             StreamTarget::Filtered(FilterHandle::for_filter(|msgs| 
-                msgs.map(|msg| ErrorOrSubscription::Subscription(msg))),*SCENE_ERROR_PROGRAM), 
+                msgs.map(|msg| ErrorOrSubscription::Subscription(msg))), *ERROR_PROGRAM), 
             StreamId::with_message_type::<Subscribe<Error>>()
         ).unwrap();
     }
@@ -109,8 +108,8 @@ impl Error {
         context.i_am("Error program");
         context.tag(SceneProgramTag::Namespace("flo_scene".into())).ok();
 
-        let program_subscribers = Arc::new(Mutex::new(HashMap::new()));
-        let all_subscribers     = Arc::new(Mutex::new(EventSubscribers::new()));
+        let mut program_subscribers = HashMap::new();
+        let mut all_subscribers     = EventSubscribers::new();
 
         // Listen for possible error events
         let mut input           = input;
@@ -122,7 +121,6 @@ impl Error {
             match error {
                 Subscription(ErrorSubscription::Subscribe(subprogram_id, stream_target)) => {
                     program_subscribers
-                        .lock().unwrap()
                         .entry(subprogram_id)
                         .or_insert_with(|| EventSubscribers::new())
                         .subscribe(&context, stream_target);
@@ -130,22 +128,19 @@ impl Error {
 
                 Subscription(ErrorSubscription::SubscribeToAll(stream_target)) => {
                     all_subscribers
-                        .lock().unwrap()
                         .subscribe(&context, stream_target);
                 },
 
                 ErrorMsg(Error::Error { source, message }) => {
                     // Send to all subscribers
-                    if let Some(program_subscriber) = program_subscribers.lock().unwrap().get_mut(&source) {
+                    if let Some(program_subscriber) = program_subscribers.get_mut(&source) {
                         if !program_subscriber.send(Error::Failure { source, message: message.clone() }).await {
                             // Remove from the list of subscribers (locks can't be held across awaits, so the lock is not held here)
-                            let mut program_subscribers = program_subscribers.lock().unwrap();
                             program_subscribers.remove(&source);
                         }
                     }
 
                     all_subscribers
-                        .lock().unwrap()
                         .send(Error::Error { source, message })
                         .await;
                 },
@@ -157,16 +152,14 @@ impl Error {
                     eprintln!("FAILURE: {:?}: {:?}", source, message);
 
                     // Send to all subscribers
-                    if let Some(program_subscriber) = program_subscribers.lock().unwrap().get_mut(&source) {
+                    if let Some(program_subscriber) = program_subscribers.get_mut(&source) {
                         if !program_subscriber.send(Error::Failure { source, message: message.clone() }).await {
                             // Remove from the list of subscribers (locks can't be held across awaits, so the lock is not held here)
-                            let mut program_subscribers = program_subscribers.lock().unwrap();
                             program_subscribers.remove(&source);
                         }
                     }
 
                     all_subscribers
-                        .lock().unwrap()
                         .send(Error::Failure { source, message })
                         .await;
 

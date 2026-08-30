@@ -34,6 +34,7 @@ impl Default for Scene {
     fn default() -> Self {
         Scene::with_standard_programs([
             *SCENE_CONTROL_PROGRAM,
+            *ERROR_PROGRAM,
             *OUTSIDE_SCENE_PROGRAM,
             *STDIN_PROGRAM,
             *STDOUT_PROGRAM,
@@ -71,6 +72,7 @@ impl Scene {
             scene.connect_programs((), *SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
             scene.connect_programs((), *SCENE_CONTROL_PROGRAM, StreamId::with_message_type::<Query<SceneUpdate>>()).unwrap();
         }
+        if programs.contains(&*ERROR_PROGRAM)               { scene.add_subprogram(*ERROR_PROGRAM, Error::default_error_program, 100); }
         if programs.contains(&*OUTSIDE_SCENE_PROGRAM)       { scene.add_subprogram(*OUTSIDE_SCENE_PROGRAM, outside_scene_program, 0); }
 
         if programs.contains(&*STDIN_PROGRAM)               { scene.add_subprogram(*STDIN_PROGRAM, |input, context| text_input_subprogram(BufReader::new(stdin()), input, context), 0); }
