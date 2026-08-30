@@ -1461,6 +1461,7 @@ impl SceneCore {
 
         // Abort every process the program is running immediately
         for handle in program.process_ids.drain(..) {
+            core.next_process        = core.next_process.min(handle.0);
             core.processes[handle.0] = None;
             core.awake_processes.retain(|old_handle| old_handle != &handle.0);
         }
