@@ -152,10 +152,45 @@ impl Scene {
     }
 
     ///
+    /// If the core panicked, then resume panicking
+    ///
+    fn resume_panicking(core: Arc<Mutex<SceneCore>>) {
+        let mut core = core.lock().unwrap();
+
+        if let Some(last_panic) = core.active_panics.pop() {
+            use std::panic;
+            use std::iter;
+
+            if core.active_panics.is_empty() {
+                // Just one panic, so keep it going
+                panic::resume_unwind(last_panic);
+            } else {
+                // Many panics: gather them all up and report them all simultaneously
+                let panics = core.active_panics.drain(..).chain(iter::once(last_panic));
+                let panics = panics.map(|panic| if let Some(as_str) = panic.downcast_ref::<&'static str>() {
+                    as_str.to_string()
+                } else if let Some(as_string) = panic.downcast_ref::<String>() {
+                    as_string.clone()
+                } else {
+                    "panicking (unknown type)".to_string()
+                });
+                let panics = panics.collect::<Vec<_>>().join("\n");
+
+                panic!("Multiple panics while running scene:\n{:?}", panics);
+            }
+        }
+    }
+
+    ///
     /// Returns a future that will run any waiting programs on the current thread
     ///
     pub fn run_scene(&self) -> impl Future<Output=()> {
-        run_core(&self.core)
+        let core = Arc::clone(&self.core);
+
+        async move {
+            run_core(&core).await;
+            Self::resume_panicking(core);
+        }
     }
 
     ///
@@ -253,6 +288,9 @@ impl Scene {
 
             // Dropper will ensure that all the subthreads are shutdown (if we reach here, or if the future is dropped ahead of time)
             mem::drop(dropper);
+
+            // If the scene panicked, then panic again
+            Self::resume_panicking(core);
         }
     }
 }

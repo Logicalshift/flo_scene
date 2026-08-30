@@ -96,7 +96,7 @@ pub (crate) struct SceneCore {
     updates: Option<(SubProgramId, Arc<Mutex<OutputSinkCore<SceneUpdate>>>)>,
 
     /// Panics that the scene has received, in the order they were received
-    active_panics: Vec<Box<dyn 'static + Send + Any>>,
+    pub (super) active_panics: Vec<Box<dyn 'static + Send + Any>>,
 }
 
 impl SceneCore {
