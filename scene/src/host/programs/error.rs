@@ -153,6 +153,9 @@ impl Error {
                 ErrorMsg(Error::Failure { source, message }) => {
                     failure_count += 1;
 
+                    // Always dump failure messages to stderr (these are never supposed to happen)
+                    eprintln!("FAILURE: {:?}: {:?}", source, message);
+
                     // Send to all subscribers
                     if let Some(program_subscriber) = program_subscribers.lock().unwrap().get_mut(&source) {
                         if !program_subscriber.send(Error::Failure { source, message: message.clone() }).await {
