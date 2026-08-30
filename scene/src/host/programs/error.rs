@@ -30,6 +30,9 @@ pub enum Error {
 
     /// An error has occurred and the error program should cause the scene to shut down
     Failure { source: SubProgramId, message: Cow<'static, str> },
+
+    /// A subprogram has panicked and the scene will shut down and then itself panic
+    Panic { source: SubProgramId, message: Cow<'static, str> },
 }
 
 ///
@@ -170,6 +173,34 @@ impl Error {
 
                     all_subscribers
                         .send(Error::Failure { source, message })
+                        .await;
+                },
+
+                ErrorMsg(Error::Panic { source, message }) => {
+                    failure_count += 1;
+
+                    // Always dump failure messages to stderr (these are never supposed to happen)
+                    eprintln!("PANIC: {:?}: {:?}", source, message);
+
+                    // Shut down the scene
+                    if failure_count > 1 {
+                        // Ask the scene to stop politely
+                        context.send_message(SceneControl::StopSceneWhenIdle).await.ok();
+                    } else {
+                        // Stop impolitely as the scene is producing multiple fatal errors
+                        context.send_message(SceneControl::StopScene).await.ok();
+                    }
+
+                    // Send to all subscribers
+                    if let Some(program_subscriber) = program_subscribers.get_mut(&source) {
+                        if !program_subscriber.send(Error::Panic { source, message: message.clone() }).await {
+                            // Remove from the list of subscribers (locks can't be held across awaits, so the lock is not held here)
+                            program_subscribers.remove(&source);
+                        }
+                    }
+
+                    all_subscribers
+                        .send(Error::Panic { source, message })
                         .await;
                 },
             }
