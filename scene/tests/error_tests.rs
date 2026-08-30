@@ -24,6 +24,6 @@ fn notify_on_error() {
         }, 0);
 
     TestBuilder::new()
-        .expect_message_matching(Error::Error { source: error_program, message: "Goodbye, world".into() }, "Was expecting an error message from our subprogram")
+        .expect_message_matching(Error::Error { source: error_program, message: "\"Goodbye, world\"".into() }, "Was expecting an error message from our subprogram")
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
