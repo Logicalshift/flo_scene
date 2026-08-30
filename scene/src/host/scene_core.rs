@@ -23,6 +23,7 @@ use std::any::*;
 use std::collections::*;
 use std::sync::*;
 use std::sync::atomic::{AtomicUsize};
+use std::panic::{catch_unwind, UnwindSafe};
 
 ///
 /// Used to wake up anything polling a scene core when a subprogram is ready
@@ -93,6 +94,9 @@ pub (crate) struct SceneCore {
 
     /// An output core where status updates are sent
     updates: Option<(SubProgramId, Arc<Mutex<OutputSinkCore<SceneUpdate>>>)>,
+
+    /// Panics that the scene has received, in the order they were received
+    active_panics: Vec<Box<dyn 'static + Send + Any>>,
 }
 
 impl SceneCore {
@@ -119,6 +123,7 @@ impl SceneCore {
             idle_count:                 0,
             when_idle:                  vec![],
             updates:                    None,
+            active_panics:              vec![],
         }
     }
 
@@ -1494,6 +1499,134 @@ impl SceneCore {
 
         // Core might be idle now the program has finished
         SceneCore::check_if_idle(&scene_core);
+    }
+
+    ///
+    /// Performs the specified action and catches any panics that might result
+    ///
+    /// Returns Some(result) if the action was successful.
+    ///
+    /// If the action panics, the program will be marked as aborted (if this happens while
+    /// polling the program, returning Pending will not result in another poll)
+    ///
+    #[inline]
+    pub (crate) fn catch_panics<TResult>(scene_core: &Arc<Mutex<SceneCore>>, program_core: &Arc<Mutex<SubProgramCore>>, action: impl UnwindSafe + FnOnce() -> TResult) -> Option<TResult> {
+        match catch_unwind(move || action()) {
+            Ok(result) => Some(result),
+            Err(panic) => {
+                // Program is immediately aborted if the action panics
+                Self::abort_subprogram(scene_core, program_core);
+
+                // Mark the core as panicked
+                Self::panic_scene(scene_core, program_core, panic);
+
+                None
+            },
+        }
+    }
+
+    ///
+    /// Panics the current scene
+    ///
+    pub (crate) fn panic_scene(scene_core: &Arc<Mutex<SceneCore>>, program_core: &Arc<Mutex<SubProgramCore>>, panic: Box<dyn 'static + Any + Send>) {
+        // Try soft-panicking the core (which just sends the 'panic' message and lets the error program do what it will with the information)
+        if let Err(still_panicking) = Self::soft_panic_scene(scene_core, program_core, panic) {
+            // Hard panic the core instead
+            Self::hard_panic_scene(scene_core, program_core, still_panicking);
+        }
+    }
+
+    ///
+    /// 'Soft' panics a scene by sending a message and allowing the scene to tidy itself up
+    ///
+    /// Returns false if the scene cannot be soft-panicked (eg, because there's no error program
+    /// running, the error program itself is panicked, the message can't be queued, etc)
+    ///
+    pub (crate) fn soft_panic_scene(scene_core: &Arc<Mutex<SceneCore>>, program_core: &Arc<Mutex<SubProgramCore>>, panic: Box<dyn 'static + Any + Send>) -> Result<(), Box<dyn 'static + Any + Send>>  {
+        // Send the panic from the program that generated it
+        let program_id = {
+            let program_core = program_core.lock().unwrap();
+            *program_core.program_id()
+        };
+
+        // If the core is already panicked, then hard panic
+        if !scene_core.lock().unwrap().active_panics.is_empty() {
+            return Err(panic);
+        }
+
+        // Fetch the input sink for the program
+        let Ok(error_target) = Self::sink_for_target::<Error>(&scene_core, &program_id, StreamTarget::Any) else { return Err(panic); };
+
+        match &error_target {
+            OutputSinkTarget::Disconnected  |
+            OutputSinkTarget::Discard       => { 
+                // Disconnected error stream: switch to hard panicking
+                Err(panic)
+            }
+
+            OutputSinkTarget::Input(input)              |
+            OutputSinkTarget::CloseWhenDropped(input)   |
+            OutputSinkTarget::FixedInput(input)         => {
+                // Try to queue up the message urgently
+                if let Some(input) = input.upgrade() {
+                    // Lock the stream (deal with the case where it's the stream itself that's panicked by hard panicking)
+                    let Ok(mut input_lock) = input.lock() else { return Err(panic) };
+
+                    // Send the error with overfill (we're not blocking here)
+                    let panic_message = if let Some(panic_message) = panic.downcast_ref::<&'static str>() {
+                        panic_message.to_string()
+                    } else if let Some(panic_message) = panic.downcast_ref::<String>() {
+                        panic_message.clone()
+                    } else {
+                        "panicked".to_string()
+                    };
+
+                    let message = Error::Panic { source: program_id, message: panic_message.into() };
+                    let waker   = input_lock.send_with_overfill(program_id, message);
+                    drop(input_lock);
+
+                    // Trigger the wake action to ensure the message is delivered
+                    match waker {
+                        Ok(Some(waker)) => { waker.wake(); },
+                        Ok(None)        => { }
+                        Err(_)          => { return Err(panic); }
+                    }
+
+                    // Store as the active panic in the core
+                    {
+                        let mut scene_core = scene_core.lock().unwrap();
+
+                        if scene_core.active_panics.is_empty() {
+                            scene_core.active_panics.push(panic);
+                        } else {
+                            // Late hard-panic (we've sent the message but another panic has won the race to be first)
+                            return Err(panic);
+                        }
+                    }
+
+                    Ok(())
+                } else {
+                    // Input stream exists but is dead
+                    Err(panic)
+                }
+            }
+        }
+    }
+
+    ///
+    /// Hard-panics the scene because the error handler isn't present
+    ///
+    pub (crate) fn hard_panic_scene(scene_core: &Arc<Mutex<SceneCore>>, _program_core: &Arc<Mutex<SubProgramCore>>, panic: Box<dyn 'static + Any + Send>) {
+        let mut scene_core = scene_core.lock().unwrap();
+
+        // Add to the active panics
+        scene_core.active_panics.push(panic);
+
+        // Tell the core to stop immediately
+        let wakers = scene_core.stop();
+
+        // Wake up anything that needs to be awoken to stop the core
+        wakers.into_iter().for_each(|waker| waker.wake());
     }
 }
 
