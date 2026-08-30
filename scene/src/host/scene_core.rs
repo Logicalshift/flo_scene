@@ -1334,6 +1334,7 @@ impl SceneCore {
             }
 
             // Reconnect any targets
+            drop(core);
             for (stream_id, output_sink_core) in targets_to_reconnect.into_iter() {
                 // Try to connect this core to this program
                 if let Ok(Some(waker)) = stream_id.reconnect_output_sink(scene_core, &output_sink_core, source_id, StreamTarget::Program(subprogram_id)) {
