@@ -387,9 +387,11 @@ impl SceneInitialisationContext for Scene {
 
                 // Poll the program with the scene context set
                 poll_fn(|context| {
-                    with_scene_context(&scene_context, AssertUnwindSafe(|| {
-                        program.as_mut().poll(context)
-                    }))
+                    use futures::task::{Poll};
+                    match with_scene_context(&scene_context, AssertUnwindSafe(|| program.as_mut().poll(context))) {
+                        Ok(result)  => result,
+                        Err(())     => Poll::Pending
+                    }
                 }).await;
             }
         };
@@ -401,6 +403,6 @@ impl SceneInitialisationContext for Scene {
         let context = SceneContext::new(&self.core, &subprogram);
         let program = with_scene_context(&context, AssertUnwindSafe(|| program(input_stream, context.clone())));
 
-        send_context.send((program, context)).ok();
+        if let Ok(program) = program { send_context.send((program, context)).ok(); }
     }
 }

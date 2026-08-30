@@ -456,13 +456,18 @@ impl SceneContext {
             let poll_result         = with_scene_context(self, AssertUnwindSafe(|| future.poll_unpin(&mut oneshot_context)));
 
             match poll_result {
-                task::Poll::Ready(()) => {
+                Ok(task::Poll::Ready(())) => {
                     // Future fast-completed without needing to be assigned a process
                     return;
                 }
 
-                task::Poll::Pending => {
+                Ok(task::Poll::Pending) => {
                     // Task is busy (we'll do the heavyweight thing of queuing it up as a full process, and reawaken it there)
+                }
+
+                Err(()) => {
+                    // Task exploded or otherwise couldn't run
+                    return;
                 }
             }
         }
@@ -497,8 +502,8 @@ impl SceneContext {
                 let poll_result = with_scene_context(&context, AssertUnwindSafe(|| future.poll_unpin(ctxt)));
 
                 match poll_result {
-                    Poll::Pending   => Poll::Pending,
-                    Poll::Ready(()) => {
+                    Ok(Poll::Pending)   => Poll::Pending,
+                    Ok(Poll::Ready(())) => {
                         // Tidy up by removing ourselves from the list of program IDs
                         if let (Some(program_core), Some(process_handle)) = (context.program_core.upgrade(), process_handle.lock().ok().and_then(|mut handle| handle.take())) {
                             let mut program_core = program_core.lock().unwrap();
@@ -511,6 +516,9 @@ impl SceneContext {
                         // Stop the main process
                         Poll::Ready(())
                     },
+
+                    // Panicking case (or scene shutdown)
+                    Err(()) => Poll::Pending,
                 }
             });
 
@@ -587,7 +595,9 @@ impl Drop for OldContext {
 ///
 /// Performs an action with the specified context set as the thread context
 ///
-pub fn with_scene_context<TReturnType>(context: &SceneContext, action: impl UnwindSafe + FnOnce() -> TReturnType) -> TReturnType {
+/// Returns Err(()) if the action panicked, or if the context is stale (scene or program is no longer running)
+///
+pub fn with_scene_context<TReturnType>(context: &SceneContext, action: impl UnwindSafe + FnOnce() -> TReturnType) -> Result<TReturnType, ()> {
     use std::mem;
 
     // Update the active context and create an old context
@@ -599,12 +609,15 @@ pub fn with_scene_context<TReturnType>(context: &SceneContext, action: impl Unwi
     });
 
     // Peform the action with the context set
-    let result = action();
+    let Some(scene_core)    = context.scene_core.upgrade() else { return Err(()) };
+    let Some(program_core)  = context.program_core.upgrade() else { return Err(()) };
+
+    let result = SceneCore::catch_panics(&scene_core, &program_core, action);
 
     // Finished with the old context now
     mem::drop(old_context);
 
-    result
+    result.ok_or(())
 }
 
 ///

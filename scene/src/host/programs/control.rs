@@ -192,9 +192,11 @@ impl SceneProgramFn {
 
                     // Poll the program with the scene context set
                     poll_fn(|context| {
-                        with_scene_context(&scene_context, AssertUnwindSafe(|| {
-                            program.as_mut().poll(context)
-                        }))
+                        use futures::task::{Poll};
+                        match with_scene_context(&scene_context, AssertUnwindSafe(|| program.as_mut().poll(context))) {
+                            Ok(poll_result) => poll_result,
+                            Err(())         => Poll::Pending,
+                        }
                     }).await;
                 }
             };
@@ -237,9 +239,11 @@ impl SceneProgramFn {
 
                     // Poll the program with the scene context set
                     poll_fn(|context| {
-                        with_scene_context(&scene_context, AssertUnwindSafe(|| {
-                            program.as_mut().poll(context)
-                        }))
+                        use futures::task::{Poll};
+                        match with_scene_context(&scene_context, AssertUnwindSafe(|| program.as_mut().poll(context))) {
+                            Ok(poll_result) => poll_result,
+                            Err(())         => Poll::Pending,
+                        }
                     }).await;
                 }
             };
