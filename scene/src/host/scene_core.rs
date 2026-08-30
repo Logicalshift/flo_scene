@@ -1470,7 +1470,7 @@ impl SceneCore {
 
         // Abort every process the program is running immediately
         for handle in program.process_ids.drain(..) {
-            core.next_process        = core.next_process.min(handle.0);
+            //core.next_process        = core.next_process.min(handle.0);
             core.processes[handle.0] = None;
             core.awake_processes.retain(|old_handle| old_handle != &handle.0);
         }
@@ -1480,7 +1480,7 @@ impl SceneCore {
         let old_sub_program     = core.sub_programs[subprogram_handle].take();
         let old_input_core      = core.sub_program_inputs[subprogram_handle].take();
         core.program_indexes.remove(&program_id);
-        core.next_subprogram    = core.next_subprogram.min(subprogram_handle);
+        //core.next_subprogram    = core.next_subprogram.min(subprogram_handle);
 
         // Drop in order: first release the core lock, then drop the subprograms (which may re-take it)
         drop(program);
