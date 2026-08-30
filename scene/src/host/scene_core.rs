@@ -1100,15 +1100,19 @@ impl SceneCore {
                 None
             } else {
                 // Process still running: return the future so that it'll actually run
-                let process = scene_core.processes[process_id].as_mut().unwrap();
-                process.future = SceneProcessFuture::Waiting(process_future);
+                let process = scene_core.processes[process_id].as_mut();
+                if let Some(process) = process {
+                    process.future = SceneProcessFuture::Waiting(process_future);
 
-                // Wake any threads that were waiting for this process
-                process.unpark_when_waiting.drain(..).for_each(|thread| thread.unpark());
+                    // Wake any threads that were waiting for this process
+                    process.unpark_when_waiting.drain(..).for_each(|thread| thread.unpark());
 
-                // If the future has woken up since the poll finished, then re-awaken the scene using a scene waker
-                if scene_core.processes[process_id].as_mut().unwrap().is_awake {
-                    Some(waker(Arc::new(SceneCoreWaker::with_core(core, process_id))))
+                    // If the future has woken up since the poll finished, then re-awaken the scene using a scene waker
+                    if scene_core.processes[process_id].as_mut().map(|process| process.is_awake) == Some(true) {
+                        Some(waker(Arc::new(SceneCoreWaker::with_core(core, process_id))))
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
