@@ -1,6 +1,9 @@
+use crate::host::filter::*;
+use crate::host::initialisation_context::*;
 use crate::host::input_stream::*;
 use crate::host::scene_context::*;
 use crate::host::scene_message::*;
+use crate::host::stream_id::*;
 use crate::host::subprogram_id::*;
 use crate::host::stream_target::*;
 
@@ -14,7 +17,7 @@ use serde::*;
 use std::borrow::*;
 use std::collections::*;
 use std::sync::*;
-        
+
 /// The identifier for the standard scene error program
 pub static SCENE_ERROR_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::error");
 
@@ -28,7 +31,13 @@ pub enum Error {
 
     /// An error has occurred and the error program should cause the scene to shut down
     Failure { source: SubProgramId, message: Cow<'static, str> },
+}
 
+///
+/// Message sent to subscribe to error messages occurring within a scene
+///
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ErrorSubscription {
     /// Send errors destined for the specified subprogram to the specified StreamTarget
     Subscribe(SubProgramId, StreamTarget),
 
@@ -43,13 +52,60 @@ impl SceneMessage for Error {
 
     #[inline]
     fn message_type_name() -> String { "flo_scene::Error".into() }
+
+    fn initialise(scene: &impl SceneInitialisationContext) {
+        scene.connect_programs(
+            (), 
+            StreamTarget::Filtered(FilterHandle::for_filter(|msgs| 
+                msgs.map(|msg| ErrorOrSubscription::ErrorMsg(msg))),*SCENE_ERROR_PROGRAM), 
+            StreamId::with_message_type::<Subscribe<Error>>()
+        ).unwrap();
+    }
+}
+
+impl SceneMessage for ErrorSubscription {
+    fn default_target() -> StreamTarget {
+        (*SCENE_ERROR_PROGRAM).into()
+    }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::ErrorSubscription".into() }
+
+    fn initialise(scene: &impl SceneInitialisationContext) {
+        scene.connect_programs(
+            (), 
+            StreamTarget::Filtered(FilterHandle::for_filter(|msgs: InputStream<Subscribe<Error>>| 
+                msgs.map(|msg| ErrorOrSubscription::Subscription(ErrorSubscription::SubscribeToAll(msg.target())))),*SCENE_ERROR_PROGRAM), 
+            StreamId::with_message_type::<Subscribe<Error>>()
+        ).unwrap();
+
+        scene.connect_programs(
+            (), 
+            StreamTarget::Filtered(FilterHandle::for_filter(|msgs| 
+                msgs.map(|msg| ErrorOrSubscription::Subscription(msg))),*SCENE_ERROR_PROGRAM), 
+            StreamId::with_message_type::<Subscribe<Error>>()
+        ).unwrap();
+    }
+}
+
+///
+/// Combined error or subscription message
+///
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub (crate) enum ErrorOrSubscription {
+    ErrorMsg(Error),
+    Subscription(ErrorSubscription)
+}
+
+impl SceneMessage for ErrorOrSubscription {
+
 }
 
 impl Error {
     ///
     /// Runs the default error handling program for a scene
     ///
-    pub async fn default_error_program(input: InputStream<Error>, context: SceneContext) {
+    pub (crate) async fn default_error_program(input: InputStream<ErrorOrSubscription>, context: SceneContext) {
         context.i_am("Error program");
         context.tag(SceneProgramTag::Namespace("flo_scene".into())).ok();
 
@@ -60,9 +116,11 @@ impl Error {
         let mut input           = input;
         let mut failure_count   = 0;
 
+        use ErrorOrSubscription::*;
+
         while let Some(error) = input.next().await {
             match error {
-                Error::Subscribe(subprogram_id, stream_target) => {
+                Subscription(ErrorSubscription::Subscribe(subprogram_id, stream_target)) => {
                     program_subscribers
                         .lock().unwrap()
                         .entry(subprogram_id)
@@ -70,16 +128,20 @@ impl Error {
                         .subscribe(&context, stream_target);
                 },
 
-                Error::SubscribeToAll(stream_target) => {
+                Subscription(ErrorSubscription::SubscribeToAll(stream_target)) => {
                     all_subscribers
                         .lock().unwrap()
                         .subscribe(&context, stream_target);
                 },
 
-                Error::Error { source, message } => {
+                ErrorMsg(Error::Error { source, message }) => {
                     // Send to all subscribers
                     if let Some(program_subscriber) = program_subscribers.lock().unwrap().get_mut(&source) {
-                        program_subscriber.send(Error::Error { source, message: message.clone() }).await;
+                        if !program_subscriber.send(Error::Failure { source, message: message.clone() }).await {
+                            // Remove from the list of subscribers (locks can't be held across awaits, so the lock is not held here)
+                            let mut program_subscribers = program_subscribers.lock().unwrap();
+                            program_subscribers.remove(&source);
+                        }
                     }
 
                     all_subscribers
@@ -88,12 +150,16 @@ impl Error {
                         .await;
                 },
 
-                Error::Failure { source, message } => {
+                ErrorMsg(Error::Failure { source, message }) => {
                     failure_count += 1;
 
                     // Send to all subscribers
                     if let Some(program_subscriber) = program_subscribers.lock().unwrap().get_mut(&source) {
-                        program_subscriber.send(Error::Failure { source, message: message.clone() }).await;
+                        if !program_subscriber.send(Error::Failure { source, message: message.clone() }).await {
+                            // Remove from the list of subscribers (locks can't be held across awaits, so the lock is not held here)
+                            let mut program_subscribers = program_subscribers.lock().unwrap();
+                            program_subscribers.remove(&source);
+                        }
                     }
 
                     all_subscribers
