@@ -323,6 +323,7 @@ impl TestBuilder {
                 }
 
                 // Close the assertions stream (which will end the test)
+                sender.send("<< END OF TESTS >>".into()).await.ok();
                 mem::drop(sender);
 
                 *tests_finished.lock().unwrap() = true;
@@ -351,11 +352,17 @@ impl TestBuilder {
                         let mut receiver = receiver;
 
                         while let Some(assertion_failure) = receiver.next().await {
-                            println!("{}", assertion_failure);
+                            if assertion_failure != "<< END OF TESTS >>" {
+                                println!("{}", assertion_failure);
+                            }
                             future_failures.push(assertion_failure);
                         }
 
-                        received_all = true;
+                        // << END OF TESTS >> is sent as a special string to indicate that the tests are all done
+                        if future_failures.last() == Some(&"<< END OF TESTS >>".into()) {
+                            future_failures.pop();
+                            received_all = true;
+                        }
                     }.boxed(),
 
                     async {
@@ -376,8 +383,8 @@ impl TestBuilder {
             // If only the scene finishes, then wait for the results to finish too
             // (Results will finish because the sender should get dropped when the scene stops)
             match completed {
-                future::Either::Right((_scene, results)) => { results.await; },
-                future::Either::Left(_) => { /* Fetching results finished */ },
+                future::Either::Right((_scene, results))    => { results.await; },
+                future::Either::Left(_)                     => { /* Fetching results finished */ },
             }
         });
 
