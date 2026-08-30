@@ -1,6 +1,7 @@
 mod control;
 mod control_ext;
 mod error;
+mod error_ext;
 mod outside;
 mod text_output;
 mod text_input;
@@ -13,6 +14,7 @@ mod query;
 pub use control::*;
 pub use control_ext::*;
 pub use error::*;
+pub use error_ext::*;
 pub use outside::*;
 pub use text_output::*;
 pub use text_input::*;
