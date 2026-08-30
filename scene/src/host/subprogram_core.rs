@@ -25,6 +25,9 @@ pub (crate) struct SubProgramCore {
     /// The ID of this program
     pub (super) id: SubProgramId,
 
+    /// The handle of this subprogram (index into the subprograms list)
+    pub (super) subprogram_handle: usize,
+
     /// The source of the last message that this subprogram received via its input stream
     pub (super) last_message_source: Option<SubProgramId>,
 
