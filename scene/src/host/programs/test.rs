@@ -314,8 +314,7 @@ impl TestBuilder {
 
                 (input_stream, failed_assertions)
             }.boxed()
-        })
-    );
+        }));
 
         self
     }
