@@ -376,9 +376,7 @@ impl TestBuilder {
                         let mut receiver = receiver;
 
                         while let Some(assertion_failure) = receiver.next().await {
-                            if assertion_failure != "<< END OF TESTS >>" {
-                                println!("{}", assertion_failure);
-                            }
+                            println!("{}", assertion_failure);
                             future_failures.push(assertion_failure);
                         }
 
