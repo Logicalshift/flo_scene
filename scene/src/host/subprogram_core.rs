@@ -5,6 +5,7 @@ use crate::host::scene_message::*;
 use crate::host::stream_id::*;
 use crate::host::subprogram_id::*;
 
+use futures::prelude::*;
 use futures::task::{ArcWake, Waker, waker};
 
 use std::any::*;
@@ -260,6 +261,30 @@ impl SubProgramCore {
         let sequence_number = self.next_command_sequence.fetch_add(1, Ordering::Relaxed);
 
         self.id.with_command_id(sequence_number)
+    }
+
+    ///
+    /// Waits for any background processes to finish
+    ///
+    pub (crate) fn wait_for_background_processes<'a>(subprogram_core: &'a Arc<Mutex<SubProgramCore>>, scene_core: &'a Arc<Mutex<SceneCore>>) -> impl 'a + Send + Future<Output=()> {
+        future::poll_fn(move |ctxt| {
+            use futures::task::{Poll};
+
+            // Check if the processes are all finished
+            let mut scene_core  = scene_core.lock().unwrap();
+            let subprogram_core = subprogram_core.lock().unwrap();
+
+            if subprogram_core.process_id.len() > 1 {
+                // More than one process remaining for this subprogram (the first process is always the program itself, except when it's dead)
+                // Reawaken this whenever a process has finished stopping
+                scene_core.on_stop.push(ctxt.waker().clone());
+
+                Poll::Pending
+            } else {
+                // No 
+                Poll::Ready(())
+            }
+        })
     }
 
     ///

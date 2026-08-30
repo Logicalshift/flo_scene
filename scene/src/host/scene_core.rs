@@ -67,7 +67,7 @@ pub (crate) struct SceneCore {
     thread_wakers: Vec<Option<Waker>>,
 
     /// Wakers for when a process stops
-    on_stop: Vec<Waker>,
+    pub (super) on_stop: Vec<Waker>,
 
     /// The connections to assign between programs. More specific sources override less specific sources.
     connections: HashMap<(StreamSource, StreamId), StreamTarget>,
@@ -190,12 +190,19 @@ impl SceneCore {
                     // We use a background process to start because we might be blocking the program that reads the updates here
                     SceneCore::send_scene_updates(&core, vec![SceneUpdate::Started(program_id, StreamId::with_message_type::<TMessage>())]);
                 }
-                mem::drop(start_core);
 
                 // Wait for the program to run
                 program.await;
 
-                // TODO: wait for any other subprogram processes to run
+                // Wait for the background tasks to stop before the whole task is finished
+                if let Some(scene_core) = start_core.upgrade() {
+                    let sub_program_core = { scene_core.lock().unwrap().sub_programs[handle].clone() };
+
+                    if let Some(subprogram_core) = sub_program_core {
+                        SubProgramCore::wait_for_background_processes(&subprogram_core, &scene_core).await;
+                    }
+                }
+                mem::drop(start_core);
 
                 // Notify that the program has finished
                 if let Some(mut update_sink) = update_sink {
