@@ -19,6 +19,7 @@ use futures::channel::mpsc;
 use std::any::*;
 use std::cell::*;
 use std::sync::*;
+use std::panic::{UnwindSafe, AssertUnwindSafe};
 
 ///
 /// The scene context is a per-subprogram way to access output streams
@@ -452,7 +453,7 @@ impl SceneContext {
             // Poll with a waker that we throw away (gets replaced when we queue in the background)
             let oneshot_waker       = task::waker(oneshot_waker.clone());
             let mut oneshot_context = task::Context::from_waker(&oneshot_waker);
-            let poll_result         = with_scene_context(self, || future.poll_unpin(&mut oneshot_context));
+            let poll_result         = with_scene_context(self, AssertUnwindSafe(|| future.poll_unpin(&mut oneshot_context)));
 
             match poll_result {
                 task::Poll::Ready(()) => {
@@ -493,7 +494,7 @@ impl SceneContext {
                 }
 
                 // Poll the future with the scene context set
-                let poll_result = with_scene_context(&context, || future.poll_unpin(ctxt));
+                let poll_result = with_scene_context(&context, AssertUnwindSafe(|| future.poll_unpin(ctxt)));
 
                 match poll_result {
                     Poll::Pending   => Poll::Pending,
@@ -586,7 +587,7 @@ impl Drop for OldContext {
 ///
 /// Performs an action with the specified context set as the thread context
 ///
-pub fn with_scene_context<TReturnType>(context: &SceneContext, action: impl FnOnce() -> TReturnType) -> TReturnType {
+pub fn with_scene_context<TReturnType>(context: &SceneContext, action: impl UnwindSafe + FnOnce() -> TReturnType) -> TReturnType {
     use std::mem;
 
     // Update the active context and create an old context

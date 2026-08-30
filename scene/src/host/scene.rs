@@ -18,6 +18,7 @@ use futures::future::{poll_fn};
 use futures::{pin_mut};
 
 use std::io::{stdin, stdout, stderr, BufReader};
+use std::panic::{AssertUnwindSafe};
 use std::sync::*;
 use std::collections::{HashSet};
 
@@ -386,9 +387,9 @@ impl SceneInitialisationContext for Scene {
 
                 // Poll the program with the scene context set
                 poll_fn(|context| {
-                    with_scene_context(&scene_context, || {
+                    with_scene_context(&scene_context, AssertUnwindSafe(|| {
                         program.as_mut().poll(context)
-                    })
+                    }))
                 }).await;
             }
         };
@@ -398,7 +399,7 @@ impl SceneInitialisationContext for Scene {
 
         // Call the start function to create the future, and pass it into the program that was started
         let context = SceneContext::new(&self.core, &subprogram);
-        let program = with_scene_context(&context, || program(input_stream, context.clone()));
+        let program = with_scene_context(&context, AssertUnwindSafe(|| program(input_stream, context.clone())));
 
         send_context.send((program, context)).ok();
     }

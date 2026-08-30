@@ -30,6 +30,7 @@ use serde::ser::{Error as SeError};
 use std::collections::{HashSet, HashMap};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
+use std::panic::{AssertUnwindSafe};
 use std::sync::*;
 
 /// The identifier for the standard scene control program
@@ -191,9 +192,9 @@ impl SceneProgramFn {
 
                     // Poll the program with the scene context set
                     poll_fn(|context| {
-                        with_scene_context(&scene_context, || {
+                        with_scene_context(&scene_context, AssertUnwindSafe(|| {
                             program.as_mut().poll(context)
-                        })
+                        }))
                     }).await;
                 }
             };
@@ -236,9 +237,9 @@ impl SceneProgramFn {
 
                     // Poll the program with the scene context set
                     poll_fn(|context| {
-                        with_scene_context(&scene_context, || {
+                        with_scene_context(&scene_context, AssertUnwindSafe(|| {
                             program.as_mut().poll(context)
-                        })
+                        }))
                     }).await;
                 }
             };
