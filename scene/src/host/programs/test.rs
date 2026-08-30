@@ -329,14 +329,17 @@ impl TestBuilder {
         }
 
         // Run the scene on the current thread, until the test actions have been finished
-        let mut failures    = vec![];
-        let future_failures = &mut failures;
-        let timeout         = self.timeout;
-        let mut timed_out   = false;
+        let mut failures        = vec![];
+        let future_failures     = &mut failures;
+        let timeout             = self.timeout;
+        let mut timed_out       = false;
+        let mut scene_finished  = false;
 
         executor::block_on(future::select(async {
                 // Run the scene
                 runner.await;
+
+                scene_finished = true;
             }.boxed(),
 
             future::select(
@@ -361,6 +364,10 @@ impl TestBuilder {
         // If we timed out, that counts as an assertion failure
         if timed_out {
             failures.push(format!("Tests took more than {:?} to complete", timeout));
+        }
+
+        if scene_finished {
+            failures.push(format!("Scene finished before tests completed"));
         }
 
         // Report any assertion failures
