@@ -57,7 +57,7 @@ impl SceneMessage for Error {
             (), 
             StreamTarget::Filtered(FilterHandle::for_filter(|msgs| 
                 msgs.map(|msg| ErrorOrSubscription::ErrorMsg(msg))), *ERROR_PROGRAM), 
-            StreamId::with_message_type::<Subscribe<Error>>()
+            StreamId::with_message_type::<Error>()
         ).unwrap();
     }
 }
@@ -82,7 +82,7 @@ impl SceneMessage for ErrorSubscription {
             (), 
             StreamTarget::Filtered(FilterHandle::for_filter(|msgs| 
                 msgs.map(|msg| ErrorOrSubscription::Subscription(msg))), *ERROR_PROGRAM), 
-            StreamId::with_message_type::<Subscribe<Error>>()
+            StreamId::with_message_type::<ErrorSubscription>()
         ).unwrap();
     }
 }
