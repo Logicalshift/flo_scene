@@ -340,41 +340,53 @@ impl TestBuilder {
         let timeout             = self.timeout;
         let mut timed_out       = false;
         let mut scene_finished  = false;
+        let mut received_all    = false;
 
-        executor::block_on(future::select(
-            future::select(
-                async move {
-                    // Wait for assertion failures and add them to the list
-                    // Stop when the assertions stream is closed (which stops the tests overall)
-                    let mut receiver = receiver;
+        executor::block_on(async {
+            let completed = future::select(
+                future::select(
+                    async {
+                        // Wait for assertion failures and add them to the list
+                        // Stop when the assertions stream is closed (which stops the tests overall)
+                        let mut receiver = receiver;
 
-                    while let Some(assertion_failure) = receiver.next().await {
-                        println!("{}", assertion_failure);
-                        future_failures.push(assertion_failure);
-                    }
-                }.boxed(),
+                        while let Some(assertion_failure) = receiver.next().await {
+                            println!("{}", assertion_failure);
+                            future_failures.push(assertion_failure);
+                        }
+
+                        received_all = true;
+                    }.boxed(),
+
+                    async {
+                        // Stop when the timeout is reached and set the 'timed_out' flag
+                        Delay::new(timeout).await;
+                        timed_out = true;
+                    }.boxed()).boxed(),
 
                 async {
-                    // Stop when the timeout is reached and set the 'timed_out' flag
-                    Delay::new(timeout).await;
-                    timed_out = true;
-                }.boxed()).boxed(),
+                    // Run the scene
+                    runner.await;
 
-            async {
-                // Run the scene
-                runner.await;
+                    // Note that it's finished
+                    scene_finished = true;
+                }.boxed(),
+            ).await;
 
-                // Note that it's finished
-                scene_finished = true;
-            }.boxed(),
-        ));
+            // If only the scene finishes, then wait for the results to finish too
+            // (Results will finish because the sender should get dropped when the scene stops)
+            match completed {
+                future::Either::Right((_scene, results)) => { results.await; },
+                future::Either::Left(_) => { /* Fetching results finished */ },
+            }
+        });
 
         // If we timed out, that counts as an assertion failure
         if timed_out {
             failures.push(format!("Tests took more than {:?} to complete", timeout));
         }
 
-        if scene_finished && !*tests_finished.lock().unwrap() {
+        if scene_finished && !received_all {
             failures.push(format!("Scene finished before tests completed"));
         }
 
