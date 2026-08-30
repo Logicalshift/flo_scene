@@ -347,7 +347,6 @@ impl TestBuilder {
                 }
 
                 // Close the assertions stream (which will end the test)
-                sender.send("<< END OF TESTS >>".into()).await.ok();
                 mem::drop(sender);
 
                 *tests_finished.lock().unwrap() = true;
@@ -383,11 +382,7 @@ impl TestBuilder {
                             future_failures.push(assertion_failure);
                         }
 
-                        // << END OF TESTS >> is sent as a special string to indicate that the tests are all done
-                        if future_failures.last() == Some(&"<< END OF TESTS >>".into()) {
-                            future_failures.pop();
-                            received_all = true;
-                        }
+                        received_all = *tests_finished.lock().unwrap();
                     }.boxed(),
 
                     async {
@@ -427,8 +422,12 @@ impl TestBuilder {
         });
 
         // If we timed out, that counts as an assertion failure
-        if timed_out || timed_out_2 {
+        if timed_out {
             failures.push(format!("Tests took more than {:?} to complete", timeout));
+        }
+
+        if timed_out_2 {
+            failures.push(format!("Tests took more than {:?} to complete (while expecting scene to shut down)", timeout));
         }
 
         if scene_finished && (!received_all || self.expecting_running_scene) {
