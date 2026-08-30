@@ -1629,15 +1629,25 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                 if poll_result.is_pending() {
                     // Put the process back into the pending list
                     let mut core        = unlocked_core.lock().unwrap();
-                    let process_data    = core.processes[next_process_idx].as_mut().expect("Process should not go away while we're polling it");
+                    let process_data    = core.processes[next_process_idx].as_mut();
 
-                    process_data.future = SceneProcessFuture::Waiting(next_process);
-                    process_data.unpark_when_waiting.drain(..).for_each(|thread| thread.unpark());
+                    if let Some(process_data) = process_data {
+                        process_data.future = SceneProcessFuture::Waiting(next_process);
+                        process_data.unpark_when_waiting.drain(..).for_each(|thread| thread.unpark());
 
-                    if process_data.is_awake {
-                        // Possible re-awoken while polling, so make sure the process is still in the pending list so it gets polled again
-                        if !core.awake_processes.contains(&next_process_idx) {
-                            core.awake_processes.push_back(next_process_idx);
+                        if process_data.is_awake {
+                            // Possible re-awoken while polling, so make sure the process is still in the pending list so it gets polled again
+                            if !core.awake_processes.contains(&next_process_idx) {
+                                core.awake_processes.push_back(next_process_idx);
+                            }
+                        }
+                    } else {
+                        // This process has terminated abnormally
+                        let on_stop = { unlocked_core.lock().unwrap().on_stop.drain(..).collect::<Vec<_>>() };
+
+                        // Wake up anything that wants to be notified when a process stops
+                        for stop_notification in on_stop {
+                            stop_notification.wake();
                         }
                     }
                 } else {
