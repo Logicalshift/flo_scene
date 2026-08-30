@@ -66,6 +66,9 @@ pub (crate) struct SceneCore {
     /// Wakers for the futures that are being used to run the scene (can be multiple if the scene is scheduled across a thread pool)
     thread_wakers: Vec<Option<Waker>>,
 
+    /// Wakers for when a process stops
+    on_stop: Vec<Waker>,
+
     /// The connections to assign between programs. More specific sources override less specific sources.
     connections: HashMap<(StreamSource, StreamId), StreamTarget>,
 
@@ -110,6 +113,7 @@ impl SceneCore {
             filter_conversions:         HashMap::new(),
             filtered_targets:           HashMap::new(),
             thread_wakers:              vec![],
+            on_stop:                    vec![],
             stopped:                    false,
             notify_when_idle:           false,
             idle_count:                 0,
@@ -1587,10 +1591,19 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                     }
                 } else {
                     // This process has been terminated: remove it from the list
-                    let mut core = unlocked_core.lock().unwrap();
+                    let on_stop = {
+                        let mut core = unlocked_core.lock().unwrap();
 
-                    core.processes[next_process_idx] = None;
-                    core.next_process = core.next_process.min(next_process_idx);
+                        core.processes[next_process_idx] = None;
+                        core.next_process = core.next_process.min(next_process_idx);
+
+                        core.on_stop.drain(..).collect::<Vec<_>>()
+                    };
+
+                    // Wake up anything that wants to be notified when a process stops
+                    for stop_notification in on_stop {
+                        stop_notification.wake();
+                    }
                 }
             }
         }
