@@ -1,6 +1,9 @@
+use crate::host::filter::*;
 use crate::host::input_stream::*;
+use crate::host::initialisation_context::*;
 use crate::host::scene_context::*;
 use crate::host::scene_message::*;
+use crate::host::stream_id::*;
 use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 use crate::host::commands::*;
@@ -8,6 +11,7 @@ use crate::host::commands::*;
 use super::control::*;
 use super::control_ext::*;
 use super::query::*;
+use super::subscription::*;
 
 use futures::prelude::*;
 use serde::*;
@@ -44,7 +48,7 @@ pub enum Log {
 ///
 /// The severity level of a log message
 ///
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum LogLevel {
     Debug,
     Info,
@@ -52,6 +56,9 @@ pub enum LogLevel {
     Error,
     Fatal
 }
+
+/// The log levels in order
+const LOG_LEVELS: [LogLevel; 5] = [ LogLevel::Debug, LogLevel::Info, LogLevel::Warn, LogLevel::Error, LogLevel::Fatal ];
 
 ///
 /// Message sent to a logger to subscribe to log messages
@@ -64,7 +71,16 @@ pub enum LogLevel {
 ///
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LogSubscription {
-    Subscribe(LogLevel, SubProgramId)
+    Subscribe(LogLevel, StreamTarget)
+}
+
+///
+/// Message sent to the default log program
+///
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub (crate) enum LogOrSubscription {
+    Log(Log),
+    Subscription(LogSubscription),
 }
 
 impl SceneMessage for Log {
@@ -75,6 +91,15 @@ impl SceneMessage for Log {
     fn default_target() -> StreamTarget {
         (*LOG_PROGRAM).into()
     }
+
+    fn initialise(scene: &impl SceneInitialisationContext) {
+        scene.connect_programs(
+            (), 
+            StreamTarget::Filtered(FilterHandle::for_filter(|msgs| 
+                msgs.map(|msg| LogOrSubscription::Log(msg))), *LOG_PROGRAM), 
+            StreamId::with_message_type::<Log>()
+        ).unwrap();
+    }
 }
 
 impl SceneMessage for LogSubscription {
@@ -84,6 +109,28 @@ impl SceneMessage for LogSubscription {
 
     fn default_target() -> StreamTarget {
         (*LOG_PROGRAM).into()
+    }
+
+    fn initialise(scene: &impl SceneInitialisationContext) {
+        scene.connect_programs(
+            (), 
+            StreamTarget::Filtered(FilterHandle::for_filter(|msgs: InputStream<Subscribe<Log>>| 
+                msgs.map(|msg| LogOrSubscription::Subscription(LogSubscription::Subscribe(LogLevel::Debug, msg.target())))), *LOG_PROGRAM), 
+            StreamId::with_message_type::<Subscribe<Log>>()
+        ).unwrap();
+
+        scene.connect_programs(
+            (), 
+            StreamTarget::Filtered(FilterHandle::for_filter(|msgs| 
+                msgs.map(|msg| LogOrSubscription::Subscription(msg))), *LOG_PROGRAM), 
+            StreamId::with_message_type::<LogSubscription>()
+        ).unwrap();
+    }
+}
+
+impl SceneMessage for LogOrSubscription {
+    fn message_type_name() -> String {
+        "LogOrSubscription".into()
     }
 }
 
@@ -250,6 +297,60 @@ impl Log {
 
             // Write to stdout
             eprintln!("{}", input.format_log_string(&program_names, 80, true));
+        }
+    }
+
+    ///
+    /// The default log subprogram
+    ///
+    pub (crate) async fn default_log_program(input: InputStream<LogOrSubscription>, context: SceneContext) {
+        context.i_am("Logging");
+        context.tag(SceneProgramTag::Namespace("flo_scene".into())).ok();
+
+        // Start the stderr logging program as a child program
+        let stderr_logger       = SubProgramId::new();
+        let mut stderr_logger   = if context.add_child_subprogram(stderr_logger, Self::stderr_log_output_program, 100).is_ok() {
+            context.send(()).ok()
+        } else {
+            None
+        };
+
+        // Track the subscribers to this log program
+        let mut subscribers = HashMap::new();
+
+        // Process the input
+        let mut input = input;
+
+        while let Some(input) = input.next().await {
+            match input {
+                LogOrSubscription::Subscription(LogSubscription::Subscribe(level, target)) => {
+                    subscribers.entry(level)
+                        .or_insert_with(|| EventSubscribers::<Log>::new())
+                        .subscribe(&context, target);
+                }
+
+                LogOrSubscription::Log(log_msg) => {
+                    // If the log message is sent to the subscribers then we don't forward it to stderr (otherwise we do)
+                    let mut sent_to_subscribers = false;
+                    let msg_level               = log_msg.level();
+
+                    for level in LOG_LEVELS.iter().copied() {
+                        // If this logger should receive messages at this level, try sending to the subscribers (and remember if we did so)
+                        if level <= msg_level {
+                            if let Some(subscribers) = subscribers.get_mut(&level) {
+                                sent_to_subscribers = subscribers.send(log_msg.clone()).await || sent_to_subscribers;
+                            }
+                        }
+                    }
+
+                    // If there were no subscribers for this log message, send to the stderr logger
+                    if !sent_to_subscribers {
+                        if let Some(stderr_logger) = stderr_logger.as_mut() {
+                            stderr_logger.send(log_msg).await.ok();
+                        }
+                    }
+                }
+            }
         }
     }
 }
