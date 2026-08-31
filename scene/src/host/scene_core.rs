@@ -964,8 +964,9 @@ impl SceneCore {
     /// Starts a new process running in this scene
     ///
     pub (crate) fn start_process(&mut self, process: impl 'static + Send + Future<Output=()>) -> (ProcessHandle, Option<Waker>) {
-        // Assign a process ID to this process
-        let process_id = self.next_process;
+        // Assign a process ID to this process (first free process, or an entirely new slot)
+        let mut process_id = self.next_process;
+        while process_id < self.processes.len() && !self.processes[process_id].is_free() { process_id += 1; }
         while self.processes.len() <= process_id {
             self.processes.push(SceneProcessState::Free);
         }
