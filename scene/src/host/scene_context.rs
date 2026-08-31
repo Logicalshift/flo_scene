@@ -563,18 +563,20 @@ impl SceneContext {
     }
 
     ///
-    /// Retrieves data associated with this context
+    /// Retrieves data associated with this context (None if the context is not running)
     ///
     pub fn get<TData>(&self) -> Option<TData>
     where 
-        TData: 'static + Send + Clone + Any,
+        TData: 'static + Send + Default + Clone + Any,
     {
-        let Some(program_core)  = self.program_core.upgrade() else { return None; };
-        let Ok(program_core)    = program_core.lock() else { return None; };
+        let Some(program_core)      = self.program_core.upgrade() else { return None; };
+        let Ok(mut program_core)    = program_core.lock() else { return None; };
 
         let type_id     = TypeId::of::<TData>();
-        let maybe_data  = program_core.data.get(&type_id);
-        let maybe_data  = maybe_data.and_then(|data| data.downcast_ref::<TData>());
+        let maybe_data  = program_core.data
+            .entry(type_id)
+            .or_insert_with(|| Box::new(TData::default()));
+        let maybe_data  = maybe_data.downcast_ref::<TData>();
 
         maybe_data.cloned()
     }
