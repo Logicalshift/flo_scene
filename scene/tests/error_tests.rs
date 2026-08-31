@@ -87,8 +87,7 @@ fn notify_on_failure() {
         }, 5);
 
     TestBuilder::new()
-        // TODO: scene stops too quickly and prevents the 'expected message' action from completing
-        // .expect_message_matching(TestMessage(Error::Failure { source: error_program, message: "\"Goodbye, world\"".into() }), "Was expecting an error message from our subprogram")
+        .expect_message_matching(TestMessage(Error::Failure { source: error_program, message: "\"Goodbye, world\"".into() }), "Was expecting an error message from our subprogram")
         .expect_stopped_scene()
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
