@@ -204,6 +204,8 @@ where
                                     }
                                 }
                             }
+
+                            async_writer.flush().await.ok();
                         }
                     };
 
