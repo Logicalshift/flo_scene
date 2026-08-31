@@ -118,7 +118,16 @@ fn log_failure_immediately_with_name() {
         5);
 
     TestBuilder::new()
-        .expect_message_matching(ErrorOutput::Line("\x1b[1;91m!!Test program            \x1b[0m | \"Oops\"".into()), "Log message did not match")
+        .expect_message(|msg: ErrorOutput| {
+            // The failure can happen either before or after the name is set
+            if msg == ErrorOutput::Line("\x1b[1;91m!!Test program            \x1b[0m | \"Oops\"".into()) {
+                Ok(())
+            } else if msg == ErrorOutput::Line("\x1b[1;91m!!test log                \x1b[0m | \"Oops\"".into()) {
+                Ok(())
+            } else {
+                Err("Log message did not match".into())
+            }
+        })
         .expect_stopped_scene()
         .run_in_scene_with_threads(&scene, test_subprogram, 10);
 }
