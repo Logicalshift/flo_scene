@@ -209,11 +209,7 @@ where
                     };
 
                     // Ask the scene to create a subprogram that writes the output (won't work if the main 'scene' program isn't running)
-                    let output_program = SubProgramId::new();
-                    let output_program = SceneControl::start_program(output_program, move |_: InputStream<()>, _| byte_writer, 0);
-
-                    let mut control = context.send(()).unwrap();
-                    control.send_immediate(output_program).ok();
+                    context.run_in_background(byte_writer);
                 });
 
                 // Send the connection to whoever is connected to this socket listener
