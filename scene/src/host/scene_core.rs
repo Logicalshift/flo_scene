@@ -37,6 +37,15 @@ pub (crate) struct SceneCoreWaker {
 }
 
 ///
+/// The possible states of a scene process
+///
+enum SceneProcessState {
+    Free,
+    Running(SceneProcess),
+    Aborted,
+}
+
+///
 /// The scene core is used to store the shared state for all scenes
 ///
 pub (crate) struct SceneCore {
@@ -56,7 +65,7 @@ pub (crate) struct SceneCore {
     program_indexes: HashMap<SubProgramId, usize>,
 
     /// The futures that are running in this core
-    processes: Vec<Option<SceneProcess>>,
+    processes: Vec<SceneProcessState>,
 
     /// The next free process in this core
     next_process: usize,
@@ -958,12 +967,12 @@ impl SceneCore {
         // Assign a process ID to this process
         let process_id = self.next_process;
         while self.processes.len() <= process_id {
-            self.processes.push(None);
+            self.processes.push(SceneProcessState::Free);
         }
 
         // Update the next process ID
         self.next_process += 1;
-        while self.next_process < self.processes.len() && self.processes[self.next_process].is_some() {
+        while self.next_process < self.processes.len() && !self.processes[self.next_process].is_free() {
             self.next_process += 1;
         }
 
@@ -973,7 +982,7 @@ impl SceneCore {
             is_awake:               true,
             unpark_when_waiting:    vec![],
         };
-        self.processes[process_id] = Some(new_process);
+        self.processes[process_id] = SceneProcessState::Running(new_process);
 
         // Mark as awake
         self.awake_processes.push_back(process_id);
@@ -1098,7 +1107,7 @@ impl SceneCore {
 
             if poll_result.is_ready() {
                 // Process was finished: free it up for the future 
-                scene_core.processes[process_id]    = None;
+                scene_core.processes[process_id]    = SceneProcessState::Free;
                 scene_core.next_process             = process_id.min(scene_core.next_process);
                 scene_core.awake_processes.retain(|pid| pid != &process_id);
 
@@ -1196,7 +1205,7 @@ impl SceneCore {
             // If the inputs are all idle, then all the processes must be asleep and waiting for more input as well
             core.lock().unwrap()
                 .processes.iter()
-                .all(|process| if let Some(process) = process {
+                .all(|process| if let SceneProcessState::Running(process) = process {
                     !process.is_awake && process.future.is_waiting()
                 } else {
                     true
@@ -1470,8 +1479,8 @@ impl SceneCore {
 
         // Abort every process the program is running immediately
         for handle in program.process_ids.drain(..) {
-            //core.next_process        = core.next_process.min(handle.0);
-            core.processes[handle.0] = None;
+            core.next_process        = core.next_process.min(handle.0);
+            core.processes[handle.0] = SceneProcessState::Aborted;
             core.awake_processes.retain(|old_handle| old_handle != &handle.0);
         }
 
@@ -1480,7 +1489,7 @@ impl SceneCore {
         let old_sub_program     = core.sub_programs[subprogram_handle].take();
         let old_input_core      = core.sub_program_inputs[subprogram_handle].take();
         core.program_indexes.remove(&program_id);
-        //core.next_subprogram    = core.next_subprogram.min(subprogram_handle);
+        core.next_subprogram    = core.next_subprogram.min(subprogram_handle);
 
         // Drop in order: first release the core lock, then drop the subprograms (which may re-take it)
         drop(program);
@@ -1664,7 +1673,7 @@ impl ArcWake for SceneCoreWaker {
             // Retrieve the program from the core
             let process = core.processes.get_mut(process_id);
 
-            if let Some(Some(process)) = process {
+            if let Some(SceneProcessState::Running(process)) = process {
                 // Add the process to the awake list, if it's not there already
                 process.is_awake = true;
 
@@ -1679,6 +1688,26 @@ impl ArcWake for SceneCoreWaker {
         // Wake up a polling routine (which should in turn poll the program)
         if let Some(waker) = waker {
             waker.wake()
+        }
+    }
+}
+
+impl SceneProcessState {
+    #[inline]
+    fn is_free(&self) -> bool {
+        match self {
+            SceneProcessState::Free         => true,
+            SceneProcessState::Running(_)   => false,
+            SceneProcessState::Aborted      => false,
+        }
+    }
+
+    #[inline]
+    fn as_mut(&mut self) -> Option<&mut SceneProcess> {
+        match self {
+            SceneProcessState::Free                     => None,
+            SceneProcessState::Running(scene_process)   => Some(scene_process),
+            SceneProcessState::Aborted                  => None,
         }
     }
 }
@@ -1738,7 +1767,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                     return Poll::Pending;
                 };
 
-                if let Some(Some(next_process)) = core.processes.get_mut(next_process_idx) {
+                if let Some(SceneProcessState::Running(next_process)) = core.processes.get_mut(next_process_idx) {
                     if next_process.is_awake && next_process.future.is_waiting() {
                         // Process is awake: we say it's asleep again at the start of the polling process
                         next_process.is_awake = false;
@@ -1767,9 +1796,9 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                 if poll_result.is_pending() {
                     // Put the process back into the pending list
                     let mut core        = unlocked_core.lock().unwrap();
-                    let process_data    = core.processes[next_process_idx].as_mut();
+                    let process_data    = &mut core.processes[next_process_idx];
 
-                    if let Some(process_data) = process_data {
+                    if let SceneProcessState::Running(process_data) = process_data {
                         process_data.future = SceneProcessFuture::Waiting(next_process);
                         process_data.unpark_when_waiting.drain(..).for_each(|thread| thread.unpark());
 
@@ -1781,6 +1810,8 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                         }
                     } else {
                         // This process has terminated abnormally
+                        *process_data = SceneProcessState::Free;
+
                         let on_stop = core.on_stop.drain(..).collect::<Vec<_>>();
                         drop(core);
 
@@ -1794,7 +1825,7 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                     let on_stop = {
                         let mut core = unlocked_core.lock().unwrap();
 
-                        core.processes[next_process_idx] = None;
+                        core.processes[next_process_idx] = SceneProcessState::Free;
                         core.next_process = core.next_process.min(next_process_idx);
 
                         core.on_stop.drain(..).collect::<Vec<_>>()
