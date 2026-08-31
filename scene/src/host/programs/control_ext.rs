@@ -24,7 +24,7 @@ pub trait SceneControlExt {
     /// Adds a child of the current subprogram to the scene
     ///
     /// Child subprograms will stop when the running subprogram stops
-    fn add_child_subprogram<'a, TProgramFn, TInputMessage, TFuture>(&'a self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> impl 'a + Send + Future<Output=Result<(), ConnectionError>>
+    fn add_child_subprogram<TProgramFn, TInputMessage, TFuture>(&self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Result<(), ConnectionError>
     where
         TFuture:        'static + Send + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
@@ -62,7 +62,7 @@ impl SceneControlExt for SceneContext {
         Ok(())
     }
 
-    async fn add_child_subprogram<TProgramFn, TInputMessage, TFuture>(&self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Result<(), ConnectionError>
+    fn add_child_subprogram<TProgramFn, TInputMessage, TFuture>(&self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize) -> Result<(), ConnectionError>
     where
         TFuture:        'static + Send + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
@@ -71,7 +71,9 @@ impl SceneControlExt for SceneContext {
         let Some(parent_program_id) = self.current_program_id() else { return Err(ConnectionError::SubProgramNotRunning); };
         let mut queue               = self.send(())?;
 
-        queue.send(SceneControl::start_child_program(program_id, parent_program_id, program, max_input_waiting)).await?;
+        self.run_in_background(async move {
+            queue.send(SceneControl::start_child_program(program_id, parent_program_id, program, max_input_waiting)).await.ok();
+        });
 
         Ok(())
     }

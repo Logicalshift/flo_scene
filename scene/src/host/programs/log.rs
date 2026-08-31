@@ -10,7 +10,6 @@ use crate::host::commands::*;
 
 use super::control::*;
 use super::control_ext::*;
-use super::error_ext::*;
 use super::query::*;
 use super::subscription::*;
 
@@ -310,7 +309,7 @@ impl Log {
 
         // Start the stderr logging program as a child program
         let stderr_logger       = SubProgramId::new();
-        let mut stderr_logger   = if context.add_child_subprogram(stderr_logger, Self::stderr_log_output_program, 100).with_report().await.is_ok() {
+        let mut stderr_logger   = if context.add_child_subprogram(stderr_logger, Self::stderr_log_output_program, 100).is_ok() {
             context.send(stderr_logger).ok()
         } else {
             None
