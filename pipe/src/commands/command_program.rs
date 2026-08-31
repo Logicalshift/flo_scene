@@ -84,6 +84,10 @@ impl SceneMessage for CommandVariable {
 ///
 pub async fn command_connection_program(input: InputStream<CommandProgramSocketMessage>, context: SceneContext, command_target: impl Into<StreamTarget>) {
     let command_target = command_target.into();
+    let our_program_id = context.current_program_id().unwrap();
+
+    context.i_am("Command connection program");
+    let mut session_num = 1;
 
     // Spawn session tasks for each connection
     let mut input = input;
@@ -95,10 +99,15 @@ pub async fn command_connection_program(input: InputStream<CommandProgramSocketM
                 let command_target  = command_target.clone();
 
                 // Spawn a subprogram to handle running the commands using the CommandSession
-                let command_session_id = SubProgramId::new();
-                context.send_message(SceneControl::start_program(
+                let command_session_id  = SubProgramId::new();
+                let this_session_num    = session_num;
+                session_num += 1;
+                context.send_message(SceneControl::start_child_program(
                     command_session_id,
+                    our_program_id,
                     move |input, context| async move {
+                        context.i_am(format!("Command session #{}", this_session_num));
+
                         let command_session = CommandSession::new(socket, command_target);
                         command_session.run(input, context).await;
                     },

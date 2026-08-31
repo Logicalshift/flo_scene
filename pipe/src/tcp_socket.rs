@@ -1,6 +1,7 @@
 use super::socket::*;
 
 use flo_scene::*;
+use flo_scene::programs::*;
 
 use futures::prelude::*;
 use futures::stream::{BoxStream};
@@ -54,6 +55,9 @@ where
     let listener = TcpListener::bind(address).await
         .map_err(|tokio_err| ConnectionError::IoError(format!("{}", tokio_err)))
         .unwrap();
+
+    context.i_am(format!("Listening for TCP/IP connections on {:?}", listener.local_addr()));
+
     let listener = Arc::new(Mutex::new(Some(listener)));
 
     // Add a socket runner subprogram. We don't use the address for anything, ie we accept all connections here

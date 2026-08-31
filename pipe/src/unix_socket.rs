@@ -1,6 +1,7 @@
 use super::socket::*;
 
 use flo_scene::*;
+use flo_scene::programs::*;
 
 use futures::prelude::*;
 use futures::stream::{BoxStream};
@@ -35,12 +36,17 @@ where
     #[cfg(unix)]
     {
         // Create the listener for this program
+        let path_name = path.as_ref().to_string_lossy().to_string();
+
         let listener = UnixListener::bind(path)
             .map_err(|tokio_err| ConnectionError::IoError(format!("{}", tokio_err)))?;
         let listener = Arc::new(Mutex::new(Some(listener)));
 
         // Add a socket runner subprogram. We don't use the address for anything, ie we accept all connections here
-        scene.add_subprogram(program_id, move |_input: InputStream<()>, context| socket_listener_subprogram(context, move || {
+        scene.add_subprogram(program_id, move |_input: InputStream<()>, context| { 
+            context.i_am(format!("Listening for UNIX socket connections on {:?}", path_name));
+
+            socket_listener_subprogram(context, move || {
                 let listener        = Arc::clone(&listener);
                 let our_listener    = listener.lock().unwrap().take().unwrap();
 
@@ -55,7 +61,8 @@ where
                 }
             },
             create_input_messages,
-            create_output_messages), 0);
+            create_output_messages)
+        }, 0);
 
         // Success
         Ok(())

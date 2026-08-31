@@ -1,6 +1,7 @@
 use super::socket::*;
 
 use flo_scene::*;
+use flo_scene::programs::*;
 
 use futures::prelude::*;
 use futures::stream::{BoxStream};
@@ -27,8 +28,11 @@ where
     TOutputMessage: 'static + Send,
 {
     scene.add_subprogram(program_id, 
-        move |_input: InputStream<()>, context| 
-            oneshot_stream_connection_subprogram(context, move || async move { Ok((stdin(), stdout())) }, create_input_messages, create_output_messages),
+        move |_input: InputStream<()>, context| {
+            context.i_am("Stdio socket connection");
+
+            oneshot_stream_connection_subprogram(context, move || async move { Ok((stdin(), stdout())) }, create_input_messages, create_output_messages)
+        },
         0);
 
     // Success
