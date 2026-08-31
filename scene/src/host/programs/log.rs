@@ -299,7 +299,7 @@ impl Log {
             }
 
             // Write to stderr
-            stderr.send(ErrorOutput::Line(input.format_log_string(&program_names, 80, true))).await.ok();
+            stderr.send(ErrorOutput::Line(format!("{}\n", input.format_log_string(&program_names, 80, true)).into())).await.ok();
         }
     }
 

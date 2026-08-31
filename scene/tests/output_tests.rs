@@ -33,16 +33,16 @@ pub fn send_output() {
 
     // Send some test output to it
     TestBuilder::new()
-        .send_message(TextOutput::Text(format!("Some")))
-        .send_message(TextOutput::Text(format!(" text")))
-        .send_message(TextOutput::Line(format!("A line")))
-        .send_message(TextOutput::Line(format!("Another line ")))
+        .send_message(TextOutput::Text(format!("Some").into()))
+        .send_message(TextOutput::Text(format!(" text").into()))
+        .send_message(TextOutput::Line(format!("A line").into()))
+        .send_message(TextOutput::Line(format!("Another line ").into()))
         .send_message(TextOutput::Character('c'))
         .send_message(TextOutput::Character('h'))
         .send_message(TextOutput::Character('a'))
         .send_message(TextOutput::Character('r'))
         .send_message(TextOutput::Character('\n'))
-        .send_message(TextOutput::Line(format!("Final line")))
+        .send_message(TextOutput::Line(format!("Final line").into()))
         .run_in_scene_with_threads(&scene, SubProgramId::new(), 5);
 
     let result = String::from_utf8(output_buffer.data.lock().unwrap().clone()).unwrap();

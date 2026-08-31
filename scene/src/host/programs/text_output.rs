@@ -8,6 +8,7 @@ use futures::{pin_mut};
 use once_cell::sync::{Lazy};
 
 use std::io::*;
+use std::borrow::*;
 
 use serde::*;
 
@@ -25,10 +26,10 @@ pub enum TextOutput {
     Character(char),
 
     /// Writes a string to the output
-    Text(String),
+    Text(Cow<'static, str>),
 
     /// Writes some text at the start of a new line
-    Line(String),
+    Line(Cow<'static, str>),
 }
 
 ///
@@ -41,10 +42,10 @@ pub enum ErrorOutput {
     Character(char),
 
     /// Writes a string to the output
-    Text(String),
+    Text(Cow<'static, str>),
 
     /// Writes some text at the start of a new line
-    Line(String),
+    Line(Cow<'static, str>),
 }
 
 impl From<ErrorOutput> for TextOutput {

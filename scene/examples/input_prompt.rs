@@ -30,13 +30,13 @@ pub fn main() {
 
             loop {
                 // Prompt for some input
-                context.send_message(TextInput::PromptRequestLine(vec![TextOutput::Line("Enter text> ".to_string())], sample_program)).await.unwrap();
+                context.send_message(TextInput::PromptRequestLine(vec![TextOutput::Line("Enter text> ".into())], sample_program)).await.unwrap();
 
                 // Wait for the input to arrive
                 match input.next().await {
                     Some(TextInputResult::Characters(input)) => {
                         // Display a message about how many characters there were in the prompt
-                        context.send_message(TextOutput::Line(format!("'{}' has {} characters\n", input, input.len()))).await.ok();
+                        context.send_message(TextOutput::Line(format!("'{}' has {} characters\n", input, input.len()).into())).await.ok();
                     }
 
                     // Stop if the input stream is closed or an end-of-file is reached

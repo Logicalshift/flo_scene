@@ -15,7 +15,7 @@ fn basic_log_info() {
         5);
 
     TestBuilder::new()
-        .expect_message_matching(ErrorOutput::Line("\x1b[0;97mI test log                \x1b[0m | Hello, world".into()), "Log message did not match")
+        .expect_message_matching(ErrorOutput::Line("\x1b[0;97mI test log                \x1b[0m | Hello, world\n".into()), "Log message did not match")
         .run_in_scene_with_threads(&scene, test_subprogram, 10);
 }
 
@@ -35,7 +35,7 @@ fn log_with_name() {
         5);
 
     TestBuilder::new()
-        .expect_message_matching(ErrorOutput::Line("\x1b[0;97mI Test program            \x1b[0m | Hello, world".into()), "Log message did not match")
+        .expect_message_matching(ErrorOutput::Line("\x1b[0;97mI Test program            \x1b[0m | Hello, world\n".into()), "Log message did not match")
         .run_in_scene_with_threads(&scene, test_subprogram, 10);
 }
 
@@ -56,7 +56,7 @@ fn log_error() {
         5);
 
     TestBuilder::new()
-        .expect_message_matching(ErrorOutput::Line("\x1b[0;31m! Test program            \x1b[0m | \"Oops\"".into()), "Log message did not match")
+        .expect_message_matching(ErrorOutput::Line("\x1b[0;31m! Test program            \x1b[0m | \"Oops\"\n".into()), "Log message did not match")
         .expect_running_scene()
         .run_in_scene_with_threads(&scene, test_subprogram, 10);
 }
@@ -78,7 +78,7 @@ fn log_failure() {
         5);
 
     TestBuilder::new()
-        .expect_message_matching(ErrorOutput::Line("\x1b[1;91m!!Test program            \x1b[0m | \"Oops\"".into()), "Log message did not match")
+        .expect_message_matching(ErrorOutput::Line("\x1b[1;91m!!Test program            \x1b[0m | \"Oops\"\n".into()), "Log message did not match")
         .expect_stopped_scene()
         .run_in_scene_with_threads(&scene, test_subprogram, 10);
 }
@@ -97,7 +97,7 @@ fn log_failure_immediately() {
         5);
 
     TestBuilder::new()
-        .expect_message_matching(ErrorOutput::Line("\x1b[1;91m!!test log                \x1b[0m | \"Oops\"".into()), "Log message did not match")
+        .expect_message_matching(ErrorOutput::Line("\x1b[1;91m!!test log                \x1b[0m | \"Oops\"\n".into()), "Log message did not match")
         .expect_stopped_scene()
         .run_in_scene_with_threads(&scene, test_subprogram, 10);
 }
@@ -120,9 +120,9 @@ fn log_failure_immediately_with_name() {
     TestBuilder::new()
         .expect_message(|msg: ErrorOutput| {
             // The failure can happen either before or after the name is set
-            if msg == ErrorOutput::Line("\x1b[1;91m!!Test program            \x1b[0m | \"Oops\"".into()) {
+            if msg == ErrorOutput::Line("\x1b[1;91m!!Test program            \x1b[0m | \"Oops\"\n".into()) {
                 Ok(())
-            } else if msg == ErrorOutput::Line("\x1b[1;91m!!test log                \x1b[0m | \"Oops\"".into()) {
+            } else if msg == ErrorOutput::Line("\x1b[1;91m!!test log                \x1b[0m | \"Oops\"\n".into()) {
                 Ok(())
             } else {
                 Err("Log message did not match".into())
