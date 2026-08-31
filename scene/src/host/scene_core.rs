@@ -1355,12 +1355,25 @@ impl SceneCore {
 
             // Reconnect any targets
             drop(core);
+    
+            let mut scene_updates = vec![];
             for (stream_id, output_sink_core) in targets_to_reconnect.into_iter() {
                 // Try to connect this core to this program
-                if let Ok(Some(waker)) = stream_id.reconnect_output_sink(scene_core, &output_sink_core, source_id, StreamTarget::Program(subprogram_id)) {
+                let reconnect_result = stream_id.reconnect_output_sink(scene_core, &output_sink_core, source_id, StreamTarget::Program(subprogram_id));
+
+                if reconnect_result.is_ok() {
+                    // Add to the update list
+                    scene_updates.push(SceneUpdate::Connected(source_id, subprogram_id, stream_id.clone()));
+                }
+
+                if let Ok(Some(waker)) = reconnect_result {
                     // Errors are ignored, they'll leave the sink's state alone
                     waker.wake();
                 }
+            }
+
+            if !scene_updates.is_empty() {
+                SceneCore::send_scene_updates(scene_core, scene_updates);
             }
         }
     }
