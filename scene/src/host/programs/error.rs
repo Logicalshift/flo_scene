@@ -10,6 +10,7 @@ use crate::host::stream_target::*;
 use super::control::*;
 use super::control_ext::*;
 use super::subscription::*;
+use super::log::*;
 
 use futures::prelude::*;
 use serde::*;
@@ -144,8 +145,11 @@ impl Error {
                     }
 
                     all_subscribers
-                        .send(Error::Error { source, message })
+                        .send(Error::Error { source, message: message.clone() })
                         .await;
+
+                    // Send log message
+                    context.send_message(Log::Error(source, message)).await.ok();
                 },
 
                 ErrorMsg(Error::Failure { source, message }) => {
@@ -172,8 +176,11 @@ impl Error {
                     }
 
                     all_subscribers
-                        .send(Error::Failure { source, message })
+                        .send(Error::Failure { source, message: message.clone() })
                         .await;
+
+                    // Send log message
+                    context.send_message(Log::Fatal(source, message)).await.ok();
                 },
 
                 ErrorMsg(Error::Panic { source, message }) => {
@@ -200,8 +207,11 @@ impl Error {
                     }
 
                     all_subscribers
-                        .send(Error::Panic { source, message })
+                        .send(Error::Panic { source, message: message.clone() })
                         .await;
+
+                    // Send log message
+                    context.send_message(Log::Fatal(source, message)).await.ok();
                 },
             }
         }
