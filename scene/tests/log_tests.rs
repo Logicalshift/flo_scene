@@ -91,7 +91,7 @@ fn log_failure_immediately() {
     let log_program     = SubProgramId::called("test log");
 
     scene.add_subprogram(log_program, 
-        |_: InputStream<()>, context| async move {
+        |_: InputStream<()>, _context| async move {
             async { Result::<(), _>::Err("Oops") }.or_fail().await;
         }, 
         5);
