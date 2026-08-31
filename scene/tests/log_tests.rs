@@ -29,6 +29,7 @@ fn log_with_name() {
     scene.add_subprogram(log_program, 
         |_: InputStream<()>, context| async move {
             context.i_am("Test program");
+            context.wait_for_idle(10).await;
             context.info("Hello, world");
         }, 
         5);
@@ -48,6 +49,7 @@ fn log_error() {
     scene.add_subprogram(log_program, 
         |_: InputStream<()>, context| async move {
             context.i_am("Test program");
+            context.wait_for_idle(10).await;
 
             async { Result::<(), _>::Err("Oops") }.with_report().await.ok();
         }, 
@@ -69,6 +71,7 @@ fn log_failure() {
     scene.add_subprogram(log_program, 
         |_: InputStream<()>, context| async move {
             context.i_am("Test program");
+            context.wait_for_idle(10).await;
 
             async { Result::<(), _>::Err("Oops") }.or_fail().await;
         }, 
