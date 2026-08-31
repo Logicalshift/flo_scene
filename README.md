@@ -307,7 +307,7 @@ with the `ReadCommand` which is a very basic command that sends its input straig
 
 ```Rust
 // Retrieve the current state of the scene as a stream of SceneUpdates
-let current_scene_state = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), SceneTarget::Any).unwrap();
+let current_scene_state = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), StreamTarget::Any).unwrap();
 ```
 
 ### Multiple scenes
