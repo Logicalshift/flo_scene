@@ -12,6 +12,7 @@ use super::control::*;
 use super::control_ext::*;
 use super::query::*;
 use super::subscription::*;
+use super::text_output::*;
 
 use futures::prelude::*;
 use serde::*;
@@ -267,6 +268,8 @@ impl Log {
     pub async fn stderr_log_output_program(input: InputStream<Log>, context: SceneContext) {
         context.i_am("Logging to stderr");
 
+        let Ok(mut stderr) = context.send(()) else { return; };
+
         // Keep a list of program names (we query these when they're not known)
         let mut program_names = HashMap::new();
 
@@ -295,8 +298,8 @@ impl Log {
                 }
             }
 
-            // Write to stdout
-            eprintln!("{}", input.format_log_string(&program_names, 80, true));
+            // Write to stderr
+            stderr.send(ErrorOutput::Line(input.format_log_string(&program_names, 80, true))).await.ok();
         }
     }
 
