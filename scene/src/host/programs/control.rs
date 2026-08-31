@@ -27,6 +27,7 @@ use once_cell::sync::{Lazy};
 use serde::*;
 use serde::ser::{Error as SeError};
 
+use std::borrow::{Cow};
 use std::collections::{HashSet, HashMap};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
@@ -57,20 +58,20 @@ pub struct SceneProgramFn(Box<dyn Send + FnOnce(Arc<Mutex<SceneCore>>)>);
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum SceneProgramTag {
     /// The name of this program
-    Name(String),
+    Name(Cow<'static, str>),
 
     /// The task that this program is carrying out
     ///
     /// This is used for cases where a program might have several instances: the name can identify the
     /// program as a whole, and the task(s) assigned to each program identifies what they do (eg:
     /// Name: TCP socket, Task: Connection from 127.0.0.1, Task: Port 1234)
-    Task(String),
+    Task(Cow<'static, str>),
 
     /// A keyword associated with this program
-    Keyword(String),
+    Keyword(Cow<'static, str>),
 
     /// A namespace, grouping together a set of programs
-    Namespace(String),
+    Namespace(Cow<'static, str>),
 }
 
 ///

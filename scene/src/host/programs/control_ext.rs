@@ -40,10 +40,10 @@ pub trait SceneControlExt {
     fn tag(&self, tag: impl Into<SceneProgramTag>) -> Result<(), ConnectionError>;
 
     /// Adds a name for the current subprogram
-    fn i_am(&self, name: impl Into<String>) { self.tag(SceneProgramTag::Name(name.into())).ok(); }
+    fn i_am(&self, name: impl Into<String>) { self.tag(SceneProgramTag::Name(name.into().into())).ok(); }
 
     /// Adds a task for the current subprogram
-    fn my_task_is(&self, task: impl Into<String>) { self.tag(SceneProgramTag::Task(task.into())).ok(); }
+    fn my_task_is(&self, task: impl Into<String>) { self.tag(SceneProgramTag::Task(task.into().into())).ok(); }
 }
 
 impl SceneControlExt for SceneContext {
