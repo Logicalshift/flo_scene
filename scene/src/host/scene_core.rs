@@ -1811,7 +1811,8 @@ pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> 
                         }
                     } else {
                         // This process has terminated abnormally
-                        *process_data = SceneProcessState::Free;
+                        *process_data       = SceneProcessState::Free;
+                        core.next_process   = core.next_process.min(next_process_idx);
 
                         let on_stop = core.on_stop.drain(..).collect::<Vec<_>>();
                         drop(core);
