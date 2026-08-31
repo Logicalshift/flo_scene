@@ -92,8 +92,6 @@ fn log_failure_immediately() {
 
     scene.add_subprogram(log_program, 
         |_: InputStream<()>, context| async move {
-            context.wait_for_idle(10).await;
-
             async { Result::<(), _>::Err("Oops") }.or_fail().await;
         }, 
         5);
@@ -114,7 +112,6 @@ fn log_failure_immediately_with_name() {
     scene.add_subprogram(log_program, 
         |_: InputStream<()>, context| async move {
             context.i_am("Test program");
-            context.wait_for_idle(10).await;
 
             async { Result::<(), _>::Err("Oops") }.or_fail().await;
         }, 
