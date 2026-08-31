@@ -12,6 +12,7 @@ use futures::{pin_mut};
 use std::str;
 use std::thread;
 use std::io::{BufRead};
+use std::borrow::*;
 
 use serde::*;
 
@@ -40,7 +41,7 @@ pub enum TextInput {
 #[derive(Serialize, Deserialize)]
 pub enum TextInputResult {
     /// The stream produced some characters as a result of a request
-    Characters(String),
+    Characters(Cow<'static, str>),
 
     /// The input stream was closed before the input could be generated
     Eof,
@@ -122,7 +123,7 @@ pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messag
                     // Relay the string that was read
                     let result_is_err = result.is_err();
                     let send_err = match result {
-                        Ok(chr) => send_result.send((target, TextInputResult::Characters(chr))).await,
+                        Ok(chr) => send_result.send((target, TextInputResult::Characters(chr.into()))).await,
                         Err(_)  => send_result.send((target, TextInputResult::Eof)).await,
                     };
 
@@ -148,7 +149,7 @@ pub async fn text_input_subprogram(source: impl 'static + Send + BufRead, messag
                     // Relay the string that was read (EOF if 0 characters were read)
                     let send_err = match read_err {
                         Ok(0)   => { send_result.send((target, TextInputResult::Eof)).await.ok(); Err(()) },
-                        Ok(_)   => send_result.send((target, TextInputResult::Characters(line))).await.map_err(|_| ()),
+                        Ok(_)   => send_result.send((target, TextInputResult::Characters(line.into()))).await.map_err(|_| ()),
                         Err(_)  => send_result.send((target, TextInputResult::Eof)).await.map_err(|_| ()),
                     };
 
