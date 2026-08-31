@@ -159,7 +159,7 @@ impl Error {
                     eprintln!("FAILURE: {:?}: {:?}", source, message);
 
                     // Shut down the scene
-                    if failure_count > 1 {
+                    if failure_count <= 1 {
                         // Ask the scene to stop politely
                         context.send_message(SceneControl::StopSceneWhenIdle).await.ok();
                     } else {
@@ -190,7 +190,7 @@ impl Error {
                     eprintln!("PANIC: {:?}: {:?}", source, message);
 
                     // Shut down the scene
-                    if failure_count > 1 {
+                    if failure_count <= 1 {
                         // Ask the scene to stop politely
                         context.send_message(SceneControl::StopSceneWhenIdle).await.ok();
                     } else {
