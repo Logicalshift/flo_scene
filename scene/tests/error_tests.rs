@@ -21,8 +21,8 @@ fn notify_on_error() {
     let scene           = Scene::default();
     let test_program    = SubProgramId::new();
 
-    let error_program   = SubProgramId::new();
-    let relay_program   = SubProgramId::new();
+    let error_program   = SubProgramId::called("test_error");
+    let relay_program   = SubProgramId::called("test_relay");
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
     struct TestMessage(Error);
@@ -59,8 +59,8 @@ fn notify_on_failure() {
     let scene           = Scene::default();
     let test_program    = SubProgramId::new();
 
-    let error_program   = SubProgramId::new();
-    let relay_program   = SubProgramId::new();
+    let error_program   = SubProgramId::called("test_error");
+    let relay_program   = SubProgramId::called("test_relay");
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
     struct TestMessage(Error);
@@ -96,8 +96,8 @@ fn notify_on_failure() {
 #[test]
 fn panic_single_threaded() {
     let scene           = Scene::default();
-    let panic_program   = SubProgramId::new();
-    let other_program   = SubProgramId::new();
+    let panic_program   = SubProgramId::called("test_panic");
+    let other_program   = SubProgramId::called("test_other");
 
     // This subprogram panics as soon as it's polled
     scene.add_subprogram(panic_program,
@@ -135,8 +135,8 @@ fn panic_single_threaded() {
 #[test]
 fn panic_multi_threaded() {
     let scene           = Scene::default();
-    let panic_program   = SubProgramId::new();
-    let other_program   = SubProgramId::new();
+    let panic_program   = SubProgramId::called("test_panic");
+    let other_program   = SubProgramId::called("test_other");
 
     // This subprogram panics as soon as it's polled
     scene.add_subprogram(panic_program,
