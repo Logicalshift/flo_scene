@@ -78,7 +78,7 @@ fn log_failure() {
         5);
 
     TestBuilder::new()
-        .expect_message_matching(ErrorOutput::Line("\x1b[0;91m!!Test program            \x1b[0m | \"Oops\"".into()), "Log message did not match")
+        .expect_message_matching(ErrorOutput::Line("\x1b[1;91m!!Test program            \x1b[0m | \"Oops\"".into()), "Log message did not match")
         .expect_stopped_scene()
         .run_in_scene_with_threads(&scene, test_subprogram, 10);
 }
