@@ -181,7 +181,7 @@ where
                 let create_output_messages  = Arc::clone(&create_output_messages);
                 let socket_connection       = SocketConnection::<TInputStream::Item, TOutputMessage>::new(&context, reader_stream, move |context, output_stream| {
                     // Create a stream that converts to bytes
-                    let mut output_byte_stream = create_output_messages(output_stream);
+                    let mut output_byte_stream = create_output_messages(output_stream).ready_chunks(10);
 
                     // Future to write the bytes
                     let async_writer = Box::pin(async_writer);
@@ -190,16 +190,18 @@ where
                         let mut async_writer = async_writer;
                         while let Some(bytes) = output_byte_stream.next().await {
                             // Loop until we've written all of the bytes
-                            let mut write_pos = 0;
+                            for bytes in bytes {
+                                let mut write_pos = 0;
 
-                            while write_pos < bytes.len() {
-                                match async_writer.write(&bytes[write_pos..(bytes.len())]).await {
-                                    Ok(0)           => break,
-                                    Err(_)          => break,
-                                    Ok(num_written) => {
-                                        write_pos += num_written;
-                                        if write_pos >= bytes.len() {
-                                            break;
+                                while write_pos < bytes.len() {
+                                    match async_writer.write(&bytes[write_pos..(bytes.len())]).await {
+                                        Ok(0)           => break,
+                                        Err(_)          => break,
+                                        Ok(num_written) => {
+                                            write_pos += num_written;
+                                            if write_pos >= bytes.len() {
+                                                break;
+                                            }
                                         }
                                     }
                                 }
