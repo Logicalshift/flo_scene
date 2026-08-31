@@ -68,11 +68,11 @@ impl SceneControlExt for SceneContext {
         TInputMessage:  'static + SceneMessage,
         TProgramFn:     'static + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture
     {
-        let Some(our_program_id)    = self.current_program_id() else { return Err(ConnectionError::SubProgramNotRunning); };
+        let Some(parent_program_id) = self.current_program_id() else { return Err(ConnectionError::SubProgramNotRunning); };
         let mut queue               = self.send(())?;
 
         self.run_in_background(async move {
-            queue.send(SceneControl::start_child_program(our_program_id, program_id, program, max_input_waiting)).await.ok();
+            queue.send(SceneControl::start_child_program(program_id, parent_program_id, program, max_input_waiting)).await.ok();
         });
 
         Ok(())
