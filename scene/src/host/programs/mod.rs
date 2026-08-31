@@ -18,7 +18,7 @@ pub use control_ext::*;
 pub use error::*;
 pub use error_ext::*;
 pub use outside::*;
-pub use log;
+pub use log::*;
 pub use log_ext::*;
 pub use text_output::*;
 pub use text_input::*;
