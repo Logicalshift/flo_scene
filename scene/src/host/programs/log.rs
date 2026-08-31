@@ -273,33 +273,35 @@ impl Log {
         // Keep a list of program names (we query these when they're not known)
         let mut program_names = HashMap::new();
 
-        let mut input = input;
+        let mut input = input.ready_chunks(100);
 
         // Read logging messages
-        while let Some(input) = input.next().await {
-            // Attempt to discover the program names, if this program hasn't been seen before
-            if !program_names.contains_key(&input.source()) {
-                // Regenerate from scratch (removing any names that are no longer in the scene)
-                program_names = HashMap::new();
+        while let Some(msg_batch) = input.next().await {
+            for msg in msg_batch {
+                // Attempt to discover the program names, if this program hasn't been seen before
+                if !program_names.contains_key(&msg.source()) {
+                    // Regenerate from scratch (removing any names that are no longer in the scene)
+                    program_names = HashMap::new();
 
-                // Ensure the source name is present
-                program_names.insert(input.source(), None);
+                    // Ensure the source name is present
+                    program_names.insert(msg.source(), None);
 
-                // Query the names from the control program
-                let mut current_scene_state = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), StreamTarget::Any).unwrap();
-                while let Some(evt) = current_scene_state.next().await {
-                    match evt {
-                        SceneUpdate::Tagged(program_id, SceneProgramTag::Name(program_name)) => {
-                            program_names.insert(program_id, Some(program_name.into()));
+                    // Query the names from the control program
+                    let mut current_scene_state = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), StreamTarget::Any).unwrap();
+                    while let Some(evt) = current_scene_state.next().await {
+                        match evt {
+                            SceneUpdate::Tagged(program_id, SceneProgramTag::Name(program_name)) => {
+                                program_names.insert(program_id, Some(program_name.into()));
+                            }
+
+                            _ => { }
                         }
-
-                        _ => { }
                     }
                 }
-            }
 
-            // Write to stderr
-            stderr.send(ErrorOutput::Line(format!("{}\n", input.format_log_string(&program_names, 80, true)).into())).await.ok();
+                // Write to stderr
+                stderr.send(ErrorOutput::Line(format!("{}\n", msg.format_log_string(&program_names, 80, true)).into())).await.ok();
+            }
         }
     }
 
@@ -322,34 +324,36 @@ impl Log {
         let mut subscribers = HashMap::new();
 
         // Process the input
-        let mut input = input;
+        let mut input = input.ready_chunks(100);
 
-        while let Some(input) = input.next().await {
-            match input {
-                LogOrSubscription::Subscription(LogSubscription::Subscribe(level, target)) => {
-                    subscribers.entry(level)
-                        .or_insert_with(|| EventSubscribers::<Log>::new())
-                        .subscribe(&context, target);
-                }
-
-                LogOrSubscription::Log(log_msg) => {
-                    // If the log message is sent to the subscribers then we don't forward it to stderr (otherwise we do)
-                    let mut sent_to_subscribers = false;
-                    let msg_level               = log_msg.level();
-
-                    for level in LOG_LEVELS.iter().copied() {
-                        // If this logger should receive messages at this level, try sending to the subscribers (and remember if we did so)
-                        if level <= msg_level {
-                            if let Some(subscribers) = subscribers.get_mut(&level) {
-                                sent_to_subscribers = subscribers.send(log_msg.clone()).await || sent_to_subscribers;
-                            }
-                        }
+        while let Some(msg_batch) = input.next().await {
+            for msg in msg_batch {
+                match msg {
+                    LogOrSubscription::Subscription(LogSubscription::Subscribe(level, target)) => {
+                        subscribers.entry(level)
+                            .or_insert_with(|| EventSubscribers::<Log>::new())
+                            .subscribe(&context, target);
                     }
 
-                    // If there were no subscribers for this log message, send to the stderr logger
-                    if !sent_to_subscribers {
-                        if let Some(stderr_logger) = stderr_logger.as_mut() {
-                            stderr_logger.send(log_msg).await.ok();
+                    LogOrSubscription::Log(log_msg) => {
+                        // If the log message is sent to the subscribers then we don't forward it to stderr (otherwise we do)
+                        let mut sent_to_subscribers = false;
+                        let msg_level               = log_msg.level();
+
+                        for level in LOG_LEVELS.iter().copied() {
+                            // If this logger should receive messages at this level, try sending to the subscribers (and remember if we did so)
+                            if level <= msg_level {
+                                if let Some(subscribers) = subscribers.get_mut(&level) {
+                                    sent_to_subscribers = subscribers.send(log_msg.clone()).await || sent_to_subscribers;
+                                }
+                            }
+                        }
+
+                        // If there were no subscribers for this log message, send to the stderr logger
+                        if !sent_to_subscribers {
+                            if let Some(stderr_logger) = stderr_logger.as_mut() {
+                                stderr_logger.send(log_msg).await.ok();
+                            }
                         }
                     }
                 }
