@@ -1,5 +1,4 @@
 use flo_scene::*;
-use flo_scene::programs::*;
 
 use futures::prelude::{Stream, Future};
 use futures::stream;
