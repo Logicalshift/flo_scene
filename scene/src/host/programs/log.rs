@@ -81,6 +81,10 @@ impl SceneMessage for LogSubscription {
     fn message_type_name() -> String {
         "LogSubscription".into()
     }
+
+    fn default_target() -> StreamTarget {
+        (*LOG_PROGRAM).into()
+    }
 }
 
 impl Log {
