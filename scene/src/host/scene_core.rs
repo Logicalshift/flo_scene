@@ -1486,15 +1486,18 @@ impl SceneCore {
     /// a chance to continue, used in the event of an error or other critical failure)
     ///
     pub (crate) fn abort_subprogram(scene_core: &Arc<Mutex<SceneCore>>, program: &Arc<Mutex<SubProgramCore>>) {
+        use std::mem;
+
         let mut core    = scene_core.lock().unwrap();
         let mut program = program.lock().unwrap();
 
         let program_id = *program.program_id();
 
         // Abort every process the program is running immediately
+        let mut aborted_processes = vec![];
         for handle in program.process_ids.drain(..) {
             core.next_process        = core.next_process.min(handle.0);
-            core.processes[handle.0] = SceneProcessState::Aborted;
+            aborted_processes.push(mem::replace(&mut core.processes[handle.0], SceneProcessState::Aborted));
             core.awake_processes.retain(|old_handle| old_handle != &handle.0);
         }
 
@@ -1505,9 +1508,11 @@ impl SceneCore {
         core.program_indexes.remove(&program_id);
         core.next_subprogram    = core.next_subprogram.min(subprogram_handle);
 
-        // Drop in order: first release the core lock, then drop the subprograms (which may re-take it)
+        // Drop in order: first release the core lock, then drop the subprograms and processes (which may re-take it)
         drop(program);
         drop(core);
+
+        drop(aborted_processes);
 
         if let Some(old_sub_program) = &old_sub_program {
             old_sub_program.lock().unwrap().process_ids = vec![];
