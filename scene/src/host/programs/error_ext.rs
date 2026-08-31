@@ -16,11 +16,11 @@ use std::fmt::{Debug};
 ///
 pub trait SceneErrorExt<'a, TVal, TErr> {
     /// If an error occurs, report it but otherwise continue
-    fn with_report(self) -> impl 'a + Send + Future<Output=Result<TVal, TErr>>;
+    fn with_report(self, failure_message: impl 'a + Send + Into<String>) -> impl 'a + Send + Future<Output=Result<TVal, TErr>>;
 
     /// If an error occurs, report a failure and immediately stop the running subprogram without returning
     /// Failures usually shut down the scene as well.
-    fn or_fail(self) -> impl 'a + Send + Future<Output=TVal>;
+    fn or_fail(self, failure_message: impl 'a + Send + Into<String>) -> impl 'a + Send + Future<Output=TVal>;
 }
 
 impl<'a, TFuture, TVal, TErr> SceneErrorExt<'a, TVal, TErr> for TFuture
@@ -30,7 +30,7 @@ where
     TErr:       Send + Sync,
     TErr:       Debug,
 {
-    fn with_report(self) -> impl 'a + Send + Future<Output=Result<TVal, TErr>> {
+    fn with_report(self, failure_message: impl 'a + Send + Into<String>) -> impl 'a + Send + Future<Output=Result<TVal, TErr>> {
         async move {
             // Wait for the result
             let result = self.await;
@@ -41,7 +41,7 @@ where
                 let program_id  = context.as_ref().and_then(|ctxt| ctxt.current_program_id());
 
                 if let (Some(context), Some(program_id)) = (context, program_id) {
-                    context.send_message(Error::Error { source: program_id, message: format!("{:?}", err).into() }).await.ok();
+                    context.send_message(Error::Error { source: program_id, message: format!("{}: {:?}", failure_message.into(), err).into() }).await.ok();
                 }
             }
 
@@ -49,7 +49,7 @@ where
         }
     }
 
-    fn or_fail(self) -> impl 'a + Send + Future<Output=TVal> {
+    fn or_fail(self, failure_message: impl 'a + Send + Into<String>) -> impl 'a + Send + Future<Output=TVal> {
         async move {
             // Wait for the result
             let result = self.await;
@@ -62,7 +62,7 @@ where
 
                     if let (Some(context), Some(program_id)) = (context, program_id) {
                         // Send the failure message
-                        let fail_result = context.send_message(Error::Failure { source: program_id, message: format!("{:?}", err).into() }).await;
+                        let fail_result = context.send_message(Error::Failure { source: program_id, message: format!("{}: {:?}", failure_message.into(), err).into() }).await;
 
                         if let Err(send_fail) = fail_result {
                             // Panic if the failure could not be sent

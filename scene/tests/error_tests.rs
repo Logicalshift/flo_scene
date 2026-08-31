@@ -33,10 +33,10 @@ fn notify_on_error() {
     scene.add_subprogram(error_program, 
         move |_: InputStream<()>, context| async move {
             // Subscribe the test program to receive errors
-            context.send_message(ErrorSubscription::SubscribeToAll(relay_program.into())).or_fail().await;
+            context.send_message(ErrorSubscription::SubscribeToAll(relay_program.into())).or_fail("Test").await;
 
             // Try an 'or error' message
-            async { Result::<(), String>::Err(format!("Goodbye, world")) }.with_report().await.ok();
+            async { Result::<(), String>::Err(format!("Goodbye, world")) }.with_report("Test").await.ok();
         }, 0);
 
     // Relay program passes any generated errors on to the main program
@@ -49,7 +49,7 @@ fn notify_on_error() {
         }, 5);
 
     TestBuilder::new()
-        .expect_message_matching(TestMessage(Error::Error { source: error_program, message: "\"Goodbye, world\"".into() }), "Was expecting an error message from our subprogram")
+        .expect_message_matching(TestMessage(Error::Error { source: error_program, message: "Test: \"Goodbye, world\"".into() }), "Was expecting an error message from our subprogram")
         .expect_running_scene()
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
@@ -71,10 +71,10 @@ fn notify_on_failure() {
     scene.add_subprogram(error_program, 
         move |_: InputStream<()>, context| async move {
             // Subscribe the relay program to receive errors
-            context.send_message(ErrorSubscription::SubscribeToAll(relay_program.into())).or_fail().await;
+            context.send_message(ErrorSubscription::SubscribeToAll(relay_program.into())).or_fail("Test").await;
 
             // Try an 'or error' message
-            async { Result::<(), String>::Err(format!("Goodbye, world")) }.or_fail().await;
+            async { Result::<(), String>::Err(format!("Goodbye, world")) }.or_fail("Test").await;
         }, 0);
 
     // Relay program sends errors to the test builder
@@ -87,7 +87,7 @@ fn notify_on_failure() {
         }, 5);
 
     TestBuilder::new()
-        .expect_message_matching(TestMessage(Error::Failure { source: error_program, message: "\"Goodbye, world\"".into() }), "Was expecting an error message from our subprogram")
+        .expect_message_matching(TestMessage(Error::Failure { source: error_program, message: "Test: \"Goodbye, world\"".into() }), "Was expecting an error message from our subprogram")
         .expect_stopped_scene()
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
