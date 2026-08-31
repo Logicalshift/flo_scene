@@ -79,6 +79,7 @@ mod tcp_socket;
 mod tokenizer;
 mod parse_json;
 mod json_parse_error;
+mod stdio_connection;
 
 pub mod parser;
 pub mod commands;
@@ -88,6 +89,7 @@ pub use socket::*;
 pub use unix_socket::*;
 pub use internal_socket::*;
 pub use tcp_socket::*;
+pub use stdio_connection::*;
 
 pub use commands::{JsonCommandLauncherExt};
 pub use standard_json_commands::{StandardCommandsLauncherExt, StandardCommandsSceneExt};

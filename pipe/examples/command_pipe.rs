@@ -23,8 +23,13 @@ async fn main() {
     let socket_program = SubProgramId::new();
     start_unix_socket_program(&scene, socket_program, "./example_unix_socket", read_command_data, write_command_data).unwrap();
 
+    // Also listen to stdin
+    let stdio_program = SubProgramId::new();
+    start_stdio(&scene, stdio_program, read_command_data, write_command_data).unwrap();
+
     // Connect the programs together
     scene.connect_programs(socket_program, command_program, StreamId::with_message_type::<CommandProgramSocketMessage>()).unwrap();
+    scene.connect_programs(stdio_program, command_program, StreamId::with_message_type::<CommandProgramSocketMessage>()).unwrap();
 
     // Run the scene
     println!("Created UNIX-domain socket at 'example_unix_socket'.\nTry 'socat - UNIX-CONNECT:./example_unix_socket' to connect.");

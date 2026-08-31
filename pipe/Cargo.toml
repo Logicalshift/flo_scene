@@ -28,4 +28,4 @@ itertools       = "0.14"
 comrak          = "0.44"
 
 [dev-dependencies]
-tokio           = { version = "1.37", features = [ "net", "io-util", "rt", "rt-multi-thread", "macros" ] }
+tokio           = { version = "1.53", features = [ "net", "io-util", "rt", "rt-multi-thread", "macros", "io-std" ] }
