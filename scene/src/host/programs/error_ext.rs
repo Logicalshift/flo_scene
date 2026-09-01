@@ -2,6 +2,7 @@ use crate::host::scene_context::*;
 use crate::host::scene_core::*;
 
 use super::error::*;
+use super::log_ext::*;
 
 use futures::prelude::*;
 
@@ -14,7 +15,7 @@ use std::fmt::{Debug};
 /// or `some_task.or_fail().await` to fail the current program if there's an error. `or_fail()` is
 /// nicer than `unwrap()` as it doesn't panic and it shuts down the current scene.
 ///
-pub trait SceneErrorExt<'a, TVal, TErr> {
+pub trait SceneErrorFutureExt<'a, TVal, TErr> {
     /// If an error occurs, report it but otherwise continue
     fn with_report(self, failure_message: impl 'a + Send + Into<String>) -> impl 'a + Send + Future<Output=Result<TVal, TErr>>;
 
@@ -23,7 +24,19 @@ pub trait SceneErrorExt<'a, TVal, TErr> {
     fn or_fail(self, failure_message: impl 'a + Send + Into<String>) -> impl 'a + Send + Future<Output=TVal>;
 }
 
-impl<'a, TFuture, TVal, TErr> SceneErrorExt<'a, TVal, TErr> for TFuture
+///
+/// Extension functions for generating errors in a scene
+///
+/// Using these we can write, say, `some_task.with_report().await.ok()` to report but ignore errors,
+/// or `some_task.or_fail().await` to fail the current program if there's an error. `or_fail()` is
+/// nicer than `unwrap()` as it doesn't panic and it shuts down the current scene.
+///
+pub trait SceneErrorResultExt<TVal, TErr> {
+    /// If an error occurs, report it as a log message
+    fn with_report(self, failure_message: impl Into<String>) -> Result<TVal, TErr>;
+}
+
+impl<'a, TFuture, TVal, TErr> SceneErrorFutureExt<'a, TVal, TErr> for TFuture
 where 
     TFuture:    'a + Send + Future<Output=Result<TVal, TErr>>,
     TVal:       Send,
@@ -94,4 +107,22 @@ where
             }
         }
     }
+}
+
+impl<TVal, TErr> SceneErrorResultExt<TVal, TErr> for Result<TVal, TErr>
+where
+    TErr: Debug,
+{
+    #[inline]
+    fn with_report(self, failure_message: impl Into<String>) -> Result<TVal, TErr> {
+        if let Err(err) = &self {
+            let context = scene_context();
+
+            if let Some(context) = context {
+                context.error(format!("{}: {:?}", failure_message.into(), err));
+            }
+        }
+        self
+    }
+
 }
