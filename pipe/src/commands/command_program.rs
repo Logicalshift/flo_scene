@@ -391,7 +391,7 @@ impl CommandSession {
 
             while let Some(out_response) = out_responses.next().await {
                 match out_response {
-                    CommandResponse::IoStream(stream)           => out_iostream = Some(stream),
+                    CommandResponse::IoStream(stream)           => { out_iostream = Some(stream); break; },
                     CommandResponse::BackgroundStream(stream)   => yield_value(CommandResponse::BackgroundStream(stream)).await,
                     CommandResponse::Json(json)                 => yield_value(CommandResponse::Json(json)).await,
                     CommandResponse::Message(msg)               => yield_value(CommandResponse::Message(msg)).await,
@@ -467,6 +467,15 @@ impl CommandSession {
                 });
 
                 yield_value(CommandResponse::IoStream(pipe_iostream)).await;
+            }
+
+            // Pass on any remaining responses from the output command (these are generated once the IO stream is connected)
+            while let Some(out_response) = out_responses.next().await {
+                match out_response {
+                    // Only one IO stream is supported per command
+                    CommandResponse::IoStream(_)                => { },
+                    out_response                                => yield_value(out_response).await,
+                }
             }
         }).boxed()
     }
