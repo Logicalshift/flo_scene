@@ -570,3 +570,23 @@ fn double_index_result() {
     TestBuilder::new()
         .run_in_scene(&scene, test_subprogram);
 }
+
+#[test]
+fn tabulate() {
+    let scene               = Scene::default().with_standard_json_commands();
+    let test_subprogram     = SubProgramId::called("test");
+    let internal_socket     = SubProgramId::called("send_internal_socket");
+
+    // Tabulate the output of list_subprograms
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#"list_subprograms | tabulate
+        "#, 
+        |msg, _| async move {
+            // We're hard-coding the JSON formatting here which might not always be consistent (many formats can communicate the same message)
+            println!("Msg is {:?}", msg);
+        });
+
+    TestBuilder::new()
+        .run_in_scene(&scene, test_subprogram);
+}
