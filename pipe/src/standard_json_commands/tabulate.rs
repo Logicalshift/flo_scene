@@ -19,6 +19,17 @@ pub struct TabulateArguments {
 }
 
 ///
+/// Returns the string value of a JSON value
+///
+fn string_value(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(string)   => string.clone(),
+        serde_json::Value::Null             => "-".into(),
+        other                               => other.to_string()
+    }
+}
+
+///
 /// Generates a markdown table from a set of JSON values
 ///
 fn tabulate<'a>(_arguments: &TabulateArguments, values: impl Iterator<Item=&'a serde_json::Value>) -> CommandResponse {
@@ -43,7 +54,8 @@ fn tabulate<'a>(_arguments: &TabulateArguments, values: impl Iterator<Item=&'a s
             for row in values {
                 match row {
                     serde_json::Value::Array(values) => {
-                        let next_row = values.iter().map(|column| column.to_string()).collect::<Vec<_>>();
+                        let next_row = values
+                            .iter().map(|column| string_value(column)).collect::<Vec<_>>();
                         rows.push(next_row);
                     },
 
@@ -69,7 +81,7 @@ fn tabulate<'a>(_arguments: &TabulateArguments, values: impl Iterator<Item=&'a s
                                 idx
                             };
 
-                            row_values.push((column_idx, value.to_string()));
+                            row_values.push((column_idx, string_value(value)));
                         }
 
                         // Re-order to generate the row
