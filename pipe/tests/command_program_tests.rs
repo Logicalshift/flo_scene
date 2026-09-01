@@ -580,7 +580,7 @@ fn tabulate() {
     // Tabulate the output of list_subprograms
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
-        r#"list_subprograms | tabulate
+        r#"list_subprograms | tabulate { }
         "#, 
         |msg, _| async move {
             // We're hard-coding the JSON formatting here which might not always be consistent (many formats can communicate the same message)
