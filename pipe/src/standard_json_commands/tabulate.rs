@@ -143,11 +143,13 @@ fn tabulate<'a>(_arguments: &TabulateArguments, values: impl Iterator<Item=&'a s
 /// Function that implements the 'tabulate' command, which reads from an input pipe and generates a table from it
 /// in markdown format.
 ///
-pub fn command_tabulate(arguments: TabulateArguments, context: SceneContext) -> impl Future<Output=CommandResponse> {
+pub fn command_tabulate(arguments: &JsonParameter, context: SceneContext) -> impl Future<Output=()> {
+    let arguments = TabulateArguments {  };
+
     async move {
         // Get the command responses
         let responses       = context.send(());
-        let mut responses   = if let Ok(responses) = responses { responses } else { return CommandResponse::Error("Can't create responses".into()); };
+        let mut responses   = if let Ok(responses) = responses { responses } else { return; };
 
         // Open an IO stream to read the responses
         let (_send_responses, recv_responses)   = mpsc::channel(16);
@@ -157,11 +159,12 @@ pub fn command_tabulate(arguments: TabulateArguments, context: SceneContext) -> 
                 send_input.send(input_stream).ok();
                 recv_responses.boxed()
             }))).await.is_err() {
-            return CommandResponse::Error("Could not create ouput stream".into());
+            responses.send(CommandResponse::Error("Could not create ouput stream".into())).await.ok();
+            return;
         }
 
         // Receive the IO stream
-        let Ok(mut input)       = recv_input.await else { return CommandResponse::Error("No input".into()) };
+        let Ok(mut input)       = recv_input.await else { responses.send(CommandResponse::Error("No input".into())).await.ok(); return; };
         let mut table_values    = vec![];
 
         while let Some(input_val) = input.next().await {
@@ -185,9 +188,7 @@ pub fn command_tabulate(arguments: TabulateArguments, context: SceneContext) -> 
 
         // If there were JSON objects in the stream, then tabulate them last
         if !table_values.is_empty() {
-            tabulate(&arguments, table_values.iter())
-        } else {
-            CommandResponse::Message("".into())
+            responses.send(tabulate(&arguments, table_values.iter())).await.ok();
         }
     }
 }
