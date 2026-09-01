@@ -34,9 +34,9 @@ fn tabulate<'a>(_arguments: &TabulateArguments, values: impl Iterator<Item=&'a s
     let Some(first_value) = values.next() else { return CommandResponse::Markdown("| Empty |\n".into()) };
 
     match first_value {
-        serde_json::Value::Array(values) => {
+        serde_json::Value::Array(header_values) => {
             // First value is the header values
-            ordered_columns.extend(values.iter().map(|val| val.as_str().unwrap_or("").to_string()));
+            ordered_columns.extend(header_values.iter().map(|val| val.as_str().unwrap_or("").to_string()));
             columns.extend(ordered_columns.iter().cloned().enumerate().map(|(idx, val)| (val, idx)));
 
             // Other values are the rows
