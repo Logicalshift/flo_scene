@@ -5,6 +5,7 @@
 mod launcher_ext;
 mod scene_ext;
 mod echo;
+mod tabulate;
 mod connect;
 mod help;
 mod list_subprograms;
@@ -17,6 +18,7 @@ mod stream;
 pub use launcher_ext::*;
 pub use scene_ext::*;
 pub use echo::*;
+pub use tabulate::*;
 pub use connect::*;
 pub use help::*;
 pub use list_subprograms::*;

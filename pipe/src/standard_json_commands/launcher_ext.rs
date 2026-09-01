@@ -7,6 +7,7 @@ use super::query::*;
 use super::send::*;
 use super::subscribe::*;
 use super::stream::*;
+use super::tabulate::*;
 use crate::commands::*;
 
 use flo_scene::commands::*;
@@ -33,6 +34,7 @@ impl StandardCommandsLauncherExt for CommandLauncher<JsonParameter, CommandRespo
             .with_json_command("send", command_send)
             .with_json_command("subscribe", command_subscribe)
             .with_json_command("stream", command_stream)
+            .with_json_command("tabulate", command_tabulate)
             .with_summary("echo", "Sends its argument back as a message")
             .with_summary("connect", "Creates a connection between subprograms")
             .with_summary("help", "Displays help text")
