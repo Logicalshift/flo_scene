@@ -1,5 +1,6 @@
 use super::markdown_table_formatter::*;
 
+use itertools::{self, Itertools};
 use comrak;
 
 use std::cell::{RefCell};
@@ -105,6 +106,8 @@ impl Formatter {
     ///
     #[inline]
     pub fn commit_current_word(&mut self) {
+        use std::mem;
+
         if self.word_length == 0 {
             // Nothing to do if the current word has no characters in it
             return;
@@ -125,7 +128,36 @@ impl Formatter {
             ws_len      = 0;
             whitespace  = None;
 
-            self.newline();
+            if self.x_pos > self.indentation.0 {
+                // Word has wrapped after we've generated some text on this line
+                self.newline();
+            } else {
+                // Word has wrapped before we could generate anything
+                let max_width           = self.width - self.indentation.0;
+                let current_word        = mem::replace(&mut self.current_word, String::new());
+                let split_word          = current_word.chars().chunks(max_width);
+                let mut split_word      = split_word.into_iter();
+
+                self.word_length        = 0;
+                let Some(first_chunk)   = split_word.next() else { return; };
+
+                // First word is appended without a newline
+                let first_chunk = first_chunk.collect::<Vec<_>>();
+                self.x_pos += first_chunk.len();
+                self.formatted_text.extend(first_chunk);
+
+                for word_chunk in split_word {
+                    let word_chunk  = word_chunk.collect::<Vec<_>>();
+                    let chunk_len   = word_chunk.len();
+
+                    self.newline();
+                    self.formatted_text.extend(word_chunk);
+
+                    self.x_pos += chunk_len;
+                }
+
+                return;
+            }
         }
 
         // Append the word
