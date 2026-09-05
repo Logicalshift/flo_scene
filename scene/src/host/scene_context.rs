@@ -274,7 +274,7 @@ impl SceneContext {
             let response_input_stream = InputStream::<QueryResponse<TCommand::Input>>::new(task_program_id, &scene_core, 0);
             let response_input_core   = response_input_stream.core();
 
-            // We generate a 
+            // We generate an input stream for the results of the query
             let command_result      = InputStream::new(our_program_id, &scene_core, 4);
             let command_result_core = command_result.core();
 
