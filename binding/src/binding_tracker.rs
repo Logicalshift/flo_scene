@@ -85,10 +85,11 @@ impl<TMessage> Command for SendMessageCommand<TMessage>
 where
     TMessage: SceneMessage,
 {
-    type Input  = ();
-    type Output = ();
+    type Input   = ();
+    type Output  = ();
+    type Message = ();
 
-    fn run<'a>(&'a self, _input: impl 'static + Send + Stream<Item=()>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
+    fn run<'a>(&'a self, _input: impl 'static + Send + Stream<Item=()>, _: InputStream<()>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         let SendMessageCommand(message, target) = self;
         let message                             = message.lock().unwrap().take();
 

@@ -1,4 +1,5 @@
 use crate::host::command_trait::*;
+use crate::host::input_stream::*;
 use crate::host::scene_context::*;
 use crate::host::scene_message::*;
 
@@ -27,10 +28,11 @@ impl<TInputType> Command for ReadCommand<TInputType>
 where
     TInputType: 'static + SceneMessage
 {
-    type Input = TInputType;
-    type Output = TInputType;
+    type Input      = TInputType;
+    type Output     = TInputType;
+    type Message    = ();
 
-    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
+    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, _: InputStream<()>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         async move {
             if let Ok(output) = context.send(()) {
                 let mut input   = Box::pin(input);

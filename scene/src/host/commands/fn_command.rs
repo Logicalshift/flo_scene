@@ -1,4 +1,5 @@
 use crate::host::command_trait::*;
+use crate::host::input_stream::*;
 use crate::host::scene_context::*;
 use crate::host::scene_message::*;
 
@@ -35,11 +36,12 @@ where
     TInput:     'static + SceneMessage,
     TOutput:    'static + SceneMessage,
 {
-    type Input  = TInput;
-    type Output = TOutput;
+    type Input   = TInput;
+    type Output  = TOutput;
+    type Message = ();
 
     #[inline]
-    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
+    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, _: InputStream<()>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         self.1(input.boxed(), context)
     }
 }

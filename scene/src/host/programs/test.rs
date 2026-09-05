@@ -161,7 +161,7 @@ impl TestBuilder {
     ///
     /// The command is run to completion and the output stream is gathered into a vec that's passed to the assertion routine.
     ///
-    pub fn run_query<TCommand: 'static + Command>(mut self, command: TCommand, query: impl 'static + QueryRequest<ResponseData=TCommand::Input>, query_target: impl Into<StreamTarget>, assertion: impl 'static + Send + Fn(Vec<TCommand::Output>) -> Result<(), String>) -> Self {
+    pub fn run_query<TCommand: 'static + Command<Message=()>>(mut self, command: TCommand, query: impl 'static + QueryRequest<ResponseData=TCommand::Input>, query_target: impl Into<StreamTarget>, assertion: impl 'static + Send + Fn(Vec<TCommand::Output>) -> Result<(), String>) -> Self {
         let query_target = query_target.into();
 
         self.actions.push(Box::new(move |input_stream, context, failed_assertions| {

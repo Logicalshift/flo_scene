@@ -1,4 +1,5 @@
 use crate::host::command_trait::*;
+use crate::host::input_stream::*;
 use crate::host::scene_context::*;
 
 use futures::prelude::*;
@@ -31,11 +32,12 @@ where
     TSourceCommand: 'static + Command,
     TTargetCommand: 'static + Command<Input=TSourceCommand::Output>,
 {
-    type Input  = TSourceCommand::Input;
-    type Output = TTargetCommand::Output;
+    type Input   = TSourceCommand::Input;
+    type Output  = TTargetCommand::Output;
+    type Message = TTargetCommand::Message;
 
     #[inline]
-    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
+    fn run<'a>(&'a self, input: impl 'static + Send + Stream<Item=Self::Input>, scene_messages: InputStream<TTargetCommand::Message>, context: SceneContext) -> impl 'a + Send + Future<Output=()> {
         let source_cmd = self.0.clone();
         let target_cmd = self.1.clone();
 
@@ -45,7 +47,7 @@ where
 
             if let Ok(pipe_stream) = pipe_stream {
                 // Pipe to the output (which inherits our context)
-                target_cmd.run(pipe_stream, context).await;
+                target_cmd.run(pipe_stream, scene_messages, context).await;
             }
         }
     }
