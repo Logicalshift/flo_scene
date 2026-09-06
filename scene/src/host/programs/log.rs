@@ -186,10 +186,10 @@ impl Log {
         };
 
         // Create the portions of the formatted message
-        let truncated_name = if program_name.len() > program_name_len-2 {
-            program_name.chars().take(program_name_len-2).collect()
+        let truncated_name = if program_name.len() > program_name_len-4 {
+            program_name.chars().take(program_name_len-4).collect()
         } else {
-            let padding = (program_name_len-2) - program_name.len();
+            let padding = (program_name_len-4) - program_name.len();
             format!("{}{}", program_name, (0..padding).map(|_| ' ').collect::<String>())
         };
 
