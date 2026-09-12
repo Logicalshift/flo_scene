@@ -52,6 +52,7 @@ where
             let Some(scene_core)    = context.scene_core().upgrade() else { return; };
 
             // Create left and right input streams
+            // Both have 0 slots (buffering only happens in the outer core)
             let left        = InputStream::<TMessage>::new(program_id.clone(), &scene_core, 0);
             let right       = InputStream::<TExtraMessage>::new(program_id.clone(), &scene_core, 0);
             let left_core   = left.core();
