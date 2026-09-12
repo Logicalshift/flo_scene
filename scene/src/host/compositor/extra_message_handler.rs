@@ -105,6 +105,9 @@ impl<TMessage> MessageForwarder<TMessage>
 where
     TMessage: SceneMessage,
 {
+    ///
+    /// Sends a message to the input queue for the other kind of message
+    ///
     pub fn forward<'a>(&'a self, message: TMessage) -> impl 'a + Send + Future<Output=()> {
         let mut message = Some(message);
 
