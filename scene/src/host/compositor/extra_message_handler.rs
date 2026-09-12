@@ -122,8 +122,8 @@ where
                         // Just drop the message if the core is closed
                         Poll::Ready(())
                     } else if core.is_waiting_for_idle() {
-                        // TODO: block ourselves until the scene is idle?
-                        todo!("Core waiting for idle")
+                        // Should not happen: context.wait_for_idle does not block this input stream
+                        panic!("Core waiting for idle")
                     } else {
                         // Requeue the message, wake when the core is ready to receive
                         message = Some(unsent_message);
