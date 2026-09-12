@@ -61,20 +61,28 @@ where
             // Create the futures for the two sides
             let left_forwarder = MessageForwarder {
                 program_id: program_id.clone(),
-                core:       left_core,
+                core:       left_core.clone(),
             };
             let right_forwarder = MessageForwarder {
                 program_id: program_id.clone(),
-                core:       right_core,
+                core:       right_core.clone(),
             };
 
             let left    = (self)(left, context.clone());
             let right   = (extra_message)(right, context.clone(), left_forwarder.clone());
 
             // Listen to all the futures, forwarding each message as it's received to the appropriate inbox for the two streams
-            future::select_all([
-                left.boxed(),
-                right.boxed(),
+            let main_core_1 = input.core();
+            let main_core_2 = input.core();
+            future::join3(
+                async move {
+                    left.await;
+                    main_core_1.lock().unwrap().close();
+                },
+                async move {
+                    right.await;
+                    main_core_2.lock().unwrap().close();
+                },
                 async move {
                     let mut input = input;
 
@@ -84,8 +92,11 @@ where
                             EitherMessage::Right(msg)   => right_forwarder.forward(msg).await,
                         }
                     }
-                }.boxed()
-            ]).await;
+
+                    left_core.lock().unwrap().close();
+                    right_core.lock().unwrap().close();
+                }
+            ).await;
         }.boxed()
     }
 }
