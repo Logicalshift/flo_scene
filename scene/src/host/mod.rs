@@ -22,6 +22,7 @@ pub (crate) mod serialization_context;
 pub mod error;
 pub mod programs;
 pub mod commands;
+pub mod compositor;
 
 pub use scene::*;
 pub use initialisation_context::*;
