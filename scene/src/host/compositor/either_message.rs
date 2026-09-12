@@ -101,6 +101,20 @@ where
     #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
     fn from_guest_message(value: &[u8], context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
-        todo!("Needs value to be a slice, not an &Vec<u8>")
+        match value.get(0) {
+            Some(0u8) => {
+                let left = TLeft::from_guest_message(&value[1..], context)?;
+                Ok(Self::Left(left))
+            }
+
+            Some(1u8) => {
+                let right = TRight::from_guest_message(&value[1..], context)?;
+                Ok(Self::Right(right))
+            }
+
+            _ => {
+                Err(SceneSendError::CannotDeserialize((), "Not Left or Right".into()))
+            }
+        }
     }
 }
