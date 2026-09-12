@@ -6,5 +6,7 @@
 //!
 
 mod either_message;
+mod extra_message_handler;
 
 pub use either_message::*;
+pub use extra_message_handler::*;

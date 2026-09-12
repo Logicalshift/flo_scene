@@ -1,0 +1,88 @@
+use crate::compositor::either_message::*;
+use crate::host::input_stream::*;
+use crate::host::scene_context::*;
+use crate::host::scene_message::*;
+use crate::host::subprogram_id::*;
+
+use futures::prelude::*;
+
+use std::sync::*;
+
+pub trait WithExtraMessageHandler<TMessage, TExtraMessage, TOldFuture> {
+    ///
+    /// Turns a subprogram function into one that can handle an extra message type
+    ///
+    fn with_extra_message_handler<TFuture>(self, extra_message: impl FnOnce(InputStream<TExtraMessage>, SceneContext, MessageForwarder<TMessage>) -> TFuture) -> impl 'static + FnOnce(InputStream<EitherMessage<TMessage, TExtraMessage>>, SceneContext) -> TOldFuture
+    where
+        TFuture: 'static + Send + Future<Output=()>;
+}
+
+///
+/// Allows forwarding messages from an extra message program to the original program
+///
+pub struct MessageForwarder<TMessage> {
+    program_id: SubProgramId,
+    core:       Arc<Mutex<InputStreamCore<TMessage>>>,
+}
+
+impl<TFn, TMessage, TExtraMessage, TOldFuture> WithExtraMessageHandler<TMessage, TExtraMessage, TOldFuture> for TFn
+where
+    TFn: FnOnce(InputStream<TMessage>, SceneContext) -> TOldFuture,
+    TMessage: SceneMessage,
+    TExtraMessage: SceneMessage,
+    TOldFuture: Send + Future<Output=()>,
+{
+    fn with_extra_message_handler<TFuture>(self, extra_message: impl FnOnce(InputStream<TExtraMessage>, SceneContext, MessageForwarder<TMessage>) -> TFuture) -> impl 'static + FnOnce(InputStream<EitherMessage<TMessage, TExtraMessage>>, SceneContext) -> TOldFuture
+    where
+        TFuture: 'static + Send + Future<Output=()>,
+    {
+        |input, context| todo!()
+    }
+}
+
+impl<TMessage> MessageForwarder<TMessage>
+where
+    TMessage: SceneMessage,
+{
+    pub fn forward<'a>(&'a self, message: TMessage) -> impl 'a + Send + Future<Output=()> {
+        let mut message = Some(message);
+
+        future::poll_fn(move |ctxt| {
+            use futures::task::{Poll};
+
+            // Borrow the message we're trying to send
+            let Some(sending_message) = message.take() else { return Poll::Ready(()); };
+
+            // Try to send to the core
+            let program_id  = self.program_id.clone();
+            let mut core    = self.core.lock().unwrap();
+            
+            match core.send(program_id, sending_message) {
+                Ok(waker) => {
+                    // Message was queued
+                    drop(core);
+
+                    if let Some(waker) = waker { waker.wake(); }
+
+                    Poll::Ready(())
+                }
+
+                Err(unsent_message) => {
+                    // Stream is not ready to receive this message yet
+                    if core.is_closed() {
+                        // Just drop the message if the core is closed
+                        Poll::Ready(())
+                    } else if core.is_waiting_for_idle() {
+                        // TODO: block ourselves until the scene is idle?
+                        todo!("Core waiting for idle")
+                    } else {
+                        // Requeue the message, wake when the core is ready to receive
+                        message = Some(unsent_message);
+                        core.wake_when_slots_available(ctxt);
+                        Poll::Pending
+                    }
+                }
+            }
+        })
+    }
+}
