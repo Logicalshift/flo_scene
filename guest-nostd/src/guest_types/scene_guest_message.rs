@@ -79,7 +79,7 @@ pub trait SceneGuestMessage :
     /// Converts this message from the serialization format used for guest messages
     ///
     #[inline]
-    fn from_guest_message(value: &Vec<u8>, context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
+    fn from_guest_message(value: &[u8], context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
         let _ = context;
         postcard::from_bytes(value)
             .map_err(move |postcard_error| SceneSendError::CannotDeserialize((), postcard_error.to_string()))

@@ -143,7 +143,7 @@ impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryRespons
 
     #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
-    fn from_guest_message(value: &Vec<u8>, context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
+    fn from_guest_message(value: &[u8], context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
         // Deserialize as a serailized query response
         let serialized_stream = postcard::from_bytes::<SerializedQueryResponse>(value)
             .map_err(move |postcard_error| SceneSendError::CannotDeserialize((), format!("{:?}", postcard_error)))?;

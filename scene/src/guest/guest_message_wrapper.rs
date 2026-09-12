@@ -53,7 +53,7 @@ impl<TMessage: SceneMessage> SceneGuestMessage for GuestMessageWrapper<TMessage>
     }
 
     #[inline]
-    fn from_guest_message(value: &Vec<u8>, context: &impl flo_scene_guest::util::SerializationContext) -> Result<Self, flo_scene_guest::errors::SceneSendError<()>> {
+    fn from_guest_message(value: &[u8], context: &impl flo_scene_guest::util::SerializationContext) -> Result<Self, flo_scene_guest::errors::SceneSendError<()>> {
         TMessage::from_guest_message(value, context)
             .map(|val| GuestMessageWrapper(val))
     }

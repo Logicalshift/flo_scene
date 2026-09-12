@@ -72,7 +72,7 @@ where
     }
 
     #[cfg(feature="enable-postcard")]
-    fn from_guest_message(value: &Vec<u8>, context: &impl flo_scene::SerializationContext) -> Result<Self, flo_scene::SceneSendError<()>> {
+    fn from_guest_message(value: &[u8], context: &impl flo_scene::SerializationContext) -> Result<Self, flo_scene::SceneSendError<()>> {
         // Deserialize as a serailized binding message
         let serialized_stream = postcard::from_bytes::<SerializedBindingMessage>(value)
             .map_err(move |postcard_error| SceneSendError::CannotDeserialize((), format!("{:?}", postcard_error)))?;

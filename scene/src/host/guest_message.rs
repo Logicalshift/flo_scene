@@ -51,7 +51,7 @@ impl<T: SceneGuestMessage> SceneMessage for T {
     ///
     #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
-    fn from_guest_message(value: &Vec<u8>, context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
+    fn from_guest_message(value: &[u8], context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
         <T as SceneGuestMessage>::from_guest_message(value, context)
     }
 }

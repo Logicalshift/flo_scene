@@ -55,7 +55,7 @@ impl SceneGuestMessage for TestFunctionMessage {
 
     #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
-    fn from_guest_message(value: &Vec<u8>, context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
+    fn from_guest_message(value: &[u8], context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
         // Deserialize as a serialized function
         let serialized_function = postcard::from_bytes::<SerializedTestFunctionMessage>(value)
             .map_err(move |postcard_error| SceneSendError::CannotDeserialize((), format!("{:?}", postcard_error)))?;

@@ -195,7 +195,7 @@ pub trait SceneMessage :
     ///
     #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
-    fn from_guest_message(value: &Vec<u8>, context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
+    fn from_guest_message(value: &[u8], context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
         let _ = context;
         postcard::from_bytes(value)
             .map_err(move |postcard_error| SceneSendError::CannotDeserialize((), format!("{:?}", postcard_error)))
