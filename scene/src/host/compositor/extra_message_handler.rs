@@ -5,6 +5,7 @@ use crate::host::scene_message::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
+use futures::future::{BoxFuture};
 
 use std::sync::*;
 
@@ -12,7 +13,7 @@ pub trait WithExtraMessageHandler<TMessage, TExtraMessage, TOldFuture> {
     ///
     /// Turns a subprogram function into one that can handle an extra message type
     ///
-    fn with_extra_message_handler<TFuture>(self, extra_message: impl FnOnce(InputStream<TExtraMessage>, SceneContext, MessageForwarder<TMessage>) -> TFuture) -> impl 'static + FnOnce(InputStream<EitherMessage<TMessage, TExtraMessage>>, SceneContext) -> TOldFuture
+    fn with_extra_message_handler<TFuture>(self, extra_message: impl 'static + Send + FnOnce(InputStream<TExtraMessage>, SceneContext, MessageForwarder<TMessage>) -> TFuture) -> impl 'static + FnOnce(InputStream<EitherMessage<TMessage, TExtraMessage>>, SceneContext) -> BoxFuture<'static, ()>
     where
         TFuture: 'static + Send + Future<Output=()>;
 }
@@ -25,18 +26,66 @@ pub struct MessageForwarder<TMessage> {
     core:       Arc<Mutex<InputStreamCore<TMessage>>>,
 }
 
+impl<TMessage> Clone for MessageForwarder<TMessage> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self { 
+            program_id: self.program_id.clone(), 
+            core:       self.core.clone(),
+        }
+    }
+}
+
 impl<TFn, TMessage, TExtraMessage, TOldFuture> WithExtraMessageHandler<TMessage, TExtraMessage, TOldFuture> for TFn
 where
-    TFn: FnOnce(InputStream<TMessage>, SceneContext) -> TOldFuture,
-    TMessage: SceneMessage,
-    TExtraMessage: SceneMessage,
-    TOldFuture: Send + Future<Output=()>,
+    TFn:            'static + Send + FnOnce(InputStream<TMessage>, SceneContext) -> TOldFuture,
+    TMessage:       SceneMessage,
+    TExtraMessage:  SceneMessage,
+    TOldFuture:     Send + Future<Output=()>,
 {
-    fn with_extra_message_handler<TFuture>(self, extra_message: impl FnOnce(InputStream<TExtraMessage>, SceneContext, MessageForwarder<TMessage>) -> TFuture) -> impl 'static + FnOnce(InputStream<EitherMessage<TMessage, TExtraMessage>>, SceneContext) -> TOldFuture
+    fn with_extra_message_handler<TFuture>(self, extra_message: impl 'static + Send + FnOnce(InputStream<TExtraMessage>, SceneContext, MessageForwarder<TMessage>) -> TFuture) -> impl 'static + FnOnce(InputStream<EitherMessage<TMessage, TExtraMessage>>, SceneContext) -> BoxFuture<'static, ()>
     where
         TFuture: 'static + Send + Future<Output=()>,
     {
-        |input, context| todo!()
+        |input, context| async move {
+            let Some(program_id)    = context.current_program_id() else { return; };
+            let Some(scene_core)    = context.scene_core().upgrade() else { return; };
+
+            // Create left and right input streams
+            let left        = InputStream::<TMessage>::new(program_id.clone(), &scene_core, 0);
+            let right       = InputStream::<TExtraMessage>::new(program_id.clone(), &scene_core, 0);
+            let left_core   = left.core();
+            let right_core  = right.core();
+
+            // Create the futures for the two sides
+            let left_forwarder = MessageForwarder {
+                program_id: program_id.clone(),
+                core:       left_core,
+            };
+            let right_forwarder = MessageForwarder {
+                program_id: program_id.clone(),
+                core:       right_core,
+            };
+
+            let left    = (self)(left, context.clone());
+            let right   = (extra_message)(right, context.clone(), left_forwarder.clone());
+
+            // Listen to all the futures, forwarding each message as it's received to the appropriate inbox for the two streams
+            future::select_all([
+                left.boxed(),
+                right.boxed(),
+                async move {
+                    let mut input = input;
+
+                    while let Some(msg) = input.next().await {
+                        match msg {
+                            EitherMessage::Left(msg)    => left_forwarder.forward(msg).await,
+                            EitherMessage::Right(msg)   => right_forwarder.forward(msg).await,
+                        }
+                    }
+                }.boxed()
+            ]).await;
+        }.boxed()
     }
 }
 
