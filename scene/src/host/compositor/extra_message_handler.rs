@@ -108,7 +108,14 @@ where
     ///
     /// Sends a message to the input queue for the other kind of message
     ///
-    pub fn forward<'a>(&'a self, message: TMessage) -> impl 'a + Send + Future<Output=()> {
+    pub async fn forward<'a>(&'a self, message: TMessage) {
+        self.forward_with_sender(message, self.program_id.clone()).await;
+    }
+
+    ///
+    /// Sends a message to the input queue for the other kind of message
+    ///
+    pub (crate) fn forward_with_sender<'a>(&'a self, message: TMessage, sender: SubProgramId) -> impl 'a + Send + Future<Output=()> {
         let mut message = Some(message);
 
         future::poll_fn(move |ctxt| {
@@ -118,10 +125,9 @@ where
             let Some(sending_message) = message.take() else { return Poll::Ready(()); };
 
             // Try to send to the core
-            let program_id  = self.program_id.clone();
-            let mut core    = self.core.lock().unwrap();
+            let mut core = self.core.lock().unwrap();
             
-            match core.send(program_id, sending_message) {
+            match core.send(sender, sending_message) {
                 Ok(waker) => {
                     // Message was queued
                     drop(core);
