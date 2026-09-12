@@ -84,12 +84,12 @@ where
                     main_core_2.lock().unwrap().close();
                 },
                 async move {
-                    let mut input = input;
+                    let mut input = input.messages_with_sources();
 
-                    while let Some(msg) = input.next().await {
+                    while let Some((source, msg)) = input.next().await {
                         match msg {
-                            EitherMessage::Left(msg)    => left_forwarder.forward(msg).await,
-                            EitherMessage::Right(msg)   => right_forwarder.forward(msg).await,
+                            EitherMessage::Left(msg)    => left_forwarder.forward_with_sender(msg, source).await,
+                            EitherMessage::Right(msg)   => right_forwarder.forward_with_sender(msg, source).await,
                         }
                     }
 
