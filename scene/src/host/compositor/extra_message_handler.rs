@@ -53,6 +53,7 @@ where
 
             // Create left and right input streams
             // Both have 0 slots (buffering only happens in the outer core)
+            // TODO: these streams won't mark the scene as 'not idle' while they have queued messages
             let left        = InputStream::<TMessage>::new(program_id.clone(), &scene_core, 0);
             let right       = InputStream::<TExtraMessage>::new(program_id.clone(), &scene_core, 0);
             let left_core   = left.core();
