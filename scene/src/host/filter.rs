@@ -127,6 +127,13 @@ pub trait FilterHandleExt {
     /// Returns the stream ID for the target of this filter
     ///
     fn target_stream_id_any(&self) -> Result<StreamId, ConnectionError>;
+
+    ///
+    /// Chains this filter with another one
+    ///
+    /// Ie, creates a new filter handle that filters using this filter, then takes that output and filters it with the second filter
+    ///
+    fn chain(&self, following: FilterHandle) -> Result<FilterHandle, ConnectionError>;
 }
 
 pub (crate) trait FilterHandleCrateExt {
@@ -319,6 +326,57 @@ impl FilterHandleExt for FilterHandle {
     ///
     fn target_stream_id_any(&self) -> Result<StreamId, ConnectionError> {
        Ok((self.data.stream_id_for_target)(None))
+    }
+
+    ///
+    /// Chains this filter with another one
+    ///
+    /// Ie, creates a new filter handle that filters using this filter, then takes that output and filters it with the second filter
+    ///
+    fn chain(&self, following_filter: FilterHandle) -> Result<FilterHandle, ConnectionError> {
+        // The output of this filter must match the input of the following filter
+        let our_target_stream_id        = self.target_stream_id_any()?;
+        let following_source_stream_id  = following_filter.source_stream_id_any()?;
+
+        if our_target_stream_id.message_type() != following_source_stream_id.message_type() {
+            return Err(ConnectionError::FilterInputDoesNotMatch);
+        }
+
+        // Create a new filter handle
+        let handle = NEXT_FILTER_HANDLE.fetch_add(1, Ordering::Relaxed);
+
+        let initial_filter = self.clone();
+
+        // The source is the source of this filter, and the target is the target of the following filter
+        let stream_id_for_target    = Arc::clone(&following_filter.data.stream_id_for_target);
+        let source_stream_id        = self.data.source_stream_id.clone();
+
+        // The input stream is created by creating an input stream for the following filter, then using that as the target for the initial filter
+        let create_input_stream: CreateInputStreamFn = Arc::new(move |sending_program, target_input_core| {
+            // Fetch the scene core
+            let target_stream_id    = following_filter.target_stream_id_any()?;
+            let scene_core          = target_stream_id.scene_core(&target_input_core);
+            let Some(scene_core)    = scene_core else { return Err(ConnectionError::TargetNotInScene); };
+
+            // Create the following input core, and chain it to our core
+            let following_core  = following_filter.create_input_stream_core(&scene_core, sending_program, target_input_core)?;
+
+            // Create the input stream for the initial program, and connect it to the following program
+            let (initial_stream, initial_core) = (initial_filter.data.create_input_stream)(sending_program, following_core)?;
+
+            // The filters are already scheduled, so we queue up no future for ourselves
+            Ok((initial_stream, initial_core))
+        });
+
+
+        Ok(FilterHandle {
+            serial: handle,
+            data:   Arc::new(FilterData {
+                create_input_stream,
+                stream_id_for_target,
+                source_stream_id,
+            }),
+        })
     }
 }
 
