@@ -353,6 +353,8 @@ impl FilterHandleExt for FilterHandle {
 
         // The input stream is created by creating an input stream for the following filter, then using that as the target for the initial filter
         let create_input_stream: CreateInputStreamFn = Arc::new(move |sending_program, target_input_core| {
+            let following_source_stream_id = following_source_stream_id.clone();
+
             // Fetch the scene core
             let target_stream_id    = following_filter.target_stream_id_any()?;
             let scene_core          = target_stream_id.scene_core(&target_input_core);
@@ -362,7 +364,13 @@ impl FilterHandleExt for FilterHandle {
             let following_core  = following_filter.create_input_stream_core(&scene_core, sending_program, target_input_core)?;
 
             // Create the input stream for the initial program, and connect it to the following program
-            let (initial_stream, initial_core) = (initial_filter.data.create_input_stream)(sending_program, following_core)?;
+            let (initial_stream, initial_core) = (initial_filter.data.create_input_stream)(sending_program, following_core.clone())?;
+            let initial_stream = async move {
+                initial_stream.await;
+                let waker = following_source_stream_id.close_input(&following_core);
+                debug_assert!(waker.is_ok());
+                if let Ok(Some(waker)) = waker { waker.wake() };
+            }.boxed();
 
             // The filters are already scheduled, so we queue up no future for ourselves
             Ok((initial_stream, initial_core))
