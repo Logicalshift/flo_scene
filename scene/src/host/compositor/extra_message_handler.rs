@@ -14,6 +14,38 @@ pub trait WithExtraMessageHandler<TMessage, TExtraMessage, TOldFuture> {
     ///
     /// Turns a subprogram function into one that can handle an extra message type
     ///
+    /// There are a few situations where a subprogram might need to handle multiple message types: it might have several
+    /// personalities, or it might want to be able to handle messages from other programs (eg, timer events) along with 
+    /// having its own message type.
+    ///
+    /// The appropriate choice depends on the situation. Filters are the most common way of combining message types, and the
+    /// `EitherMessage<>` type is convenient because it automatically adds the appropraite filters: you can also define extra
+    /// 'helper' message types of your own and add filters for them if there is more than one different message to type to
+    /// handle.
+    ///
+    /// Filters only work where the 'extra' messages can be discarded or mapped exactly onto messages for the target program.
+    /// `with_extra_message_handler` can be used to modify subprograms where the relationship is more complicated: for instance
+    /// if messages require a custom response. To deal with this, this provides a way to merge two subprograms into one to
+    /// process different streams of input messages:
+    ///
+    /// ```
+    /// # use flo_scene::*;
+    /// # use flo_scene::compositor::*;
+    /// # use serde::*;
+    /// # #[derive(Serialize, Deserialize)] struct MessageA { } impl SceneMessage for MessageA { }
+    /// # #[derive(Serialize, Deserialize)] struct MessageB { } impl SceneMessage for MessageB { }
+    /// # let scene = Scene::default();
+    /// # let combined_program = SubProgramId::new();
+    /// async fn program_a(input_stream: InputStream<MessageA>, context: SceneContext) { /* ... */ }
+    /// async fn program_b(input_stream: InputStream<MessageB>, context: SceneContext, forwarder: MessageForwarder<MessageA>) { /* ... */ }
+    /// 
+    /// scene.add_subprogram(combined_program, program_a.with_extra_message_handler(program_b), 10);
+    /// ```
+    ///
+    /// The 'secondary' program can forward messages to the 'primary' program to process them: this in general should be its
+    /// main purpose: this shouldn't be treated as a way to have two independent programs running with one program ID, but
+    /// as a way to translate messages for the primary program.
+    ///
     fn with_extra_message_handler<TFuture>(self, extra_message: impl 'static + Send + FnOnce(InputStream<TExtraMessage>, SceneContext, MessageForwarder<TMessage>) -> TFuture) -> impl 'static + FnOnce(InputStream<EitherMessage<TMessage, TExtraMessage>>, SceneContext) -> BoxFuture<'static, ()>
     where
         TFuture: 'static + Send + Future<Output=()>;
