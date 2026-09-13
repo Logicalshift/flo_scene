@@ -37,6 +37,7 @@ type CloseInputFn               = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync 
 type IsIdleFn                   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<bool, ConnectionError>>;
 type NotIdleFn                  = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Box<dyn Send + Any>, ConnectionError>>;
 type WaitingForIdleFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, usize) -> Result<IdleInputStreamCore, ConnectionError>>;
+type SceneCoreFn                = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Option<Arc<Mutex<SceneCore>>>>;
 type DefaultTargetFn            = Arc<dyn Send + Sync + Fn() -> StreamTarget>;
 type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>>;
 type ReconnectSinkFn            = Arc<dyn Send + Sync + Fn(&Arc<Mutex<SceneCore>>, &Arc<dyn Send + Sync + Any>, SubProgramId, StreamTarget) -> Result<Option<Waker>, ConnectionError>>;
@@ -70,6 +71,9 @@ struct StreamTypeFunctions {
 
     /// Indicates that the input stream is in a 'waiting for idle' state (where it will queue messages up to a limit until the scene is idle)
     waiting_for_idle: WaitingForIdleFn,
+
+    /// Retrieves the scene core for an input stream core
+    scene_core: SceneCoreFn,
 
     /// Returns the default target for this stream type
     default_target: DefaultTargetFn,
@@ -200,6 +204,13 @@ impl StreamTypeFunctions {
                 let dropper         = InputStreamCore::<TMessageType>::waiting_for_idle(&input_stream, max_idle_queue_len);
 
                 Ok(dropper)
+            }),
+
+            scene_core: Arc::new(|input_stream_any| {
+                let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().ok()?;
+                let scene_core      = input_stream.lock().unwrap().scene_core();
+
+                scene_core
             }),
 
             default_target: Arc::new(|| {
@@ -381,6 +392,13 @@ impl StreamTypeFunctions {
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.waiting_for_idle))
+    }
+
+    pub fn scene_core(type_id: &TypeId) -> Option<SceneCoreFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.scene_core))
     }
 
     pub fn default_target(type_id: &TypeId) -> Option<DefaultTargetFn> {
@@ -626,6 +644,21 @@ impl StreamId {
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Given an input stream core (an 'Any' that maps to an InputStreamCore of the same type as this stream ID), retrieves the scene core
+    /// that it belongs to, if there is one
+    ///
+    pub (crate) fn scene_core(&self, input_stream_core: &Arc<dyn Any + Send + Sync + 'static>) -> Option<Arc<Mutex<SceneCore>>> {
+        let message_type = self.message_type();
+
+        if let Some(scene_core) = StreamTypeFunctions::scene_core(&message_type) {
+            (scene_core)(input_stream_core)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            None
         }
     }
 
