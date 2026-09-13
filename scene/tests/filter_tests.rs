@@ -1188,5 +1188,5 @@ fn chain_mismatched_filters() {
     let usize_to_string = FilterHandle::for_filter(|number_stream: InputStream<usize>| number_stream.map(|num| num.to_string()));
     let double_usize    = FilterHandle::for_filter(|number_stream: InputStream<usize>| number_stream.map(|num| num * 2));
 
-    assert!(usize_to_string.chain(double_usize).is_err());
+    assert!(usize_to_string.chain(double_usize) == Err(ConnectionError::FilterInputDoesNotMatch));
 }
