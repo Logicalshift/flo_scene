@@ -70,9 +70,9 @@ where
     #[inline]
     fn from_json(value: &serde_json::Value) -> Result<Self, SceneSendError<()>> {
         if let Some(left) = value.get("left") {
-            Self::from_json(left)
+            Ok(Self::Left(TLeft::from_json(left)?))
         } else if let Some(right) = value.get("right") {
-            Self::from_json(right)
+            Ok(Self::Right(TRight::from_json(right)?))
         } else {
             Err(SceneSendError::CannotDeserialize((), "Incorrect format (needs to be left or right)".into()))
         }
@@ -91,7 +91,7 @@ where
 
             Self::Right(right) => {
                 let mut right = right.to_guest_message(context).map_err(|err| err.map(|err| Self::Right(err)))?;
-                right.insert(1, 0u8);
+                right.insert(0, 1u8);
 
                 Ok(right)
             }
