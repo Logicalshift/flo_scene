@@ -364,7 +364,21 @@ impl FilterHandleExt for FilterHandle {
             let following_core  = following_filter.create_input_stream_core(&scene_core, sending_program, target_input_core)?;
 
             // Create the input stream for the initial program, and connect it to the following program
-            let (initial_stream, initial_core) = (initial_filter.data.create_input_stream)(sending_program, following_core.clone())?;
+            let maybe_initial_stream = (initial_filter.data.create_input_stream)(sending_program, following_core.clone());
+
+            let (initial_stream, initial_core) = match maybe_initial_stream {
+                Ok(initial_stream) => initial_stream,
+
+                Err(err) => { 
+                    // Close the following stream if there's an error creating the initial stream
+                    let waker = following_source_stream_id.close_input(&following_core);
+                    debug_assert!(waker.is_ok());
+                    if let Ok(Some(waker)) = waker { waker.wake() };
+
+                    return Err(err.into());
+                }
+            };
+
             let initial_stream = async move {
                 initial_stream.await;
                 let waker = following_source_stream_id.close_input(&following_core);
