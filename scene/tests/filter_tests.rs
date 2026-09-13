@@ -1128,3 +1128,65 @@ fn chain_with_direct_target() {
         .expect_message(|msg2: String| if msg2 != "Goodbyte".to_string() { Err(format!("Expected 'Goodbyte'")) } else { Ok(()) })
         .run_in_scene(&scene, test_program);
 }
+
+#[test]
+fn write_to_chained_filter_target() {
+    // List of messages that were received by the subprogram
+    let recv_messages = Arc::new(Mutex::new(vec![]));
+
+    // Create a scene with just this subprogram in it
+    let scene           = Scene::empty();
+    let sent_messages   = recv_messages.clone();
+
+    // Create a chained filter that doubles numbers and then converts them to strings
+    let double_usize    = FilterHandle::for_filter(|number_stream: InputStream<usize>| number_stream.map(|num| num * 2));
+    let usize_to_string = FilterHandle::for_filter(|number_stream: InputStream<usize>| number_stream.map(|num| num.to_string()));
+    let chained_filter  = double_usize.chain(usize_to_string).unwrap();
+
+    // Add a program that receives some strings and writes them to recv_messages
+    let string_program = SubProgramId::new();
+    scene.add_subprogram(
+        string_program,
+        move |mut strings: InputStream<String>, _| async move {
+            for _ in 0..4 {
+                let next_string = strings.next().await.unwrap();
+                sent_messages.lock().unwrap().push(next_string);
+            }
+        },
+        0,
+    );
+
+    // Add another program that outputs some numbers to the first program
+    let number_program = SubProgramId::new();
+    scene.add_subprogram(
+        number_program, 
+        move |_: InputStream<()>, context| async move {
+            let mut filtered_output = context.send::<usize>(StreamTarget::Filtered(chained_filter, string_program)).unwrap();
+
+            filtered_output.send(1).await.unwrap();
+            filtered_output.send(2).await.unwrap();
+            filtered_output.send(3).await.unwrap();
+            filtered_output.send(4).await.unwrap();
+        }, 
+        0);
+
+    // Run the scene
+    let mut has_finished = false;
+    executor::block_on(select(async {
+        scene.run_scene().await;
+        has_finished = true;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Received output should match the numbers
+    let recv_messages = (*recv_messages.lock().unwrap()).clone();
+    assert!(recv_messages == vec![2.to_string(), 4.to_string(), 6.to_string(), 8.to_string()], "Test program did not send correct numbers (sent {:?})", recv_messages);
+    assert!(has_finished, "Scene did not finish when the programs terminated");
+}
+
+#[test]
+fn chain_mismatched_filters() {
+    let usize_to_string = FilterHandle::for_filter(|number_stream: InputStream<usize>| number_stream.map(|num| num.to_string()));
+    let double_usize    = FilterHandle::for_filter(|number_stream: InputStream<usize>| number_stream.map(|num| num * 2));
+
+    assert!(usize_to_string.chain(double_usize).is_err());
+}
