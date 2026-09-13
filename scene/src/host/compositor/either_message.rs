@@ -118,3 +118,149 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[cfg(any(feature="json", feature="postcard"))]
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct MessageA(String);
+
+    #[cfg(any(feature="json", feature="postcard"))]
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct MessageB(u32);
+
+    #[cfg(any(feature="json", feature="postcard"))]
+    impl SceneMessage for MessageA { }
+    
+    #[cfg(any(feature="json", feature="postcard"))]
+    impl SceneMessage for MessageB { }
+
+    #[test]
+    #[cfg(feature="json")]
+    fn left_to_json() {
+        let msg     = EitherMessage::<MessageA, MessageB>::Left(MessageA("Left".into()));
+        let json    = msg.to_json().unwrap();
+
+        assert!(json == serde_json::json!({ "left": "Left" }), "{:?}", json);
+    }
+
+    #[test]
+    #[cfg(feature="json")]
+    fn right_to_json() {
+        let msg     = EitherMessage::<MessageA, MessageB>::Right(MessageB(42));
+        let json    = msg.to_json().unwrap();
+
+        assert!(json == serde_json::json!({ "right": 42 }), "{:?}", json);
+    }
+
+    #[test]
+    #[cfg(feature="json")]
+    fn left_from_json() {
+        let json    = serde_json::json!({ "left": "Left" });
+        let msg     = EitherMessage::<MessageA, MessageB>::from_json(&json).unwrap();
+
+        assert!(msg == EitherMessage::Left(MessageA("Left".into())), "{:?}", msg);
+    }
+
+    #[test]
+    #[cfg(feature="json")]
+    fn right_from_json() {
+        let json    = serde_json::json!({ "right": 42 });
+        let msg     = EitherMessage::<MessageA, MessageB>::from_json(&json).unwrap();
+
+        assert!(msg == EitherMessage::Right(MessageB(42)), "{:?}", msg);
+    }
+
+    #[test]
+    #[cfg(feature="json")]
+    fn invalid_json() {
+        let json    = serde_json::json!({ "neither": 42 });
+        let msg     = EitherMessage::<MessageA, MessageB>::from_json(&json);
+
+        assert!(msg.is_err(), "{:?}", msg);
+    }
+
+    #[test]
+    #[cfg(feature="json")]
+    fn json_round_trip() {
+        let left    = EitherMessage::<MessageA, MessageB>::Left(MessageA("Left".into()));
+        let right   = EitherMessage::<MessageA, MessageB>::Right(MessageB(42));
+
+        let left_json   = left.clone().to_json().unwrap();
+        let right_json  = right.clone().to_json().unwrap();
+
+        assert!(EitherMessage::<MessageA, MessageB>::from_json(&left_json).unwrap() == left);
+        assert!(EitherMessage::<MessageA, MessageB>::from_json(&right_json).unwrap() == right);
+    }
+
+    #[test]
+    #[cfg(feature="postcard")]
+    fn left_to_guest_message() {
+        let msg     = EitherMessage::<MessageA, MessageB>::Left(MessageA("Left".into()));
+        let encoded = msg.to_guest_message(&DisconnectedSerializationContext).unwrap();
+
+        let mut expected = vec![0u8];
+        expected.extend(MessageA("Left".into()).to_guest_message(&DisconnectedSerializationContext).unwrap());
+
+        assert!(encoded == expected, "{:?} != {:?}", encoded, expected);
+    }
+
+    #[test]
+    #[cfg(feature="postcard")]
+    fn right_to_guest_message() {
+        let msg     = EitherMessage::<MessageA, MessageB>::Right(MessageB(42));
+        let encoded = msg.to_guest_message(&DisconnectedSerializationContext).unwrap();
+
+        let mut expected = vec![1u8];
+        expected.extend(MessageB(42).to_guest_message(&DisconnectedSerializationContext).unwrap());
+
+        assert!(encoded == expected, "{:?} != {:?}", encoded, expected);
+    }
+
+    #[test]
+    #[cfg(feature="postcard")]
+    fn left_from_guest_message() {
+        let mut encoded = vec![0u8];
+        encoded.extend(MessageA("Left".into()).to_guest_message(&DisconnectedSerializationContext).unwrap());
+
+        let msg = EitherMessage::<MessageA, MessageB>::from_guest_message(&encoded, &DisconnectedSerializationContext).unwrap();
+
+        assert!(msg == EitherMessage::Left(MessageA("Left".into())), "{:?}", msg);
+    }
+
+    #[test]
+    #[cfg(feature="postcard")]
+    fn right_from_guest_message() {
+        let mut encoded = vec![1u8];
+        encoded.extend(MessageB(42).to_guest_message(&DisconnectedSerializationContext).unwrap());
+
+        let msg = EitherMessage::<MessageA, MessageB>::from_guest_message(&encoded, &DisconnectedSerializationContext).unwrap();
+
+        assert!(msg == EitherMessage::Right(MessageB(42)), "{:?}", msg);
+    }
+
+    #[test]
+    #[cfg(feature="postcard")]
+    fn from_invalid_guest_message() {
+        let empty   = EitherMessage::<MessageA, MessageB>::from_guest_message(&[], &DisconnectedSerializationContext);
+        let bad_tag = EitherMessage::<MessageA, MessageB>::from_guest_message(&[2u8, 42u8], &DisconnectedSerializationContext);
+
+        assert!(empty.is_err(), "{:?}", empty);
+        assert!(bad_tag.is_err(), "{:?}", bad_tag);
+    }
+
+    #[test]
+    #[cfg(feature="postcard")]
+    fn guest_message_round_trip() {
+        let left    = EitherMessage::<MessageA, MessageB>::Left(MessageA("Left".into()));
+        let right   = EitherMessage::<MessageA, MessageB>::Right(MessageB(42));
+
+        let left_encoded    = left.clone().to_guest_message(&DisconnectedSerializationContext).unwrap();
+        let right_encoded   = right.clone().to_guest_message(&DisconnectedSerializationContext).unwrap();
+
+        assert!(EitherMessage::<MessageA, MessageB>::from_guest_message(&left_encoded, &DisconnectedSerializationContext).unwrap() == left);
+        assert!(EitherMessage::<MessageA, MessageB>::from_guest_message(&right_encoded, &DisconnectedSerializationContext).unwrap() == right);
+    }
+}
