@@ -1190,3 +1190,113 @@ fn chain_mismatched_filters() {
 
     assert!(usize_to_string.chain(double_usize) == Err(ConnectionError::FilterInputDoesNotMatch));
 }
+
+#[test]
+fn disconnect_chained_filter_target() {
+    // List of messages that were received by the subprogram
+    let recv_messages = Arc::new(Mutex::new(vec![]));
+
+    // Each filter in the chain holds one of these, which is dropped when that filter's stream finishes: both filters should be dropped twice (once when we disconnect, once when the programs end)
+    static NUM_INITIAL_DISCONNECTS: AtomicUsize = AtomicUsize::new(0);
+    static NUM_FOLLOWING_DISCONNECTS: AtomicUsize = AtomicUsize::new(0);
+
+    struct CountDisconnects(&'static AtomicUsize);
+
+    impl Drop for CountDisconnects {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    NUM_INITIAL_DISCONNECTS.store(0, Ordering::Relaxed);
+    NUM_FOLLOWING_DISCONNECTS.store(0, Ordering::Relaxed);
+
+    // Create a scene with just this subprogram in it
+    let scene           = Arc::new(Scene::empty());
+    let sent_messages   = recv_messages.clone();
+
+    // Create a chained filter that doubles numbers and then converts them to strings
+    let double_usize = FilterHandle::for_filter(|number_stream: InputStream<usize>| {
+        let count_disconnects = CountDisconnects(&NUM_INITIAL_DISCONNECTS);
+        number_stream.map(move |num| { let _ = &count_disconnects; num * 2 })
+    });
+    let usize_to_string = FilterHandle::for_filter(|number_stream: InputStream<usize>| {
+        let count_disconnects = CountDisconnects(&NUM_FOLLOWING_DISCONNECTS);
+        number_stream.map(move |num| { let _ = &count_disconnects; num.to_string() })
+    });
+    let chained_filter = double_usize.chain(usize_to_string).unwrap();
+
+    // Add a program that receives some strings and writes them to recv_messages
+    let string_program = SubProgramId::new();
+    scene.add_subprogram(
+        string_program,
+        move |mut strings: InputStream<String>, _| async move {
+            for _ in 0..4 {
+                let next_string = strings.next().await.unwrap();
+                sent_messages.lock().unwrap().push(next_string);
+            }
+        },
+        0,
+    );
+
+    // Add another program that outputs some numbers to the first program
+    let number_program  = SubProgramId::new();
+    let scene2          = scene.clone();
+    let chained_filter2 = chained_filter.clone();
+    let disconnects_after_first_disconnect  = Arc::new(Mutex::new((0, 0)));
+    let first_disconnect_counts             = disconnects_after_first_disconnect.clone();
+    scene.add_subprogram(
+        number_program,
+        move |_: InputStream<()>, context| async move {
+            let mut filtered_output = context.send::<usize>(StreamTarget::Any).unwrap();
+
+            // Send first two messages
+            filtered_output.send(1).await.unwrap();
+            filtered_output.send(2).await.unwrap();
+
+            // Disconnect the stream
+            scene2.connect_programs(number_program, StreamTarget::None, StreamId::with_message_type::<usize>()).unwrap();
+
+            // Send another two messages into oblivion
+            filtered_output.send(3).await.unwrap();
+            filtered_output.send(4).await.unwrap();
+
+            // Both filters in the chain should have shut down after the disconnect (checked here, as the target program closes any leftover filters when it ends)
+            context.wait_for_idle(100).await;
+            *disconnects_after_first_disconnect.lock().unwrap() = (NUM_INITIAL_DISCONNECTS.load(Ordering::Relaxed), NUM_FOLLOWING_DISCONNECTS.load(Ordering::Relaxed));
+
+            // Reconnect the two programs
+            scene2.connect_programs(number_program, StreamTarget::Filtered(chained_filter2, string_program), StreamId::with_message_type::<usize>()).unwrap();
+
+            // Final two messages
+            filtered_output.send(5).await.unwrap();
+            filtered_output.send(6).await.unwrap();
+
+            // Disconnect them again
+            scene2.connect_programs(number_program, StreamTarget::None, StreamId::with_message_type::<usize>()).unwrap();
+        },
+        0);
+
+    // Start the programs connected
+    scene.connect_programs(number_program, StreamTarget::Filtered(chained_filter, string_program), StreamId::with_message_type::<usize>()).unwrap();
+
+    // Run the scene
+    let mut has_finished = false;
+    executor::block_on(select(async {
+        scene.run_scene().await;
+        has_finished = true;
+    }.boxed(), Delay::new(Duration::from_millis(5000))));
+
+    // Received output should match the numbers
+    let recv_messages               = (*recv_messages.lock().unwrap()).clone();
+    let num_initial_disconnects     = NUM_INITIAL_DISCONNECTS.load(Ordering::Relaxed);
+    let num_following_disconnects   = NUM_FOLLOWING_DISCONNECTS.load(Ordering::Relaxed);
+
+    let first_disconnect_counts     = *first_disconnect_counts.lock().unwrap();
+
+    assert!(recv_messages == vec![2.to_string(), 4.to_string(), 10.to_string(), 12.to_string()], "Test program did not send correct numbers (sent {:?})", recv_messages);
+    assert!(first_disconnect_counts == (1, 1), "Filters in the chain were not dropped after the first disconnect ((initial, following) = {:?} != (1, 1))", first_disconnect_counts);
+    assert!(num_initial_disconnects == 2, "Initial filter stream was not dropped the expected number of times ({} != 2)", num_initial_disconnects);
+    assert!(num_following_disconnects == 2, "Following filter stream was not dropped the expected number of times ({} != 2)", num_following_disconnects);
+    assert!(has_finished, "Scene did not finish when the programs terminated");
+}
