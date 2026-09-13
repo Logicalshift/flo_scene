@@ -372,7 +372,6 @@ impl FilterHandleExt for FilterHandle {
                 if let Ok(Some(waker)) = waker { waker.wake() };
             }.boxed();
 
-            // The filters are already scheduled, so we queue up no future for ourselves
             Ok((initial_stream, initial_core))
         });
 
