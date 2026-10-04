@@ -409,6 +409,68 @@ fn query_control_program() {
 }
 
 #[test]
+fn tags_are_removed_when_program_stops() {
+    // When a program stops, any tags that were applied to it should be removed from the control program's state, so
+    // that subsequent queries no longer report them
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+    let program_1       = SubProgramId::new();
+
+    // program_1 reads from its input until the stream is closed, then finishes (so it will stop)
+    scene.add_subprogram(program_1,
+        move |mut input: InputStream<()>, _| async move {
+            while let Some(_) = input.next().await {
+            }
+        },
+        0);
+
+    let tag = SceneProgramTag::Name("test::program_1".into());
+
+    TestBuilder::new()
+        // Tag program_1
+        .send_message(SceneControl::Tag(program_1, tag.clone()))
+
+        // Wait for the scene to become idle so the tag is processed by the control program
+        .send_message(IdleRequest::WhenIdle(test_program))
+        .expect_message(|IdleNotification| { Ok(()) })
+
+        // The tag should be present in the query response
+        .run_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), *SCENE_CONTROL_PROGRAM,
+            {
+                let tag = tag.clone();
+                move |response| {
+                    if !response.iter().any(|update| update == &SceneUpdate::Tagged(program_1, tag.clone())) {
+                        Err(format!("Tag for program_1 ({:?}) not in query response ({:?})", program_1, response))
+                    } else {
+                        Ok(())
+                    }
+                }
+            })
+
+        // Close program_1 so that it stops
+        .send_message(SceneControl::Close(program_1))
+
+        // Wait for the scene to become idle again so the 'Stopped' update is processed by the control program
+        .send_message(IdleRequest::WhenIdle(test_program))
+        .expect_message(|IdleNotification| { Ok(()) })
+
+        // The tag should no longer be present in the query response
+        .run_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), *SCENE_CONTROL_PROGRAM,
+            {
+                let tag = tag.clone();
+                move |response| {
+                    if response.iter().any(|update| update == &SceneUpdate::Tagged(program_1, tag.clone())) {
+                        Err(format!("Tag for program_1 ({:?}) was still in query response after it stopped ({:?})", program_1, response))
+                    } else {
+                        Ok(())
+                    }
+                }
+            })
+
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
 fn send_message_only_sends_one_connection_notification() {
     let scene           = Scene::default();
     let test_program_id = SubProgramId::new();
