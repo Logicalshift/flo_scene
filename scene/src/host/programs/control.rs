@@ -363,11 +363,11 @@ impl SceneControl {
         // We read from the update stream and the input stream at the same time
         enum ControlInput {
             Control(SceneControl),
-            Update(SceneUpdate),
+            Update(Vec<SceneUpdate>),
         }
 
         let input   = input.map(|input| ControlInput::Control(input));
-        let updates = updates.map(|update| ControlInput::Update(update));
+        let updates = updates.ready_chunks(50).map(|update| ControlInput::Update(update));
 
         // The program runs until the input is exhausted
         let mut input = stream::select(input, updates);
@@ -540,20 +540,24 @@ impl SceneControl {
                     update_subscribers.send(SceneUpdate::Tagged(program_id, tag)).await;
                 }
 
-                Update(update) => {
-                    // Update our internal state
-                    match &update {
-                        SceneUpdate::Started(program_id, _input_stream_id)  => { started_subprograms.insert(*program_id); },
-                        SceneUpdate::Connected(source, target, stream_id)   => { active_connections.insert((*source, stream_id.clone()), *target); },
-                        SceneUpdate::Disconnected(source, stream_id)        => { active_connections.remove(&(*source, stream_id.clone())); },
-                        SceneUpdate::Stopped(program_id)                    => { started_subprograms.remove(program_id); tags.remove(program_id); },
-                        SceneUpdate::Tagged(_, _)                           => { /* We manage the tags rather than update them */ },
+                Update(updates) => {
+                    for update in updates.iter() {
+                        // Update our internal state
+                        match update {
+                            SceneUpdate::Started(program_id, _input_stream_id)  => { started_subprograms.insert(*program_id); },
+                            SceneUpdate::Connected(source, target, stream_id)   => { active_connections.insert((*source, stream_id.clone()), *target); },
+                            SceneUpdate::Disconnected(source, stream_id)        => { active_connections.remove(&(*source, stream_id.clone())); },
+                            SceneUpdate::Stopped(program_id)                    => { started_subprograms.remove(program_id); tags.remove(program_id); },
+                            SceneUpdate::Tagged(_, _)                           => { /* We manage the tags rather than update them */ },
 
-                        SceneUpdate::FailedConnection(_, _, _, _)           => { },
+                            SceneUpdate::FailedConnection(_, _, _, _)           => { },
+                        }
                     }
 
                     // Send the update to the subscribers
-                    update_subscribers.send(update).await;
+                    for update in updates {
+                        update_subscribers.send(update).await;
+                    }
                 }
             }
         }
