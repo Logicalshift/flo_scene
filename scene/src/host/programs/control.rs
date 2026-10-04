@@ -547,7 +547,7 @@ impl SceneControl {
                             SceneUpdate::Started(program_id, _input_stream_id)  => { started_subprograms.insert(*program_id); },
                             SceneUpdate::Connected(source, target, stream_id)   => { active_connections.insert((*source, stream_id.clone()), *target); },
                             SceneUpdate::Disconnected(source, stream_id)        => { active_connections.remove(&(*source, stream_id.clone())); },
-                            SceneUpdate::Stopped(program_id)                    => { started_subprograms.remove(program_id); tags.remove(program_id); },
+                            SceneUpdate::Stopped(program_id)                    => { started_subprograms.remove(program_id); tags.remove(program_id); /* TODO: only remove tags on idle (messes up logs) */ },
                             SceneUpdate::Tagged(_, _)                           => { /* We manage the tags rather than update them */ },
 
                             SceneUpdate::FailedConnection(_, _, _, _)           => { },
