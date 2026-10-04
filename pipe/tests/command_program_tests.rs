@@ -3,6 +3,7 @@ use flo_scene::commands::*;
 use flo_scene::programs::*;
 use flo_scene_pipe::*;
 use flo_scene_pipe::commands::*;
+use flo_scene_pipe::standard_json_commands::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
@@ -589,4 +590,75 @@ fn tabulate() {
 
     TestBuilder::new()
         .run_in_scene(&scene, test_subprogram);
+}
+
+#[test]
+fn list_subprograms_ignores_tags_for_stopped_programs() {
+    // Tags can be applied to programs that have already stopped (or that never started); these should not appear in
+    // the list returned by list_subprograms, as only programs that are currently running should be listed
+    let scene               = Scene::default().with_standard_json_commands();
+    let test_subprogram     = SubProgramId::called("test");
+    let program_1           = SubProgramId::called("test::program_1");
+
+    // program_1 reads from its input until the stream is closed, then finishes
+    scene.add_subprogram(program_1,
+        move |mut input: InputStream<()>, _| async move {
+            while let Some(_) = input.next().await {
+            }
+        },
+        0);
+
+    // Wraps the result of list_subprograms so it can be returned from a command to the test program
+    #[derive(Serialize, Deserialize)]
+    struct ListSubprogramsResult(Vec<ListSubprogramsResponse>);
+    impl SceneMessage for ListSubprogramsResult {
+        fn message_type_name() -> String { "test::ListSubprogramsResult".into() }
+    }
+
+    // Command that runs list_subprograms and forwards its data response as a single message
+    let run_list_subprograms = FnCommand::<(), ListSubprogramsResult>::new(move |_, context| {
+        async move {
+            match command_list_subprograms(json!(null), context.clone()).await {
+                CommandResponseData::Data(subprograms) => {
+                    let mut output = context.send::<ListSubprogramsResult>(()).unwrap();
+                    output.send(ListSubprogramsResult(subprograms)).await.ok();
+                }
+                CommandResponseData::Error(err) => {
+                    panic!("list_subprograms returned an error: {}", err);
+                }
+                _ => { }
+            }
+        }
+    });
+
+    let tag = SceneProgramTag::Name("test::program_1".into());
+    let tag_name = if let SceneProgramTag::Name(name) = &tag { name.clone() } else { unreachable!() };
+
+    TestBuilder::new()
+        // Tag a subprogram ID that is not running (this should be ignored by list_subprograms)
+        .send_message(SceneControl::Tag(SubProgramId::called("test::never_started"), tag.clone()))
+
+        // Wait for the scene to become idle so the tag is processed by the control program
+        .send_message(IdleRequest::WhenIdle(test_subprogram))
+        .expect_message(|IdleNotification| { Ok(()) })
+
+        // Close program_1 so that it stops, leaving its tag in the control program's state until the 'Stopped' update is processed
+        .send_message(SceneControl::Close(program_1))
+
+        // Wait for the scene to become idle again so the 'Stopped' update is processed (which should remove program_1's tags)
+        .send_message(IdleRequest::WhenIdle(test_subprogram))
+        .expect_message(|IdleNotification| { Ok(()) })
+
+        // Run list_subprograms and check that no entry carries the tag for the stopped/never-started programs
+        .run_command(run_list_subprograms, vec![()], move |results| {
+            let listed = results.into_iter().flat_map(|result| result.0).collect::<Vec<_>>();
+            let response_str = format!("{:#?}", listed.iter().map(|response| (response.id, response.name.clone())).collect::<Vec<_>>());
+            if listed.iter().any(|response| response.name == Some(tag_name.clone())) {
+                Err(format!("list_subprograms included a tag for a program that is not running: {}", response_str))
+            } else {
+                Ok(())
+            }
+        })
+
+        .run_in_scene_with_threads(&scene, test_subprogram, 5);
 }

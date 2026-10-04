@@ -52,8 +52,9 @@ pub fn command_list_subprograms(_input: serde_json::Value, context: SceneContext
         // Query the scene control program for the list of subprograms
         match context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), *SCENE_CONTROL_PROGRAM) {
             Ok(updates) => {
-                let mut updates     = updates;
-                let mut subprograms = HashMap::new();
+                let mut updates          = updates;
+                let mut subprograms      = HashMap::new();
+                let mut running_programs = HashSet::new();
 
                 // Read the responses from the updates
                 while let Some(update) = updates.next().await {
@@ -65,21 +66,27 @@ pub fn command_list_subprograms(_input: serde_json::Value, context: SceneContext
                             details.id                      = program_id;
                             details.rust_type_name          = input_stream_id.message_type_name();
                             details.serialized_type_name    = input_stream_id.serialization_type_name();
+
+                            // Mark the program as running so it appears in the result
+                            running_programs.insert(program_id);
                         }
 
                         SceneUpdate::Tagged(program_id, SceneProgramTag::Name(name)) => {
-                            // Add the name for this program
+                            // Create an entry for this program
                             let details = subprograms.entry(program_id).or_insert_with(|| ListSubprogramsResponse::default());
 
-                            details.id      = program_id;
-                            details.name    = details.name.take().or(Some(name));
+                            // Store the name if it doesn't have one already (first name wins)
+                            details.name = details.name.take().or(Some(name));
                         }
 
                         _ => { }
                     }
                 }
 
-                CommandResponseData::Data(subprograms.into_iter().map(|(_, response)| response).collect())
+                CommandResponseData::Data(subprograms.into_iter()
+                    .filter(|(id, _)| running_programs.contains(id))
+                    .map(|(_, response)| response)
+                    .collect())
             }
 
             Err(error) => {
