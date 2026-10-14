@@ -52,6 +52,7 @@ struct SourceFilter {
 ///
 #[derive(Hash, PartialEq, Eq)]
 struct TargetFilter {
+    source:     Option<SubProgramId>,
     to_type:    TypeId,
     target:     SubProgramId,
 }
@@ -120,15 +121,15 @@ impl Connectome {
         match target {
             StreamTarget::None                      => Ok((ConnectionRoute::None, StreamTarget::None)),
             StreamTarget::Any                       => self.any_route(stream, source),
-            StreamTarget::Program(target)           => self.program_route(stream, *target),
-            StreamTarget::Filtered(filter, target)  => self.filtered_route(stream, filter, *target),
+            StreamTarget::Program(target)           => self.program_route(stream, source, *target),
+            StreamTarget::Filtered(filter, target)  => self.filtered_route(stream, source, filter, *target),
         }
     }
 
     ///
     /// Finds a route for a stream targeting a specific subprogram ID
     ///
-    fn program_route(&self, stream: &StreamId, target: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
+    fn program_route(&self, stream: &StreamId, source: SubProgramId, target: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
         if let Some(running_program_stream) = self.active_programs.get(&target) {
             // Program is running
             let target_type = running_program_stream.message_type();
@@ -138,12 +139,12 @@ impl Connectome {
                 Ok((ConnectionRoute::DeliverTo(target), StreamTarget::Program(target)))
             } else if let Some(connections) = self.connections_for_message_type.get(&stream.message_type()) {
                 // See if there's a target filter for this type
-                if let Some(target_filter) = connections.target_filter(target_type, target) {
+                if let Some(target_filter) = connections.target_filter(source, target_type, target) {
                     // Use the target filter if one is found
-                    self.filtered_route(stream, &target_filter, target)
+                    self.filtered_route(stream, source, &target_filter, target)
                 } else if let Some(source_filter) = connections.source_filter(target_type, target) {
                     // Use the source filter if one is found
-                    self.filtered_route(stream, &source_filter, target)
+                    self.filtered_route(stream, source, &source_filter, target)
                 } else {
                     // No way to filter this type to make it match
                     Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
@@ -161,7 +162,7 @@ impl Connectome {
     ///
     /// Finds a route for a stream that specifies a target via a filter
     ///
-    fn filtered_route(&self, stream: &StreamId, filter: &FilterHandle, target: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
+    fn filtered_route(&self, stream: &StreamId, source: SubProgramId, filter: &FilterHandle, target: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
         // Fetch the source & target streams of the filter
         let source_stream = filter.source_stream_id_any()?;
         let target_stream = filter.target_stream_id_any()?;
@@ -170,7 +171,7 @@ impl Connectome {
         if source_stream.message_type() != stream.message_type() { return Err(ConnectionError::FilterInputDoesNotMatch) }
 
         // Try to connect the resulting stream to the target
-        let (target_connection, target) = self.program_route(&target_stream, target)?;
+        let (target_connection, target) = self.program_route(&target_stream, source, target)?;
 
         Ok((ConnectionRoute::Filter(filter.clone(), Box::new(target_connection)), target))
     }
@@ -216,9 +217,9 @@ impl Connectome {
                 (StreamSource::Filtered(_source), StreamTarget::None)                           => { /* TODO: drop if matched? */ },
                 (StreamSource::Filtered(source), StreamTarget::Any)                             => { connection.add_source_filter(source)?; } ,
                 (StreamSource::Filtered(source), StreamTarget::Program(program_id))             => { connection.add_source_filter_for(source, *program_id)?; },
-                (StreamSource::Filtered(source), StreamTarget::Filtered(target, program_id))    => { connection.add_target_filter(&source.chain(target.clone())?, *program_id)?; },
+                (StreamSource::Filtered(source), StreamTarget::Filtered(target, program_id))    => { connection.add_target_filter(None, &source.chain(target.clone())?, *program_id)?; },
 
-                (StreamSource::Program(source), StreamTarget::Filtered(target, program_id))     => { connection.add_target_filter(target, *program_id)?; }, // TODO: filter only applies to source program
+                (StreamSource::Program(source), StreamTarget::Filtered(target, program_id))     => { connection.add_target_filter(Some(*source), target, *program_id)?; }, // TODO: filter only applies to source program
                 (StreamSource::Program(source), target)                                         => { connection.target_for_source.insert(*source, target.clone()); },
             }
         }
@@ -257,9 +258,11 @@ impl MessageTypeConnections {
     /// a particular program
     ///
     #[inline]
-    fn target_filter(&self, target_type: TypeId, target_program: SubProgramId) -> Option<FilterHandle> {
+    fn target_filter(&self, source: SubProgramId, target_type: TypeId, target_program: SubProgramId) -> Option<FilterHandle> {
         self.target_filters
-            .get(&TargetFilter { to_type: target_type, target: target_program })
+            .get(&TargetFilter { source: Some(source), to_type: target_type, target: target_program })
+            .or_else(|| self.target_filters
+                .get(&TargetFilter { source: None, to_type: target_type, target: target_program }))
             .cloned()
     }
 
@@ -322,7 +325,7 @@ impl MessageTypeConnections {
     ///
     /// Adds a source filter with no specific target program
     ///
-    fn add_target_filter(&mut self, target_filter: &FilterHandle, target_program: SubProgramId) -> Result<(), ConnectionError> {
+    fn add_target_filter(&mut self, source: Option<SubProgramId>, target_filter: &FilterHandle, target_program: SubProgramId) -> Result<(), ConnectionError> {
         // Check the input type
         if target_filter.source_stream_id_any()?.message_type() != self.message_type {
             return Err(ConnectionError::FilterInputDoesNotMatch);
@@ -330,6 +333,7 @@ impl MessageTypeConnections {
 
         // Create the key for this filter
         let key = TargetFilter {
+            source:     source,
             to_type:    target_filter.target_stream_id_any()?.message_type(),
             target:     target_program,
         };
