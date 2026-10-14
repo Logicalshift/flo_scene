@@ -39,15 +39,6 @@ pub enum ConnectionRoute {
 }
 
 ///
-/// Description of a source filter for a particular type
-///
-#[derive(Hash, PartialEq, Eq)]
-struct SourceFilter {
-    to_type:    TypeId,
-    target:     StreamTarget,
-}
-
-///
 /// Description of a target filter for a particular type
 ///
 #[derive(Hash, PartialEq, Eq)]
@@ -80,7 +71,7 @@ struct MessageTypeConnections {
     redirects: HashMap<RedirectSource, StreamTarget>,
 
     /// The source filters that can be applied to this message to change its type
-    source_filters: HashMap<SourceFilter, FilterHandle>,
+    source_filters: HashMap<TypeId, HashMap<StreamTarget, FilterHandle>>,
 
     /// The target filters than can be applied to this message to change its type
     target_filters: HashMap<TargetFilter, FilterHandle>,
@@ -322,11 +313,15 @@ impl MessageTypeConnections {
     #[inline]
     fn source_filter(&self, target_type: TypeId, target_program: SubProgramId) -> Option<FilterHandle> {
         // For source filters, we use one for the specific program if defined, or for any program if not
-        self.source_filters
-            .get(&SourceFilter { to_type: target_type, target: StreamTarget::Program(target_program) })
-            .or_else(|| self.source_filters
-                .get(&SourceFilter { to_type: target_type, target: StreamTarget::Any }))
-            .cloned()
+        let for_type = self.source_filters.get(&target_type);
+
+        if let Some(for_type) = for_type {
+            for_type.get(&StreamTarget::Program(target_program))
+                .or_else(|| for_type.get(&StreamTarget::Any))
+                .cloned()
+        } else {
+            None
+        }
     }
 
     ///
@@ -350,14 +345,10 @@ impl MessageTypeConnections {
             return Err(ConnectionError::FilterInputDoesNotMatch);
         }
 
-        // Create the key for this filter
-        let key = SourceFilter {
-            to_type:    source_filter.target_stream_id_any()?.message_type(),
-            target:     StreamTarget::Any,
-        };
-
         // Add to the filters list
-        self.source_filters.insert(key, source_filter.clone());
+        self.source_filters.entry(source_filter.target_stream_id_any()?.message_type())
+            .or_insert_with(|| HashMap::new())
+            .insert(StreamTarget::Any, source_filter.clone());
 
         Ok(())
     }
@@ -371,14 +362,10 @@ impl MessageTypeConnections {
             return Err(ConnectionError::FilterInputDoesNotMatch);
         }
 
-        // Create the key for this filter
-        let key = SourceFilter {
-            to_type:    source_filter.target_stream_id_any()?.message_type(),
-            target:     StreamTarget::Program(target_program),
-        };
-
         // Add to the filters list
-        self.source_filters.insert(key, source_filter.clone());
+        self.source_filters.entry(source_filter.target_stream_id_any()?.message_type())
+            .or_insert_with(|| HashMap::new())
+            .insert(StreamTarget::Program(target_program), source_filter.clone());
 
         Ok(())
     }
