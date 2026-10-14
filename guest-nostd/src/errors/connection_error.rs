@@ -94,6 +94,9 @@ pub enum ConnectionError {
 
     /// An operation could not be completed because of an I/O problem
     IoError(String),
+
+    /// A series of retargeted streams form a connection loop
+    StreamRedirectLoop,
 }
 
 impl<TMessage> From<SceneSendError<TMessage>> for ConnectionError {

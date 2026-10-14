@@ -58,11 +58,26 @@ struct TargetFilter {
 }
 
 ///
+/// Definition of a redirect
+///
+#[derive(Hash, PartialEq, Eq)]
+struct RedirectSource {
+    /// The program that made the original request
+    source: Option<SubProgramId>,
+
+    /// The original target of the stream to be redirected
+    target: StreamTarget,
+}
+
+///
 /// All of the connections for a particular message type
 ///
 struct MessageTypeConnections {
     /// The type ID for this message type
     message_type: TypeId,
+
+    /// Cases where a stream arriving at a target should be redirected to a new target
+    redirects: HashMap<RedirectSource, StreamTarget>,
 
     /// The source filters that can be applied to this message to change its type
     source_filters: HashMap<SourceFilter, FilterHandle>,
@@ -75,13 +90,6 @@ struct MessageTypeConnections {
 
     /// The default target for this message type (source: any, target: any)
     default_target: StreamTarget,
-}
-
-///
-/// Set of connections for a particular message type
-///
-struct ConnectionSet {
-
 }
 
 impl Connectome {
@@ -111,7 +119,36 @@ impl Connectome {
     /// resolving phase. This changes the resolved target.
     ///
     pub fn route_for(&self, stream: &StreamId, source: SubProgramId, target: &StreamTarget) -> Result<ConnectionRoute, ConnectionError> {
-        todo!()
+        let mut visited = HashSet::new();
+        let mut target  = target.clone();
+
+        let connection  = self.connections_for_message_type.get(&stream.message_type());
+
+        loop {
+            // Perform basic routing for this message
+            let (route, resolved_target) = self.basic_route(stream, source, &target)?;
+
+            // Check for a redirect
+            if let Some(connection) = connection {
+                if let Some(redirect) = connection.redirect(source, &resolved_target) {
+                    // Redirect this stream
+                    if visited.contains(&redirect) {
+                        return Err(ConnectionError::StreamRedirectLoop)
+                    }
+
+                    // Resolve again with the redirected target
+                    // TODO: might be better to append to the existing route, ie change to the target stream?
+                    visited.insert(target);
+                    target = redirect;
+                } else {
+                    // No redirect
+                    return Ok(route);
+                }
+            } else {
+                // No data for this connection type, so no redirect
+                return Ok(route);
+            }
+        }
     }
 
     ///
@@ -246,6 +283,7 @@ impl MessageTypeConnections {
     fn with_message_type(type_id: TypeId) -> Self {
         Self {
             message_type:       type_id,
+            redirects:          HashMap::new(),
             source_filters:     HashMap::new(),
             target_filters:     HashMap::new(),
             target_for_source:  HashMap::new(),
@@ -277,6 +315,18 @@ impl MessageTypeConnections {
             .get(&SourceFilter { to_type: target_type, target: StreamTarget::Program(target_program) })
             .or_else(|| self.source_filters
                 .get(&SourceFilter { to_type: target_type, target: StreamTarget::Any }))
+            .cloned()
+    }
+
+    ///
+    /// Looks to see if a stream is redirected elsewhere
+    ///
+    #[inline]
+    fn redirect(&self, source: SubProgramId, resolved_target: &StreamTarget) -> Option<StreamTarget> {
+        self.redirects
+            .get(&RedirectSource { source: Some(source), target: resolved_target.clone() })
+            .or_else(|| self.redirects
+                .get(&RedirectSource { source: None, target: resolved_target.clone() }))
             .cloned()
     }
 
