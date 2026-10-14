@@ -170,7 +170,7 @@ impl Connectome {
                 if let Some(target_filter) = connections.target_filter(source, target_type, target) {
                     // Use the target filter if one is found
                     self.filtered_route(stream, source, &target_filter, target)
-                } else if let Some(source_filter) = connections.source_filter(target_type, target) {
+                } else if let Some(source_filter) = connections.source_filter(target_type) {
                     // Use the source filter if one is found
                     self.filtered_route(stream, source, &source_filter, target)
                 } else {
@@ -382,7 +382,7 @@ impl MessageTypeConnections {
     /// for a particular program
     ///
     #[inline]
-    fn source_filter(&self, target_type: TypeId, target_program: SubProgramId) -> Option<FilterHandle> {
+    fn source_filter(&self, target_type: TypeId) -> Option<FilterHandle> {
         // For source filters, we use one for the specific program if defined, or for any program if not
         self.source_filters.get(&target_type).cloned()
     }
