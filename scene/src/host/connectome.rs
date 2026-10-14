@@ -323,6 +323,7 @@ impl Connectome {
                 (StreamSource::Filtered(source), StreamTarget::Filtered(target, program_id))    => { connection.add_target_filter(None, &source.chain(target.clone())?, *program_id)?; },
 
                 (StreamSource::Program(source), StreamTarget::Filtered(target, program_id))     => { connection.add_target_filter(Some(*source), target, *program_id)?; }, // TODO: filter only applies to source program
+                (StreamSource::Program(source), StreamTarget::Any)                              => { connection.target_for_source.remove(source); },
                 (StreamSource::Program(source), target)                                         => { connection.target_for_source.insert(*source, target.clone()); },
             }
         }
