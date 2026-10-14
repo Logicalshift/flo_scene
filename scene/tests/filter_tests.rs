@@ -1300,3 +1300,107 @@ fn disconnect_chained_filter_target() {
     assert!(num_following_disconnects == 2, "Following filter stream was not dropped the expected number of times ({} != 2)", num_following_disconnects);
     assert!(has_finished, "Scene did not finish when the programs terminated");
 }
+
+#[test]
+fn direct_connetion_via_source_filter_early_connection() {
+    let scene = Scene::default();
+
+    #[derive(Serialize, Deserialize)]
+    struct FilteredMessage;
+
+    #[derive(Serialize, Deserialize)]
+    pub enum TargetMessage {
+        FilteredMessage
+    }
+
+    #[derive(Debug, Serialize, PartialEq, Deserialize)]
+    pub struct TestMessage(String);
+
+    impl SceneMessage for FilteredMessage { }
+    impl SceneMessage for TargetMessage { }
+    impl SceneMessage for TestMessage { }
+
+    let target_program  = SubProgramId::called("target");
+    let test_program    = SubProgramId::called("test");
+
+    // Create a connection that source filters to TargetMessasge
+    scene.connect_programs(
+        StreamSource::Filtered(FilterHandle::for_filter(|filtered| filtered.map(|_: FilteredMessage| TargetMessage::FilteredMessage))),
+        (), 
+        StreamId::with_message_type::<FilteredMessage>()).unwrap();
+
+    // Add a subprogram that receives the messages
+    scene.add_subprogram(target_program, |input, context| async move {
+        let mut input = input;
+        while let Some(msg) = input.next().await {
+            match msg {
+                TargetMessage::FilteredMessage => context.send_message(TestMessage("Received message".into())).await.unwrap(),
+            }
+        }
+    }, 5);
+
+    // And a subprogram that we connect and which sends the filtered message to its default target
+    let sending_program = SubProgramId::new();
+    scene.connect_programs(sending_program, target_program, StreamId::with_message_type::<TargetMessage>()).unwrap();
+
+    scene.add_subprogram(sending_program, |_: InputStream<()>, context| async move {
+        context.send_message(FilteredMessage).await.unwrap();
+    }, 20);
+
+    // Expect the test message
+    TestBuilder::new()
+        .expect_message_matching(TestMessage("Received message".into()), "Unexpected test message")
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
+fn direct_connetion_via_source_filter_late_connection() {
+    let scene = Scene::default();
+
+    #[derive(Serialize, Deserialize)]
+    struct FilteredMessage;
+
+    #[derive(Serialize, Deserialize)]
+    pub enum TargetMessage {
+        FilteredMessage
+    }
+
+    #[derive(Debug, Serialize, PartialEq, Deserialize)]
+    pub struct TestMessage(String);
+
+    impl SceneMessage for FilteredMessage { }
+    impl SceneMessage for TargetMessage { }
+    impl SceneMessage for TestMessage { }
+
+    let target_program  = SubProgramId::called("target");
+    let test_program    = SubProgramId::called("test");
+
+    // Create a connection that source filters to TargetMessasge
+    scene.connect_programs(
+        StreamSource::Filtered(FilterHandle::for_filter(|filtered| filtered.map(|_: FilteredMessage| TargetMessage::FilteredMessage))),
+        (), 
+        StreamId::with_message_type::<FilteredMessage>()).unwrap();
+
+    // Add a subprogram that receives the messages
+    scene.add_subprogram(target_program, |input, context| async move {
+        let mut input = input;
+        while let Some(msg) = input.next().await {
+            match msg {
+                TargetMessage::FilteredMessage => context.send_message(TestMessage("Received message".into())).await.unwrap(),
+            }
+        }
+    }, 5);
+
+    // And a subprogram that we connect and which sends the filtered message to its default target
+    let sending_program = SubProgramId::new();
+    scene.connect_programs(sending_program, target_program, StreamId::with_message_type::<TargetMessage>()).unwrap();
+
+    scene.add_subprogram(sending_program, |_: InputStream<()>, context| async move {
+        context.send_message(FilteredMessage).await.unwrap();
+    }, 20);
+
+    // Expect the test message
+    TestBuilder::new()
+        .expect_message_matching(TestMessage("Received message".into()), "Unexpected test message")
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
