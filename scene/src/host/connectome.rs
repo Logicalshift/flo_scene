@@ -298,7 +298,7 @@ impl Connectome {
         if let Some(target_program) = stream.target_program() {
             // This route should override a connection to a target program
             let connection = self.connections_for_message_type.entry(stream.message_type())
-                .or_insert_with(|| MessageTypeConnections::with_message_type(stream.message_type()));
+                .or_insert_with(|| MessageTypeConnections::with_message_type(&stream));
 
             match (source, target) {
                 (StreamSource::All, new_target)                                                 => { connection.add_redirect(None, target_program, new_target.clone())?; }
@@ -312,7 +312,7 @@ impl Connectome {
         } else {
             // Wire up a direct route
             let connection = self.connections_for_message_type.entry(stream.message_type())
-                .or_insert_with(|| MessageTypeConnections::with_message_type(stream.message_type()));
+                .or_insert_with(|| MessageTypeConnections::with_message_type(&stream));
 
             match (source, target) {
                 (StreamSource::All, target)                                                     => { connection.default_target = target.clone(); },
@@ -356,14 +356,14 @@ impl MessageTypeConnections {
     /// Creates a new empty connections list for a particular type
     ///
     #[inline]
-    fn with_message_type(type_id: TypeId) -> Self {
+    fn with_message_type(stream_id: &StreamId) -> Self {
         Self {
-            message_type:       type_id,
+            message_type:       stream_id.message_type(),
             redirects:          HashMap::new(),
             source_filters:     HashMap::new(),
             target_filters:     HashMap::new(),
             target_for_source:  HashMap::new(),
-            default_target:     StreamTarget::Any,
+            default_target:     stream_id.default_target(),
         }
     }
 
