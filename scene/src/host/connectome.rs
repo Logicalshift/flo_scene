@@ -71,7 +71,7 @@ struct MessageTypeConnections {
     redirects: HashMap<RedirectSource, StreamTarget>,
 
     /// The source filters that can be applied to this message to change its type
-    source_filters: HashMap<TypeId, HashMap<StreamTarget, FilterHandle>>,
+    source_filters: HashMap<TypeId, FilterHandle>,
 
     /// The target filters than can be applied to this message to change its type
     target_filters: HashMap<TargetFilter, FilterHandle>,
@@ -259,9 +259,6 @@ impl Connectome {
 
         // Search all the source filters applying to the current type
         for (target_type, filters) in connection.source_filters.iter() {
-            // Must be an 'Any' filter for this type of source
-            if !filters.contains_key(&StreamTarget::Any) { continue; }
-
             // See if there are any connections for the filtered type
             if let Some(target_connection) = self.connections_for_message_type.get(target_type) {
                 // If we're testing from a specific source, then look for a target for the source, otherwise use the general connection
@@ -284,7 +281,6 @@ impl Connectome {
         if let Some(filter_type) = specific_filter.or(general_filter) {
             // Get the 'Any' target version of the filter as we don't have a specific target
             connection.source_filters.get(filter_type)
-                .and_then(|filters| filters.get(&StreamTarget::Any))
                 .cloned()
         } else {
             None
@@ -388,15 +384,7 @@ impl MessageTypeConnections {
     #[inline]
     fn source_filter(&self, target_type: TypeId, target_program: SubProgramId) -> Option<FilterHandle> {
         // For source filters, we use one for the specific program if defined, or for any program if not
-        let for_type = self.source_filters.get(&target_type);
-
-        if let Some(for_type) = for_type {
-            for_type.get(&StreamTarget::Program(target_program))
-                .or_else(|| for_type.get(&StreamTarget::Any))
-                .cloned()
-        } else {
-            None
-        }
+        self.source_filters.get(&target_type).cloned()
     }
 
     ///
@@ -421,26 +409,7 @@ impl MessageTypeConnections {
         }
 
         // Add to the filters list
-        self.source_filters.entry(source_filter.target_stream_id_any()?.message_type())
-            .or_insert_with(|| HashMap::new())
-            .insert(StreamTarget::Any, source_filter.clone());
-
-        Ok(())
-    }
-
-    ///
-    /// Adds a source filter with no specific target program
-    ///
-    fn add_source_filter_for(&mut self, source_filter: &FilterHandle, target_program: SubProgramId) -> Result<(), ConnectionError> {
-        // Check the input type
-        if source_filter.source_stream_id_any()?.message_type() != self.message_type {
-            return Err(ConnectionError::FilterInputDoesNotMatch);
-        }
-
-        // Add to the filters list
-        self.source_filters.entry(source_filter.target_stream_id_any()?.message_type())
-            .or_insert_with(|| HashMap::new())
-            .insert(StreamTarget::Program(target_program), source_filter.clone());
+        self.source_filters.insert(source_filter.target_stream_id_any()?.message_type(), source_filter.clone());
 
         Ok(())
     }
