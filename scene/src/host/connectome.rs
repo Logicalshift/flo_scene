@@ -23,6 +23,7 @@ pub struct Connectome {
 ///
 /// Describes how a stream is routed to a target input stream
 ///
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum ConnectionRoute {
     /// Messages are discarded
     None,
@@ -59,6 +60,9 @@ struct TargetFilter {
 /// All of the connections for a particular message type
 ///
 struct MessageTypeConnections {
+    /// The type ID for this message type
+    message_type: TypeId,
+
     /// The source filters that can be applied to this message to change its type
     source_filters: HashMap<SourceFilter, FilterHandle>,
 
@@ -197,8 +201,29 @@ impl Connectome {
     ///
     /// Adds a connection to the connectome
     ///
-    pub fn connect(&self, source: &StreamSource, target: &StreamTarget, stream: StreamId) -> Result<(), ConnectionError> {
-        todo!()
+    pub fn connect(&mut self, source: &StreamSource, target: &StreamTarget, stream: StreamId) -> Result<(), ConnectionError> {
+        if let Some(target_program) = stream.target_program() {
+            // This route should override a connection to a target program
+            todo!()
+        } else {
+            // Wire up a direct route
+            let connection = self.connections_for_message_type.entry(stream.message_type())
+                .or_insert_with(|| MessageTypeConnections::with_message_type(stream.message_type()));
+
+            match (source, target) {
+                (StreamSource::All, target)                                                     => { connection.default_target = target.clone(); },
+                
+                (StreamSource::Filtered(_source), StreamTarget::None)                           => { /* TODO: drop if matched? */ },
+                (StreamSource::Filtered(source), StreamTarget::Any)                             => { connection.add_source_filter(source)?; } ,
+                (StreamSource::Filtered(source), StreamTarget::Program(program_id))             => { connection.add_source_filter_for(source, *program_id)?; },
+                (StreamSource::Filtered(source), StreamTarget::Filtered(target, program_id))    => { connection.add_target_filter(&source.chain(target.clone())?, *program_id)?; },
+
+                (StreamSource::Program(source), StreamTarget::Filtered(target, program_id))     => { connection.add_target_filter(target, *program_id)?; }, // TODO: filter only applies to source program
+                (StreamSource::Program(source), target)                                         => { connection.target_for_source.insert(*source, target.clone()); },
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -213,6 +238,20 @@ impl Default for Connectome {
 }
 
 impl MessageTypeConnections {
+    ///
+    /// Creates a new empty connections list for a particular type
+    ///
+    #[inline]
+    fn with_message_type(type_id: TypeId) -> Self {
+        Self {
+            message_type:       type_id,
+            source_filters:     HashMap::new(),
+            target_filters:     HashMap::new(),
+            target_for_source:  HashMap::new(),
+            default_target:     StreamTarget::Any,
+        }
+    }
+
     ///
     /// Looks to see if there's a target filter to convert this type to the specified target type for
     /// a particular program
@@ -234,7 +273,70 @@ impl MessageTypeConnections {
         self.source_filters
             .get(&SourceFilter { to_type: target_type, target: StreamTarget::Program(target_program) })
             .or_else(|| self.source_filters
-                .get(&SourceFilter { to_type: target_type, target: StreamTarget::None }))
+                .get(&SourceFilter { to_type: target_type, target: StreamTarget::Any }))
             .cloned()
+    }
+
+    ///
+    /// Adds a source filter with no specific target program
+    ///
+    fn add_source_filter(&mut self, source_filter: &FilterHandle) -> Result<(), ConnectionError> {
+        // Check the input type
+        if source_filter.source_stream_id_any()?.message_type() != self.message_type {
+            return Err(ConnectionError::FilterInputDoesNotMatch);
+        }
+
+        // Create the key for this filter
+        let key = SourceFilter {
+            to_type:    source_filter.target_stream_id_any()?.message_type(),
+            target:     StreamTarget::Any,
+        };
+
+        // Add to the filters list
+        self.source_filters.insert(key, source_filter.clone());
+
+        Ok(())
+    }
+
+    ///
+    /// Adds a source filter with no specific target program
+    ///
+    fn add_source_filter_for(&mut self, source_filter: &FilterHandle, target_program: SubProgramId) -> Result<(), ConnectionError> {
+        // Check the input type
+        if source_filter.source_stream_id_any()?.message_type() != self.message_type {
+            return Err(ConnectionError::FilterInputDoesNotMatch);
+        }
+
+        // Create the key for this filter
+        let key = SourceFilter {
+            to_type:    source_filter.target_stream_id_any()?.message_type(),
+            target:     StreamTarget::Program(target_program),
+        };
+
+        // Add to the filters list
+        self.source_filters.insert(key, source_filter.clone());
+
+        Ok(())
+    }
+
+    ///
+    /// Adds a source filter with no specific target program
+    ///
+    fn add_target_filter(&mut self, target_filter: &FilterHandle, target_program: SubProgramId) -> Result<(), ConnectionError> {
+        // Check the input type
+        if target_filter.source_stream_id_any()?.message_type() != self.message_type {
+            return Err(ConnectionError::FilterInputDoesNotMatch);
+        }
+
+        // Create the key for this filter
+        let key = TargetFilter {
+            to_type:    target_filter.target_stream_id_any()?.message_type(),
+            target:     target_program,
+        };
+
+        // Add to the filters list
+        self.target_filters.insert(key, target_filter.clone());
+
+        Ok(())
     }
 }
