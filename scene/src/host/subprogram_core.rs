@@ -136,6 +136,7 @@ impl SubProgramCore {
     pub (crate) fn reconnect_output_sinks(&mut self, target_input: &Arc<dyn Send + Sync + Any>, stream_id: &StreamId, close_when_dropped: bool) -> Option<Waker> {
         if let Some(output_sink) = self.outputs.get_mut(stream_id) {
             // This stream has an output matching the input (the stream types should always match)
+            // TODO: fails with filters? (specifically source filters)
             stream_id.connect_output_to_input(output_sink, target_input, close_when_dropped).expect("Input and output types do not match")
         } else {
             None
