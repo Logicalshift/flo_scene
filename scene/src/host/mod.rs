@@ -1,6 +1,7 @@
 pub (crate) mod initialisation_context;
 pub (crate) mod scene;
 pub (crate) mod scene_core;
+pub (crate) mod connectome;
 pub (crate) mod subprogram_core;
 pub (crate) mod process_core;
 pub (crate) mod scene_context;
