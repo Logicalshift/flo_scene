@@ -242,7 +242,18 @@ impl Connectome {
     pub fn connect(&mut self, source: &StreamSource, target: &StreamTarget, stream: StreamId) -> Result<(), ConnectionError> {
         if let Some(target_program) = stream.target_program() {
             // This route should override a connection to a target program
-            todo!()
+            let connection = self.connections_for_message_type.entry(stream.message_type())
+                .or_insert_with(|| MessageTypeConnections::with_message_type(stream.message_type()));
+
+            match (source, target) {
+                (StreamSource::All, new_target)                                                 => { connection.add_redirect(None, target_program, new_target.clone())?; }
+                (StreamSource::Program(source), new_target)                                     => { connection.add_redirect(Some(*source), target_program, new_target.clone())?; }
+
+                (StreamSource::Filtered(_source), StreamTarget::None)                           => { connection.add_redirect(None, target_program, StreamTarget::None)?; } // Filter has no effect
+                (StreamSource::Filtered(_source), StreamTarget::Any)                            => { todo!() } // TODO: a filter-then-connect-anywhere connection
+                (StreamSource::Filtered(source), StreamTarget::Filtered(new_target, program))   => { connection.add_redirect(None, target_program, StreamTarget::Filtered(source.chain(new_target.clone())?, *program))?; } // Same as a single filter
+                (StreamSource::Filtered(source), StreamTarget::Program(program))                => { connection.add_redirect(None, target_program, StreamTarget::Filtered(source.clone(), *program))?; }
+            }
         } else {
             // Wire up a direct route
             let connection = self.connections_for_message_type.entry(stream.message_type())
@@ -390,6 +401,20 @@ impl MessageTypeConnections {
 
         // Add to the filters list
         self.target_filters.insert(key, target_filter.clone());
+
+        Ok(())
+    }
+
+    ///
+    /// Adds a redirect to a new target for a route that resolves at a particular program
+    ///
+    fn add_redirect(&mut self, source: Option<SubProgramId>, target_program: SubProgramId, new_target: StreamTarget) -> Result<(), ConnectionError> {
+        let key = RedirectSource { 
+            source: source, 
+            target: StreamTarget::Program(target_program), 
+        };
+
+        self.redirects.insert(key, new_target);
 
         Ok(())
     }
