@@ -1302,7 +1302,7 @@ fn disconnect_chained_filter_target() {
 }
 
 #[test]
-fn direct_connetion_via_source_filter_early_connection() {
+fn direct_connection_via_source_filter_early_connection() {
     let scene = Scene::default();
 
     #[derive(Serialize, Deserialize)]
@@ -1350,11 +1350,11 @@ fn direct_connetion_via_source_filter_early_connection() {
     // Expect the test message
     TestBuilder::new()
         .expect_message_matching(TestMessage("Received message".into()), "Unexpected test message")
-        .run_in_scene_with_threads(&scene, test_program, 5);
+        .run_in_scene(&scene, test_program);
 }
 
 #[test]
-fn direct_connetion_via_source_filter_late_connection() {
+fn direct_connection_via_source_filter_late_connection() {
     let scene = Scene::default();
 
     #[derive(Serialize, Deserialize)]
@@ -1402,5 +1402,5 @@ fn direct_connetion_via_source_filter_late_connection() {
     // Expect the test message
     TestBuilder::new()
         .expect_message_matching(TestMessage("Received message".into()), "Unexpected test message")
-        .run_in_scene_with_threads(&scene, test_program, 5);
+        .run_in_scene(&scene, test_program);
 }
