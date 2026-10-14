@@ -175,7 +175,23 @@ impl Connectome {
     /// Finds a route for a message that has no target specified
     ///
     fn any_route(&self, stream: &StreamId, source: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
-        todo!()
+        if let Some(connection) = self.connections_for_message_type.get(&stream.message_type()) {
+            // Get the target (either for a specific source program or the general connection)
+            let target = connection.target_for_source.get(&source)
+                .unwrap_or(&connection.default_target);
+
+            match target {
+                // Routing to 'None' or 'Any' resolves as either a Hold or a None route
+                StreamTarget::None  => Ok((ConnectionRoute::None, StreamTarget::Any)),
+                StreamTarget::Any   => Ok((ConnectionRoute::Hold, StreamTarget::Any)),
+
+                // Routing to a specific target routes as if that target was explicitly specified
+                specific_target     => self.basic_route(stream, source, specific_target)
+            }
+        } else {
+            // There's no route for this message yet
+            Ok((ConnectionRoute::Hold, StreamTarget::Any))
+        }
     }
 
     ///
