@@ -341,18 +341,18 @@ impl Connectome {
     }
 
     ///
-    /// Adds a new program and its stream ID to this connectome
+    /// Adds a new subprogram and its stream ID to this connectome
     ///
-    pub fn add_program(&mut self, new_program_id: SubProgramId, input_stream: StreamId) {
+    pub fn add_subprogram(&mut self, new_program_id: SubProgramId, input_stream: StreamId) {
         self.active_programs.insert(new_program_id, input_stream);
     }
 
     ///
-    /// Removes a program from this connectome
+    /// Removes a subprogram from this connectome
     ///
     /// This also removes all of the connections that are specifically for this program
     ///
-    pub fn remove_program(&mut self, program_id: SubProgramId) {
+    pub fn remove_subprogram(&mut self, program_id: SubProgramId) {
         self.active_programs.remove(&program_id);
 
         if let Some(existing_connections) = self.connections_for_program.remove(&program_id) {
@@ -492,5 +492,87 @@ impl MessageTypeConnections {
         self.redirects.insert(key, new_target);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use crate::host::scene_message::*;
+    use serde::*;
+    use futures::prelude::*;
+
+    #[derive(Serialize, Deserialize)]
+    struct TestMessage;
+
+    impl SceneMessage for TestMessage { }
+
+    #[derive(Serialize, Deserialize)]
+    struct TestMessage2;
+
+    impl SceneMessage for TestMessage2 { }
+
+    #[test]
+    fn hold_unconnected() {
+        let mut connectome  = Connectome::default();
+        let source          = SubProgramId::new();
+
+        let route = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &().into());
+
+        assert!(route == Ok(ConnectionRoute::Hold))
+    }
+
+    #[test]
+    fn hold_unconnected_program() {
+        let mut connectome  = Connectome::default();
+        let source          = SubProgramId::new();
+        let target          = SubProgramId::new();
+
+        let route = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &target.into());
+
+        assert!(route == Ok(ConnectionRoute::Hold))
+    }
+
+    #[test]
+    fn route_direct_to_started_program() {
+        let mut connectome  = Connectome::default();
+        let source          = SubProgramId::new();
+        let target          = SubProgramId::new();
+
+        connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+
+        let route = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &target.into());
+
+        assert!(route == Ok(ConnectionRoute::DeliverTo(target)));
+    }
+
+    #[test]
+    fn error_for_wrong_message_type() {
+        let mut connectome  = Connectome::default();
+        let source          = SubProgramId::new();
+        let target          = SubProgramId::new();
+
+        connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+
+        let route = connectome.route_for(&StreamId::with_message_type::<TestMessage2>(), source, &target.into());
+
+        assert!(route.is_err());
+    }
+
+    #[test]
+    fn route_via_target_filter() {
+        let mut connectome  = Connectome::default();
+        let source          = SubProgramId::new();
+        let target          = SubProgramId::new();
+
+        let filter          = FilterHandle::for_filter(|msgs| msgs.map(|_ : TestMessage| TestMessage2));
+
+        connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+        connectome.connect(&().into(), &StreamTarget::Filtered(filter.clone(), target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+        let route = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &target.into());
+
+        assert!(route == Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target)))));
     }
 }
