@@ -160,6 +160,11 @@ impl Connectome {
         loop {
             // Check for a redirect
             if let Some(redirect) = connection.redirect(source, &resolved_target) {
+                if redirect.target_sub_program() == resolved_target.target_sub_program() && redirect.target_sub_program().is_some() {
+                    // Redirected to where we already are
+                    return Ok(route);
+                }
+
                 // Redirect this stream
                 if !visited_targets.insert(redirect.clone()) {
                     return Err(ConnectionError::StreamRedirectLoop)
