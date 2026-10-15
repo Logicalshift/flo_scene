@@ -147,7 +147,14 @@ impl Connectome {
             self.connections_for_message_type.get(&stream.message_type()).unwrap()
         };
 
-        let (mut route, mut resolved_target) = self.basic_route(stream, source, target)?;
+        // If the target is redirected, then follow the redirect
+        let target = if let Some(redirect) = connection.redirect(source, target) {
+            redirect
+        } else {
+            target.clone()
+        };
+
+        let (mut route, mut resolved_target) = self.basic_route(stream, source, &target)?;
 
         loop {
             // Check for a redirect
