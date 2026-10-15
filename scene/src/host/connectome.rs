@@ -479,6 +479,11 @@ impl MessageTypeConnections {
         // Add to the filters list
         self.target_filters.insert(key, target_filter.clone());
 
+        if source.is_none() {
+            // Indicates the 'all' source, so this becomes the default target
+            self.default_target = StreamTarget::Filtered(target_filter.clone(), target_program);
+        }
+
         Ok(())
     }
 
