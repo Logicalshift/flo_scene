@@ -96,6 +96,20 @@ struct MessageTypeConnections {
     default_target: StreamTarget,
 }
 
+impl ConnectionRoute {
+    ///
+    /// Sends the delivery data for this route to another route
+    ///
+    pub fn pipe_to(self, next_route: ConnectionRoute) -> ConnectionRoute {
+        match self {
+            ConnectionRoute::None                   => ConnectionRoute::None,
+            ConnectionRoute::Hold                   => ConnectionRoute::Hold,
+            ConnectionRoute::DeliverTo(_)           => next_route,
+            ConnectionRoute::Filter(filter, route)  => ConnectionRoute::Filter(filter, Box::new(route.pipe_to(next_route))),
+        }
+    }
+}
+
 impl Connectome {
     ///
     /// Establishes the current route for a stream from a source subprogram with a requested target
@@ -124,7 +138,6 @@ impl Connectome {
     ///
     pub fn route_for(&mut self, stream: &StreamId, source: SubProgramId, target: &StreamTarget) -> Result<ConnectionRoute, ConnectionError> {
         let mut visited = HashSet::new();
-        let mut target  = target.clone();
 
         // Fetch the connections for this message type
         let connection  = if let Some(connection) = self.connections_for_message_type.get(&stream.message_type()) {
@@ -134,21 +147,27 @@ impl Connectome {
             self.connections_for_message_type.get(&stream.message_type()).unwrap()
         };
 
-        loop {
-            // Perform basic routing for this message
-            let (route, resolved_target) = self.basic_route(stream, source, &target)?;
+        let (mut route, mut resolved_target) = self.basic_route(stream, source, target)?;
 
+        loop {
             // Check for a redirect
             if let Some(redirect) = connection.redirect(source, &resolved_target) {
                 // Redirect this stream
-                if visited.contains(&redirect) {
+                if !visited.insert(redirect.clone()) {
                     return Err(ConnectionError::StreamRedirectLoop)
                 }
 
-                // Resolve again with the redirected target
-                // TODO: might be better to append to the existing route, ie change to the target stream?
-                visited.insert(target);
-                target = redirect;
+                // Source stream is the input of the target of the connection
+                let Some(target_stream) = resolved_target.target_sub_program()
+                    .and_then(|program_id| self.active_programs.get(&program_id))
+                    else { return Ok(route) };
+
+                // Perform basic routing for this message
+                let (redirect_route, redirect_target) = self.basic_route(target_stream, source, &redirect)?;
+
+                // Pipe from the original target to the redirected target
+                route           = route.pipe_to(redirect_route);
+                resolved_target = redirect_target;
             } else {
                 // No redirect
                 return Ok(route);
@@ -942,9 +961,9 @@ mod test {
         connectome.connect(&StreamSource::Filtered(source_filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
         connectome.connect(&StreamSource::All, &StreamTarget::Filtered(target_filter.clone(), target), StreamId::with_message_type::<TestMessage2>()).unwrap();
 
-        let expected = ConnectionRoute::Filter(source_filter, Box::new(ConnectionRoute::Filter(target_filter, Box::new(ConnectionRoute::DeliverTo(target)))));
-
-        assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Program(target)) == Ok(expected));
+        let expected    = ConnectionRoute::Filter(source_filter, Box::new(ConnectionRoute::Filter(target_filter, Box::new(ConnectionRoute::DeliverTo(target)))));
+        let route       = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Program(target));
+        assert!(route == Ok(expected), "{:?}", route);
     }
 
     ///
