@@ -368,19 +368,21 @@ impl Connectome {
                 message_type.target_for_source.remove(&program_id);
                 message_type.target_for_source.retain(|_, target| target != &StreamTarget::Program(program_id));
                 message_type.redirects.retain(|redirect, _| redirect.source != Some(program_id) && redirect.target != StreamTarget::Program(program_id));
+
+                if message_type.default_target.target_sub_program() == Some(program_id) {
+                    message_type.default_target = program.stream_id.default_target();
+                }
             }
         }
     }
 }
 
+///
+/// True if a stream target is for a specific program
+///
 #[inline]
 fn is_specific_target(target: &StreamTarget) -> bool {
-    match target {
-        StreamTarget::None              => false,
-        StreamTarget::Any               => false,
-        StreamTarget::Program(_)        => true,
-        StreamTarget::Filtered(_, _)    => true,
-    }
+    target.target_sub_program().is_some()
 }
 
 impl Default for Connectome {
