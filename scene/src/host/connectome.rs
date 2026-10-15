@@ -44,7 +44,7 @@ pub enum ConnectionRoute {
 ///
 /// Description of a target filter for a particular type
 ///
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 struct TargetFilter {
     source:     Option<SubProgramId>,
     to_type:    TypeId,
@@ -54,7 +54,7 @@ struct TargetFilter {
 ///
 /// Definition of a redirect
 ///
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 struct RedirectSource {
     /// The program that made the original request
     source: Option<SubProgramId>,
@@ -66,7 +66,7 @@ struct RedirectSource {
 ///
 /// A connection associated with a subprogram
 ///
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 struct ProgramConnection {
     /// Stream ID for this connection
     stream_id: StreamId,
@@ -75,6 +75,7 @@ struct ProgramConnection {
 ///
 /// All of the connections for a particular message type
 ///
+#[derive(Debug)]
 struct MessageTypeConnections {
     /// The type ID for this message type
     message_type: TypeId,
