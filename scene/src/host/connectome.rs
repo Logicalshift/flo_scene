@@ -535,6 +535,29 @@ mod test {
     }
 
     #[test]
+    fn filter_connection_must_match_source_type_1() {
+        let mut connectome  = Connectome::default();
+        let target          = SubProgramId::new();
+        let filter          = FilterHandle::for_filter(|msgs| msgs.map(|_ : TestMessage| TestMessage2));
+
+        // Add a filter for things connecting directly to the target program
+        let err = connectome.connect(&().into(), &StreamTarget::Filtered(filter.clone(), target), StreamId::with_message_type::<TestMessage2>());
+
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn filter_connection_must_match_source_type_2() {
+        let mut connectome  = Connectome::default();
+        let filter          = FilterHandle::for_filter(|msgs| msgs.map(|_ : TestMessage| TestMessage2));
+
+        // Add a filter for things connecting directly to the target program
+        let err = connectome.connect(&StreamSource::Filtered(filter.clone()), &().into(), StreamId::with_message_type::<TestMessage2>());
+
+        assert!(err.is_err());
+    }
+
+    #[test]
     fn route_direct_to_started_program() {
         let mut connectome  = Connectome::default();
         let source          = SubProgramId::new();
