@@ -21,6 +21,9 @@ pub struct Connectome {
 
     /// The connections configured for a particular program
     connections_for_program: HashMap<SubProgramId, HashSet<ProgramConnection>>,
+
+    /// The routes for certain source programs
+    cached_routes_for_program: HashMap<SubProgramId, HashMap<(StreamId, StreamTarget), ConnectionRoute>>,
 }
 
 ///
@@ -137,6 +140,34 @@ impl Connectome {
     /// resolving phase. This changes the resolved target.
     ///
     pub fn route_for(&mut self, stream: &StreamId, source: SubProgramId, target: &StreamTarget) -> Result<ConnectionRoute, ConnectionError> {
+        let target              = target.clone();
+        let stream              = stream.clone();
+        let program_cache_key   = (stream.clone(), target.clone());
+
+        // Try to retrieve a cached route
+        let cached = self.cached_routes_for_program.get(&source)
+            .and_then(|routes_for_program| routes_for_program.get(&program_cache_key));
+
+        if let Some(cached) = cached {
+            // Re-use the cached route if we found one
+            Ok(cached.clone())
+        } else {
+            // Calculate the full route
+            let route = self.full_route_for(&stream, source, &target)?;
+
+            // Cache it for later
+            self.cached_routes_for_program.entry(source)
+                .or_insert_with(|| HashMap::new())
+                .insert(program_cache_key, route.clone());
+
+            Ok(route)
+        }
+    }
+
+    ///
+    /// Calculate the full route for a particular connection
+    ///
+    pub fn full_route_for(&mut self, stream: &StreamId, source: SubProgramId, target: &StreamTarget) -> Result<ConnectionRoute, ConnectionError> {
         let mut visited_targets = HashSet::new();
 
         // Fetch the connections for this message type
@@ -421,6 +452,7 @@ impl Connectome {
     ///
     pub fn remove_subprogram(&mut self, program_id: SubProgramId) {
         self.active_programs.remove(&program_id);
+        self.cached_routes_for_program.remove(&program_id);
 
         if let Some(existing_connections) = self.connections_for_program.remove(&program_id) {
             for program in existing_connections {
@@ -457,6 +489,7 @@ impl Default for Connectome {
             active_programs:                HashMap::new(),
             connections_for_message_type:   HashMap::new(),
             connections_for_program:        HashMap::new(),
+            cached_routes_for_program:       HashMap::new(),
         }
     }
 }
