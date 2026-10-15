@@ -137,7 +137,7 @@ impl Connectome {
     /// resolving phase. This changes the resolved target.
     ///
     pub fn route_for(&mut self, stream: &StreamId, source: SubProgramId, target: &StreamTarget) -> Result<ConnectionRoute, ConnectionError> {
-        let mut visited = HashSet::new();
+        let mut visited_targets = HashSet::new();
 
         // Fetch the connections for this message type
         let connection  = if let Some(connection) = self.connections_for_message_type.get(&stream.message_type()) {
@@ -149,6 +149,7 @@ impl Connectome {
 
         // If the target is redirected, then follow the redirect
         let target = if let Some(redirect) = connection.redirect(source, target) {
+            visited_targets.insert(redirect.clone());
             redirect
         } else {
             target.clone()
@@ -160,7 +161,7 @@ impl Connectome {
             // Check for a redirect
             if let Some(redirect) = connection.redirect(source, &resolved_target) {
                 // Redirect this stream
-                if !visited.insert(redirect.clone()) {
+                if !visited_targets.insert(redirect.clone()) {
                     return Err(ConnectionError::StreamRedirectLoop)
                 }
 
