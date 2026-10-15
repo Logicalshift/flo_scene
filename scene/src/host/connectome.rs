@@ -362,10 +362,10 @@ impl Connectome {
                     else { continue; };
 
                 // Remove any connections that are from this program or which target this program
-                message_type.target_filters.retain(|(filter, _)| filter.source != Some(program_id) && filter.target != program_id);
+                message_type.target_filters.retain(|filter, _| filter.source != Some(program_id) && filter.target != program_id);
                 message_type.target_for_source.remove(&program_id);
-                message_type.target_for_source.retain(|(_, target)| target != StreamTarget::Program(program_id));
-                message_type.redirects.retain(|(redirect, _)| redirect.source != Some(program_id) && redirect.target != StreamTarget::Program(program_id));
+                message_type.target_for_source.retain(|_, target| target != &StreamTarget::Program(program_id));
+                message_type.redirects.retain(|redirect, _| redirect.source != Some(program_id) && redirect.target != StreamTarget::Program(program_id));
             }
         }
     }
