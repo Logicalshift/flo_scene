@@ -461,9 +461,11 @@ fn route_to_program_is_held_after_program_stops() {
 
     connectome.connect(&StreamSource::All, &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
 
-    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::DeliverTo(target)));
+    let before_stop = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
+    assert!(before_stop == Ok(ConnectionRoute::DeliverTo(target)), "{:?}", before_stop);
 
     connectome.remove_subprogram(target);
 
-    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Hold));
+    let after_stop = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
+    assert!(after_stop == Ok(ConnectionRoute::Hold), "{:?}", after_stop);
 }
