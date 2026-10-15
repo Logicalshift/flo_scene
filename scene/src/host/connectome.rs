@@ -568,11 +568,29 @@ mod test {
 
         let filter          = FilterHandle::for_filter(|msgs| msgs.map(|_ : TestMessage| TestMessage2));
 
+        // Add a filter for things connecting directly to the target program
         connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
         connectome.connect(&().into(), &StreamTarget::Filtered(filter.clone(), target), StreamId::with_message_type::<TestMessage>()).unwrap();
 
         let route = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &target.into());
 
-        assert!(route == Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target)))));
+        assert!(route == Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target)))), "{:?}", route);
+    }
+
+    #[test]
+    fn route_via_source_filter() {
+        let mut connectome  = Connectome::default();
+        let source          = SubProgramId::new();
+        let target          = SubProgramId::new();
+
+        let filter          = FilterHandle::for_filter(|msgs| msgs.map(|_ : TestMessage| TestMessage2));
+
+        // Source filter filters any message of this type
+        connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+        connectome.connect(&StreamSource::Filtered(filter.clone()), &().into(), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+        let route = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &target.into());
+
+        assert!(route == Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target)))), "{:?}", route);
     }
 }
