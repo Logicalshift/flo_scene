@@ -7,6 +7,7 @@ use crate::host::subprogram_id::*;
 
 use std::collections::*;
 use std::any::{TypeId};
+use std::vec::{IntoIter};
 
 ///
 /// Describes how subprograms connect together, and provides a way to resolve connection
@@ -110,6 +111,86 @@ impl ConnectionRoute {
             ConnectionRoute::DeliverTo(_)           => next_route,
             ConnectionRoute::Filter(filter, route)  => ConnectionRoute::Filter(filter, Box::new(route.pipe_to(next_route))),
         }
+    }
+}
+
+///
+/// The set of streams affected by a change to the connectome
+///
+/// Each entry is a (source program, stream) pair whose cached route was invalidated. Callers should
+/// reconnect these streams so that they pick up their new route.
+///
+#[derive(Clone, Debug, Default)]
+pub struct InvalidatedStreams {
+    streams: Vec<(SubProgramId, StreamId)>,
+}
+
+impl InvalidatedStreams {
+    ///
+    /// The streams that are affected by the change
+    ///
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item=&(SubProgramId, StreamId)> {
+        self.streams.iter()
+    }
+
+    ///
+    /// True if no streams were affected by the change
+    ///
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.streams.is_empty()
+    }
+
+    ///
+    /// The number of streams that were affected by the change
+    ///
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.streams.len()
+    }
+
+    ///
+    /// Adds a stream to this list, ignoring duplicates
+    ///
+    pub (crate) fn push(&mut self, source_program: SubProgramId, stream: StreamId) {
+        let affected_stream = (source_program, stream);
+
+        if !self.streams.contains(&affected_stream) {
+            self.streams.push(affected_stream);
+        }
+    }
+}
+
+impl IntoIterator for InvalidatedStreams {
+    type Item       = (SubProgramId, StreamId);
+    type IntoIter   = IntoIter<(SubProgramId, StreamId)>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.streams.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a InvalidatedStreams {
+    type Item = &'a (SubProgramId, StreamId);
+    type IntoIter = std::slice::Iter<'a, (SubProgramId, StreamId)>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.streams.iter()
+    }
+}
+
+impl FromIterator<(SubProgramId, StreamId)> for InvalidatedStreams {
+    fn from_iter<TIter: IntoIterator<Item = (SubProgramId, StreamId)>>(iter: TIter) -> Self {
+        let mut streams = InvalidatedStreams::default();
+
+        for stream in iter {
+            streams.streams.push(stream);
+        }
+
+        streams
     }
 }
 
@@ -373,7 +454,10 @@ impl Connectome {
     ///
     /// Adds a connection to the connectome
     ///
-    pub fn connect(&mut self, source: &StreamSource, target: &StreamTarget, stream: StreamId) -> Result<(), ConnectionError> {
+    /// Returns the streams whose cached routes were invalidated by this connection, which should be
+    /// reconnected by the caller so that they pick up the new route.
+    ///
+    pub fn connect(&mut self, source: &StreamSource, target: &StreamTarget, stream: StreamId) -> Result<InvalidatedStreams, ConnectionError> {
         // Add to the list of known targets for the program
         if let Some(target_program) = target.target_sub_program() {
             self.connections_for_program.entry(target_program)
@@ -415,7 +499,20 @@ impl Connectome {
             }
         }
 
-        Ok(())
+        // Invalidate any cached routes that can now resolve through this connection
+        let affected_types  = self.message_types_affected_by(vec![stream.message_type()]);
+        let program_filter  = match source {
+            StreamSource::Program(program)  => Some(*program),
+            StreamSource::All               |
+            StreamSource::Filtered(_)       => None,
+        };
+
+        let invalidated = self.invalidate_cached_routes_where(|source_program, cached_stream, _target, _route| {
+            program_filter.is_none_or(|program| program == *source_program)
+                && affected_types.contains(&cached_stream.message_type())
+        });
+
+        Ok(invalidated)
     }
 
     ///
@@ -441,8 +538,26 @@ impl Connectome {
     ///
     /// Adds a new subprogram and its stream ID to this connectome
     ///
-    pub fn add_subprogram(&mut self, new_program_id: SubProgramId, input_stream: StreamId) {
-        self.active_programs.insert(new_program_id, input_stream);
+    /// Returns the streams whose cached routes were invalidated because they targeted this program
+    /// and may now resolve to it. The caller should reconnect these streams.
+    ///
+    pub fn add_subprogram(&mut self, new_program_id: SubProgramId, input_stream: StreamId) -> InvalidatedStreams {
+        self.active_programs.insert(new_program_id, input_stream.clone());
+
+        // Any type connected to this program, plus types that can filter to those types, may now
+        // resolve to this program rather than being held
+        let mut affected_seeds = vec![input_stream.message_type()];
+        if let Some(existing_connections) = self.connections_for_program.get(&new_program_id) {
+            affected_seeds.extend(existing_connections.iter().map(|connection| connection.stream_id.message_type()));
+        }
+
+        let affected_types = self.message_types_affected_by(affected_seeds);
+
+        self.invalidate_cached_routes_where(|_source_program, cached_stream, target, route| {
+            affected_types.contains(&cached_stream.message_type())
+                || target.target_sub_program() == Some(new_program_id)
+                || route_references(route, new_program_id)
+        })
     }
 
     ///
@@ -450,9 +565,22 @@ impl Connectome {
     ///
     /// This also removes all of the connections that are specifically for this program
     ///
-    pub fn remove_subprogram(&mut self, program_id: SubProgramId) {
+    /// Returns the streams whose cached routes were invalidated because they were produced by this
+    /// program or previously resolved to it. The caller should reconnect these streams.
+    ///
+    pub fn remove_subprogram(&mut self, program_id: SubProgramId) -> InvalidatedStreams {
         self.active_programs.remove(&program_id);
-        self.cached_routes_for_program.remove(&program_id);
+
+        // Work out which message types are affected before we mutate the connections: these are the
+        // types connected to this program, plus any type that can filter to one of those types
+        let affected_types = {
+            let mut affected_seeds = Vec::new();
+            if let Some(existing_connections) = self.connections_for_program.get(&program_id) {
+                affected_seeds.extend(existing_connections.iter().map(|connection| connection.stream_id.message_type()));
+            }
+
+            self.message_types_affected_by(affected_seeds)
+        };
 
         if let Some(existing_connections) = self.connections_for_program.remove(&program_id) {
             for program in existing_connections {
@@ -471,6 +599,81 @@ impl Connectome {
                 }
             }
         }
+
+        // Invalidate the routes that were affected by removing this program
+        let mut invalidated = self.invalidate_cached_routes_where(|_source_program, cached_stream, target, route| {
+            affected_types.contains(&cached_stream.message_type())
+                || target.target_sub_program() == Some(program_id)
+                || route_references(route, program_id)
+        });
+
+        // The routes cached for this program as a source are no longer valid
+        if let Some(routes_for_program) = self.cached_routes_for_program.remove(&program_id) {
+            for ((stream, _target), _route) in routes_for_program {
+                invalidated.push(program_id, stream);
+            }
+        }
+
+        invalidated
+    }
+
+    ///
+    /// Returns every message type that can affect the routing of the specified message types
+    ///
+    /// A message type can affect the routing of another type if it is the target of a source filter
+    /// for that type: in other words, this walks backwards through the source filter chain. The
+    /// specified message types themselves are always included.
+    ///
+    fn message_types_affected_by(&self, message_types: Vec<TypeId>) -> HashSet<TypeId> {
+        let mut affected     = HashSet::new();
+        let mut to_visit     = message_types;
+
+        while let Some(affected_type) = to_visit.pop() {
+            if !affected.insert(affected_type) { continue; }
+
+            // Any type that can filter into this type is also affected
+            for (source_type, connections) in self.connections_for_message_type.iter() {
+                if connections.source_filters.contains_key(&affected_type) {
+                    to_visit.push(*source_type);
+                }
+            }
+        }
+
+        affected
+    }
+
+    ///
+    /// Removes every cached route matching a predicate, returning the streams that were invalidated
+    ///
+    fn invalidate_cached_routes_where(&mut self, mut invalid: impl FnMut(&SubProgramId, &StreamId, &StreamTarget, &ConnectionRoute) -> bool) -> InvalidatedStreams {
+        let mut invalidated = InvalidatedStreams::default();
+
+        self.cached_routes_for_program.retain(|source_program, routes| {
+            routes.retain(|(stream, target), route| {
+                if invalid(source_program, stream, target, route) {
+                    invalidated.push(*source_program, stream.clone());
+                    false
+                } else {
+                    true
+                }
+            });
+
+            !routes.is_empty()
+        });
+
+        invalidated
+    }
+}
+
+///
+/// True if a connection route delivers messages to a particular program
+///
+fn route_references(route: &ConnectionRoute, program_id: SubProgramId) -> bool {
+    match route {
+        ConnectionRoute::None                       => false,
+        ConnectionRoute::Hold                       => false,
+        ConnectionRoute::DeliverTo(target)          => *target == program_id,
+        ConnectionRoute::Filter(_, next_route)      => route_references(next_route, program_id),
     }
 }
 

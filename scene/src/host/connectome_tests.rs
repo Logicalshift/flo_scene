@@ -469,3 +469,142 @@ fn route_to_program_is_held_after_program_stops() {
     let after_stop = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
     assert!(after_stop == Ok(ConnectionRoute::Hold), "{:?}", after_stop);
 }
+
+///
+/// Adding a connection invalidates a route that was cached before the connection existed
+///
+#[test]
+fn connect_invalidates_cached_route_from_all_sources() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+
+    // Cache the 'held' route (there's no connection yet)
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Hold));
+
+    // Adding the connection should invalidate the cached route
+    let affected = connectome.connect(&StreamSource::All, &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_eq!(affected.len(), 1);
+    assert!(affected.iter().any(|affected| affected == &(source, StreamId::with_message_type::<TestMessage>())));
+
+    // The route should now resolve through the new connection
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::DeliverTo(target)));
+}
+
+///
+/// A connection that is specific to one program does not invalidate the cached routes for other programs
+///
+#[test]
+fn connect_only_invalidates_cached_route_for_specific_source() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let other_source    = SubProgramId::new();
+    let target          = SubProgramId::new();
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+
+    // Cache routes for both sources
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Hold));
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), other_source, &StreamTarget::Any) == Ok(ConnectionRoute::Hold));
+
+    // A connection specific to `source` should only affect `source`
+    let affected = connectome.connect(&StreamSource::Program(source), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_eq!(affected.len(), 1);
+    assert!(affected.iter().all(|(affected_source, _stream)| affected_source == &source));
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), other_source, &StreamTarget::Any) == Ok(ConnectionRoute::Hold));
+}
+
+///
+/// A connection for a type invalidates routes for other types that filter into it
+///
+#[test]
+fn connect_invalidates_cached_route_via_source_filter() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+    let filter          = (*TESTMESSAGE_1_TO_2).clone();
+
+    // Set up the source filter and the TestMessage2 target
+    connectome.connect(&StreamSource::Filtered(filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
+    connectome.connect(&StreamSource::All, &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+
+    // Start the second target early so that the connection below resolves to it
+    let new_target      = SubProgramId::new();
+    connectome.add_subprogram(new_target, StreamId::with_message_type::<TestMessage2>());
+
+    // Cache the resolved TestMessage route (filters into TestMessage2 and delivers to the target)
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Filter(filter.clone(), Box::new(ConnectionRoute::DeliverTo(target)))));
+
+    // Point TestMessage2 at a different target: this should invalidate the cached TestMessage route
+    let affected        = connectome.connect(&StreamSource::All, &StreamTarget::Program(new_target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+
+    assert!(affected.iter().any(|affected| affected == &(source, StreamId::with_message_type::<TestMessage>())));
+
+    // The route should now resolve through the new target
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(new_target)))));
+}
+
+///
+/// Starting a program invalidates routes that were held waiting for it
+///
+#[test]
+fn add_subprogram_invalidates_held_route() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    // Connect before the program has started
+    connectome.connect(&StreamSource::All, &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    // Cache the 'held' route
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Hold));
+
+    // Starting the program should invalidate the held route
+    let affected = connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+
+    assert!(affected.iter().any(|affected| affected == &(source, StreamId::with_message_type::<TestMessage>())));
+
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::DeliverTo(target)));
+}
+
+///
+/// Stopping a program invalidates routes that resolved to it and reports them as affected
+///
+#[test]
+fn remove_subprogram_invalidates_cached_route() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+
+    connectome.connect(&StreamSource::All, &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    // Cache the route to the target
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::DeliverTo(target)));
+
+    // Stopping the program should invalidate the cached route
+    let affected = connectome.remove_subprogram(target);
+
+    assert!(affected.iter().any(|affected| affected == &(source, StreamId::with_message_type::<TestMessage>())));
+
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Hold));
+}
+
+///
+/// The affected streams list ignores duplicate entries
+///
+#[test]
+fn affected_streams_ignores_duplicates() {
+    let source  = SubProgramId::new();
+    let stream  = StreamId::with_message_type::<TestMessage>();
+
+    let mut affected = InvalidatedStreams::default();
+    affected.push(source, stream.clone());
+    affected.push(source, stream.clone());
+
+    assert_eq!(affected.len(), 1);
+    assert!(!affected.is_empty());
+}
