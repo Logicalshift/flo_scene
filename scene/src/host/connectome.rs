@@ -13,6 +13,33 @@ use std::vec::{IntoIter};
 /// Describes how subprograms connect together, and provides a way to resolve connection
 /// requests for particular targets
 ///
+/// The core conceit of flo_scheme is that subprograms do not need to know which subprograms
+/// they are sending messages to, or how those messages are routed. This allows us to, say,
+/// send a request to a database without needing to know which database or take a direct dependency
+/// (or even have a database in the first place).
+///
+/// To support this, we need to know 'where does this message type go for this program?'. That's
+/// fairly simple for the base case, we just have a list of targets for each message type.
+/// However, to truly hide the details of the dependencies from the subprograms we need some extra
+/// things:
+///
+/// * target filters, so a program can be made to accept many different types of message
+/// * a way to specify the exact target a particular program should use
+/// * a way to re-route a message to a particular program
+/// * source filters, so a message can be coerced into a suitable type when it can't be delivered 
+///   directly
+///
+/// This becomes internally complicated because these interact: for example, a source filter 
+/// could be used to coerce a message into the input type for a target filter. Additionally,
+/// when the connections are changed, we need to figure out which existing connections need
+/// to be re-routed.
+///
+/// This is the problem that the connectome solves: defining the connections and solving the
+/// route that each message should take according to those connections. The idea is that sending
+/// a message from a program is an intuitive action, that the meaning of any given connection
+/// is obvious, and there's enough flexibility that programs are written against the API of
+/// the messages they send and not the dependencies they take.
+///
 pub struct Connectome {
     /// The running subprograms and their input stream IDs
     active_programs: HashMap<SubProgramId, StreamId>,
