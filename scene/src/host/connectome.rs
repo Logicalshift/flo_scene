@@ -305,6 +305,13 @@ impl Connectome {
     /// Adds a connection to the connectome
     ///
     pub fn connect(&mut self, source: &StreamSource, target: &StreamTarget, stream: StreamId) -> Result<(), ConnectionError> {
+        // Add to the list of known targets for the program
+        if let Some(target_program) = target.target_sub_program() {
+            self.connections_for_program.entry(target_program)
+                .or_insert_with(|| HashSet::new())
+                .insert(ProgramConnection { stream_id: stream.as_message_type() });
+        }
+
         if let Some(target_program) = stream.target_program() {
             // This route should override a connection to a target program
             let connection = self.connections_for_message_type.entry(stream.message_type())
