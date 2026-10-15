@@ -325,6 +325,7 @@ impl Connectome {
                 .or_insert_with(|| MessageTypeConnections::with_message_type(&stream));
 
             match (source, target) {
+                (StreamSource::All, StreamTarget::Filtered(target, program_id))                 => { connection.add_target_filter(None, target, *program_id)?; }
                 (StreamSource::All, target)                                                     => { connection.default_target = target.clone(); },
                 
                 (StreamSource::Filtered(_source), StreamTarget::None)                           => { /* TODO: drop if matched? */ },
