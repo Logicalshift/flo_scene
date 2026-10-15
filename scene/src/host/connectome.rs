@@ -272,7 +272,7 @@ impl Connectome {
         let mut general_filter  = None;
 
         // Search all the source filters applying to the current type
-        for (target_type, filters) in connection.source_filters.iter() {
+        for (target_type, _filters) in connection.source_filters.iter() {
             // See if there are any connections for the filtered type
             if let Some(target_connection) = self.connections_for_message_type.get(target_type) {
                 // If we're testing from a specific source, then look for a target for the source, otherwise use the general connection
