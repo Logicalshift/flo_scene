@@ -18,6 +18,9 @@ pub struct Connectome {
 
     /// The connections for each message type
     connections_for_message_type: HashMap<TypeId, MessageTypeConnections>,
+
+    /// The connections configured for a particular program
+    connections_for_program: HashMap<SubProgramId, HashSet<ProgramConnection>>,
 }
 
 ///
@@ -58,6 +61,15 @@ struct RedirectSource {
 
     /// The original target of the stream to be redirected
     target: StreamTarget,
+}
+
+///
+/// A connection associated with a subprogram
+///
+#[derive(Hash, PartialEq, Eq)]
+struct ProgramConnection {
+    /// Stream ID for this connection
+    stream_id: StreamId,
 }
 
 ///
@@ -109,34 +121,35 @@ impl Connectome {
     /// This basic route can be modified by a 'for target' mapping, which is looked up after the initial
     /// resolving phase. This changes the resolved target.
     ///
-    pub fn route_for(&self, stream: &StreamId, source: SubProgramId, target: &StreamTarget) -> Result<ConnectionRoute, ConnectionError> {
+    pub fn route_for(&mut self, stream: &StreamId, source: SubProgramId, target: &StreamTarget) -> Result<ConnectionRoute, ConnectionError> {
         let mut visited = HashSet::new();
         let mut target  = target.clone();
 
-        let connection  = self.connections_for_message_type.get(&stream.message_type());
+        // Fetch the connections for this message type
+        let connection  = if let Some(connection) = self.connections_for_message_type.get(&stream.message_type()) {
+            connection
+        } else {
+            self.connections_for_message_type.insert(stream.message_type(), MessageTypeConnections::with_message_type(stream));
+            self.connections_for_message_type.get(&stream.message_type()).unwrap()
+        };
 
         loop {
             // Perform basic routing for this message
             let (route, resolved_target) = self.basic_route(stream, source, &target)?;
 
             // Check for a redirect
-            if let Some(connection) = connection {
-                if let Some(redirect) = connection.redirect(source, &resolved_target) {
-                    // Redirect this stream
-                    if visited.contains(&redirect) {
-                        return Err(ConnectionError::StreamRedirectLoop)
-                    }
-
-                    // Resolve again with the redirected target
-                    // TODO: might be better to append to the existing route, ie change to the target stream?
-                    visited.insert(target);
-                    target = redirect;
-                } else {
-                    // No redirect
-                    return Ok(route);
+            if let Some(redirect) = connection.redirect(source, &resolved_target) {
+                // Redirect this stream
+                if visited.contains(&redirect) {
+                    return Err(ConnectionError::StreamRedirectLoop)
                 }
+
+                // Resolve again with the redirected target
+                // TODO: might be better to append to the existing route, ie change to the target stream?
+                visited.insert(target);
+                target = redirect;
             } else {
-                // No data for this connection type, so no redirect
+                // No redirect
                 return Ok(route);
             }
         }
@@ -326,6 +339,36 @@ impl Connectome {
 
         Ok(())
     }
+
+    ///
+    /// Adds a new program and its stream ID to this connectome
+    ///
+    pub fn add_program(&mut self, new_program_id: SubProgramId, input_stream: StreamId) {
+        self.active_programs.insert(new_program_id, input_stream);
+    }
+
+    ///
+    /// Removes a program from this connectome
+    ///
+    /// This also removes all of the connections that are specifically for this program
+    ///
+    pub fn remove_program(&mut self, program_id: SubProgramId) {
+        self.active_programs.remove(&program_id);
+
+        if let Some(existing_connections) = self.connections_for_program.remove(&program_id) {
+            for program in existing_connections {
+                // Fetch the message type
+                let Some(message_type) = self.connections_for_message_type.get_mut(&program.stream_id.message_type())
+                    else { continue; };
+
+                // Remove any connections that are from this program or which target this program
+                message_type.target_filters.retain(|(filter, _)| filter.source != Some(program_id) && filter.target != program_id);
+                message_type.target_for_source.remove(&program_id);
+                message_type.target_for_source.retain(|(_, target)| target != StreamTarget::Program(program_id));
+                message_type.redirects.retain(|(redirect, _)| redirect.source != Some(program_id) && redirect.target != StreamTarget::Program(program_id));
+            }
+        }
+    }
 }
 
 #[inline]
@@ -344,6 +387,7 @@ impl Default for Connectome {
         Self {
             active_programs:                HashMap::new(),
             connections_for_message_type:   HashMap::new(),
+            connections_for_program:        HashMap::new(),
         }
     }
 }
