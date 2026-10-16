@@ -376,10 +376,23 @@ impl Connectome {
             StreamSource::Filtered(_)       => None,
         };
 
-        let invalidated = self.invalidate_cached_routes_where(|source_program, _target, cached_stream, _route| {
-            program_filter.is_none_or(|program| program == *source_program)
-                && affected_types.contains(&cached_stream.message_type())
-        });
+        let mut invalidated = InvalidatedStreams::default();
+
+        for stream_id in affected_types {
+            // Remove affected streams from the cache
+            let invalidated_by_type = if let Some(program_id) = program_filter {
+                // Invalidate just the connections sourced from the program
+                self.cached_routes_for_program
+                    .remove_routes_by_stream_id(&stream_id, |remove_program_id, _| &program_id == remove_program_id)
+            } else {
+                // Invalidate everytning from this stream if there's no program ID
+                self.cached_routes_for_program
+                    .remove_routes_by_stream_id(&stream_id, |_program_id, _target| true)
+            };
+
+            // Add to the invalidated list
+            invalidated.invalidate(invalidated_by_type.iter());
+        }
 
         Ok(invalidated)
     }

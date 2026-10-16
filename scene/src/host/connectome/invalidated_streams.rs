@@ -1,6 +1,9 @@
+use super::cache::*;
+
 use crate::host::stream_id::*;
 use crate::host::subprogram_id::*;
 
+use std::collections::*;
 use std::vec::{IntoIter};
 
 ///
@@ -11,7 +14,7 @@ use std::vec::{IntoIter};
 ///
 #[derive(Clone, Debug, Default)]
 pub struct InvalidatedStreams {
-    streams: Vec<(SubProgramId, StreamId)>,
+    streams: HashSet<(SubProgramId, StreamId)>,
 }
 
 impl InvalidatedStreams {
@@ -45,15 +48,21 @@ impl InvalidatedStreams {
     pub (crate) fn push(&mut self, source_program: SubProgramId, stream: StreamId) {
         let affected_stream = (source_program, stream);
 
-        if !self.streams.contains(&affected_stream) {
-            self.streams.push(affected_stream);
-        }
+        self.streams.insert(affected_stream);
+    }
+
+    ///
+    /// Invalidates a set of connections
+    ///
+    #[inline]
+    pub (crate) fn invalidate<'a>(&'a mut self, streams: impl IntoIterator<Item=&'a ConnectionDescription>) {
+        self.streams.extend(streams.into_iter().map(|desc| (desc.source(), desc.stream().clone())));
     }
 }
 
 impl IntoIterator for InvalidatedStreams {
     type Item       = (SubProgramId, StreamId);
-    type IntoIter   = IntoIter<(SubProgramId, StreamId)>;
+    type IntoIter   = <HashSet::<(SubProgramId, StreamId)> as IntoIterator>::IntoIter;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
@@ -62,8 +71,8 @@ impl IntoIterator for InvalidatedStreams {
 }
 
 impl<'a> IntoIterator for &'a InvalidatedStreams {
-    type Item = &'a (SubProgramId, StreamId);
-    type IntoIter = std::slice::Iter<'a, (SubProgramId, StreamId)>;
+    type Item       = &'a (SubProgramId, StreamId);
+    type IntoIter   = <&'a HashSet::<(SubProgramId, StreamId)> as IntoIterator>::IntoIter;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
@@ -73,12 +82,8 @@ impl<'a> IntoIterator for &'a InvalidatedStreams {
 
 impl FromIterator<(SubProgramId, StreamId)> for InvalidatedStreams {
     fn from_iter<TIter: IntoIterator<Item = (SubProgramId, StreamId)>>(iter: TIter) -> Self {
-        let mut streams = InvalidatedStreams::default();
-
-        for stream in iter {
-            streams.streams.push(stream);
+        Self {
+            streams: iter.into_iter().collect()
         }
-
-        streams
     }
 }

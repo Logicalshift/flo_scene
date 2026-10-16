@@ -1,13 +1,11 @@
 use super::route::*;
 
-use crate::host::error::*;
-use crate::host::filter::*;
 use crate::host::stream_id::*;
-use crate::host::stream_source::*;
 use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
 use std::collections::*;
+use std::any::{TypeId};
 
 ///
 /// Describes a connection that belongs to a program
@@ -27,7 +25,7 @@ pub (super) struct ResolvedRoutes {
     routes_for_program: HashMap<SubProgramId, ResolvedRoutesForProgram>,
 
     /// The routes defined for each type of stream
-    routes_for_type: HashMap<StreamId, HashSet<ConnectionDescription>>,
+    routes_for_type: HashMap<TypeId, HashSet<ConnectionDescription>>,
 }
 
 ///
@@ -77,7 +75,7 @@ impl ResolvedRoutes {
             .resolved_streams.insert((stream.clone(), target), route);
 
         // Also reference by type
-        self.routes_for_type.entry(stream)
+        self.routes_for_type.entry(stream.message_type())
             .or_insert_with(|| HashSet::new())
             .insert(connection_description.clone());
     }
@@ -100,7 +98,7 @@ impl ResolvedRoutes {
         // Clear out the other caches
         if let Some(removed) = removed.as_ref() {
             for ((stream, target), _) in removed.resolved_streams.iter() {
-                if let Some(type_routes) = self.routes_for_type.get_mut(stream) {
+                if let Some(type_routes) = self.routes_for_type.get_mut(&stream.message_type()) {
                     let description = ConnectionDescription::new(&program_id, stream, target);
                     type_routes.remove(&description);
                 }
@@ -124,7 +122,7 @@ impl ResolvedRoutes {
         // Clear out the other caches
         let description = ConnectionDescription::new(source, stream, target);
 
-        if let Some(type_routes) = self.routes_for_type.get_mut(stream) {
+        if let Some(type_routes) = self.routes_for_type.get_mut(&stream.message_type()) {
             type_routes.remove(&description);
         }
 
@@ -134,7 +132,7 @@ impl ResolvedRoutes {
     ///
     /// Removes any routes for the specified stream that match the predicate
     ///
-    pub fn remove_routes_by_stream_id(&mut self, stream: &StreamId, remove_route: impl Fn(&SubProgramId, &StreamTarget) -> bool) -> impl Iterator<Item=ConnectionDescription> {
+    pub fn remove_routes_by_stream_id(&mut self, stream: &TypeId, remove_route: impl Fn(&SubProgramId, &StreamTarget) -> bool) -> Vec<ConnectionDescription> {
         let mut removed = vec![];
 
         // Remove from the routes_for_type table
@@ -149,7 +147,7 @@ impl ResolvedRoutes {
             }
         }
 
-        removed.into_iter()
+        removed
     }
 
     ///
