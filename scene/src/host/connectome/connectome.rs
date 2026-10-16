@@ -344,7 +344,7 @@ impl Connectome {
                 (StreamSource::All, target)                                                     => { connection.default_target = target.clone(); },
                 
                 (StreamSource::Filtered(_source), StreamTarget::None)                           => { /* TODO: drop if matched? */ },
-                (StreamSource::Filtered(source), StreamTarget::Any)                             => { self.add_source_filter(source)?; } ,
+                (StreamSource::Filtered(source), StreamTarget::Any)                             => { self.add_source_filter(&stream, source)?; } ,
                 (StreamSource::Filtered(source), StreamTarget::Program(program_id))             => { connection.add_target_filter(None, source, *program_id)?; },
                 (StreamSource::Filtered(source), StreamTarget::Filtered(target, program_id))    => { connection.add_target_filter(None, &source.chain(target.clone())?, *program_id)?; },
 
@@ -390,10 +390,14 @@ impl Connectome {
     /// type is added, the source filters that target it create an extra target filter that
     /// processes the type.
     ///
-    fn add_source_filter(&mut self, source_filter: &FilterHandle) -> Result<(), ConnectionError> {
+    fn add_source_filter(&mut self, stream: &StreamId, source_filter: &FilterHandle) -> Result<(), ConnectionError> {
         // Fetch the source/target types for this filter
         let source_type = source_filter.source_stream_id_any()?;
         let target_type = source_filter.target_stream_id_any()?;
+
+        if source_type.as_message_type() != stream.as_message_type() {
+            return Err(ConnectionError::FilterInputDoesNotMatch);
+        }
 
         // Fetch the existing target connection
         let target_connection = self.connections_for_message_type
