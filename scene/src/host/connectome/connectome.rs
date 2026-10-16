@@ -340,15 +340,15 @@ impl Connectome {
                 .or_insert_with(|| MessageTypeConnections::with_message_type(&stream));
 
             match (source, target) {
-                (StreamSource::All, StreamTarget::Filtered(target, program_id))                 => { connection.add_target_filter(None, target, *program_id)?; }
+                (StreamSource::All, StreamTarget::Filtered(target, program_id))                 => { let implicit = connection.add_target_filter(None, target, *program_id)?; self.add_implicit_filters(implicit, None, *program_id)?; }
                 (StreamSource::All, target)                                                     => { connection.default_target = target.clone(); },
                 
                 (StreamSource::Filtered(_source), StreamTarget::None)                           => { /* TODO: drop if matched? */ },
                 (StreamSource::Filtered(source), StreamTarget::Any)                             => { self.add_source_filter(&stream, source)?; } ,
-                (StreamSource::Filtered(source), StreamTarget::Program(program_id))             => { connection.add_target_filter(None, source, *program_id)?; },
-                (StreamSource::Filtered(source), StreamTarget::Filtered(target, program_id))    => { connection.add_target_filter(None, &source.chain(target.clone())?, *program_id)?; },
+                (StreamSource::Filtered(source), StreamTarget::Program(program_id))             => { let implicit = connection.add_target_filter(None, source, *program_id)?; self.add_implicit_filters(implicit, None, *program_id)?; },
+                (StreamSource::Filtered(source), StreamTarget::Filtered(target, program_id))    => { let implicit = connection.add_target_filter(None, &source.chain(target.clone())?, *program_id)?; self.add_implicit_filters(implicit, None, *program_id)?; },
 
-                (StreamSource::Program(source), StreamTarget::Filtered(target, program_id))     => { connection.add_target_filter(Some(*source), target, *program_id)?; }, // TODO: filter only applies to source program
+                (StreamSource::Program(source), StreamTarget::Filtered(target, program_id))     => { let implicit = connection.add_target_filter(Some(*source), target, *program_id)?; self.add_implicit_filters(implicit, Some(*source), *program_id)?; },
                 (StreamSource::Program(source), StreamTarget::Any)                              => { connection.target_for_source.remove(source); },
                 (StreamSource::Program(source), target)                                         => { connection.target_for_source.insert(*source, target.clone()); },
             }
