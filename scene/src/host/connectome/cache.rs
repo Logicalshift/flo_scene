@@ -25,6 +25,9 @@ pub (super) struct ConnectionDescription {
 pub (super) struct ResolvedRoutes {
     /// The route for each program in the connectome
     routes_for_program: HashMap<SubProgramId, ResolvedRoutesForProgram>,
+
+    /// The routes defined for each type of stream
+    routes_for_type: HashMap<StreamId, HashSet<ConnectionDescription>>,
 }
 
 ///
@@ -40,6 +43,7 @@ impl Default for ResolvedRoutes {
     fn default() -> Self {
         Self {
             routes_for_program: HashMap::new(),
+            routes_for_type:    HashMap::new(),
         }
     }
 }
@@ -65,9 +69,17 @@ impl ResolvedRoutes {
     /// the route very often.
     ///
     pub fn cache_route(&mut self, source: SubProgramId, target: StreamTarget, stream: StreamId, route: ConnectionRoute) {
+        let connection_description = ConnectionDescription::new(&source, &stream, &target);
+
+        // Store as a route for the program
         self.routes_for_program.entry(source)
             .or_insert_with(|| ResolvedRoutesForProgram::default())
-            .resolved_streams.insert((stream, target), route);
+            .resolved_streams.insert((stream.clone(), target), route);
+
+        // Also reference by type
+        self.routes_for_type.entry(stream)
+            .or_insert_with(|| HashSet::new())
+            .insert(connection_description.clone());
     }
 
     ///
@@ -85,6 +97,17 @@ impl ResolvedRoutes {
     pub fn remove_program(&mut self, program_id: SubProgramId) -> impl Iterator<Item=(StreamId, StreamTarget)> {
         let removed = self.routes_for_program.remove(&program_id);
 
+        // Clear out the other caches
+        if let Some(removed) = removed.as_ref() {
+            for ((stream, target), _) in removed.resolved_streams.iter() {
+                if let Some(type_routes) = self.routes_for_type.get_mut(stream) {
+                    let description = ConnectionDescription::new(&program_id, stream, target);
+                    type_routes.remove(&description);
+                }
+            }
+        }
+
+        // Result is the list of streams that were removed for this program
         removed.into_iter()
             .flat_map(|streams| streams.resolved_streams
                 .into_iter().map(|((stream, target), _connection)| (stream, target)))
@@ -94,8 +117,16 @@ impl ResolvedRoutes {
     /// Removes a single route from this cache
     ///
     pub fn remove_route(&mut self, source: &SubProgramId, target: &StreamTarget, stream: &StreamId) -> Option<ConnectionRoute> {
+        // Remove from the main cache
         let removed = self.routes_for_program.get_mut(source)
             .and_then(|program_routes| program_routes.resolved_streams.remove(&(stream.clone(), target.clone())));
+
+        // Clear out the other caches
+        let description = ConnectionDescription::new(source, stream, target);
+
+        if let Some(type_routes) = self.routes_for_type.get_mut(stream) {
+            type_routes.remove(&description);
+        }
 
         removed
     }
@@ -110,6 +141,19 @@ impl ResolvedRoutes {
             routes.resolved_streams.retain(|(stream, target), route| {
                 retain_route(program_id, target, stream, route)
             })
+        }
+        
+        // TODO: need to clear out the other caches (not doing this yet, because we're getting rid of this function)
+    }
+}
+
+impl ConnectionDescription {
+    #[inline]
+    pub fn new(source: &SubProgramId, stream: &StreamId, target: &StreamTarget) -> Self {
+        Self {
+            source: source.clone(),
+            stream: stream.clone(),
+            target: target.clone(),
         }
     }
 }
