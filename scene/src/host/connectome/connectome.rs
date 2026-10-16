@@ -413,6 +413,9 @@ impl Connectome {
             new_connections.push((TargetFilter { source: None, to_type: target_type.message_type(), target: default_target }, source_filter.clone()));
         }
 
+        // Store in the target type so that adding new filter types/etc can add appropriate source values
+        target_connection.add_source_filter(source_filter)?;
+
         // Add missing filters to the filter targets for the source type
         let source_connection = self.connections_for_message_type
             .entry(source_type.message_type())
@@ -424,7 +427,6 @@ impl Connectome {
             }
         }
 
-        // TODO: store in the target type so that adding new filter types/etc can add appropriate source values
         // TODO: flag source connections in the filter list so we can overwrite them when the 'main' connections change
 
         Ok(())
