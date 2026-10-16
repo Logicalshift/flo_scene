@@ -91,6 +91,16 @@ impl ResolvedRoutes {
     }
 
     ///
+    /// Removes a single route from this cache
+    ///
+    pub fn remove_route(&mut self, source: &SubProgramId, target: &StreamTarget, stream: &StreamId) -> Option<ConnectionRoute> {
+        let removed = self.routes_for_program.get_mut(source)
+            .and_then(|program_routes| program_routes.resolved_streams.remove(&(stream.clone(), target.clone())));
+
+        removed
+    }
+
+    ///
     /// Iterate through all the routes and keeps any that retain_route returns 'true' for
     ///
     pub fn retain(&mut self, retain_route: impl FnMut(&SubProgramId, &StreamTarget, &StreamId, &ConnectionRoute) -> bool) {
