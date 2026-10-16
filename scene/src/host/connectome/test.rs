@@ -335,7 +335,7 @@ fn route_via_source_filter_and_source_connection() {
 /// A source filter and a target filter can be chained together
 ///
 #[test]
-fn route_via_chained_filters() {
+fn route_via_chained_filters_1() {
     let mut connectome  = Connectome::default();
     let source          = SubProgramId::new();
     let target          = SubProgramId::new();
@@ -345,6 +345,26 @@ fn route_via_chained_filters() {
 
     connectome.connect(&StreamSource::Filtered(source_filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
     connectome.connect(&StreamSource::All, &StreamTarget::Filtered(target_filter.clone(), target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+
+    let expected = ConnectionRoute::Filter(source_filter, Box::new(ConnectionRoute::Filter(target_filter, Box::new(ConnectionRoute::DeliverTo(target)))));
+
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(expected), "{:?}", connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any));
+}
+
+///
+/// A source filter and a target filter can be chained together
+///
+#[test]
+fn route_via_chained_filters_2() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage3>());
+    let source_filter   = (*TESTMESSAGE_1_TO_2).clone();
+    let target_filter   = (*TESTMESSAGE_2_TO_3).clone();
+
+    connectome.connect(&StreamSource::All, &StreamTarget::Filtered(target_filter.clone(), target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+    connectome.connect(&StreamSource::Filtered(source_filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
 
     let expected = ConnectionRoute::Filter(source_filter, Box::new(ConnectionRoute::Filter(target_filter, Box::new(ConnectionRoute::DeliverTo(target)))));
 
