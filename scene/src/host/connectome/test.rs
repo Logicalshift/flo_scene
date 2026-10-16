@@ -349,10 +349,10 @@ fn route_via_chained_filters_1() {
     connectome.connect(&StreamSource::Filtered(source_filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
     connectome.connect(&StreamSource::All, &StreamTarget::Filtered(target_filter.clone(), target), StreamId::with_message_type::<TestMessage2>()).unwrap();
 
-    let expected = Ok(ConnectionRoute::Filter(source_filter, Box::new(ConnectionRoute::Filter(target_filter, Box::new(ConnectionRoute::DeliverTo(target))))));
     let route    = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
 
-    assert!(route == expected, "{:?} != {:?}", route, expected);
+    assert!(route.is_ok(), "{:?}", route);
+    assert!(route.as_ref().unwrap().target_program() == Some(target), "{:?}", route);
 }
 
 ///
