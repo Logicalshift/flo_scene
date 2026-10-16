@@ -239,16 +239,16 @@ impl Connectome {
                 target
             } else {
                 // There's no explicit target for this program
-                if is_specific_target(&connection.default_target) {
+                if is_specific_target(connection.default_target()) {
                     // There's a default target configured for this type
-                    &connection.default_target
+                    connection.default_target()
                 } else if let Some(filter) = self.source_filter_any(connection, None) {
                     // There's a source filter we can use to map to another connection
                     let (continuing_route, resolved_target) = self.basic_route(&filter.target_stream_id_any()?, source, &StreamTarget::Any)?;
 
                     return Ok((ConnectionRoute::Filter(filter, Box::new(continuing_route)), resolved_target))
                 } else {
-                    &connection.default_target
+                    connection.default_target()
                 }
             };
 
@@ -289,7 +289,7 @@ impl Connectome {
                         }
                     }
                 } else {
-                    if is_specific_target(&target_connection.default_target) {
+                    if is_specific_target(target_connection.default_target()) {
                         general_filter = Some(target_type);
                         break;
                     }
@@ -404,7 +404,7 @@ impl Connectome {
             .entry(target_type.message_type())
             .or_insert_with(|| MessageTypeConnections::with_message_type(&target_type));
 
-        // Add to the existing filters + the default connection (a new source type doesn't disrupt any existing conversions)
+        // Add to the existing filters + the default connection
         let mut new_connections = vec![];
         for (filter_description, filter_handle) in target_connection.target_filters.iter() {
             // Chain the filter. Description is the same, we just store on a different type
@@ -426,12 +426,8 @@ impl Connectome {
             .or_insert_with(|| MessageTypeConnections::with_message_type(&source_type));
 
         for (target_filter, filter_handle) in new_connections {
-            if !source_connection.target_filters.contains_key(&target_filter) {
-                source_connection.add_target_filter(target_filter.source, &filter_handle, target_filter.target)?;
-            }
+            source_connection.add_implicit_target_filter(target_filter.source, &filter_handle, target_filter.target)?;
         }
-
-        // TODO: flag source connections in the filter list so we can overwrite them when the 'main' connections change
 
         Ok(())
     }
