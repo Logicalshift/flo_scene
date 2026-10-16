@@ -239,17 +239,7 @@ impl Connectome {
                 target
             } else {
                 // There's no explicit target for this program
-                if is_specific_target(connection.default_target()) {
-                    // There's a default target configured for this type
-                    connection.default_target()
-                } else if let Some(filter) = self.source_filter_any(connection, None) {
-                    // There's a source filter we can use to map to another connection
-                    let (continuing_route, resolved_target) = self.basic_route(&filter.target_stream_id_any()?, source, &StreamTarget::Any)?;
-
-                    return Ok((ConnectionRoute::Filter(filter, Box::new(continuing_route)), resolved_target))
-                } else {
-                    connection.default_target()
-                }
+                connection.default_target()
             };
 
             match target {
@@ -263,46 +253,6 @@ impl Connectome {
         } else {
             // There's no route for this message yet
             Ok((ConnectionRoute::Hold, StreamTarget::Any))
-        }
-    }
-
-    ///
-    /// Looks for a source filter that creates a connection to any target from a source program
-    ///
-    fn source_filter_any(&self, connection: &MessageTypeConnections, source: Option<SubProgramId>) -> Option<FilterHandle> {
-        // Short-circuit the case where there's no source filter
-        if connection.source_filters.is_empty() { return None; }
-
-        let mut specific_filter = None;
-        let mut general_filter  = None;
-
-        // Search all the source filters applying to the current type
-        for (target_type, _filters) in connection.source_filters.iter() {
-            // See if there are any connections for the filtered type
-            if let Some(target_connection) = self.connections_for_message_type.get(target_type) {
-                // If we're testing from a specific source, then look for a target for the source, otherwise use the general connection
-                if let Some(source) = source {
-                    if let Some(specific_connection) = target_connection.target_for_source.get(&source) {
-                        if is_specific_target(specific_connection) {
-                            specific_filter = Some(target_type);
-                            break;
-                        }
-                    }
-                } else {
-                    if is_specific_target(target_connection.default_target()) {
-                        general_filter = Some(target_type);
-                        break;
-                    }
-                }
-            }
-        }
-
-        if let Some(filter_type) = specific_filter.or(general_filter) {
-            // Get the 'Any' target version of the filter as we don't have a specific target
-            connection.source_filters.get(filter_type)
-                .cloned()
-        } else {
-            None
         }
     }
 
