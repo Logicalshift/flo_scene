@@ -358,7 +358,7 @@ impl Connectome {
                 (StreamSource::All, target)                                                     => { connection.default_target = target.clone(); },
                 
                 (StreamSource::Filtered(_source), StreamTarget::None)                           => { /* TODO: drop if matched? */ },
-                (StreamSource::Filtered(source), StreamTarget::Any)                             => { connection.add_source_filter(source)?; } ,
+                (StreamSource::Filtered(source), StreamTarget::Any)                             => { self.add_source_filter(source)?; } ,
                 (StreamSource::Filtered(source), StreamTarget::Program(program_id))             => { connection.add_target_filter(None, source, *program_id)?; },
                 (StreamSource::Filtered(source), StreamTarget::Filtered(target, program_id))    => { connection.add_target_filter(None, &source.chain(target.clone())?, *program_id)?; },
 
@@ -415,6 +415,53 @@ impl Connectome {
             });
 
         source_to_target.next()
+    }
+
+    ///
+    /// Adds a new source filter
+    ///
+    /// Source filters modify how their target types behave: whenever a new connection of that
+    /// type is added, the source filters that target it create an extra target filter that
+    /// processes the type.
+    ///
+    fn add_source_filter(&mut self, source_filter: &FilterHandle) -> Result<(), ConnectionError> {
+        // Fetch the source/target types for this filter
+        let source_type = source_filter.source_stream_id_any()?;
+        let target_type = source_filter.target_stream_id_any()?;
+
+        // Fetch the existing target connection
+        let target_connection = self.connections_for_message_type
+            .entry(target_type.message_type())
+            .or_insert_with(|| MessageTypeConnections::with_message_type(&target_type));
+
+        // Add to the existing filters + the default connection (a new source type doesn't disrupt any existing conversions)
+        let mut new_connections = vec![];
+        for (filter_description, filter_handle) in target_connection.target_filters.iter() {
+            // Chain the filter. Description is the same, we just store on a different type
+            let with_source_filter = source_filter.chain(filter_handle.clone())?;
+            new_connections.push((filter_description.clone(), with_source_filter));
+        }
+
+        // Default connection is also affected (if it targets a program)
+        if let Some(default_target) = target_connection.default_target.target_sub_program() {
+            new_connections.push((TargetFilter { source: None, to_type: target_type.message_type(), target: default_target }, source_filter.clone()));
+        }
+
+        // Add missing filters to the filter targets for the source type
+        let source_connection = self.connections_for_message_type
+            .entry(source_type.message_type())
+            .or_insert_with(|| MessageTypeConnections::with_message_type(&source_type));
+
+        for (target_filter, filter_handle) in new_connections {
+            if !source_connection.target_filters.contains_key(&target_filter) {
+                source_connection.add_target_filter(target_filter.source, &filter_handle, target_filter.target)?;
+            }
+        }
+
+        // TODO: store in the target type so that adding new filter types/etc can add appropriate source values
+        // TODO: flag source connections in the filter list so we can overwrite them when the 'main' connections change
+
+        Ok(())
     }
 
     ///

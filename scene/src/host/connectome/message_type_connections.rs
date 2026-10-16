@@ -34,7 +34,7 @@ pub (super) struct MessageTypeConnections {
 ///
 /// Description of a target filter for a particular type
 ///
-#[derive(Hash, PartialEq, Eq, Debug)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone)]
 pub (super) struct TargetFilter {
     pub (super) source:     Option<SubProgramId>,
     pub (super) to_type:    TypeId,
@@ -44,7 +44,7 @@ pub (super) struct TargetFilter {
 ///
 /// Definition of a redirect
 ///
-#[derive(Hash, PartialEq, Eq, Debug)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone)]
 pub (super) struct RedirectSource {
     /// The program that made the original request
     pub (super) source: Option<SubProgramId>,
