@@ -197,15 +197,6 @@ impl Connectome {
                 if let Some(target_filter) = connections.target_filter(source, target_type, target) {
                     // Use the target filter if one is found
                     self.filtered_route(stream, source, &target_filter, target)
-                } else if let Some(source_filter) = connections.source_filter(target_type) {
-                    // Use the source filter if one is found
-                    self.filtered_route(stream, source, &source_filter, target)
-                } else if let Some((source_filter, target_filter)) = self.chain_source_with_target_filter(stream, source, target) {
-                    // Route from the source filter to the target
-                    let (route_from_source, resolved_target) = self.filtered_route(&source_filter.target_stream_id_any()?, source, &target_filter, target)?;
-
-                    // Apply the source filter
-                    Ok((ConnectionRoute::Filter(source_filter, Box::new(route_from_source)), resolved_target))
                 } else {
                     // No way to filter this type to make it match
                     Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
@@ -246,11 +237,6 @@ impl Connectome {
             let target = if let Some(target) = connection.target_for_source.get(&source) {
                 // There's an explicit target set for this subprogram to use
                 target
-            } else if let Some(filter) = self.source_filter_any(connection, Some(source)) {
-                // There's a source filter from this type that maps to another connection
-                let (continuing_route, resolved_target) = self.basic_route(&filter.target_stream_id_any()?, source, &StreamTarget::Any)?;
-
-                return Ok((ConnectionRoute::Filter(filter, Box::new(continuing_route)), resolved_target))
             } else {
                 // There's no explicit target for this program
                 if is_specific_target(&connection.default_target) {
@@ -395,26 +381,6 @@ impl Connectome {
         }
 
         Ok(invalidated)
-    }
-
-    ///
-    /// Finds a connection using a source filter chained to a target filter
-    ///
-    fn chain_source_with_target_filter(&self, stream: &StreamId, source: SubProgramId, target: SubProgramId) -> Option<(FilterHandle, FilterHandle)> {
-        let connection  = self.connections_for_message_type.get(&stream.message_type())?;
-        let target_type = self.active_programs.get(&target)?.message_type();
-
-        let mut source_to_target = connection.source_filters
-            .iter()
-            .filter_map(|(source_type, source_filter)| {
-                // Try to match this source filter with a target filter
-                let filter_connection   = self.connections_for_message_type.get(source_type)?;
-                let target_filter       = filter_connection.target_filter(source, target_type, target)?;
-
-                Some((source_filter.clone(), target_filter))
-            });
-
-        source_to_target.next()
     }
 
     ///

@@ -83,16 +83,6 @@ impl MessageTypeConnections {
     }
 
     ///
-    /// Looks to see if there's a source filter that can convert a type to a specified target type
-    /// for a particular program
-    ///
-    #[inline]
-    pub (super) fn source_filter(&self, target_type: TypeId) -> Option<FilterHandle> {
-        // For source filters, we use one for the specific program if defined, or for any program if not
-        self.source_filters.get(&target_type).cloned()
-    }
-
-    ///
     /// Looks to see if a stream is redirected elsewhere
     ///
     #[inline]
@@ -105,7 +95,7 @@ impl MessageTypeConnections {
     }
 
     ///
-    /// Adds a source filter with no specific target program
+    /// Adds a source filter which targets this type
     ///
     pub (super) fn add_source_filter(&mut self, source_filter: &FilterHandle) -> Result<(), ConnectionError> {
         // Check the input type
@@ -114,7 +104,7 @@ impl MessageTypeConnections {
         }
 
         // Add to the filters list
-        self.source_filters.insert(source_filter.target_stream_id_any()?.message_type(), source_filter.clone());
+        self.source_filters.insert(source_filter.source_stream_id_any()?.message_type(), source_filter.clone());
 
         Ok(())
     }
