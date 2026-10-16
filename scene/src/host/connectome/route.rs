@@ -31,16 +31,28 @@ impl ConnectionRoute {
             ConnectionRoute::Filter(filter, route)  => ConnectionRoute::Filter(filter, Box::new(route.pipe_to(next_route))),
         }
     }
+
+    ///
+    /// Retrieves the program that receives the messages delivered via this route
+    ///
+    pub fn target_program(&self) -> Option<SubProgramId> {
+        let mut route = self;
+
+        loop {
+            match route {
+                ConnectionRoute::None                       => { break None },
+                ConnectionRoute::Hold                       => { break None },
+                ConnectionRoute::DeliverTo(target)          => { break Some(*target) },
+                ConnectionRoute::Filter(_, next_route)      => { route = &*next_route },
+            }
+        }
+    }
 }
 
 ///
 /// True if a connection route delivers messages to a particular program
 ///
+#[inline]
 pub (super) fn route_references(route: &ConnectionRoute, program_id: SubProgramId) -> bool {
-    match route {
-        ConnectionRoute::None                       => false,
-        ConnectionRoute::Hold                       => false,
-        ConnectionRoute::DeliverTo(target)          => *target == program_id,
-        ConnectionRoute::Filter(_, next_route)      => route_references(next_route, program_id),
-    }
+    route.target_program() == Some(program_id)
 }
