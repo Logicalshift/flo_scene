@@ -133,21 +133,21 @@ impl ResolvedRoutes {
     /// Removes any routes for the specified stream that match the predicate
     ///
     pub fn remove_routes_by_stream(&mut self, stream: &TypeId, remove_route: impl Fn(&SubProgramId, &StreamTarget) -> bool) -> Vec<ConnectionDescription> {
-        let mut removed = vec![];
+        let mut removed_connections = vec![];
 
         // Remove from the routes_for_type table
         if let Some(routes) = self.routes_for_type.get_mut(stream) {
-            removed = routes.extract_if(|description| remove_route(&description.source, &description.target)).collect();
+            removed_connections = routes.extract_if(|description| remove_route(&description.source, &description.target)).collect();
         }
 
         // Remove from the main list of routes
-        for remove_route in removed.iter() {
-            if let Some(program_routes) = self.routes_for_program.get_mut(&remove_route.source) {
-                program_routes.resolved_streams.remove(&(remove_route.stream.clone(), remove_route.target.clone()));
+        for to_remove in removed_connections.iter() {
+            if let Some(program_routes) = self.routes_for_program.get_mut(&to_remove.source) {
+                program_routes.resolved_streams.remove(&(to_remove.stream.clone(), to_remove.target.clone()));
             }
         }
 
-        removed
+        removed_connections
     }
 
     ///
