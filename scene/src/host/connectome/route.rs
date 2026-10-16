@@ -32,3 +32,15 @@ impl ConnectionRoute {
         }
     }
 }
+
+///
+/// True if a connection route delivers messages to a particular program
+///
+pub (super) fn route_references(route: &ConnectionRoute, program_id: SubProgramId) -> bool {
+    match route {
+        ConnectionRoute::None                       => false,
+        ConnectionRoute::Hold                       => false,
+        ConnectionRoute::DeliverTo(target)          => *target == program_id,
+        ConnectionRoute::Filter(_, next_route)      => route_references(next_route, program_id),
+    }
+}
