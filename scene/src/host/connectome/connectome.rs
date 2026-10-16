@@ -425,7 +425,7 @@ impl Connectome {
         self.invalidate_cached_routes_where(|_source_program, target, cached_stream, route| {
             affected_types.contains(&cached_stream.message_type())
                 || target.target_sub_program() == Some(new_program_id)
-                || route_references(route, new_program_id)
+                || route.target_program() == Some(new_program_id)
         })
     }
 
@@ -473,7 +473,7 @@ impl Connectome {
         let mut invalidated = self.invalidate_cached_routes_where(|_source_program, target, cached_stream, route| {
             affected_types.contains(&cached_stream.message_type())
                 || target.target_sub_program() == Some(program_id)
-                || route_references(route, program_id)
+                || route.target_program() == Some(program_id)
         });
 
         // The routes cached for this program as a source are no longer valid

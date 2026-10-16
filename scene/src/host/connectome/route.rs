@@ -48,11 +48,3 @@ impl ConnectionRoute {
         }
     }
 }
-
-///
-/// True if a connection route delivers messages to a particular program
-///
-#[inline]
-pub (super) fn route_references(route: &ConnectionRoute, program_id: SubProgramId) -> bool {
-    route.target_program() == Some(program_id)
-}
