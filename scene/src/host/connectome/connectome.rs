@@ -5,8 +5,9 @@ use crate::host::stream_source::*;
 use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
-use super::message_type_connections::*;
+use super::cache::*;
 use super::invalidated_streams::*;
+use super::message_type_connections::*;
 use super::route::*;
 
 use std::collections::*;
@@ -54,7 +55,7 @@ pub struct Connectome {
     connections_for_program: HashMap<SubProgramId, HashSet<ProgramConnection>>,
 
     /// The routes for certain source programs
-    cached_routes_for_program: HashMap<SubProgramId, HashMap<(StreamId, StreamTarget), ConnectionRoute>>,
+    cached_routes_for_program: ResolvedRoutes,
 }
 
 ///
@@ -95,11 +96,9 @@ impl Connectome {
     pub fn route_for(&mut self, stream: &StreamId, source: SubProgramId, target: &StreamTarget) -> Result<ConnectionRoute, ConnectionError> {
         let target              = target.clone();
         let stream              = stream.clone();
-        let program_cache_key   = (stream.clone(), target.clone());
 
         // Try to retrieve a cached route
-        let cached = self.cached_routes_for_program.get(&source)
-            .and_then(|routes_for_program| routes_for_program.get(&program_cache_key));
+        let cached = self.cached_routes_for_program.get_cached_route(&source, &target, &stream);
 
         if let Some(cached) = cached {
             // Re-use the cached route if we found one
@@ -109,9 +108,7 @@ impl Connectome {
             let route = self.full_route_for(&stream, source, &target)?;
 
             // Cache it for later
-            self.cached_routes_for_program.entry(source)
-                .or_insert_with(|| HashMap::new())
-                .insert(program_cache_key, route.clone());
+            self.cached_routes_for_program.cache_route(source, target, stream, route.clone());
 
             Ok(route)
         }
@@ -379,7 +376,7 @@ impl Connectome {
             StreamSource::Filtered(_)       => None,
         };
 
-        let invalidated = self.invalidate_cached_routes_where(|source_program, cached_stream, _target, _route| {
+        let invalidated = self.invalidate_cached_routes_where(|source_program, _target, cached_stream, _route| {
             program_filter.is_none_or(|program| program == *source_program)
                 && affected_types.contains(&cached_stream.message_type())
         });
@@ -425,7 +422,7 @@ impl Connectome {
 
         let affected_types = self.message_types_affected_by(affected_seeds);
 
-        self.invalidate_cached_routes_where(|_source_program, cached_stream, target, route| {
+        self.invalidate_cached_routes_where(|_source_program, target, cached_stream, route| {
             affected_types.contains(&cached_stream.message_type())
                 || target.target_sub_program() == Some(new_program_id)
                 || route_references(route, new_program_id)
@@ -473,17 +470,15 @@ impl Connectome {
         }
 
         // Invalidate the routes that were affected by removing this program
-        let mut invalidated = self.invalidate_cached_routes_where(|_source_program, cached_stream, target, route| {
+        let mut invalidated = self.invalidate_cached_routes_where(|_source_program, target, cached_stream, route| {
             affected_types.contains(&cached_stream.message_type())
                 || target.target_sub_program() == Some(program_id)
                 || route_references(route, program_id)
         });
 
         // The routes cached for this program as a source are no longer valid
-        if let Some(routes_for_program) = self.cached_routes_for_program.remove(&program_id) {
-            for ((stream, _target), _route) in routes_for_program {
-                invalidated.push(program_id, stream);
-            }
+        for (stream, _target) in self.cached_routes_for_program.remove_program(program_id) {
+            invalidated.push(program_id, stream);
         }
 
         invalidated
@@ -517,20 +512,16 @@ impl Connectome {
     ///
     /// Removes every cached route matching a predicate, returning the streams that were invalidated
     ///
-    fn invalidate_cached_routes_where(&mut self, mut invalid: impl FnMut(&SubProgramId, &StreamId, &StreamTarget, &ConnectionRoute) -> bool) -> InvalidatedStreams {
+    fn invalidate_cached_routes_where(&mut self, mut invalid: impl FnMut(&SubProgramId, &StreamTarget, &StreamId, &ConnectionRoute) -> bool) -> InvalidatedStreams {
         let mut invalidated = InvalidatedStreams::default();
 
-        self.cached_routes_for_program.retain(|source_program, routes| {
-            routes.retain(|(stream, target), route| {
-                if invalid(source_program, stream, target, route) {
-                    invalidated.push(*source_program, stream.clone());
-                    false
-                } else {
-                    true
-                }
-            });
-
-            !routes.is_empty()
+        self.cached_routes_for_program.retain(|source_program, target, stream, route| {
+            if invalid(source_program, target, stream, route) {
+                invalidated.push(*source_program, stream.clone());
+                false
+            } else {
+                true
+            }
         });
 
         invalidated
@@ -552,7 +543,7 @@ impl Default for Connectome {
             active_programs:                HashMap::new(),
             connections_for_message_type:   HashMap::new(),
             connections_for_program:        HashMap::new(),
-            cached_routes_for_program:       HashMap::new(),
+            cached_routes_for_program:      ResolvedRoutes::default(),
         }
     }
 }
