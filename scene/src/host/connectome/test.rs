@@ -1,4 +1,4 @@
-use super::connectome::*;
+use super::*;
 
 use crate::host::filter::*;
 use crate::host::stream_id::*;

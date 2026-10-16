@@ -45,6 +45,3 @@ pub use serialization_context::*;
 
 #[cfg(feature="tokio")]
 pub use error::{ConnectionErrorTokioExt};
-
-#[cfg(test)]
-mod connectome_tests;

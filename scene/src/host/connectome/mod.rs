@@ -3,6 +3,8 @@ mod message_type_connections;
 mod invalidated_streams;
 mod connectome;
 
+#[cfg(test)] mod test;
+
 pub use route::*;
 pub use invalidated_streams::*;
 pub use connectome::*;
