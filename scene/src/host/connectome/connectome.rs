@@ -375,6 +375,12 @@ impl Connectome {
         // Store in the target type so that adding new filter types/etc can add appropriate source values
         target_connection.add_source_filter(source_filter)?;
 
+        // Programs that are already running with this input type can also be reached directly through this filter
+        let matching_programs = self.active_programs.iter()
+            .filter(|(_program_id, input_stream)| input_stream.message_type() == target_type.message_type())
+            .map(|(program_id, _input_stream)| *program_id)
+            .collect::<Vec<_>>();
+
         // Add missing filters to the filter targets for the source type
         let source_connection = self.connections_for_message_type
             .entry(source_type.message_type())
@@ -382,6 +388,11 @@ impl Connectome {
 
         for (target_filter, filter_handle) in new_connections {
             source_connection.add_implicit_target_filter(target_filter.source, &filter_handle, target_filter.target, true)?;
+        }
+
+        // A running program is directly targetable through the filter, but does not become the default target
+        for program_id in matching_programs {
+            source_connection.add_implicit_target_filter(None, source_filter, program_id, false)?;
         }
 
         Ok(())
