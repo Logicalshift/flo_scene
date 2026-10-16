@@ -341,7 +341,12 @@ impl Connectome {
 
             match (source, target) {
                 (StreamSource::All, StreamTarget::Filtered(target, program_id))                 => { let implicit = connection.add_target_filter(None, target, *program_id)?; self.add_implicit_filters(implicit, None, *program_id)?; }
-                (StreamSource::All, target)                                                     => { connection.default_target = target.clone(); },
+                (StreamSource::All, target)                                                     => { 
+                    let implicit = connection.set_default_target(target)?; 
+                    if let Some(target_program) = target.target_sub_program() {
+                        self.add_implicit_filters(implicit, None, target_program)?; 
+                    }
+                },
                 
                 (StreamSource::Filtered(_source), StreamTarget::None)                           => { /* TODO: drop if matched? */ },
                 (StreamSource::Filtered(source), StreamTarget::Any)                             => { self.add_source_filter(&stream, source)?; } ,

@@ -168,6 +168,32 @@ impl MessageTypeConnections {
     }
 
     ///
+    /// Sets the default target, returning the list of implicit filters that was generated
+    ///
+    pub (super) fn set_default_target(&mut self, default_target: &StreamTarget) -> Result<Vec<FilterHandle>, ConnectionError> {
+        self.default_target = default_target.clone();
+
+        let implicit_filters = match default_target {
+            StreamTarget::None          => Ok(vec![]),
+            StreamTarget::Any           => Ok(vec![]),
+
+            StreamTarget::Program(_)    => {
+                Ok(self.source_filters.iter()
+                    .map(|(_source_type, source_filter)| source_filter.clone())
+                    .collect())
+            }
+
+            StreamTarget::Filtered(filter, _) => {
+                self.source_filters.iter()
+                    .map(|(_source_type, source_filter)| source_filter.chain(filter.clone()))
+                    .collect()
+            }
+        };
+
+        implicit_filters
+    }
+
+    ///
     /// Adds a target filter generated implicitly from a source filter
     ///
     pub (super) fn add_implicit_target_filter(&mut self, source: Option<SubProgramId>, target_filter: &FilterHandle, target_program: SubProgramId) -> Result<(), ConnectionError> {
