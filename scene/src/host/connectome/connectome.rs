@@ -381,7 +381,7 @@ impl Connectome {
             .or_insert_with(|| MessageTypeConnections::with_message_type(&source_type));
 
         for (target_filter, filter_handle) in new_connections {
-            source_connection.add_implicit_target_filter(target_filter.source, &filter_handle, target_filter.target)?;
+            source_connection.add_implicit_target_filter(target_filter.source, &filter_handle, target_filter.target, true)?;
         }
 
         Ok(())
@@ -399,7 +399,7 @@ impl Connectome {
             let connection = self.connections_for_message_type.entry(source_stream.message_type())
                 .or_insert_with(|| MessageTypeConnections::with_message_type(&source_stream));
 
-            connection.add_implicit_target_filter(source, &filter, target_program)?;
+            connection.add_implicit_target_filter(source, &filter, target_program, true)?;
         }
 
         Ok(())
@@ -413,6 +413,10 @@ impl Connectome {
     ///
     pub fn add_subprogram(&mut self, new_program_id: SubProgramId, input_stream: StreamId) -> InvalidatedStreams {
         self.active_programs.insert(new_program_id, input_stream.clone());
+
+        // Any source filter that produces this program's input type can now deliver messages directly
+        // to this program
+        self.add_implicit_filters_for_program(new_program_id, input_stream.message_type());
 
         // Any type connected to this program, plus types that can filter to those types, may now
         // resolve to this program rather than being held
@@ -428,6 +432,32 @@ impl Connectome {
                 || target.target_sub_program() == Some(new_program_id)
                 || route.target_program() == Some(new_program_id)
         })
+    }
+
+    ///
+    /// Adds the implicit filters that let source filters reach a newly-started program
+    ///
+    /// When a program starts, any source filter that produces its input type becomes a valid way to
+    /// reach that program directly, so an implicit target filter is added for each of those source
+    /// filters. The program does not become the default target for the filtered stream.
+    ///
+    fn add_implicit_filters_for_program(&mut self, program_id: SubProgramId, input_type: TypeId) {
+        // Fetch the source filters that produce this program's input type
+        let source_filters = match self.connections_for_message_type.get(&input_type) {
+            Some(connections) => connections.source_filters.values().cloned().collect::<Vec<_>>(),
+            None              => return,
+        };
+
+        for source_filter in source_filters {
+            // Work out the source type for this filter (the connection should already exist, as it
+            // is created when the source filter is added)
+            let Ok(source_stream) = source_filter.source_stream_id_any() else { continue; };
+
+            if let Some(source_connection) = self.connections_for_message_type.get_mut(&source_stream.message_type()) {
+                // Not an error to fail here: the filter just doesn't apply to this connection
+                let _ = source_connection.add_implicit_target_filter(None, &source_filter, program_id, false);
+            }
+        }
     }
 
     ///

@@ -196,7 +196,7 @@ impl MessageTypeConnections {
     ///
     /// Adds a target filter generated implicitly from a source filter
     ///
-    pub (super) fn add_implicit_target_filter(&mut self, source: Option<SubProgramId>, target_filter: &FilterHandle, target_program: SubProgramId) -> Result<(), ConnectionError> {
+    pub fn add_implicit_target_filter(&mut self, source: Option<SubProgramId>, target_filter: &FilterHandle, target_program: SubProgramId, update_default_target: bool) -> Result<(), ConnectionError> {
         // Check the input type
         if target_filter.source_stream_id_any()?.message_type() != self.message_type {
             return Err(ConnectionError::FilterInputDoesNotMatch);
@@ -212,7 +212,7 @@ impl MessageTypeConnections {
         // Add to the filters list
         self.implicit_target_filters.insert(key, target_filter.clone());
 
-        if source.is_none() {
+        if source.is_none() && update_default_target {
             // Indicates the 'all' source, so this becomes the default target
             self.implicit_default_target = StreamTarget::Filtered(target_filter.clone(), target_program);
         }
