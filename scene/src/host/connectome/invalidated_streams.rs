@@ -55,7 +55,7 @@ impl InvalidatedStreams {
     /// Invalidates a set of connections
     ///
     #[inline]
-    pub (crate) fn invalidate<'a>(&'a mut self, streams: impl IntoIterator<Item=&'a ConnectionDescription>) {
+    pub (super) fn invalidate<'a>(&'a mut self, streams: impl IntoIterator<Item=&'a ConnectionDescription>) {
         self.streams.extend(streams.into_iter().map(|desc| (desc.source(), desc.stream().clone())));
     }
 }
