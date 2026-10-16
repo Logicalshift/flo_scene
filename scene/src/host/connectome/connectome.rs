@@ -383,11 +383,11 @@ impl Connectome {
             let invalidated_by_type = if let Some(program_id) = program_filter {
                 // Invalidate just the connections sourced from the program
                 self.cached_routes_for_program
-                    .remove_routes_by_stream_id(&stream_id, |remove_program_id, _| &program_id == remove_program_id)
+                    .remove_routes_by_stream(&stream_id, |remove_program_id, _| &program_id == remove_program_id)
             } else {
                 // Invalidate everytning from this stream if there's no program ID
                 self.cached_routes_for_program
-                    .remove_routes_by_stream_id(&stream_id, |_program_id, _target| true)
+                    .remove_routes_by_stream(&stream_id, |_program_id, _target| true)
             };
 
             // Add to the invalidated list

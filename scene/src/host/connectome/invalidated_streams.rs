@@ -4,7 +4,6 @@ use crate::host::stream_id::*;
 use crate::host::subprogram_id::*;
 
 use std::collections::*;
-use std::vec::{IntoIter};
 
 ///
 /// The set of streams affected by a change to the connectome

@@ -132,7 +132,7 @@ impl ResolvedRoutes {
     ///
     /// Removes any routes for the specified stream that match the predicate
     ///
-    pub fn remove_routes_by_stream_id(&mut self, stream: &TypeId, remove_route: impl Fn(&SubProgramId, &StreamTarget) -> bool) -> Vec<ConnectionDescription> {
+    pub fn remove_routes_by_stream(&mut self, stream: &TypeId, remove_route: impl Fn(&SubProgramId, &StreamTarget) -> bool) -> Vec<ConnectionDescription> {
         let mut removed = vec![];
 
         // Remove from the routes_for_type table
