@@ -285,7 +285,7 @@ fn route_via_source_filter_to_any_target() {
 /// A source filter falls back to a connection that is specific to the source program
 ///
 #[test]
-fn route_via_source_filter_to_source_specific_target() {
+fn route_via_source_filter_to_source_specific_target_1() {
     let mut connectome  = Connectome::default();
     let source          = SubProgramId::new();
     let target          = SubProgramId::new();
@@ -294,6 +294,26 @@ fn route_via_source_filter_to_source_specific_target() {
 
     connectome.connect(&StreamSource::Filtered(filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
     connectome.connect(&StreamSource::Program(source), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+
+    let expected = Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target))));
+    let route    = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
+
+    assert!(route == expected, "{:?} != {:?}", route, expected);
+}
+
+///
+/// A source filter falls back to a connection that is specific to the source program
+///
+#[test]
+fn route_via_source_filter_to_source_specific_target_2() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+    let filter          = (*TESTMESSAGE_1_TO_2).clone();
+
+    connectome.connect(&StreamSource::Program(source), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+    connectome.connect(&StreamSource::Filtered(filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
 
     let expected = Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target))));
     let route    = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
