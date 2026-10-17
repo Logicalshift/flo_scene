@@ -1,4 +1,5 @@
 use crate::host::filter::*;
+use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
 ///
@@ -32,6 +33,18 @@ impl ConnectionRoute {
             .into_iter()
             .rev()
             .fold(ConnectionRoute::DeliverTo(target), |route, filter| ConnectionRoute::Filter(filter, Box::new(route)))
+    }
+
+    ///
+    /// Creates a connection route that delivers to a specific stream target (whose type is verified to match this program's type)
+    ///
+    pub fn for_target(target: StreamTarget) -> Self {
+        match target {
+            StreamTarget::None                      => Self::None,
+            StreamTarget::Any                       => Self::Hold,
+            StreamTarget::Program(target)           => Self::DeliverTo(target),
+            StreamTarget::Filtered(filter, target)  => Self::Filter(filter, Box::new(Self::DeliverTo(target))),
+        }
     }
 
     ///
