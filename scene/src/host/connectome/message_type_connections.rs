@@ -26,30 +26,23 @@ pub (super) struct MessageTypeConnections {
     /// the existing filters.
     pub (super) source_filters: HashMap<TypeId, FilterHandle>,
 
-    /// The target filters than can be applied to this message to change its type
-    pub (super) target_filters: HashMap<TargetFilter, FilterHandle>,
-
-    /// The implicit target filters are generated from source filters
-    pub (super) implicit_target_filters: HashMap<TargetFilter, FilterHandle>,
-
-    /// The connection to use for a particular source program, if one exists
-    pub (super) target_for_source: HashMap<SubProgramId, StreamTarget>,
-
-    /// The default target for this message type (source: any, target: any)
-    pub (super) default_target: StreamTarget,
-
-    /// The default target for this message type, defined by a source filter
-    pub (super) implicit_default_target: StreamTarget,
+    /// The targets where streams of this type can be sent
+    pub (super) targets: HashMap<TargetSpecifier, StreamTarget>,
 }
 
 ///
-/// Description of a target filter for a particular type
+/// Description of a target for a particular type
 ///
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
-pub (super) struct TargetFilter {
+pub (super) struct TargetSpecifier {
+    /// The source of the message (the program that's requesting the connection)
     pub (super) source:     Option<SubProgramId>,
-    pub (super) to_type:    TypeId,
-    pub (super) target:     SubProgramId,
+
+    /// True if this is an implicit connection (added by a source filter), false if it's a concrete connection
+    pub (super) implicit:   bool,
+
+    /// The requested target program for this message (None if the message is being sent to any program)
+    pub (super) target:     Option<SubProgramId>,
 }
 
 ///
@@ -74,11 +67,7 @@ impl MessageTypeConnections {
             message_type:               stream_id.message_type(),
             redirects:                  HashMap::new(),
             source_filters:             HashMap::new(),
-            target_filters:             HashMap::new(),
-            implicit_target_filters:    HashMap::new(),
-            target_for_source:          HashMap::new(),
-            default_target:             stream_id.default_target(),
-            implicit_default_target:    StreamTarget::Any,
+            targets:                    HashMap::new(),
         }
     }
 
@@ -86,27 +75,24 @@ impl MessageTypeConnections {
     /// Looks to see if there's a target filter to convert this type to the specified target type for
     /// a particular program
     ///
-    #[inline]
-    pub (super) fn target_filter(&self, source: SubProgramId, target_type: TypeId, target_program: SubProgramId) -> Option<FilterHandle> {
-        self.target_filters
-            .get(&TargetFilter { source: Some(source), to_type: target_type, target: target_program })
-            .or_else(|| self.implicit_target_filters
-                .get(&TargetFilter { source: Some(source), to_type: target_type, target: target_program }))
-            .or_else(|| self.target_filters
-                .get(&TargetFilter { source: None, to_type: target_type, target: target_program }))
-            .or_else(|| self.implicit_target_filters
-                .get(&TargetFilter { source: None, to_type: target_type, target: target_program }))
+    pub (super) fn target_for_messages(&self, source: SubProgramId, target_program: SubProgramId) -> Option<StreamTarget> {
+        // Hierarchy
+        //   * specific connection to the requested target from the source
+        //   * specific connection for any target from the source
+        //   * connection for the target from any source
+        //   * connecftion to any target from any source
+        //
+        // Each one uses the implicit connection if there is one before moving to the next layer
+        self.targets
+            .get(&TargetSpecifier { source: Some(source), implicit: false, target: Some(target_program) })
+            .or_else(|| self.targets.get(&TargetSpecifier { source: Some(source), implicit: true, target: Some(target_program) }))
+            .or_else(|| self.targets.get(&TargetSpecifier { source: Some(source), implicit: false, target: None }))
+            .or_else(|| self.targets.get(&TargetSpecifier { source: Some(source), implicit: true, target: None }))
+            .or_else(|| self.targets.get(&TargetSpecifier { source: None, implicit: false, target: Some(target_program) }))
+            .or_else(|| self.targets.get(&TargetSpecifier { source: None, implicit: true, target: Some(target_program) }))
+            .or_else(|| self.targets.get(&TargetSpecifier { source: None, implicit: false, target: None }))
+            .or_else(|| self.targets.get(&TargetSpecifier { source: None, implicit: true, target: None }))
             .cloned()
-    }
-
-    ///
-    /// Returns the default target for this connection
-    ///
-    pub (super) fn default_target(&self) -> &StreamTarget {
-        match &self.default_target {
-            StreamTarget::Any   => &self.implicit_default_target,
-            other               => other
-        }
     }
 
     ///
@@ -137,91 +123,25 @@ impl MessageTypeConnections {
     }
 
     ///
-    /// Adds a target filter definition that changes the output of a stream of this type
+    /// Adds a new target to these connections
     ///
-    /// Returns a set of implicit filters that are generated by this target filter
+    /// If 'source' is not None, then this target is only used when the source program is as specified.
     ///
-    pub (super) fn add_target_filter(&mut self, source: Option<SubProgramId>, target_filter: &FilterHandle, target_program: SubProgramId) -> Result<Vec<FilterHandle>, ConnectionError> {
-        // Check the input type
-        if target_filter.source_stream_id_any()?.message_type() != self.message_type {
-            return Err(ConnectionError::FilterInputDoesNotMatch);
-        }
+    pub (super) fn add_target(&mut self, source: Option<SubProgramId>, target: StreamTarget) -> Result<(), ConnectionError> {
+        // Add a new target to this element
+        self.targets.insert(TargetSpecifier { source: source, implicit: false, target: target.target_sub_program() }, target);
 
-        // Create the key for this filter
-        let key = TargetFilter {
-            source:     source,
-            to_type:    target_filter.target_stream_id_any()?.message_type(),
-            target:     target_program,
-        };
-
-        // Add to the filters list
-        self.target_filters.insert(key, target_filter.clone());
-
-        if source.is_none() {
-            // Indicates the 'all' source, so this becomes the default target
-            self.default_target = StreamTarget::Filtered(target_filter.clone(), target_program);
-        }
-
-        // Generate any implicit filters for the source filters that target this type
-        let implicit_filters = self.source_filters
-            .iter()
-            .map(|(_source_type, source_filter)| {
-                source_filter.chain(target_filter.clone())
-            });
-
-        implicit_filters.collect()
+        // If the target is StreamTarget::Any, then need to define implicit filters from the source filters
+        Ok(())
     }
 
     ///
-    /// Sets the default target, returning the list of implicit filters that was generated
+    /// Adds a new implicit target to these connections
     ///
-    pub (super) fn set_default_target(&mut self, default_target: &StreamTarget) -> Result<Vec<FilterHandle>, ConnectionError> {
-        self.default_target = default_target.clone();
-
-        let implicit_filters = match default_target {
-            StreamTarget::None          => Ok(vec![]),
-            StreamTarget::Any           => Ok(vec![]),
-
-            StreamTarget::Program(_)    => {
-                Ok(self.source_filters.iter()
-                    .map(|(_source_type, source_filter)| source_filter.clone())
-                    .collect())
-            }
-
-            StreamTarget::Filtered(filter, _) => {
-                self.source_filters.iter()
-                    .map(|(_source_type, source_filter)| source_filter.chain(filter.clone()))
-                    .collect()
-            }
-        };
-
-        implicit_filters
-    }
-
+    /// If 'source' is not None, then this target is only used when the source program is as specified.
     ///
-    /// Adds a target filter generated implicitly from a source filter
-    ///
-    pub fn add_implicit_target_filter(&mut self, source: Option<SubProgramId>, target_filter: &FilterHandle, target_program: SubProgramId, update_default_target: bool) -> Result<(), ConnectionError> {
-        // Check the input type
-        if target_filter.source_stream_id_any()?.message_type() != self.message_type {
-            return Err(ConnectionError::FilterInputDoesNotMatch);
-        }
-
-        // Create the key for this filter
-        let key = TargetFilter {
-            source:     source,
-            to_type:    target_filter.target_stream_id_any()?.message_type(),
-            target:     target_program,
-        };
-
-        // Add to the filters list
-        self.implicit_target_filters.insert(key, target_filter.clone());
-
-        if source.is_none() && update_default_target {
-            // Indicates the 'all' source, so this becomes the default target
-            self.implicit_default_target = StreamTarget::Filtered(target_filter.clone(), target_program);
-        }
-
+    pub (super) fn add_implicit_target(&mut self, source: Option<SubProgramId>, target: StreamTarget) -> Result<(), ConnectionError> {
+        self.targets.insert(TargetSpecifier { source: source, implicit: true, target: target.target_sub_program() }, target);
         Ok(())
     }
 
@@ -237,30 +157,5 @@ impl MessageTypeConnections {
         self.redirects.insert(key, new_target);
 
         Ok(())
-    }
-
-    ///
-    /// Sets the target for messages sent to a subprogram
-    ///
-    pub (super) fn add_target_for_source(&mut self, source: SubProgramId, target: &StreamTarget) -> Result<Vec<FilterHandle>, ConnectionError> {
-        // Set as the target for this program
-        self.target_for_source.insert(source, target.clone());
-
-        match target {
-            StreamTarget::None          => Ok(vec![]),
-            StreamTarget::Any           => Ok(vec![]),
-
-            StreamTarget::Program(_)    => {
-                Ok(self.source_filters.iter()
-                    .map(|(_source_type, source_filter)| source_filter.clone())
-                    .collect())
-            }
-
-            StreamTarget::Filtered(filter, _) => {
-                self.source_filters.iter()
-                    .map(|(_source_type, source_filter)| source_filter.chain(filter.clone()))
-                    .collect()
-            }
-        }
     }
 }
