@@ -18,12 +18,7 @@ pub (super) struct MessageTypeConnections {
     /// Cases where a stream arriving at a target should be redirected to a new target
     pub (super) redirects: HashMap<RedirectSource, StreamTarget>,
 
-    /// The source filters that can be applied streams that output message_type to 
-    /// further change their type, hashed by output type.
-    ///
-    /// Source filters are 'rolled into' the targets when new connections are defined,
-    /// so this is only used when defining new filters rather than when looking up
-    /// the existing filters.
+    /// Source filters that can be used to change this type into something else
     pub (super) source_filters: HashMap<TypeId, FilterHandle>,
 
     /// The targets where streams of this type can be sent
@@ -34,15 +29,15 @@ pub (super) struct MessageTypeConnections {
 /// Description of a target for a particular type
 ///
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
-pub (super) struct TargetSpecifier {
-    /// The source of the message (the program that's requesting the connection)
-    pub (super) source:     Option<SubProgramId>,
+pub (super) enum TargetSpecifier {
+    /// A direct connection between  a source and a target
+    DirectConnectionBetween { source: SubProgramId, target: SubProgramId },
 
-    /// True if this is an implicit connection (added by a source filter), false if it's a concrete connection
-    pub (super) implicit:   bool,
+    /// The connection to use for any source targetting the specified program
+    GeneralConnectionFor(SubProgramId),
 
-    /// The requested target program for this message (None if the message is being sent to any program)
-    pub (super) target:     Option<SubProgramId>,
+    /// The default route to use when no target is specified
+    DefaultRoute,
 }
 
 ///
@@ -75,7 +70,7 @@ impl MessageTypeConnections {
     /// Looks to see if there's a target filter to convert this type to the specified target type for
     /// a particular program
     ///
-    pub (super) fn target_for_messages(&self, source: SubProgramId, target_program: SubProgramId) -> Option<StreamTarget> {
+    pub (super) fn target_for_messages(&self, source: SubProgramId, target: SubProgramId) -> Option<StreamTarget> {
         // Hierarchy
         //   * specific connection to the requested target from the source
         //   * specific connection for any target from the source
@@ -84,14 +79,8 @@ impl MessageTypeConnections {
         //
         // Each one uses the implicit connection if there is one before moving to the next layer
         self.targets
-            .get(&TargetSpecifier { source: Some(source), implicit: false, target: Some(target_program) })
-            .or_else(|| self.targets.get(&TargetSpecifier { source: Some(source), implicit: true, target: Some(target_program) }))
-            .or_else(|| self.targets.get(&TargetSpecifier { source: Some(source), implicit: false, target: None }))
-            .or_else(|| self.targets.get(&TargetSpecifier { source: Some(source), implicit: true, target: None }))
-            .or_else(|| self.targets.get(&TargetSpecifier { source: None, implicit: false, target: Some(target_program) }))
-            .or_else(|| self.targets.get(&TargetSpecifier { source: None, implicit: true, target: Some(target_program) }))
-            .or_else(|| self.targets.get(&TargetSpecifier { source: None, implicit: false, target: None }))
-            .or_else(|| self.targets.get(&TargetSpecifier { source: None, implicit: true, target: None }))
+            .get(&TargetSpecifier::DirectConnectionBetween { source, target })
+            .or_else(|| self.targets.get(&TargetSpecifier::GeneralConnectionFor(target)))
             .cloned()
     }
 
@@ -129,7 +118,14 @@ impl MessageTypeConnections {
     ///
     pub (super) fn add_target(&mut self, source: Option<SubProgramId>, target: StreamTarget) -> Result<(), ConnectionError> {
         // Add a new target to this element
-        self.targets.insert(TargetSpecifier { source: source, implicit: false, target: target.target_sub_program() }, target);
+        let specifier = match (source, target.target_sub_program()) {
+            (Some(source), Some(target))    => TargetSpecifier::DirectConnectionBetween { source, target },
+            (None, Some(target))            => TargetSpecifier::GeneralConnectionFor(target),
+            (None, None)                    => TargetSpecifier::DefaultRoute,
+            (Some(_source), None)           => return Err(ConnectionError::UnexpectedConnectionType),
+        };
+
+        self.targets.insert(specifier, target);
 
         // If the target is StreamTarget::Any, then need to define implicit filters from the source filters
         Ok(())
