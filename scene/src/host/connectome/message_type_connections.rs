@@ -70,7 +70,7 @@ impl MessageTypeConnections {
     /// Looks to see if there's a target filter to convert this type to the specified target type for
     /// a particular program
     ///
-    pub (super) fn target_for_messages(&self, source: SubProgramId, target: SubProgramId) -> Option<StreamTarget> {
+    pub (super) fn direct_target_for_messages(&self, source: SubProgramId, target: SubProgramId) -> Option<StreamTarget> {
         // Hierarchy
         //   * specific connection to the requested target from the source
         //   * specific connection for any target from the source
@@ -80,7 +80,23 @@ impl MessageTypeConnections {
         // Each one uses the implicit connection if there is one before moving to the next layer
         self.targets
             .get(&TargetSpecifier::DirectConnectionBetween { source, target })
-            .or_else(|| self.targets.get(&TargetSpecifier::GeneralConnectionFor(target)))
+            .cloned()
+    }
+
+    ///
+    /// Looks to see if there's a target filter to convert this type to the specified target type for
+    /// a particular program
+    ///
+    pub (super) fn general_target_for_program(&self, target: SubProgramId) -> Option<StreamTarget> {
+        // Hierarchy
+        //   * specific connection to the requested target from the source
+        //   * specific connection for any target from the source
+        //   * connection for the target from any source
+        //   * connecftion to any target from any source
+        //
+        // Each one uses the implicit connection if there is one before moving to the next layer
+        self.targets
+            .get(&TargetSpecifier::GeneralConnectionFor(target))
             .cloned()
     }
 

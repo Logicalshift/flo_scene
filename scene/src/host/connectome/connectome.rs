@@ -184,52 +184,24 @@ impl Connectome {
     ///
     /// Finds a route for a stream targeting a specific subprogram ID
     ///
-    fn program_route(&self, stream: &StreamId, source: SubProgramId, target: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
-        if let Some(running_program_stream) = self.active_programs.get(&target) {
+    fn program_route(&self, stream: &StreamId, source_program: SubProgramId, target_program: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
+        if let Some(running_program_stream) = self.active_programs.get(&target_program) {
             // Program is running
             let source_type = stream.message_type();
             let target_type = running_program_stream.message_type();
 
             if target_type == stream.message_type() {
                 // Program directly accepts this message type
-                Ok((ConnectionRoute::DeliverTo(target), StreamTarget::Program(target)))
+                Ok((ConnectionRoute::DeliverTo(target_program), StreamTarget::Program(target_program)))
             } else if let Some(connections) = self.connections_for_message_type.get(&target_type) {
-                // TODO: using the target type here kind of doesn't work, we need to use the source type
-                // but the trick with source filters uses the target type of the program instead
-                //
-                // Doesn't work because an 'any' connection can provide a target filter that we should
-                // use, but is otherwise pretty consistent (works for the source -> target filter case 
-                // as well as the source -> specific target)
-
-                // Find a connection from the source to the specified target
-                let Some(target_connection) = connections.target_for_messages(source, target)
-                    else { return Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name()))); };
-
-                // Get the type of data the source needs to send
-                let (input_type, filter) = match target_connection {
-                    StreamTarget::None => return Ok((ConnectionRoute::None, StreamTarget::Program(target))),
-                    StreamTarget::Any  => return Ok((ConnectionRoute::Hold, StreamTarget::Program(target))),
-
-                    StreamTarget::Program(_)            => (target_type, None),
-                    StreamTarget::Filtered(filter, _)   => (filter.source_stream_id_any()?.message_type(), Some(filter)),
-                };
-
-                if input_type == source_type {
-                    // Deliver directly to the target
-                    Ok((ConnectionRoute::deliver_to_with_filters(target, filter), StreamTarget::Program(target)))
-                } else if let Some(output_connection) = self.connections_for_message_type.get(&source_type) {
-                    // Try to use a source filter to make the types match
-                    if let Some(source_filter) = output_connection.source_filters.get(&target_type) {
-                        // Deliver via the source filter -> target connection
-                        use std::iter;
-                        let filters = iter::once(source_filter.clone()).chain(filter);
-                        Ok((ConnectionRoute::deliver_to_with_filters(target, filters), StreamTarget::Program(target)))
-                    } else {
-                        // No source filter
-                        Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
-                    }
+                if let Some(target) = connections.direct_target_for_messages(source_program, target_program) {
+                    // There's a direct specifier for this program
+                    Ok((ConnectionRoute::for_target(target), StreamTarget::Program(target_program)))
+                } else if let Some(target) = connections.general_target_for_program(target_program) {
+                    // The target program has a general route for this stream
+                    Ok((ConnectionRoute::for_target(target), StreamTarget::Program(target_program)))
                 } else {
-                    // Type not available but program running - shouldn't actually happen
+                    // No connections match this stream type
                     Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
                 }
             } else {
@@ -238,25 +210,8 @@ impl Connectome {
             }
         } else {
             // Program is not running: connections are held until it starts
-            Ok((ConnectionRoute::Hold, StreamTarget::Program(target)))
+            Ok((ConnectionRoute::Hold, StreamTarget::Program(target_program)))
         }
-    }
-
-    ///
-    /// Finds a route for a stream that specifies a target via a filter
-    ///
-    fn filtered_route(&self, stream: &StreamId, source: SubProgramId, filter: &FilterHandle, target: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
-        // Fetch the source & target streams of the filter
-        let source_stream = filter.source_stream_id_any()?;
-        let target_stream = filter.target_stream_id_any()?;
-
-        // Source must match the source type
-        if source_stream.message_type() != stream.message_type() { return Err(ConnectionError::FilterInputDoesNotMatch) }
-
-        // Try to connect the resulting stream to the target
-        let (target_connection, target) = self.program_route(&target_stream, source, target)?;
-
-        Ok((ConnectionRoute::Filter(filter.clone(), Box::new(target_connection)), target))
     }
 
     ///
