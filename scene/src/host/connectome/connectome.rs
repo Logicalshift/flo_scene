@@ -187,18 +187,49 @@ impl Connectome {
     fn program_route(&self, stream: &StreamId, source: SubProgramId, target: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
         if let Some(running_program_stream) = self.active_programs.get(&target) {
             // Program is running
+            let source_type = stream.message_type();
             let target_type = running_program_stream.message_type();
 
             if target_type == stream.message_type() {
                 // Program directly accepts this message type
                 Ok((ConnectionRoute::DeliverTo(target), StreamTarget::Program(target)))
-            } else if let Some(connections) = self.connections_for_message_type.get(&stream.message_type()) {
-                // See if there's a target filter for this type
-                if let Some(target_filter) = connections.target_filter(source, target_type, target) {
-                    // Use the target filter if one is found
-                    self.filtered_route(stream, source, &target_filter, target)
+            } else if let Some(connections) = self.connections_for_message_type.get(&target_type) {
+                // TODO: using the target type here kind of doesn't work, we need to use the source type
+                // but the trick with source filters uses the target type of the program instead
+                //
+                // Doesn't work because an 'any' connection can provide a target filter that we should
+                // use, but is otherwise pretty consistent (works for the source -> target filter case 
+                // as well as the source -> specific target)
+
+                // Find a connection from the source to the specified target
+                let Some(target_connection) = connections.target_for_messages(source, target)
+                    else { return Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name()))); };
+
+                // Get the type of data the source needs to send
+                let (input_type, filter) = match target_connection {
+                    StreamTarget::None => return Ok((ConnectionRoute::None, StreamTarget::Program(target))),
+                    StreamTarget::Any  => return Ok((ConnectionRoute::Hold, StreamTarget::Program(target))),
+
+                    StreamTarget::Program(_)            => (target_type, None),
+                    StreamTarget::Filtered(filter, _)   => (filter.source_stream_id_any()?.message_type(), Some(filter)),
+                };
+
+                if input_type == source_type {
+                    // Deliver directly to the target
+                    Ok((ConnectionRoute::deliver_to_with_filters(target, filter), StreamTarget::Program(target)))
+                } else if let Some(output_connection) = self.connections_for_message_type.get(&source_type) {
+                    // Try to use a source filter to make the types match
+                    if let Some(source_filter) = output_connection.source_filters.get(&target_type) {
+                        // Deliver via the source filter -> target connection
+                        use std::iter;
+                        let filters = iter::once(source_filter.clone()).chain(filter);
+                        Ok((ConnectionRoute::deliver_to_with_filters(target, filters), StreamTarget::Program(target)))
+                    } else {
+                        // No source filter
+                        Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
+                    }
                 } else {
-                    // No way to filter this type to make it match
+                    // Type not available but program running - shouldn't actually happen
                     Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
                 }
             } else {
@@ -206,7 +237,7 @@ impl Connectome {
                 Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
             }
         } else {
-            // Program is not running
+            // Program is not running: connections are held until it starts
             Ok((ConnectionRoute::Hold, StreamTarget::Program(target)))
         }
     }
