@@ -75,3 +75,10 @@ impl ConnectionRoute {
         }
     }
 }
+
+impl From<StreamTarget> for ConnectionRoute {
+    #[inline]
+    fn from(value: StreamTarget) -> Self {
+        Self::for_target(value)
+    }
+}
