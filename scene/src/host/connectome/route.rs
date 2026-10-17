@@ -21,6 +21,20 @@ pub enum ConnectionRoute {
 
 impl ConnectionRoute {
     ///
+    /// Creates a route that delivers to a target with zero or more filters
+    ///
+    pub fn deliver_to_with_filters<TIter>(target: SubProgramId, filters: TIter) -> ConnectionRoute
+    where
+        TIter:              IntoIterator<Item=FilterHandle>,
+        TIter::IntoIter:    DoubleEndedIterator,
+    {
+        filters
+            .into_iter()
+            .rev()
+            .fold(ConnectionRoute::DeliverTo(target), |route, filter| ConnectionRoute::Filter(filter, Box::new(route)))
+    }
+
+    ///
     /// Sends the delivery data for this route to another route
     ///
     pub fn pipe_to(self, next_route: ConnectionRoute) -> ConnectionRoute {
