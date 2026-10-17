@@ -18,7 +18,12 @@ pub (super) struct MessageTypeConnections {
     /// Cases where a stream arriving at a target should be redirected to a new target
     pub (super) redirects: HashMap<RedirectSource, StreamTarget>,
 
-    /// The source filters that can be applied to this message to change its type
+    /// The source filters that can be applied streams that output message_type to 
+    /// further change their type, hashed by output type.
+    ///
+    /// Source filters are 'rolled into' the targets when new connections are defined,
+    /// so this is only used when defining new filters rather than when looking up
+    /// the existing filters.
     pub (super) source_filters: HashMap<TypeId, FilterHandle>,
 
     /// The target filters than can be applied to this message to change its type
