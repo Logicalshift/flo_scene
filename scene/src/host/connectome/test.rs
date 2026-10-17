@@ -295,7 +295,10 @@ fn route_via_source_filter_to_source_specific_target() {
     connectome.connect(&StreamSource::Filtered(filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
     connectome.connect(&StreamSource::Program(source), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage2>()).unwrap();
 
-    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target)))));
+    let expected = Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target))));
+    let route    = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
+
+    assert!(route == expected, "{:?} != {:?}", route, expected);
 }
 
 ///

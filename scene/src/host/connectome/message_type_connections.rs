@@ -233,4 +233,29 @@ impl MessageTypeConnections {
 
         Ok(())
     }
+
+    ///
+    /// Sets the target for messages sent to a subprogram
+    ///
+    pub (super) fn add_target_for_source(&mut self, source: SubProgramId, target: &StreamTarget) -> Result<Vec<FilterHandle>, ConnectionError> {
+        // Set as the target for this program
+        self.target_for_source.insert(source, target.clone());
+
+        match target {
+            StreamTarget::None                                      => Ok(vec![]),
+            StreamTarget::Any                                       => Ok(vec![]),
+
+            StreamTarget::Program(_)    => {
+                Ok(self.source_filters.iter()
+                    .map(|(_source_type, source_filter)| source_filter.clone())
+                    .collect())
+            }
+
+            StreamTarget::Filtered(filter, _) => {
+                self.source_filters.iter()
+                    .map(|(_source_type, source_filter)| source_filter.chain(filter.clone()))
+                    .collect()
+            }
+        }
+    }
 }

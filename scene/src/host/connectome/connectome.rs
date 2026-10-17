@@ -305,7 +305,12 @@ impl Connectome {
 
                 (StreamSource::Program(source), StreamTarget::Filtered(target, program_id))     => { let implicit = connection.add_target_filter(Some(*source), target, *program_id)?; self.add_implicit_filters(implicit, Some(*source), *program_id)?; },
                 (StreamSource::Program(source), StreamTarget::Any)                              => { connection.target_for_source.remove(source); },
-                (StreamSource::Program(source), target)                                         => { connection.target_for_source.insert(*source, target.clone()); },
+                (StreamSource::Program(source), target)                                         => {
+                    let implicit = connection.add_target_for_source(*source, target)?; 
+                    if let Some(target) = target.target_sub_program() {
+                        self.add_implicit_filters(implicit, Some(*source), target)?;
+                    }
+                },
             }
         }
 
