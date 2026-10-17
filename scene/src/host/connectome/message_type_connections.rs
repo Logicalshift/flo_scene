@@ -242,8 +242,8 @@ impl MessageTypeConnections {
         self.target_for_source.insert(source, target.clone());
 
         match target {
-            StreamTarget::None                                      => Ok(vec![]),
-            StreamTarget::Any                                       => Ok(vec![]),
+            StreamTarget::None          => Ok(vec![]),
+            StreamTarget::Any           => Ok(vec![]),
 
             StreamTarget::Program(_)    => {
                 Ok(self.source_filters.iter()
