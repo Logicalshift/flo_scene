@@ -567,13 +567,16 @@ impl Connectome {
         }
 
         // Invalidate the routes that were affected by removing this program
-        let mut invalidated = self.invalidate_cached_routes_where(|_source_program, target, cached_stream, route| {
-            affected_types.contains(&cached_stream.message_type())
-                || target.target_sub_program() == Some(program_id)
-                || route.target_program() == Some(program_id)
-        });
+        let mut invalidated = affected_types.iter()
+            .flat_map(|affected_type| self.cached_routes_for_program.remove_routes_by_stream(affected_type, |_, _| true))
+            .map(|description| (description.source(), description.stream().clone()))
+            .collect::<InvalidatedStreams>();
 
         // The routes cached for this program as a source are no longer valid
+        for connection in self.cached_routes_for_program.remove_routes_by_target(program_id) {
+            invalidated.push(connection.source(), connection.stream().clone());
+        }
+
         for (stream, _target) in self.cached_routes_for_program.remove_program(program_id) {
             invalidated.push(program_id, stream);
         }
