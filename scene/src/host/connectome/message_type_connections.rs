@@ -36,8 +36,8 @@ pub (super) enum TargetSpecifier {
     /// The connection to use for any source targetting the specified program
     GeneralConnectionFor(SubProgramId),
 
-    /// The default route to use when no target is specified
-    DefaultRoute,
+    /// The default route to use when no target is specified (for an optional source)
+    DefaultRoute(Option<SubProgramId>),
 }
 
 ///
@@ -101,6 +101,15 @@ impl MessageTypeConnections {
     }
 
     ///
+    /// Returns the default route for this message type if there is one
+    ///
+    pub (super) fn default_route(&self, source: Option<SubProgramId>) -> Option<StreamTarget> {
+        self.targets
+            .get(&TargetSpecifier::DefaultRoute(source))
+            .cloned()
+    }
+
+    ///
     /// Looks to see if a stream is redirected elsewhere
     ///
     #[inline]
@@ -140,8 +149,8 @@ impl MessageTypeConnections {
         let specifier = match (source, target.target_sub_program()) {
             (Some(source), Some(target))    => TargetSpecifier::DirectConnectionBetween { source, target },
             (None, Some(target))            => TargetSpecifier::GeneralConnectionFor(target),
-            (None, None)                    => TargetSpecifier::DefaultRoute,
-            (Some(_source), None)           => return Err(ConnectionError::UnexpectedConnectionType),
+            (None, None)                    => TargetSpecifier::DefaultRoute(None),
+            (Some(source), None)            => TargetSpecifier::DefaultRoute(Some(source)),
         };
 
         self.targets.insert(specifier, target);
