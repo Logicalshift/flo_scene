@@ -184,76 +184,211 @@ impl Connectome {
     ///
     /// Finds a route for a stream targeting a specific subprogram ID
     ///
-    fn program_route(&self, stream: &StreamId, source: SubProgramId, target: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
-        if let Some(running_program_stream) = self.active_programs.get(&target) {
+    fn program_route(&self, stream: &StreamId, source_program: SubProgramId, target_program: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
+        if let Some(running_program_stream) = self.active_programs.get(&target_program) {
             // Program is running
             let target_type = running_program_stream.message_type();
 
-            if target_type == stream.message_type() {
-                // Program directly accepts this message type
-                Ok((ConnectionRoute::DeliverTo(target), StreamTarget::Program(target)))
-            } else if let Some(connections) = self.connections_for_message_type.get(&stream.message_type()) {
-                // See if there's a target filter for this type
-                if let Some(target_filter) = connections.target_filter(source, target_type, target) {
-                    // Use the target filter if one is found
-                    self.filtered_route(stream, source, &target_filter, target)
-                } else {
-                    // No way to filter this type to make it match
-                    Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
+            // The program can be connected to transitively (ie, this stream can resolve to a connection
+            // that needs to be further resolved)
+            struct RouteState {
+                target_program: SubProgramId,
+                filters:        Vec<FilterHandle>,
+                stream:         StreamId,
+            }
+
+            impl RouteState {
+                #[inline]
+                fn next_from_route(mut self, route: &ConnectionRoute) -> Result<Option<RouteState>, ConnectionError> {
+                    let Some(new_target) = route.target_program() else { return Ok(None) };
+                    self.target_program = new_target;
+
+                    self.filters.extend(route.filters().cloned());
+
+                    if let Some(last_filter) = self.filters.last() {
+                        self.stream = last_filter.target_stream_id_any()?;
+                    }
+
+                    Ok(Some(self))
                 }
-            } else {
-                // No connections are defined for this stream type
-                Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
+
+                #[inline]
+                fn next_from_target(mut self, stream_target: &StreamTarget) -> Result<Option<RouteState>, ConnectionError> {
+                    match stream_target {
+                        StreamTarget::None                          => return Ok(None),
+                        StreamTarget::Any                           => return Ok(None),
+                        StreamTarget::Program(program_id)           => { self.target_program = *program_id; },
+                        StreamTarget::Filtered(filter, program_id)  => {
+                            self.target_program = *program_id;
+                            self.filters.push(filter.clone());
+                            self.stream = filter.target_stream_id_any()?;
+                        },
+                    }
+
+                    Ok(Some(self))
+                }
+
+                #[inline]
+                fn route(self) -> ConnectionRoute {
+                    ConnectionRoute::deliver_to_with_filters(self.target_program, self.filters)
+                }
+            }
+
+            // State records the route we've discovered so far (directly trying to connect to the target program)
+            let mut state = RouteState {
+                target_program: target_program,
+                filters:        vec![],
+                stream:         stream.clone()
+            };
+            let mut visited_types   = HashSet::new();
+
+            // Loop until we've fully resolved the path the connection needs to take
+            loop {
+                // Can only visit each type once
+                if !visited_types.insert(state.stream.message_type()) {
+                    return Err(ConnectionError::StreamRedirectLoop);
+                }
+
+                if target_type == state.stream.message_type() {
+                    // Program directly accepts this message type
+                    return Ok((state.route(), StreamTarget::Program(target_program)))
+
+                } else if let Some(connections) = self.connections_for_message_type.get(&state.stream.message_type()) {
+                    // Try to route to the program through the hierarchy
+                    if let Some(route) = self.route_via_source_filter(connections, |new_connection| if new_connection.message_type == target_type { Some(target_program) } else { None }) {
+                        // There's a direct connection via a source filter to the program
+                        let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
+                        state = new_state;
+
+                    } else if let Some(target) = connections.direct_target_for_messages(source_program, state.target_program) {
+                        // There's a direct specifier for this program
+                        let Some(new_state) = state.next_from_target(&target)? else { return Ok((target.into(), StreamTarget::Program(target_program))) };
+                        state = new_state;
+
+                    } else if let Some(route) = self.route_via_source_filter(connections, |new_connection| new_connection.direct_target_for_messages(source_program, target_program)) {
+                        // There's a direct specifier for this program using a source filter from the stream type
+                        let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
+                        state = new_state;
+
+                    } else if let Some(target) = connections.general_target_for_program(state.target_program) {
+                        // The target program has a general route for this stream
+                        let Some(new_state) = state.next_from_target(&target)? else { return Ok((target.into(), StreamTarget::Program(target_program))) };
+                        state = new_state;
+
+                    } else if let Some(route) = self.route_via_source_filter(connections, |new_connection| new_connection.general_target_for_program(target_program)) {
+                        // There's a general connection via a target program
+                        let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
+                        state = new_state;
+
+                    } else {
+                        // No connections match this stream type
+                        return Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
+                    }
+                } else {
+                    // No connections are defined for this stream type
+                    return Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
+                }
             }
         } else {
-            // Program is not running
-            Ok((ConnectionRoute::Hold, StreamTarget::Program(target)))
+            // Program is not running: connections are held until it starts
+            Ok((ConnectionRoute::Hold, StreamTarget::Program(target_program)))
         }
     }
 
     ///
-    /// Finds a route for a stream that specifies a target via a filter
+    /// Routes from the result of a filter
     ///
-    fn filtered_route(&self, stream: &StreamId, source: SubProgramId, filter: &FilterHandle, target: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
-        // Fetch the source & target streams of the filter
-        let source_stream = filter.source_stream_id_any()?;
-        let target_stream = filter.target_stream_id_any()?;
+    fn filtered_route(&self, stream: &StreamId, source_program: SubProgramId, filter: &FilterHandle, target_program: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
+        let source_type = filter.source_stream_id_any()?;
+        let target_type = filter.target_stream_id_any()?;
 
-        // Source must match the source type
-        if source_stream.message_type() != stream.message_type() { return Err(ConnectionError::FilterInputDoesNotMatch) }
+        if source_type.message_type() != stream.message_type() { return Err(ConnectionError::FilterInputDoesNotMatch) }
 
-        // Try to connect the resulting stream to the target
-        let (target_connection, target) = self.program_route(&target_stream, source, target)?;
+        // After running through the filter, route to the program as normal
+        let (route_to_program, target) = self.program_route(&target_type, source_program, target_program)?;
 
-        Ok((ConnectionRoute::Filter(filter.clone(), Box::new(target_connection)), target))
+        // Route applies the filter then routes to the program as normal
+        Ok((ConnectionRoute::Filter(filter.clone(), Box::new(route_to_program)), target))
     }
 
     ///
     /// Finds a route for a message that has no target specified
     ///
     fn any_route(&self, stream: &StreamId, source: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
-        if let Some(connection) = self.connections_for_message_type.get(&stream.message_type()) {
-            // Get the target (either for a specific source program or the general connection)
-            let target = if let Some(target) = connection.target_for_source.get(&source) {
-                // There's an explicit target set for this subprogram to use
-                target
+        // Read the connection type, if it doesn't exist then the stream is held until it's created
+        let Some(connection) = self.connections_for_message_type.get(&stream.message_type())
+            else { return Ok((ConnectionRoute::Hold, StreamTarget::Any)); };
+
+        // Use the default target for this source if there is one
+        let default_target_for_source = connection.default_route(Some(source));
+        if let Some(default_target) = default_target_for_source {
+            if let Some(target_program) = default_target.target_sub_program() {
+                return self.program_route(stream, source, target_program);
             } else {
-                // There's no explicit target for this program
-                connection.default_target()
-            };
-
-            match target {
-                // Routing to 'None' or 'Any' resolves as either a Hold or a None route
-                StreamTarget::None  => Ok((ConnectionRoute::None, StreamTarget::Any)),
-                StreamTarget::Any   => Ok((ConnectionRoute::Hold, StreamTarget::Any)),
-
-                // Routing to a specific target routes as if that target was explicitly specified
-                specific_target     => self.basic_route(stream, source, specific_target)
+                return Ok((default_target.clone().into(), default_target));
             }
-        } else {
-            // There's no route for this message yet
-            Ok((ConnectionRoute::Hold, StreamTarget::Any))
         }
+
+        // Use a source filter to a default target for the source
+        let default_target_for_source = self.route_via_source_filter(connection, |new_connection| new_connection.default_route(Some(source)));
+        if let Some(default_target) = default_target_for_source && let Some(target_program) = default_target.target_program() {
+            return self.program_route(stream, source, target_program);
+        }
+
+        // Use the default target for the stream if there is one
+        let default_target_for_stream = connection.default_route(None);
+        if let Some(default_target) = default_target_for_stream {
+            if let Some(target_program) = default_target.target_sub_program() {
+                return self.program_route(stream, source, target_program);
+            } else {
+                return Ok((default_target.clone().into(), default_target));
+            }
+        }
+
+        // Use a source filter to a default target for the stream
+        let default_target_for_stream = self.route_via_source_filter(connection, |new_connection| new_connection.default_route(None));
+        if let Some(default_target) = default_target_for_stream && let Some(target_program) = default_target.target_program() {
+            return self.program_route(stream, source, target_program);
+        }
+
+        // No route
+        Ok((ConnectionRoute::Hold, StreamTarget::Any))
+    }
+
+    ///
+    /// Attempts to route to a target via a source filter from the specified connection
+    ///
+    fn route_via_source_filter<TGetTargetFn, TReturnType>(&self, connections: &MessageTypeConnections, get_target: TGetTargetFn) -> Option<ConnectionRoute>
+    where
+        TGetTargetFn:   Fn(&MessageTypeConnections) -> Option<TReturnType>,
+        TReturnType:    Into<ConnectionRoute>,
+    {
+        // We assume there are never very many source filters per type
+        for (target_type, filter) in connections.source_filters.iter().rev() {
+            // Fetch the target connection for this filter
+            let Some(target_connection) = self.connections_for_message_type.get(target_type) else { continue; };
+
+            if let Some(found_target) = get_target(target_connection) {
+                return Some(ConnectionRoute::Filter(filter.clone(), Box::new(found_target.into())));
+            }
+        }
+
+        None
+    }
+
+    ///
+    /// Ensures that all the types for a filter are created
+    ///
+    fn create_filter_types(&mut self, filter: &FilterHandle) -> Result<(), ConnectionError> {
+        let source_type = filter.source_stream_id_any()?;
+        let target_type = filter.target_stream_id_any()?;
+
+        self.connections_for_message_type.entry(source_type.message_type())
+            .or_insert_with(|| MessageTypeConnections::with_message_type(&source_type));
+        self.connections_for_message_type.entry(target_type.message_type())
+            .or_insert_with(|| MessageTypeConnections::with_message_type(&target_type));
+
+        Ok(())
     }
 
     ///
@@ -268,6 +403,22 @@ impl Connectome {
             self.connections_for_program.entry(target_program)
                 .or_insert_with(|| HashSet::new())
                 .insert(ProgramConnection { stream_id: stream.as_message_type() });
+        }
+
+        // Create message types for filters
+        if let StreamSource::Filtered(filter) = source {
+            self.create_filter_types(filter)?;
+
+            if filter.source_stream_id_any()?.message_type() != stream.message_type() {
+                return Err(ConnectionError::FilterInputDoesNotMatch);
+            }
+        }
+        if let StreamTarget::Filtered(filter, _) = target {
+            self.create_filter_types(filter)?;
+
+            if filter.source_stream_id_any()?.message_type() != stream.message_type() {
+                return Err(ConnectionError::FilterInputDoesNotMatch);
+            }
         }
 
         if let Some(target_program) = stream.target_program() {
@@ -290,26 +441,35 @@ impl Connectome {
                 .or_insert_with(|| MessageTypeConnections::with_message_type(&stream));
 
             match (source, target) {
-                (StreamSource::All, StreamTarget::Filtered(target, program_id))                 => { let implicit = connection.add_target_filter(None, target, *program_id)?; self.add_implicit_filters(implicit, None, *program_id)?; }
-                (StreamSource::All, target)                                                     => { 
-                    let implicit = connection.set_default_target(target)?; 
-                    if let Some(target_program) = target.target_sub_program() {
-                        self.add_implicit_filters(implicit, None, target_program)?; 
-                    }
-                },
+                (StreamSource::All, target)                                                 => connection.add_target(None, target.clone())?,
+                (StreamSource::Program(source), target)                                     => connection.add_target(Some(*source), target.clone())?,
                 
-                (StreamSource::Filtered(_source), StreamTarget::None)                           => { /* TODO: drop if matched? */ },
-                (StreamSource::Filtered(source), StreamTarget::Any)                             => { self.add_source_filter(&stream, source)?; } ,
-                (StreamSource::Filtered(source), StreamTarget::Program(program_id))             => { let implicit = connection.add_target_filter(None, source, *program_id)?; self.add_implicit_filters(implicit, None, *program_id)?; },
-                (StreamSource::Filtered(source), StreamTarget::Filtered(target, program_id))    => { let implicit = connection.add_target_filter(None, &source.chain(target.clone())?, *program_id)?; self.add_implicit_filters(implicit, None, *program_id)?; },
+                (StreamSource::Filtered(_), StreamTarget::None)                             => { /* TODO: connect to None if the source filter is matched? */ },
+                (StreamSource::Filtered(filter), StreamTarget::Any)                         => {
+                    // Add as a source filter to the current type
+                    let target = filter.target_stream_id_any()?;
+                    connection.add_source_filter(filter)?;
+                    
+                    // Add as a back reference to the target type
+                    let target_connection = self.connections_for_message_type.entry(target.message_type())
+                        .or_insert_with(|| MessageTypeConnections::with_message_type(&target));
+                    target_connection.from_source_filters.insert(stream.message_type());
+                },
+                (StreamSource::Filtered(filter), StreamTarget::Program(program))            => {
+                    // This is just a target filter written in a different way
+                    let source      = filter.source_stream_id_any()?;
+                    let connection  = self.connections_for_message_type.entry(source.message_type())
+                        .or_insert_with(|| MessageTypeConnections::with_message_type(&source));
 
-                (StreamSource::Program(source), StreamTarget::Filtered(target, program_id))     => { let implicit = connection.add_target_filter(Some(*source), target, *program_id)?; self.add_implicit_filters(implicit, Some(*source), *program_id)?; },
-                (StreamSource::Program(source), StreamTarget::Any)                              => { connection.target_for_source.remove(source); },
-                (StreamSource::Program(source), target)                                         => {
-                    let implicit = connection.add_target_for_source(*source, target)?; 
-                    if let Some(target) = target.target_sub_program() {
-                        self.add_implicit_filters(implicit, Some(*source), target)?;
-                    }
+                    connection.add_target(None, StreamTarget::Filtered(filter.clone(), *program))?
+                },
+                (StreamSource::Filtered(filter1), StreamTarget::Filtered(filter2, program)) => {
+                    // Combine the filters to make a target filter
+                    let source      = filter1.source_stream_id_any()?;
+                    let connection  = self.connections_for_message_type.entry(source.message_type())
+                        .or_insert_with(|| MessageTypeConnections::with_message_type(&source));
+
+                    connection.add_target(None, StreamTarget::Filtered(filter1.chain(filter2.clone())?, *program))?
                 },
             }
         }
@@ -344,84 +504,6 @@ impl Connectome {
     }
 
     ///
-    /// Adds a new source filter
-    ///
-    /// Source filters modify how their target types behave: whenever a new connection of that
-    /// type is added, the source filters that target it create an extra target filter that
-    /// processes the type.
-    ///
-    fn add_source_filter(&mut self, stream: &StreamId, source_filter: &FilterHandle) -> Result<(), ConnectionError> {
-        // Fetch the source/target types for this filter
-        let source_type = source_filter.source_stream_id_any()?;
-        let target_type = source_filter.target_stream_id_any()?;
-
-        if source_type.as_message_type() != stream.as_message_type() {
-            return Err(ConnectionError::FilterInputDoesNotMatch);
-        }
-
-        // Fetch the existing target connection
-        let target_connection = self.connections_for_message_type
-            .entry(target_type.message_type())
-            .or_insert_with(|| MessageTypeConnections::with_message_type(&target_type));
-
-        // Add to the existing filters + the default connection
-        let mut new_connections = vec![];
-        for (filter_description, filter_handle) in target_connection.target_filters.iter() {
-            // Chain the filter. Description is the same, we just store on a different type
-            let with_source_filter = source_filter.chain(filter_handle.clone())?;
-            new_connections.push((filter_description.clone(), with_source_filter));
-        }
-
-        // Default connection is also affected (if it targets a program)
-        if let Some(default_target) = target_connection.default_target.target_sub_program() {
-            new_connections.push((TargetFilter { source: None, to_type: target_type.message_type(), target: default_target }, source_filter.clone()));
-        }
-
-        // Store in the target type so that adding new filter types/etc can add appropriate source values
-        target_connection.add_source_filter(source_filter)?;
-
-        // Programs that are already running with this input type can also be reached directly through this filter
-        let matching_programs = self.active_programs.iter()
-            .filter(|(_program_id, input_stream)| input_stream.message_type() == target_type.message_type())
-            .map(|(program_id, _input_stream)| *program_id)
-            .collect::<Vec<_>>();
-
-        // Add missing filters to the filter targets for the source type
-        let source_connection = self.connections_for_message_type
-            .entry(source_type.message_type())
-            .or_insert_with(|| MessageTypeConnections::with_message_type(&source_type));
-
-        for (target_filter, filter_handle) in new_connections {
-            source_connection.add_implicit_target_filter(target_filter.source, &filter_handle, target_filter.target, true)?;
-        }
-
-        // A running program is directly targetable through the filter, but does not become the default target
-        for program_id in matching_programs {
-            source_connection.add_implicit_target_filter(None, source_filter, program_id, false)?;
-        }
-
-        Ok(())
-    }
-
-    ///
-    /// Adds/updates the implicit filters generated by a call to 'add_target_filter' to the appropriate connections
-    ///
-    fn add_implicit_filters(&mut self, filters: impl IntoIterator<Item=FilterHandle>, source: Option<SubProgramId>, target_program: SubProgramId) -> Result<(), ConnectionError> {
-        for filter in filters {
-            let source_stream = filter.source_stream_id_any()?;
-            let target_stream = filter.target_stream_id_any()?;
-
-            // Fetch the connection for the source of the filter
-            let connection = self.connections_for_message_type.entry(source_stream.message_type())
-                .or_insert_with(|| MessageTypeConnections::with_message_type(&source_stream));
-
-            connection.add_implicit_target_filter(source, &filter, target_program, true)?;
-        }
-
-        Ok(())
-    }
-
-    ///
     /// Adds a new subprogram and its stream ID to this connectome
     ///
     /// Returns the streams whose cached routes were invalidated because they targeted this program
@@ -430,9 +512,9 @@ impl Connectome {
     pub fn add_subprogram(&mut self, new_program_id: SubProgramId, input_stream: StreamId) -> InvalidatedStreams {
         self.active_programs.insert(new_program_id, input_stream.clone());
 
-        // Any source filter that produces this program's input type can now deliver messages directly
-        // to this program
-        self.add_implicit_filters_for_program(new_program_id, input_stream.message_type());
+        // Make sure the program's stream ID is initialised
+        self.connections_for_message_type.entry(input_stream.message_type())
+            .or_insert_with(|| MessageTypeConnections::with_message_type(&input_stream));
 
         // Any type connected to this program, plus types that can filter to those types, may now
         // resolve to this program rather than being held
@@ -443,37 +525,21 @@ impl Connectome {
 
         let affected_types = self.message_types_affected_by(affected_seeds);
 
-        self.invalidate_cached_routes_where(|_source_program, target, cached_stream, route| {
-            affected_types.contains(&cached_stream.message_type())
-                || target.target_sub_program() == Some(new_program_id)
-                || route.target_program() == Some(new_program_id)
-        })
-    }
+        // Invalidate the routes that were affected by removing this program
+        let mut invalidated = affected_types.iter()
+            .flat_map(|affected_type| self.cached_routes_for_program.remove_routes_by_stream(affected_type, |_, _| true))
+            .collect::<InvalidatedStreams>();
 
-    ///
-    /// Adds the implicit filters that let source filters reach a newly-started program
-    ///
-    /// When a program starts, any source filter that produces its input type becomes a valid way to
-    /// reach that program directly, so an implicit target filter is added for each of those source
-    /// filters. The program does not become the default target for the filtered stream.
-    ///
-    fn add_implicit_filters_for_program(&mut self, program_id: SubProgramId, input_type: TypeId) {
-        // Fetch the source filters that produce this program's input type
-        let source_filters = match self.connections_for_message_type.get(&input_type) {
-            Some(connections) => connections.source_filters.values().cloned().collect::<Vec<_>>(),
-            None              => return,
-        };
-
-        for source_filter in source_filters {
-            // Work out the source type for this filter (the connection should already exist, as it
-            // is created when the source filter is added)
-            let Ok(source_stream) = source_filter.source_stream_id_any() else { continue; };
-
-            if let Some(source_connection) = self.connections_for_message_type.get_mut(&source_stream.message_type()) {
-                // Not an error to fail here: the filter just doesn't apply to this connection
-                let _ = source_connection.add_implicit_target_filter(None, &source_filter, program_id, false);
-            }
+        // The routes cached for this program as a source are no longer valid
+        for connection in self.cached_routes_for_program.remove_routes_by_target(new_program_id) {
+            invalidated.push(connection.source(), connection.stream().clone());
         }
+
+        for (stream, _target) in self.cached_routes_for_program.remove_program(new_program_id) {
+            invalidated.push(new_program_id, stream);
+        }
+
+        invalidated
     }
 
     ///
@@ -505,25 +571,21 @@ impl Connectome {
                     else { continue; };
 
                 // Remove any connections that are from this program or which target this program
-                message_type.target_filters.retain(|filter, _| filter.source != Some(program_id) && filter.target != program_id);
-                message_type.target_for_source.remove(&program_id);
-                message_type.target_for_source.retain(|_, target| target != &StreamTarget::Program(program_id));
+                message_type.targets.retain(|specifier, target| specifier.source_program() != Some(program_id) && target.target_sub_program() != Some(program_id));
                 message_type.redirects.retain(|redirect, _| redirect.source != Some(program_id) && redirect.target != StreamTarget::Program(program_id));
-
-                if message_type.default_target.target_sub_program() == Some(program_id) {
-                    message_type.default_target = program.stream_id.default_target();
-                }
             }
         }
 
         // Invalidate the routes that were affected by removing this program
-        let mut invalidated = self.invalidate_cached_routes_where(|_source_program, target, cached_stream, route| {
-            affected_types.contains(&cached_stream.message_type())
-                || target.target_sub_program() == Some(program_id)
-                || route.target_program() == Some(program_id)
-        });
+        let mut invalidated = affected_types.iter()
+            .flat_map(|affected_type| self.cached_routes_for_program.remove_routes_by_stream(affected_type, |_, _| true))
+            .collect::<InvalidatedStreams>();
 
         // The routes cached for this program as a source are no longer valid
+        for connection in self.cached_routes_for_program.remove_routes_by_target(program_id) {
+            invalidated.push(connection.source(), connection.stream().clone());
+        }
+
         for (stream, _target) in self.cached_routes_for_program.remove_program(program_id) {
             invalidated.push(program_id, stream);
         }
@@ -546,32 +608,12 @@ impl Connectome {
             if !affected.insert(affected_type) { continue; }
 
             // Any type that can filter into this type is also affected
-            for (source_type, connections) in self.connections_for_message_type.iter() {
-                if connections.source_filters.contains_key(&affected_type) {
-                    to_visit.push(*source_type);
-                }
+            if let Some(connections) = self.connections_for_message_type.get(&affected_type) {
+                to_visit.extend(connections.from_source_filters.iter().copied());
             }
         }
 
         affected
-    }
-
-    ///
-    /// Removes every cached route matching a predicate, returning the streams that were invalidated
-    ///
-    fn invalidate_cached_routes_where(&mut self, mut invalid: impl FnMut(&SubProgramId, &StreamTarget, &StreamId, &ConnectionRoute) -> bool) -> InvalidatedStreams {
-        let mut invalidated = InvalidatedStreams::default();
-
-        self.cached_routes_for_program.retain(|source_program, target, stream, route| {
-            if invalid(source_program, target, stream, route) {
-                invalidated.push(*source_program, stream.clone());
-                false
-            } else {
-                true
-            }
-        });
-
-        invalidated
     }
 }
 

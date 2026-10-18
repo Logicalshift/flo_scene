@@ -1,4 +1,5 @@
 use crate::host::filter::*;
+use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
 ///
@@ -20,6 +21,32 @@ pub enum ConnectionRoute {
 }
 
 impl ConnectionRoute {
+    ///
+    /// Creates a route that delivers to a target with zero or more filters
+    ///
+    pub fn deliver_to_with_filters<TIter>(target: SubProgramId, filters: TIter) -> ConnectionRoute
+    where
+        TIter:              IntoIterator<Item=FilterHandle>,
+        TIter::IntoIter:    DoubleEndedIterator,
+    {
+        filters
+            .into_iter()
+            .rev()
+            .fold(ConnectionRoute::DeliverTo(target), |route, filter| ConnectionRoute::Filter(filter, Box::new(route)))
+    }
+
+    ///
+    /// Creates a connection route that delivers to a specific stream target (whose type is verified to match this program's type)
+    ///
+    pub fn for_target(target: StreamTarget) -> Self {
+        match target {
+            StreamTarget::None                      => Self::None,
+            StreamTarget::Any                       => Self::Hold,
+            StreamTarget::Program(target)           => Self::DeliverTo(target),
+            StreamTarget::Filtered(filter, target)  => Self::Filter(filter, Box::new(Self::DeliverTo(target))),
+        }
+    }
+
     ///
     /// Sends the delivery data for this route to another route
     ///
@@ -46,5 +73,37 @@ impl ConnectionRoute {
                 ConnectionRoute::Filter(_, next_route)      => { route = &*next_route },
             }
         }
+    }
+
+    ///
+    /// Returns the filters that make up this route
+    ///
+    pub fn filters<'a>(&'a self) -> impl 'a + Iterator<Item=&'a FilterHandle> {
+        use std::iter;
+
+        let mut pos = self;
+        iter::from_fn(move || {
+            match pos {
+                ConnectionRoute::Filter(filter_handle, connection_route) => {
+                    pos = &*connection_route;
+                    Some(filter_handle)
+                },
+                _ => None
+            }
+        })
+    }
+}
+
+impl From<StreamTarget> for ConnectionRoute {
+    #[inline]
+    fn from(value: StreamTarget) -> Self {
+        Self::for_target(value)
+    }
+}
+
+impl From<SubProgramId> for ConnectionRoute {
+    #[inline]
+    fn from(value: SubProgramId) -> Self {
+        Self::DeliverTo(value)
     }
 }

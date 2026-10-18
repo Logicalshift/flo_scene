@@ -88,6 +88,25 @@ fn filter_connection_must_match_source_type_2() {
 }
 
 #[test]
+fn filter_via_transitive_route() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+    let filter1         = (*TESTMESSAGE_1_TO_2).clone();
+    let filter2         = (*TESTMESSAGE_2_TO_3).clone();
+
+    // Two filters needed to send to a program
+    connectome.connect(&().into(), &StreamTarget::Filtered(filter1.clone(), target), StreamId::with_message_type::<TestMessage>()).unwrap();
+    connectome.connect(&().into(), &StreamTarget::Filtered(filter2.clone(), target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage3>());
+
+    let route       = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &target.into());
+    let expected    = Ok(ConnectionRoute::Filter(filter1, Box::new(ConnectionRoute::Filter(filter2, Box::new(ConnectionRoute::DeliverTo(target))))));
+
+    assert!(route == expected, "{:?} != {:?}", route, expected);
+}
+
+#[test]
 fn route_direct_to_started_program() {
     let mut connectome  = Connectome::default();
     let source          = SubProgramId::new();
@@ -255,13 +274,18 @@ fn route_via_source_filter_to_program() {
     let mut connectome  = Connectome::default();
     let source          = SubProgramId::new();
     let target          = SubProgramId::new();
-    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
     let filter          = (*TESTMESSAGE_1_TO_2).clone();
 
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
     connectome.connect(&StreamSource::Filtered(filter.clone()), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
 
-    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Filter(filter.clone(), Box::new(ConnectionRoute::DeliverTo(target)))));
-    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Program(target)) == Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target)))));
+    let route       = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
+    let expected    = Ok(ConnectionRoute::Filter(filter.clone(), Box::new(ConnectionRoute::DeliverTo(target))));
+    assert!(route == expected, "{:?} != {:?}", route, expected);
+
+    let route       = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Program(target));
+    let expected    = Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target))));
+    assert!(route == expected, "{:?} != {:?}", route, expected);
 }
 
 ///
@@ -348,13 +372,16 @@ fn route_via_source_filter_and_source_connection() {
     let mut connectome  = Connectome::default();
     let source          = SubProgramId::new();
     let target          = SubProgramId::new();
-    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
     let filter          = (*TESTMESSAGE_1_TO_2).clone();
 
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
     connectome.connect(&StreamSource::Filtered(filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
     connectome.connect(&StreamSource::Program(source), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
 
-    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target)))));
+    let route       = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any); 
+    let expected    = Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target))));
+
+    assert!(route == expected, "{:?} != {:?}", route, expected);
 }
 
 ///
