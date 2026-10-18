@@ -444,8 +444,17 @@ impl Connectome {
                 (StreamSource::All, target)                                                 => connection.add_target(None, target.clone())?,
                 (StreamSource::Program(source), target)                                     => connection.add_target(Some(*source), target.clone())?,
                 
-                (StreamSource::Filtered(filter), StreamTarget::Any)                         => connection.add_source_filter(filter)?,
                 (StreamSource::Filtered(_), StreamTarget::None)                             => { /* TODO: connect to None if the source filter is matched? */ },
+                (StreamSource::Filtered(filter), StreamTarget::Any)                         => {
+                    // Add as a source filter to the current type
+                    let target = filter.target_stream_id_any()?;
+                    connection.add_source_filter(filter)?;
+                    
+                    // Add as a back reference to the target type
+                    let target_connection = self.connections_for_message_type.entry(target.message_type())
+                        .or_insert_with(|| MessageTypeConnections::with_message_type(&target));
+                    target_connection.from_source_filters.insert(stream.message_type());
+                },
                 (StreamSource::Filtered(filter), StreamTarget::Program(program))            => {
                     // This is just a target filter written in a different way
                     let source      = filter.source_stream_id_any()?;
@@ -586,9 +595,9 @@ impl Connectome {
         while let Some(affected_type) = to_visit.pop() {
             if !affected.insert(affected_type) { continue; }
 
-            // Any type that this type can filter into is also affected
+            // Any type that can filter into this type is also affected
             if let Some(connections) = self.connections_for_message_type.get(&affected_type) {
-                to_visit.extend(connections.source_filters.iter().map(|(source_type, _)| *source_type));
+                to_visit.extend(connections.from_source_filters.iter().copied());
             }
         }
 
