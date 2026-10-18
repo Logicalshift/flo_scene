@@ -322,25 +322,33 @@ impl Connectome {
         // Use the default target for this source if there is one
         let default_target_for_source = connection.default_route(Some(source));
         if let Some(default_target) = default_target_for_source {
-            return Ok((default_target.clone().into(), default_target));
+            if let Some(target_program) = default_target.target_sub_program() {
+                return self.program_route(stream, source, target_program);
+            } else {
+                return Ok((default_target.clone().into(), default_target));
+            }
         }
 
         // Use a source filter to a default target for the source
         let default_target_for_source = self.route_via_source_filter(connection, |new_connection| new_connection.default_route(Some(source)));
         if let Some(default_target) = default_target_for_source && let Some(target_program) = default_target.target_program() {
-            return Ok((default_target, StreamTarget::Program(target_program)))
+            return self.program_route(stream, source, target_program);
         }
 
         // Use the default target for the stream if there is one
         let default_target_for_stream = connection.default_route(None);
         if let Some(default_target) = default_target_for_stream {
-            return Ok((default_target.clone().into(), default_target));
+            if let Some(target_program) = default_target.target_sub_program() {
+                return self.program_route(stream, source, target_program);
+            } else {
+                return Ok((default_target.clone().into(), default_target));
+            }
         }
 
         // Use a source filter to a default target for the stream
         let default_target_for_stream = self.route_via_source_filter(connection, |new_connection| new_connection.default_route(None));
         if let Some(default_target) = default_target_for_stream && let Some(target_program) = default_target.target_program() {
-            return Ok((default_target, StreamTarget::Program(target_program)))
+            return self.program_route(stream, source, target_program);
         }
 
         // No route
