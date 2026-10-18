@@ -193,7 +193,7 @@ impl Connectome {
                 // Program directly accepts this message type
                 Ok((ConnectionRoute::DeliverTo(target_program), StreamTarget::Program(target_program)))
 
-            } else if let Some(connections) = self.connections_for_message_type.get(&target_type) {
+            } else if let Some(connections) = self.connections_for_message_type.get(&stream.message_type()) {
                 // Try to route to the program through the hierarchy
                 if let Some(target) = self.route_via_source_filter(connections, |new_connection| if new_connection.message_type == target_type { Some(target_program) } else { None }) {
                     // There's a direct connection via a source filter to the program
