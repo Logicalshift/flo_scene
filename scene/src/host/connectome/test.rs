@@ -260,8 +260,13 @@ fn route_via_source_filter_to_program() {
 
     connectome.connect(&StreamSource::Filtered(filter.clone()), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
 
-    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Filter(filter.clone(), Box::new(ConnectionRoute::DeliverTo(target)))));
-    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Program(target)) == Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target)))));
+    let route       = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
+    let expected    = Ok(ConnectionRoute::Filter(filter.clone(), Box::new(ConnectionRoute::DeliverTo(target))));
+    assert!(route == expected, "{:?} != {:?}", route, expected);
+
+    let route       = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Program(target));
+    let expected    = Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target))));
+    assert!(route == expected, "{:?} != {:?}", route, expected);
 }
 
 ///
