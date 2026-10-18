@@ -384,6 +384,10 @@ impl Connectome {
     pub fn add_subprogram(&mut self, new_program_id: SubProgramId, input_stream: StreamId) -> InvalidatedStreams {
         self.active_programs.insert(new_program_id, input_stream.clone());
 
+        // Make sure the program's stream ID is initialised
+        self.connections_for_message_type.entry(input_stream.message_type())
+            .or_insert_with(|| MessageTypeConnections::with_message_type(&input_stream));
+
         // Any type connected to this program, plus types that can filter to those types, may now
         // resolve to this program rather than being held
         let mut affected_seeds = vec![input_stream.message_type()];
