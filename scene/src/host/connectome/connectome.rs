@@ -199,7 +199,7 @@ impl Connectome {
 
             impl RouteState {
                 #[inline]
-                fn next_from_route(mut self, route: ConnectionRoute) -> Result<Option<RouteState>, ConnectionError> {
+                fn next_from_route(mut self, route: &ConnectionRoute) -> Result<Option<RouteState>, ConnectionError> {
                     let Some(new_target) = route.target_program() else { return Ok(None) };
                     self.target_program = new_target;
 
@@ -255,9 +255,9 @@ impl Connectome {
 
                 } else if let Some(connections) = self.connections_for_message_type.get(&stream.message_type()) {
                     // Try to route to the program through the hierarchy
-                    if let Some(target) = self.route_via_source_filter(connections, |new_connection| if new_connection.message_type == target_type { Some(target_program) } else { None }) {
+                    if let Some(route) = self.route_via_source_filter(connections, |new_connection| if new_connection.message_type == target_type { Some(target_program) } else { None }) {
                         // There's a direct connection via a source filter to the program
-                        let Some(new_state) = state.next_from_route(target)? else { return Ok((target, StreamTarget::Program(target_program))) };
+                        let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
                         state = new_state;
 
                     } else if let Some(target) = connections.direct_target_for_messages(source_program, target_program) {
@@ -267,7 +267,7 @@ impl Connectome {
 
                     } else if let Some(route) = self.route_via_source_filter(connections, |new_connection| new_connection.direct_target_for_messages(source_program, target_program)) {
                         // There's a direct specifier for this program using a source filter from the stream type
-                        let Some(new_state) = state.next_from_route(route)? else { return Ok((route, StreamTarget::Program(target_program))) };
+                        let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
                         state = new_state;
 
                     } else if let Some(target) = connections.general_target_for_program(target_program) {
@@ -277,7 +277,7 @@ impl Connectome {
 
                     } else if let Some(route) = self.route_via_source_filter(connections, |new_connection| new_connection.general_target_for_program(target_program)) {
                         // There's a general connection via a target program
-                        let Some(new_state) = state.next_from_route(route)? else { return Ok((route, StreamTarget::Program(target_program))) };
+                        let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
                         state = new_state;
 
                     } else {
