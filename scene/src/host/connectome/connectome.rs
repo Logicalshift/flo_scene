@@ -230,6 +230,42 @@ impl Connectome {
     }
 
     ///
+    /// Finds a route for a message that has no target specified
+    ///
+    fn any_route(&self, stream: &StreamId, source: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
+        // Read the connection type, if it doesn't exist then the stream is held until it's created
+        let Some(connection) = self.connections_for_message_type.get(&stream.message_type())
+            else { return Ok((ConnectionRoute::Hold, StreamTarget::Any)); };
+
+        // Use the default target for this source if there is one
+        let default_target_for_source = connection.default_route(Some(source));
+        if let Some(default_target) = default_target_for_source && default_target.target_sub_program().is_some() {
+            return Ok((default_target.clone().into(), default_target));
+        }
+
+        // Use a source filter to a default target for the source
+        let default_target_for_source = self.route_via_source_filter(connection, |new_connection| new_connection.default_route(Some(source)));
+        if let Some(default_target) = default_target_for_source && let Some(target_program) = default_target.target_program() {
+            return Ok((default_target, StreamTarget::Program(target_program)))
+        }
+
+        // Use the default target for the stream if there is one
+        let default_target_for_stream = connection.default_route(None);
+        if let Some(default_target) = default_target_for_stream && default_target.target_sub_program().is_some() {
+            return Ok((default_target.clone().into(), default_target));
+        }
+
+        // Use a source filter to a default target for the stream
+        let default_target_for_stream = self.route_via_source_filter(connection, |new_connection| new_connection.default_route(None));
+        if let Some(default_target) = default_target_for_stream && let Some(target_program) = default_target.target_program() {
+            return Ok((default_target, StreamTarget::Program(target_program)))
+        }
+
+        // No route
+        Ok((ConnectionRoute::Hold, StreamTarget::Any))
+    }
+
+    ///
     /// Attempts to route to a target via a source filter from the specified connection
     ///
     fn route_via_source_filter<TGetTargetFn, TReturnType>(&self, connections: &MessageTypeConnections, get_target: TGetTargetFn) -> Option<ConnectionRoute>
@@ -248,32 +284,6 @@ impl Connectome {
         }
 
         None
-    }
-
-    ///
-    /// Finds a route for a message that has no target specified
-    ///
-    fn any_route(&self, stream: &StreamId, source: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
-        // Read the connection type, if it doesn't exist then the stream is held until it's created
-        let Some(connection) = self.connections_for_message_type.get(&stream.message_type())
-            else { return Ok((ConnectionRoute::Hold, StreamTarget::Any)); };
-
-        // Use the default target for this source if there is one
-        let default_target = connection.default_route(Some(source));
-        if let Some(default_target) = default_target {
-            if let Some(target) = default_target.target_sub_program() {
-                return Ok((default_target.clone().into(), default_target));
-            }
-        }
-
-        // Use a source filter to a default target for the source
-
-        // Use the default target for the stream if there is one
-
-        // Use a source filter to a default target for the stream
-
-        // No route
-        Ok((ConnectionRoute::Hold, StreamTarget::Any))
     }
 
     ///
