@@ -21,6 +21,9 @@ pub (super) struct MessageTypeConnections {
     /// Source filters that can be used to change this type into something else
     pub (super) source_filters: Vec<(TypeId, FilterHandle)>,
 
+    /// Types that can be converted into this one using a source filter
+    pub (super) from_source_filters: HashSet<TypeId>,
+
     /// The targets where streams of this type can be sent
     pub (super) targets: HashMap<TargetSpecifier, StreamTarget>,
 }
@@ -70,6 +73,7 @@ impl MessageTypeConnections {
             message_type:               stream_id.message_type(),
             redirects:                  HashMap::new(),
             source_filters:             vec![],
+            from_source_filters:        HashSet::new(),
             targets:                    targets,
         }
     }
@@ -138,7 +142,7 @@ impl MessageTypeConnections {
             return Err(ConnectionError::FilterInputDoesNotMatch);
         }
 
-        // Add to the filters list
+        // Add to the filters list (we retain only one source per target type, newer ones overwrite older ones)
         let target_type = source_filter.target_stream_id_any()?.message_type();
 
         self.source_filters.retain(|(filter_type, _)| filter_type != &target_type);
