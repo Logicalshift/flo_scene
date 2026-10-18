@@ -303,6 +303,21 @@ impl Connectome {
     }
 
     ///
+    /// Ensures that all the types for a filter are created
+    ///
+    fn create_filter_types(&mut self, filter: &FilterHandle) -> Result<(), ConnectionError> {
+        let source_type = filter.source_stream_id_any()?;
+        let target_type = filter.target_stream_id_any()?;
+
+        self.connections_for_message_type.entry(source_type.message_type())
+            .or_insert_with(|| MessageTypeConnections::with_message_type(&source_type));
+        self.connections_for_message_type.entry(target_type.message_type())
+            .or_insert_with(|| MessageTypeConnections::with_message_type(&target_type));
+
+        Ok(())
+    }
+
+    ///
     /// Adds a connection to the connectome
     ///
     /// Returns the streams whose cached routes were invalidated by this connection, which should be
@@ -314,6 +329,14 @@ impl Connectome {
             self.connections_for_program.entry(target_program)
                 .or_insert_with(|| HashSet::new())
                 .insert(ProgramConnection { stream_id: stream.as_message_type() });
+        }
+
+        // Create message types for filters
+        if let StreamSource::Filtered(filter) = source {
+            self.create_filter_types(filter)?;
+        }
+        if let StreamTarget::Filtered(filter, _) = target {
+            self.create_filter_types(filter)?;
         }
 
         if let Some(target_program) = stream.target_program() {
