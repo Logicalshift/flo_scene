@@ -255,9 +255,9 @@ fn route_via_source_filter_to_program() {
     let mut connectome  = Connectome::default();
     let source          = SubProgramId::new();
     let target          = SubProgramId::new();
-    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
     let filter          = (*TESTMESSAGE_1_TO_2).clone();
 
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
     connectome.connect(&StreamSource::Filtered(filter.clone()), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
 
     let route       = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);

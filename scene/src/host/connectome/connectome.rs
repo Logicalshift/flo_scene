@@ -364,8 +364,20 @@ impl Connectome {
                 
                 (StreamSource::Filtered(filter), StreamTarget::Any)                         => connection.add_source_filter(filter)?,
                 (StreamSource::Filtered(_), StreamTarget::None)                             => { /* TODO: connect to None if the source filter is matched? */ },
-                (StreamSource::Filtered(filter), StreamTarget::Program(program))            => connection.add_target(None, StreamTarget::Filtered(filter.clone(), *program))?,
-                (StreamSource::Filtered(filter1), StreamTarget::Filtered(filter2, program)) => connection.add_target(None, StreamTarget::Filtered(filter1.chain(filter2.clone())?, *program))?,
+                (StreamSource::Filtered(filter), StreamTarget::Program(program))            => {
+                    let source      = filter.source_stream_id_any()?;
+                    let connection  = self.connections_for_message_type.entry(source.message_type())
+                        .or_insert_with(|| MessageTypeConnections::with_message_type(&source));
+
+                    connection.add_target(None, StreamTarget::Filtered(filter.clone(), *program))?
+                },
+                (StreamSource::Filtered(filter1), StreamTarget::Filtered(filter2, program)) => {
+                    let source      = filter1.source_stream_id_any()?;
+                    let connection  = self.connections_for_message_type.entry(source.message_type())
+                        .or_insert_with(|| MessageTypeConnections::with_message_type(&source));
+
+                    connection.add_target(None, StreamTarget::Filtered(filter1.chain(filter2.clone())?, *program))?
+                },
             }
         }
 
