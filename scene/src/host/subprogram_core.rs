@@ -144,7 +144,7 @@ impl SubProgramCore {
     }
 
     ///
-    /// Attempts to reconnect any output sinks that are 
+    /// Attempts to reconnect any output sinks that are marked as disconnected
     ///
     pub (crate) fn reconnect_disconnected_outputs(program_core: &Arc<Mutex<SubProgramCore>>, scene_core: &Arc<Mutex<SceneCore>>, reconnect_stream_id: &StreamId) -> Option<Waker> {
         // Get the disconnected output sinks that match this
