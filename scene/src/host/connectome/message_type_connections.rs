@@ -58,11 +58,19 @@ impl MessageTypeConnections {
     ///
     #[inline]
     pub (super) fn with_message_type(stream_id: &StreamId) -> Self {
+        // Establish the default route, if specified by the stream
+        let mut targets     = HashMap::new();
+        let default_route   = stream_id.default_target();
+
+        if default_route != StreamTarget::Any {
+            targets.insert(TargetSpecifier::DefaultRoute(None), default_route);
+        }
+
         Self {
             message_type:               stream_id.message_type(),
             redirects:                  HashMap::new(),
             source_filters:             vec![],
-            targets:                    HashMap::new(),
+            targets:                    targets,
         }
     }
 
