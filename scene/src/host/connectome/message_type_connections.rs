@@ -126,8 +126,8 @@ impl MessageTypeConnections {
     ///
     pub (super) fn add_source_filter(&mut self, source_filter: &FilterHandle) -> Result<(), ConnectionError> {
         // Check the input type
-        if source_filter.target_stream_id_any()?.message_type() != self.message_type {
-            return Err(ConnectionError::FilterOutputDoesNotMatch);
+        if source_filter.source_stream_id_any()?.message_type() != self.message_type {
+            return Err(ConnectionError::FilterInputDoesNotMatch);
         }
 
         // Add to the filters list
