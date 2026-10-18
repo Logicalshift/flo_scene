@@ -115,10 +115,8 @@ impl ResolvedRoutes {
         // Clear out the other caches
         if let Some(removed) = removed.as_ref() {
             for ((stream, target), _) in removed.resolved_streams.iter() {
-                if let Some(type_routes) = self.routes_for_type.get_mut(&stream.message_type()) {
-                    let description = ConnectionDescription::new(&program_id, stream, target);
-                    type_routes.remove(&description);
-                }
+                let description = ConnectionDescription { source: program_id, target: target.clone(), stream: stream.clone() };
+                self.remove_route(&description);
             }
         }
 
@@ -134,24 +132,22 @@ impl ResolvedRoutes {
     ///
     /// Removes a single route from this cache
     ///
-    pub fn remove_route(&mut self, source: &SubProgramId, target: &StreamTarget, stream: &StreamId) -> Option<ConnectionRoute> {
+    pub fn remove_route(&mut self, connection: &ConnectionDescription) -> Option<ConnectionRoute> {
         // Remove from the main cache
-        let removed = self.routes_for_source_program.get_mut(source)
-            .and_then(|program_routes| program_routes.resolved_streams.remove(&(stream.clone(), target.clone())));
+        let removed = self.routes_for_source_program.get_mut(&connection.source)
+            .and_then(|program_routes| program_routes.resolved_streams.remove(&(connection.stream.clone(), connection.target.clone())));
 
         // Clear out the other caches
-        let description = ConnectionDescription::new(source, stream, target);
-
-        if let Some(type_routes) = self.routes_for_type.get_mut(&stream.message_type()) {
-            type_routes.remove(&description);
+        if let Some(type_routes) = self.routes_for_type.get_mut(&connection.stream.message_type()) {
+            type_routes.remove(&connection);
         }
 
-        if let Some(target_program) = target.target_sub_program() && let Some(target_routes) = self.routes_for_target_program.get_mut(&target_program) {
-            target_routes.remove(&description);
+        if let Some(target_program) = connection.target.target_sub_program() && let Some(target_routes) = self.routes_for_target_program.get_mut(&target_program) {
+            target_routes.remove(&connection);
         }
 
         if let Some(target_program) = removed.as_ref().and_then(|removed| removed.target_program()) && let Some(target_routes) = self.routes_for_target_program.get_mut(&target_program) {
-            target_routes.remove(&description);
+            target_routes.remove(&connection);
         }
 
         removed
@@ -169,13 +165,9 @@ impl ResolvedRoutes {
         }
 
         // Remove from the main list of routes
-        for to_remove in removed_connections.iter() {
-            if let Some(program_routes) = self.routes_for_source_program.get_mut(&to_remove.source) {
-                program_routes.resolved_streams.remove(&(to_remove.stream.clone(), to_remove.target.clone()));
-            }
-        }
-
-        removed_connections
+        removed_connections.into_iter()
+            .filter(|c| { self.remove_route(&c).is_some() })
+            .collect()
     }
 
     ///
@@ -185,11 +177,9 @@ impl ResolvedRoutes {
         let routes = self.routes_for_target_program.remove(&target_program);
 
         if let Some(routes) = routes {
-            routes.iter().for_each(|route| { 
-                self.remove_route(&route.source, &route.target, &route.stream); 
-            });
-
-            routes.into_iter().collect()
+            routes.into_iter()
+                .filter(|route| { self.remove_route(&route).is_some() })
+                .collect()
         } else {
             vec![]
         }
