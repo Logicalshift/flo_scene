@@ -192,20 +192,29 @@ impl Connectome {
             if target_type == stream.message_type() {
                 // Program directly accepts this message type
                 Ok((ConnectionRoute::DeliverTo(target_program), StreamTarget::Program(target_program)))
+                
             } else if let Some(connections) = self.connections_for_message_type.get(&target_type) {
                 // Try to route to the program through the hierarchy
-                if let Some(target) = connections.direct_target_for_messages(source_program, target_program) {
+                if let Some(target) = self.route_via_source_filter(connections, |new_connection| if new_connection.message_type == target_type { Some(target_program) } else { None }) {
+                    // There's a direct connection via a source filter to the program
+                    Ok((target, StreamTarget::Program(target_program)))
+
+                } else if let Some(target) = connections.direct_target_for_messages(source_program, target_program) {
                     // There's a direct specifier for this program
                     Ok((ConnectionRoute::for_target(target), StreamTarget::Program(target_program)))
+
                 } else if let Some(route) = self.route_via_source_filter(connections, |new_connection| new_connection.direct_target_for_messages(source_program, target_program)) {
                     // There's a direct specifier for this program using a source filter from the stream type
                     Ok((route, StreamTarget::Program(target_program)))
+
                 } else if let Some(target) = connections.general_target_for_program(target_program) {
                     // The target program has a general route for this stream
                     Ok((ConnectionRoute::for_target(target), StreamTarget::Program(target_program)))
+
                 } else if let Some(route) = self.route_via_source_filter(connections, |new_connection| new_connection.general_target_for_program(target_program)) {
                     // There's a general connection via a target program
                     Ok((route, StreamTarget::Program(target_program)))
+
                 } else {
                     // No connections match this stream type
                     Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream.message_type_name()), TargetInputMessageType(running_program_stream.message_type_name())))
