@@ -160,6 +160,10 @@ impl MessageTypeConnections {
             self.targets.insert(TargetSpecifier::GeneralConnectionFor(target_program), target.clone());
         }
 
+        if let (Some(source), Some(target_program)) = (source, target_program) {
+            self.targets.insert(TargetSpecifier::DefaultRoute(Some(source)), target.clone());
+        }
+
         self.targets.insert(specifier, target);
 
         // If the target is StreamTarget::Any, then need to define implicit filters from the source filters
