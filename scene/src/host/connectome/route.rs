@@ -76,6 +76,20 @@ impl ConnectionRoute {
     }
 
     ///
+    /// Returns the endpoint of this route, where it will send its data to eventually
+    ///
+    pub fn endpoint(&self) -> &ConnectionRoute {
+        let mut route = self;
+
+        loop {
+            match route {
+                ConnectionRoute::Filter(_, next_route)  => { route = &*next_route },
+                other                                   => break other,
+            }
+        }
+    }
+
+    ///
     /// Returns the filters that make up this route
     ///
     pub fn filters<'a>(&'a self) -> impl 'a + Iterator<Item=&'a FilterHandle> {
