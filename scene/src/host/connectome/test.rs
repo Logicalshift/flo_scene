@@ -7,6 +7,7 @@ use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
 use crate::host::scene_message::*;
+use serde::de::Expected;
 use serde::*;
 use futures::prelude::*;
 
@@ -353,13 +354,16 @@ fn route_via_source_filter_and_source_connection() {
     let mut connectome  = Connectome::default();
     let source          = SubProgramId::new();
     let target          = SubProgramId::new();
-    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
     let filter          = (*TESTMESSAGE_1_TO_2).clone();
 
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
     connectome.connect(&StreamSource::Filtered(filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
     connectome.connect(&StreamSource::Program(source), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
 
-    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any) == Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target)))));
+    let route       = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any); 
+    let expected    = Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target))));
+
+    assert!(route == expected, "{:?} != {:?}", route, expected);
 }
 
 ///
