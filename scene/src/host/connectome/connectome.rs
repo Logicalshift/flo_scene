@@ -429,14 +429,8 @@ impl Connectome {
                     else { continue; };
 
                 // Remove any connections that are from this program or which target this program
-                message_type.target_filters.retain(|filter, _| filter.source != Some(program_id) && filter.target != program_id);
-                message_type.target_for_source.remove(&program_id);
-                message_type.target_for_source.retain(|_, target| target != &StreamTarget::Program(program_id));
+                message_type.targets.retain(|specifier, target| specifier.source_program() != Some(program_id) && target.target_sub_program() != Some(program_id));
                 message_type.redirects.retain(|redirect, _| redirect.source != Some(program_id) && redirect.target != StreamTarget::Program(program_id));
-
-                if message_type.default_target.target_sub_program() == Some(program_id) {
-                    message_type.default_target = program.stream_id.default_target();
-                }
             }
         }
 
@@ -469,11 +463,9 @@ impl Connectome {
         while let Some(affected_type) = to_visit.pop() {
             if !affected.insert(affected_type) { continue; }
 
-            // Any type that can filter into this type is also affected
-            for (source_type, connections) in self.connections_for_message_type.iter() {
-                if connections.source_filters.contains_key(&affected_type) {
-                    to_visit.push(*source_type);
-                }
+            // Any type that this type can filter into is also affected
+            if let Some(connections) = self.connections_for_message_type.get(&affected_type) {
+                to_visit.extend(connections.source_filters.iter().map(|(source_type, _)| *source_type));
             }
         }
 
