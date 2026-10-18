@@ -128,7 +128,9 @@ impl ResolvedRoutes {
         }
 
         // Remove from the target program cache as well
-        self.routes_for_target_program.remove(&program_id);
+        if let Some(target_routes) = self.routes_for_target_program.remove(&program_id) {
+            target_routes.into_iter().for_each(|description| { self.remove_route(&description); });
+        }
 
         // Result is the list of streams that were removed for this program
         removed.into_iter()
