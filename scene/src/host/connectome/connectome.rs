@@ -230,6 +230,22 @@ impl Connectome {
     }
 
     ///
+    /// Routes from the result of a filter
+    ///
+    fn filtered_route(&self, stream: &StreamId, source_program: SubProgramId, filter: &FilterHandle, target_program: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
+        let source_type = filter.source_stream_id_any()?;
+        let target_type = filter.target_stream_id_any()?;
+
+        if source_type.message_type() != stream.message_type() { return Err(ConnectionError::FilterInputDoesNotMatch) }
+
+        // After running through the filter, route to the program as normal
+        let (route_to_program, target) = self.program_route(&target_type, source_program, target_program)?;
+
+        // Route applies the filter then routes to the program as normal
+        Ok((ConnectionRoute::Filter(filter.clone(), Box::new(route_to_program)), target))
+    }
+
+    ///
     /// Finds a route for a message that has no target specified
     ///
     fn any_route(&self, stream: &StreamId, source: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
