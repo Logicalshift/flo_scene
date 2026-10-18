@@ -255,7 +255,7 @@ impl Connectome {
 
         // Use the default target for this source if there is one
         let default_target_for_source = connection.default_route(Some(source));
-        if let Some(default_target) = default_target_for_source && default_target.target_sub_program().is_some() {
+        if let Some(default_target) = default_target_for_source {
             return Ok((default_target.clone().into(), default_target));
         }
 
@@ -267,7 +267,7 @@ impl Connectome {
 
         // Use the default target for the stream if there is one
         let default_target_for_stream = connection.default_route(None);
-        if let Some(default_target) = default_target_for_stream && default_target.target_sub_program().is_some() {
+        if let Some(default_target) = default_target_for_stream {
             return Ok((default_target.clone().into(), default_target));
         }
 
