@@ -74,6 +74,24 @@ impl ConnectionRoute {
             }
         }
     }
+
+    ///
+    /// Returns the filters that make up this route
+    ///
+    pub fn filters<'a>(&'a self) -> impl 'a + Iterator<Item=&'a FilterHandle> {
+        use std::iter;
+
+        let mut pos = self;
+        iter::from_fn(move || {
+            match pos {
+                ConnectionRoute::Filter(filter_handle, connection_route) => {
+                    pos = &*connection_route;
+                    Some(filter_handle)
+                },
+                _ => None
+            }
+        })
+    }
 }
 
 impl From<StreamTarget> for ConnectionRoute {
