@@ -148,7 +148,7 @@ impl MessageTypeConnections {
         // Add a new target to this element
         let specifier = match (source, target.target_sub_program()) {
             (Some(source), Some(target))    => TargetSpecifier::DirectConnectionBetween { source, target },
-            (None, Some(target))            => TargetSpecifier::GeneralConnectionFor(target),
+            (None, Some(_))                 => TargetSpecifier::DefaultRoute(None),
             (None, None)                    => TargetSpecifier::DefaultRoute(None),
             (Some(source), None)            => TargetSpecifier::DefaultRoute(Some(source)),
         };
