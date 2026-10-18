@@ -160,16 +160,6 @@ impl MessageTypeConnections {
     }
 
     ///
-    /// Adds a new implicit target to these connections
-    ///
-    /// If 'source' is not None, then this target is only used when the source program is as specified.
-    ///
-    pub (super) fn add_implicit_target(&mut self, source: Option<SubProgramId>, target: StreamTarget) -> Result<(), ConnectionError> {
-        self.targets.insert(TargetSpecifier { source: source, implicit: true, target: target.target_sub_program() }, target);
-        Ok(())
-    }
-
-    ///
     /// Adds a redirect to a new target for a route that resolves at a particular program
     ///
     pub (super) fn add_redirect(&mut self, source: Option<SubProgramId>, target_program: SubProgramId, new_target: StreamTarget) -> Result<(), ConnectionError> {
@@ -181,5 +171,18 @@ impl MessageTypeConnections {
         self.redirects.insert(key, new_target);
 
         Ok(())
+    }
+}
+
+impl TargetSpecifier {
+    ///
+    /// Returns the program that this message originates from
+    ///
+    pub fn source_program(&self) -> Option<SubProgramId> {
+        match self {
+            TargetSpecifier::DirectConnectionBetween { source, .. } => Some(*source),
+            TargetSpecifier::GeneralConnectionFor(_)                => None,
+            TargetSpecifier::DefaultRoute(program_id)               => *program_id,
+        }
     }
 }
