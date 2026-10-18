@@ -245,22 +245,22 @@ impl Connectome {
             // Loop until we've fully resolved the path the connection needs to take
             loop {
                 // Can only visit each type once
-                if !visited_types.insert(stream.message_type()) {
+                if !visited_types.insert(state.stream.message_type()) {
                     return Err(ConnectionError::StreamRedirectLoop);
                 }
 
-                if target_type == stream.message_type() {
+                if target_type == state.stream.message_type() {
                     // Program directly accepts this message type
                     return Ok((state.route(), StreamTarget::Program(target_program)))
 
-                } else if let Some(connections) = self.connections_for_message_type.get(&stream.message_type()) {
+                } else if let Some(connections) = self.connections_for_message_type.get(&state.stream.message_type()) {
                     // Try to route to the program through the hierarchy
                     if let Some(route) = self.route_via_source_filter(connections, |new_connection| if new_connection.message_type == target_type { Some(target_program) } else { None }) {
                         // There's a direct connection via a source filter to the program
                         let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
                         state = new_state;
 
-                    } else if let Some(target) = connections.direct_target_for_messages(source_program, target_program) {
+                    } else if let Some(target) = connections.direct_target_for_messages(source_program, state.target_program) {
                         // There's a direct specifier for this program
                         let Some(new_state) = state.next_from_target(&target)? else { return Ok((target.into(), StreamTarget::Program(target_program))) };
                         state = new_state;
@@ -270,7 +270,7 @@ impl Connectome {
                         let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
                         state = new_state;
 
-                    } else if let Some(target) = connections.general_target_for_program(target_program) {
+                    } else if let Some(target) = connections.general_target_for_program(state.target_program) {
                         // The target program has a general route for this stream
                         let Some(new_state) = state.next_from_target(&target)? else { return Ok((target.into(), StreamTarget::Program(target_program))) };
                         state = new_state;
