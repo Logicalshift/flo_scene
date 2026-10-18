@@ -192,7 +192,7 @@ impl Connectome {
             if target_type == stream.message_type() {
                 // Program directly accepts this message type
                 Ok((ConnectionRoute::DeliverTo(target_program), StreamTarget::Program(target_program)))
-                
+
             } else if let Some(connections) = self.connections_for_message_type.get(&target_type) {
                 // Try to route to the program through the hierarchy
                 if let Some(target) = self.route_via_source_filter(connections, |new_connection| if new_connection.message_type == target_type { Some(target_program) } else { None }) {
@@ -254,28 +254,26 @@ impl Connectome {
     /// Finds a route for a message that has no target specified
     ///
     fn any_route(&self, stream: &StreamId, source: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
-        if let Some(connection) = self.connections_for_message_type.get(&stream.message_type()) {
-            // Get the target (either for a specific source program or the general connection)
-            let target = if let Some(target) = connection.target_for_source.get(&source) {
-                // There's an explicit target set for this subprogram to use
-                target
-            } else {
-                // There's no explicit target for this program
-                connection.default_target()
-            };
+        // Read the connection type, if it doesn't exist then the stream is held until it's created
+        let Some(connection) = self.connections_for_message_type.get(&stream.message_type())
+            else { return Ok((ConnectionRoute::Hold, StreamTarget::Any)); };
 
-            match target {
-                // Routing to 'None' or 'Any' resolves as either a Hold or a None route
-                StreamTarget::None  => Ok((ConnectionRoute::None, StreamTarget::Any)),
-                StreamTarget::Any   => Ok((ConnectionRoute::Hold, StreamTarget::Any)),
-
-                // Routing to a specific target routes as if that target was explicitly specified
-                specific_target     => self.basic_route(stream, source, specific_target)
+        // Use the default target for this source if there is one
+        let default_target = connection.default_route(Some(source));
+        if let Some(default_target) = default_target {
+            if let Some(target) = default_target.target_sub_program() {
+                return Ok((default_target.clone().into(), default_target));
             }
-        } else {
-            // There's no route for this message yet
-            Ok((ConnectionRoute::Hold, StreamTarget::Any))
         }
+
+        // Use a source filter to a default target for the source
+
+        // Use the default target for the stream if there is one
+
+        // Use a source filter to a default target for the stream
+
+        // No route
+        Ok((ConnectionRoute::Hold, StreamTarget::Any))
     }
 
     ///
