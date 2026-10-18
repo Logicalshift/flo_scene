@@ -472,7 +472,7 @@ impl SceneCore {
     ///
     /// Retrieves the target for an output sink on a route
     ///
-    fn route_target<TMessageType: SceneMessage>(scene_core: &Arc<Mutex<SceneCore>>, source_program_id: SubProgramId, route: ConnectionRoute) -> Result<OutputSinkTarget<TMessageType>, ConnectionError> {
+    fn sink_target_for_route<TMessageType: SceneMessage>(scene_core: &Arc<Mutex<SceneCore>>, source_program_id: SubProgramId, route: ConnectionRoute) -> Result<OutputSinkTarget<TMessageType>, ConnectionError> {
         Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessageType>());
 
         match route.endpoint() {
@@ -488,14 +488,18 @@ impl SceneCore {
             },
 
             ConnectionRoute::DeliverTo(target_program) => {
-                let stream = StreamId::with_message_type::<TMessageType>();
+                // The target stream will be the output of the last filter
+                let filters = route.filters().collect::<Vec<_>>();
+                let stream  = filters
+                    .last().map(|last_filter| last_filter.target_stream_id_any())
+                    .unwrap_or_else(|| Ok(StreamId::with_message_type::<TMessageType>()))?;
 
                 // Start with the input for the target program
                 let mut target_input        = scene_core.lock().unwrap().get_target_input(&target_program, &stream)?;
                 let mut close_when_dropped  = false;
 
                 // Apply filters in reverse to get the core to connect
-                for filter in route.filters().collect::<Vec<_>>().into_iter().rev() {
+                for filter in filters.into_iter().rev() {
                     target_input        = filter.create_input_stream_core(scene_core, source_program_id, target_input)?;
                     close_when_dropped  = true;
                 }
@@ -914,7 +918,7 @@ impl SceneCore {
         let stream  = StreamId::with_message_type::<TMessageType>();
         let route   = scene_core.lock().unwrap().connectome.route_for(&stream, *source, &target)?;
 
-        Self::route_target(scene_core, *source, route)
+        Self::sink_target_for_route(scene_core, *source, route)
     }
 
     ///
