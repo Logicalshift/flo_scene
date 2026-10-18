@@ -145,13 +145,20 @@ impl MessageTypeConnections {
     /// If 'source' is not None, then this target is only used when the source program is as specified.
     ///
     pub (super) fn add_target(&mut self, source: Option<SubProgramId>, target: StreamTarget) -> Result<(), ConnectionError> {
+        let target_program = target.target_sub_program();
+
         // Add a new target to this element
-        let specifier = match (source, target.target_sub_program()) {
+        let specifier = match (source, target_program) {
             (Some(source), Some(target))    => TargetSpecifier::DirectConnectionBetween { source, target },
             (None, Some(_))                 => TargetSpecifier::DefaultRoute(None),
             (None, None)                    => TargetSpecifier::DefaultRoute(None),
             (Some(source), None)            => TargetSpecifier::DefaultRoute(Some(source)),
         };
+
+        // Installing a filter connection for a particular target also uses it when connecting specifically to that program
+        if let (None, Some(target_program)) = (source, target_program) {
+            self.targets.insert(TargetSpecifier::GeneralConnectionFor(target_program), target.clone());
+        }
 
         self.targets.insert(specifier, target);
 
