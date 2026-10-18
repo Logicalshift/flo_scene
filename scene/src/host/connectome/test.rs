@@ -7,7 +7,6 @@ use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
 use crate::host::scene_message::*;
-use serde::de::Expected;
 use serde::*;
 use futures::prelude::*;
 
@@ -86,6 +85,25 @@ fn filter_connection_must_match_source_type_2() {
     let err = connectome.connect(&StreamSource::Filtered(filter.clone()), &().into(), StreamId::with_message_type::<TestMessage2>());
 
     assert!(err.is_err());
+}
+
+#[test]
+fn filter_via_transitive_route() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+    let filter1         = (*TESTMESSAGE_1_TO_2).clone();
+    let filter2         = (*TESTMESSAGE_2_TO_3).clone();
+
+    // Two filters needed to send to a program
+    connectome.connect(&().into(), &StreamTarget::Filtered(filter1.clone(), target), StreamId::with_message_type::<TestMessage>()).unwrap();
+    connectome.connect(&().into(), &StreamTarget::Filtered(filter2.clone(), target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage3>());
+
+    let route       = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &target.into());
+    let expected    = Ok(ConnectionRoute::Filter(filter1, Box::new(ConnectionRoute::Filter(filter2, Box::new(ConnectionRoute::DeliverTo(target))))));
+
+    assert!(route == expected, "{:?} != {:?}", route, expected);
 }
 
 #[test]
