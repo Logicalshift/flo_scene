@@ -512,6 +512,7 @@ impl SceneCore {
         }
     }
 
+    /*
     ///
     /// Finishes a program connection, sending updates if successful
     ///
@@ -900,6 +901,7 @@ impl SceneCore {
             Ok(mapped_target)
         }
     }
+    */
 
     ///
     /// Returns the output sink target configured for a particular stream
