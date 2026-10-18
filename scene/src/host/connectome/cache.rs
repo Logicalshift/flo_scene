@@ -115,14 +115,18 @@ impl ResolvedRoutes {
         // Clear out the other caches
         if let Some(removed) = removed.as_ref() {
             for ((stream, target), route) in removed.resolved_streams.iter() {
-                let route_target = route.target_program();
+                let route_target    = route.target_program();
+                let original_target = target.target_sub_program();
+                let description     = ConnectionDescription::new(&program_id, stream, target);
 
-                let description = ConnectionDescription { source: program_id, target: target.clone(), stream: stream.clone() };
-                self.remove_route(&description);
+                if let Some(for_type) = self.routes_for_type.get_mut(&stream.message_type()) { for_type.remove(&description); }
 
-                if let Some(route_target) = route_target && Some(route_target) != target.target_sub_program() {
-                    let description = ConnectionDescription { source: program_id, target: StreamTarget::Program(route_target), stream: stream.clone() };
-                    self.remove_route(&description);
+                if let Some(original_target) = original_target && let Some(target_routes) = self.routes_for_target_program.get_mut(&original_target) {
+                    target_routes.remove(&description);
+                }
+
+                if let Some(route_target) = route_target && let Some(target_routes) = self.routes_for_target_program.get_mut(&route_target) {
+                    target_routes.remove(&description);
                 }
             }
         }
