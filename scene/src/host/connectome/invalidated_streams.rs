@@ -86,3 +86,17 @@ impl FromIterator<(SubProgramId, StreamId)> for InvalidatedStreams {
         }
     }
 }
+
+impl FromIterator<ConnectionDescription> for InvalidatedStreams {
+    #[inline]
+    fn from_iter<TIter: IntoIterator<Item = ConnectionDescription>>(iter: TIter) -> Self {
+        Self::from_iter(iter.into_iter().map(|desc| (desc.source(), desc.stream().clone())))
+    }
+}
+
+impl<'a> FromIterator<&'a ConnectionDescription> for InvalidatedStreams {
+    #[inline]
+    fn from_iter<TIter: IntoIterator<Item = &'a ConnectionDescription>>(iter: TIter) -> Self {
+        Self::from_iter(iter.into_iter().map(|desc| (desc.source(), desc.stream().clone())))
+    }
+}

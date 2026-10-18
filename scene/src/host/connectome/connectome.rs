@@ -525,11 +525,21 @@ impl Connectome {
 
         let affected_types = self.message_types_affected_by(affected_seeds);
 
-        self.invalidate_cached_routes_where(|_source_program, target, cached_stream, route| {
-            affected_types.contains(&cached_stream.message_type())
-                || target.target_sub_program() == Some(new_program_id)
-                || route.target_program() == Some(new_program_id)
-        })
+        // Invalidate the routes that were affected by removing this program
+        let mut invalidated = affected_types.iter()
+            .flat_map(|affected_type| self.cached_routes_for_program.remove_routes_by_stream(affected_type, |_, _| true))
+            .collect::<InvalidatedStreams>();
+
+        // The routes cached for this program as a source are no longer valid
+        for connection in self.cached_routes_for_program.remove_routes_by_target(new_program_id) {
+            invalidated.push(connection.source(), connection.stream().clone());
+        }
+
+        for (stream, _target) in self.cached_routes_for_program.remove_program(new_program_id) {
+            invalidated.push(new_program_id, stream);
+        }
+
+        invalidated
     }
 
     ///
@@ -569,7 +579,6 @@ impl Connectome {
         // Invalidate the routes that were affected by removing this program
         let mut invalidated = affected_types.iter()
             .flat_map(|affected_type| self.cached_routes_for_program.remove_routes_by_stream(affected_type, |_, _| true))
-            .map(|description| (description.source(), description.stream().clone()))
             .collect::<InvalidatedStreams>();
 
         // The routes cached for this program as a source are no longer valid
@@ -605,24 +614,6 @@ impl Connectome {
         }
 
         affected
-    }
-
-    ///
-    /// Removes every cached route matching a predicate, returning the streams that were invalidated
-    ///
-    fn invalidate_cached_routes_where(&mut self, mut invalid: impl FnMut(&SubProgramId, &StreamTarget, &StreamId, &ConnectionRoute) -> bool) -> InvalidatedStreams {
-        let mut invalidated = InvalidatedStreams::default();
-
-        self.cached_routes_for_program.retain(|source_program, target, stream, route| {
-            if invalid(source_program, target, stream, route) {
-                invalidated.push(*source_program, stream.clone());
-                false
-            } else {
-                true
-            }
-        });
-
-        invalidated
     }
 }
 

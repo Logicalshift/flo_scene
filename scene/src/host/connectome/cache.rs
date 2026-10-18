@@ -191,21 +191,6 @@ impl ResolvedRoutes {
             vec![]
         }
     }
-
-    ///
-    /// Iterate through all the routes and keeps any that retain_route returns 'true' for
-    ///
-    pub fn retain(&mut self, retain_route: impl FnMut(&SubProgramId, &StreamTarget, &StreamId, &ConnectionRoute) -> bool) {
-        let mut retain_route = retain_route;
-
-        for (program_id, routes) in self.routes_for_source_program.iter_mut() {
-            routes.resolved_streams.retain(|(stream, target), route| {
-                retain_route(program_id, target, stream, route)
-            })
-        }
-        
-        // TODO: need to clear out the other caches (not doing this yet, because we're getting rid of this function)
-    }
 }
 
 impl ConnectionDescription {
