@@ -170,7 +170,7 @@ impl SceneCore {
 
         Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessage>());
 
-        let (subprogram, waker) = {
+        let (subprogram, waker, invalidated_streams) = {
             let start_core      = Arc::downgrade(scene_core);
             let process_core    = Arc::downgrade(scene_core);
             let mut core        = scene_core.lock().unwrap();
@@ -275,7 +275,10 @@ impl SceneCore {
                 core.next_subprogram += 1;
             }
 
-            (subprogram, waker)
+            // Add to the connectome and get the invalidated streams
+            let invalidated = core.connectome.add_subprogram(program_id, StreamId::with_message_type::<TMessage>());
+
+            (subprogram, waker, invalidated)
         };
 
         // Safe to wake the waker once the core lock is released
@@ -284,7 +287,7 @@ impl SceneCore {
         }
 
         // If there are any pending connections that can be connected to this subprogram, reconnect them here
-        Self::reconnect_subprogram(scene_core, program_id);
+        Self::reconnect_invalidated_streams(scene_core, invalidated_streams);
 
         // Result is the subprogram
         subprogram
@@ -320,17 +323,11 @@ impl SceneCore {
         let target_input = self.sub_program_inputs[handle].as_ref().ok_or(ConnectionError::TargetNotAvailable)?;
 
         if (*target_input.1).type_id() != expected_message_type {
-            // The target doesn't have the expected message type. If there's a conversion filter, we can still return the target type
-            if self.filter_conversions.contains_key(&(stream_id.as_message_type(), target_input.0.as_message_type())) {
-                // The input stream doesn't match the output but there's a filter to convert between them available (only direct conversions are supported, so a chain of filters won't be followed)
-                Ok(Arc::clone(&target_input.1))
-            } else {
-                // Can't use this stream as it doesn't match stream_id
-                let stream_type     = stream_id.message_type_name();
-                let program_type    = self.sub_programs[handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
+            // Can't use this stream as it doesn't match stream_id
+            let stream_type     = stream_id.message_type_name();
+            let program_type    = self.sub_programs[handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
 
-                Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream_type), TargetInputMessageType(program_type)))
-            }
+            Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream_type), TargetInputMessageType(program_type)))
         } else {
             Ok(Arc::clone(&target_input.1))
         }
@@ -399,7 +396,7 @@ impl SceneCore {
         };
 
         // Reconnect any affected streams
-        Self::disconnect_invalidated_streams(core, invalidated_streams);
+        Self::reconnect_invalidated_streams(core, invalidated_streams);
 
         // Reconnect all subprograms with this kind of output sink
         let subprograms = core.lock().unwrap().sub_programs.iter().flatten().cloned().collect::<Vec<_>>();
@@ -416,13 +413,14 @@ impl SceneCore {
     ///
     /// Invalidate and reconnect any streams affected by invalidation
     ///
-    fn disconnect_invalidated_streams(core: &Arc<Mutex<SceneCore>>, invalidated: InvalidatedStreams) {
+    fn reconnect_invalidated_streams(scene_core: &Arc<Mutex<SceneCore>>, invalidated: InvalidatedStreams) {
         // Connect any disconnected sinks in the affected programs/streams
         for (source_program, stream) in invalidated.iter() {
-            let Some(program) = core.lock().unwrap().get_sub_program(*source_program) else { continue };
+            let Some(program) = scene_core.lock().unwrap().get_sub_program(*source_program) else { continue };
 
             // Disconnect this stream
             program.lock().unwrap().disconnect_output_sink(&stream);
+            SubProgramCore::reconnect_disconnected_outputs(&program, scene_core, &stream);
         }
     }
 
@@ -1247,6 +1245,7 @@ impl SceneCore {
         }
     }
 
+    /*
     ///
     /// After a program has started, finds any connections that are targetting it and remakes them
     ///
@@ -1336,6 +1335,7 @@ impl SceneCore {
             }
         }
     }
+    */
 
     ///
     /// Shuts down the input stream for a subprogram (which generally should cause the program itself to stop)
