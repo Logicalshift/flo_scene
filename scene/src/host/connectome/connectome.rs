@@ -365,6 +365,7 @@ impl Connectome {
                 (StreamSource::Filtered(filter), StreamTarget::Any)                         => connection.add_source_filter(filter)?,
                 (StreamSource::Filtered(_), StreamTarget::None)                             => { /* TODO: connect to None if the source filter is matched? */ },
                 (StreamSource::Filtered(filter), StreamTarget::Program(program))            => {
+                    // This is just a target filter written in a different way
                     let source      = filter.source_stream_id_any()?;
                     let connection  = self.connections_for_message_type.entry(source.message_type())
                         .or_insert_with(|| MessageTypeConnections::with_message_type(&source));
@@ -372,6 +373,7 @@ impl Connectome {
                     connection.add_target(None, StreamTarget::Filtered(filter.clone(), *program))?
                 },
                 (StreamSource::Filtered(filter1), StreamTarget::Filtered(filter2, program)) => {
+                    // Combine the filters to make a target filter
                     let source      = filter1.source_stream_id_any()?;
                     let connection  = self.connections_for_message_type.entry(source.message_type())
                         .or_insert_with(|| MessageTypeConnections::with_message_type(&source));
