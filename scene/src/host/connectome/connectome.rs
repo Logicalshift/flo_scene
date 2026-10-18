@@ -336,27 +336,13 @@ impl Connectome {
                 .or_insert_with(|| MessageTypeConnections::with_message_type(&stream));
 
             match (source, target) {
-                (StreamSource::All, StreamTarget::Filtered(target, program_id))                 => { let implicit = connection.add_target_filter(None, target, *program_id)?; self.add_implicit_filters(implicit, None, *program_id)?; }
-                (StreamSource::All, target)                                                     => { 
-                    let implicit = connection.set_default_target(target)?; 
-                    if let Some(target_program) = target.target_sub_program() {
-                        self.add_implicit_filters(implicit, None, target_program)?; 
-                    }
-                },
+                (StreamSource::All, target)                                                 => connection.add_target(None, target.clone())?,
+                (StreamSource::Program(source), target)                                     => connection.add_target(Some(*source), target.clone())?,
                 
-                (StreamSource::Filtered(_source), StreamTarget::None)                           => { /* TODO: drop if matched? */ },
-                (StreamSource::Filtered(source), StreamTarget::Any)                             => { self.add_source_filter(&stream, source)?; } ,
-                (StreamSource::Filtered(source), StreamTarget::Program(program_id))             => { let implicit = connection.add_target_filter(None, source, *program_id)?; self.add_implicit_filters(implicit, None, *program_id)?; },
-                (StreamSource::Filtered(source), StreamTarget::Filtered(target, program_id))    => { let implicit = connection.add_target_filter(None, &source.chain(target.clone())?, *program_id)?; self.add_implicit_filters(implicit, None, *program_id)?; },
-
-                (StreamSource::Program(source), StreamTarget::Filtered(target, program_id))     => { let implicit = connection.add_target_filter(Some(*source), target, *program_id)?; self.add_implicit_filters(implicit, Some(*source), *program_id)?; },
-                (StreamSource::Program(source), StreamTarget::Any)                              => { connection.target_for_source.remove(source); },
-                (StreamSource::Program(source), target)                                         => {
-                    let implicit = connection.add_target_for_source(*source, target)?; 
-                    if let Some(target) = target.target_sub_program() {
-                        self.add_implicit_filters(implicit, Some(*source), target)?;
-                    }
-                },
+                (StreamSource::Filtered(filter), StreamTarget::Any)                         => connection.add_source_filter(filter)?,
+                (StreamSource::Filtered(_), StreamTarget::None)                             => { /* TODO: connect to None if the source filter is matched? */ },
+                (StreamSource::Filtered(filter), StreamTarget::Program(program))            => connection.add_target(None, StreamTarget::Filtered(filter.clone(), *program))?,
+                (StreamSource::Filtered(filter1), StreamTarget::Filtered(filter2, program)) => connection.add_target(None, StreamTarget::Filtered(filter1.chain(filter2.clone())?, *program))?,
             }
         }
 
