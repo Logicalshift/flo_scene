@@ -82,3 +82,10 @@ impl From<StreamTarget> for ConnectionRoute {
         Self::for_target(value)
     }
 }
+
+impl From<SubProgramId> for ConnectionRoute {
+    #[inline]
+    fn from(value: SubProgramId) -> Self {
+        Self::DeliverTo(value)
+    }
+}
