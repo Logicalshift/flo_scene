@@ -225,6 +225,9 @@ impl SceneCore {
                     core.program_indexes.remove(&program_id);
                     core.next_subprogram    = core.next_subprogram.min(handle);
 
+                    // Remove from the connectome and retrieve the invalidated streams
+                    let invalidated_streams = core.connectome.remove_subprogram(program_id);
+
                     // Drop in order: first release the core lock, then drop the subprograms (which may re-take it)
                     mem::drop(core);
 
@@ -235,6 +238,9 @@ impl SceneCore {
 
                     mem::drop(old_input_core);
                     mem::drop(old_sub_program);
+
+                    // Reconnect any invalidated streams
+                    Self::reconnect_invalidated_streams(&scene_core, invalidated_streams);
 
                     // Core might be idle now the program has finished
                     SceneCore::check_if_idle(&scene_core);
