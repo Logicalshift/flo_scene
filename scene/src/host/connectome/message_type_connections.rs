@@ -172,7 +172,7 @@ impl MessageTypeConnections {
             self.targets.insert(TargetSpecifier::GeneralConnectionFor(target_program), target.clone());
         }
 
-        if let (Some(source), Some(target_program)) = (source, target_program) {
+        if let (Some(source), Some(_)) = (source, target_program) {
             self.targets.insert(TargetSpecifier::DefaultRoute(Some(source)), target.clone());
         }
 
