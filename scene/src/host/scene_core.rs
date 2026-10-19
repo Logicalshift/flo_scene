@@ -405,9 +405,10 @@ impl SceneCore {
         Self::reconnect_invalidated_streams(core, invalidated_streams);
 
         // Reconnect all subprograms with this kind of output sink
+        // TODO: this iterates all streams in all programs which isn't great performance-wise
         let subprograms = core.lock().unwrap().sub_programs.iter().flatten().cloned().collect::<Vec<_>>();
         for subprogram in subprograms {
-            if subprogram.lock().unwrap().has_output_sink(&stream_id) {
+            if subprogram.lock().unwrap().output_streams().any(|(output_stream, _)| output_stream.message_type() == stream_id.message_type()) {
                 SubProgramCore::reconnect_disconnected_outputs(&subprogram, core, &stream_id);
             }
         }
