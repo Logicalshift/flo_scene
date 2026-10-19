@@ -3,6 +3,7 @@ use crate::host::process_core::*;
 use crate::host::scene_core::*;
 use crate::host::scene_message::*;
 use crate::host::stream_id::*;
+use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
@@ -155,7 +156,7 @@ impl SubProgramCore {
             let output_sink_cores = core.outputs
                 .iter()
                 .filter(|(output_stream_id, _)| reconnect_stream_id.message_type() == output_stream_id.message_type())
-                .map(|(_, output_sink_core)| output_sink_core.clone())
+                .map(|(stream_id, output_sink_core)| (stream_id.clone(), output_sink_core.clone()))
                 .collect::<Vec<_>>();
 
             let program_id = core.id;
@@ -165,9 +166,14 @@ impl SubProgramCore {
 
         // Reconnect the outputs to their existing targets
         let mut wakers = vec![];
-        for core in output_sink_cores {
+        for (stream_id, core) in output_sink_cores {
             // Get the active target for this sink
             let target = reconnect_stream_id.active_target_for_output_sink(&core);
+            let target = if let Ok(StreamTarget::Any) = &target && let Some(program) = stream_id.target_program() {
+                Ok(StreamTarget::Program(program))
+            } else {
+                target
+            };
 
             // Try to reconnect it
             if let Ok(target) = target {
