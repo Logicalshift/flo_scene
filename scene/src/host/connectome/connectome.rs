@@ -260,7 +260,7 @@ impl Connectome {
                         let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
                         state = new_state;
 
-                    } else if let Some(target) = connections.direct_target_for_messages(source_program, state.target_program) {
+                    } else if let Some(target) = connections.direct_target_for_messages(source_program, state.target_program) && (target.is_filter() || target.target_sub_program() != Some(state.target_program)) {
                         // There's a direct specifier for this program
                         let Some(new_state) = state.next_from_target(&target)? else { return Ok((target.into(), StreamTarget::Program(target_program))) };
                         state = new_state;
@@ -270,7 +270,7 @@ impl Connectome {
                         let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
                         state = new_state;
 
-                    } else if let Some(target) = connections.general_target_for_program(state.target_program) {
+                    } else if let Some(target) = connections.general_target_for_program(state.target_program) && (target.is_filter() || target.target_sub_program() != Some(state.target_program)) {
                         // The target program has a general route for this stream
                         let Some(new_state) = state.next_from_target(&target)? else { return Ok((target.into(), StreamTarget::Program(target_program))) };
                         state = new_state;
