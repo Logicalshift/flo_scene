@@ -168,7 +168,7 @@ impl MessageTypeConnections {
         };
 
         // Installing a filter connection for a particular target also uses it when connecting specifically to that program
-        if let (None, Some(target_program)) = (source, target_program) && !target.is_filter() {
+        if let (None, Some(target_program)) = (source, target_program) && target.is_filter() {
             self.targets.insert(TargetSpecifier::GeneralConnectionFor(target_program), target.clone());
         }
 
