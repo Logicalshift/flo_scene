@@ -918,7 +918,12 @@ impl SceneCore {
         let stream  = StreamId::with_message_type::<TMessageType>();
         let route   = scene_core.lock().unwrap().connectome.route_for(&stream, *source, &target)?;
 
-        Self::sink_target_for_route(scene_core, *source, route)
+        match Self::sink_target_for_route(scene_core, *source, route) {
+            Ok(target)                                  => Ok(target),
+            Err(ConnectionError::WrongInputType(_, _))  => Ok(OutputSinkTarget::Disconnected),
+            Err(ConnectionError::TargetNotInScene)      => Ok(OutputSinkTarget::Disconnected),
+            Err(other)                                  => Err(other)
+        }
     }
 
     ///
