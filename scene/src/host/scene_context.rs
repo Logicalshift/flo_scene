@@ -94,6 +94,8 @@ impl SceneContext {
 
                 Ok(sink)
             } else {
+                SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TMessageType>());
+
                 let new_or_old_target = {
                     // Fetch the target from the core (possibly creating a new one)
                     let mut core            = scene_core.lock().unwrap();
