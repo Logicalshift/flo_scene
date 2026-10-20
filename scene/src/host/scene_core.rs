@@ -422,17 +422,37 @@ impl SceneCore {
     ///
     fn reconnect_invalidated_streams(scene_core: &Arc<Mutex<SceneCore>>, invalidated: InvalidatedStreams) {
         // Connect any disconnected sinks in the affected programs/streams
+        let mut wakers = vec![];
+
         for (source_program, stream) in invalidated.iter() {
-            let Some(program) = scene_core.lock().unwrap().get_sub_program(*source_program) else { continue };
+            let Some(program)       = scene_core.lock().unwrap().get_sub_program(*source_program) else { continue };
 
-            // Disconnect this stream
-            let waker1 = SubProgramCore::disconnect_output_sink(&program, &stream);
-            let waker2 = SubProgramCore::reconnect_disconnected_outputs(&program, scene_core, &stream);
+            // Copy the output sink cores that reference this program
+            let output_sink_cores   = program.lock().unwrap().outputs
+                .iter()
+                .filter(|(program_stream, _core)| stream.message_type() == program_stream.message_type())
+                .map(|(program_stream, core)| (program_stream.clone(), core.clone()))
+                .collect::<Vec<_>>();
 
-            // Call the wakers
-            if let Some(waker1) = waker1 { waker1.wake() }
-            if let Some(waker2) = waker2 { waker2.wake() }
+            for (program_stream, core) in output_sink_cores {
+                // Get the active target for this sink
+                let target = program_stream.active_target_for_output_sink(&core);
+                let target = if let Ok(StreamTarget::Any) = &target && let Some(program) = program_stream.target_program() {
+                    Ok(StreamTarget::Program(program))
+                } else {
+                    target
+                };
+
+                // Try to reconnect it
+                if let Ok(target) = target {
+                    let waker = program_stream.reconnect_output_sink(scene_core, &core, *source_program, target);
+                    if let Ok(Some(waker)) = waker { wakers.push(waker) }
+                }
+            }
         }
+
+        // Wake everything that's been affected
+        for waker in wakers { waker.wake() }
     }
 
     ///
