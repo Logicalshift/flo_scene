@@ -99,7 +99,13 @@ impl SceneContext {
 
                 // The scene core could provide a sink target for this stream, which we'll set in the program core
                 // Locking both so the scene's target can't change before we're done
-                let new_or_old_target = program_core.lock().unwrap().try_create_output_target(&stream_id, new_target);
+                let new_or_old_target = {
+                    let core                = scene_core.lock().unwrap();
+                    let new_or_old_target   = program_core.lock().unwrap().try_create_output_target(&stream_id, new_target);
+                    drop(core);
+
+                    new_or_old_target
+                };
 
                 match new_or_old_target {
                     Ok(new_target) => {
