@@ -3,6 +3,7 @@ use crate::host::process_core::*;
 use crate::host::scene_core::*;
 use crate::host::scene_message::*;
 use crate::host::stream_id::*;
+use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
@@ -162,10 +163,11 @@ impl SubProgramCore {
         let (output_sink_cores, program_id) = {
             let core = program_core.lock().unwrap();
 
-            // TODO: filter out output sinks that are already attached, we only want disconnected ones here
+            // Only the disconnected output sinks are reconnected here (sinks that are already attached are reconnected via the connectome's invalidated streams)
             let output_sink_cores = core.outputs
                 .iter()
                 .filter(|(output_stream_id, _)| reconnect_stream_id.message_type() == output_stream_id.message_type())
+                .filter(|(output_stream_id, output_sink_core)| matches!(output_stream_id.active_target_for_output_sink(output_sink_core), Ok(StreamTarget::Any)))
                 .map(|(stream_id, output_sink_core)| (stream_id.clone(), output_sink_core.clone()))
                 .collect::<Vec<_>>();
 
