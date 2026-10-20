@@ -721,9 +721,6 @@ where
             return Poll::Ready(Ok(()));
         }
 
-        // Disable any existing waker for this future
-        self.core.lock().unwrap().when_target_changed = None;
-
         // Action depends on the state of the target
         let mut core = self.core.lock().unwrap();
         match &core.target {
