@@ -241,7 +241,8 @@ impl StreamTypeFunctions {
 
             reconnect_sink: Arc::new(|scene_core, output_sink_core_any, source_program, stream_target| {
                 // Try to create an output sink target for this message type
-                let new_target = SceneCore::sink_for_target::<TMessageType>(scene_core, &source_program, stream_target)?;
+                let (new_target, waker) = scene_core.lock().unwrap().sink_for_target::<TMessageType>(&source_program, stream_target)?;
+                if let Some(waker) = waker { waker.wake(); }
 
                 // Update the output sink
                 let output_sink = output_sink_core_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;

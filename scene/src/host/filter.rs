@@ -8,7 +8,7 @@ use crate::host::subprogram_id::*;
 use futures::prelude::*;
 use futures::{pin_mut};
 use futures::future::{poll_fn, BoxFuture};
-use futures::task::{Poll};
+use futures::task::{Poll, Waker};
 use once_cell::sync::{Lazy};
 use serde::*;
 
@@ -144,7 +144,7 @@ pub (crate) trait FilterHandleCrateExt {
     /// from the specified sending program. The core returned by this function should be closed when disconnected, or it will leave
     /// behind a process in the scene that can never run.
     ///
-    fn create_input_stream_core(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError>;
+    fn create_input_stream_core(&self, scene_core: &mut SceneCore, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<(Arc<dyn Send + Sync + Any>, Option<Waker>), ConnectionError>;
 
     ///
     /// Chains this filter with a following filter.
@@ -361,7 +361,8 @@ impl FilterHandleExt for FilterHandle {
             let Some(scene_core)    = scene_core else { return Err(ConnectionError::TargetNotInScene); };
 
             // Create the following input core, and chain it to our core
-            let following_core  = following_filter.create_input_stream_core(&scene_core, sending_program, target_input_core)?;
+            let (following_core, waker) = following_filter.create_input_stream_core(&mut *scene_core.lock().unwrap(), sending_program, target_input_core)?;
+            if let Some(waker) = waker { waker.wake() }
 
             // Create the input stream for the initial program, and connect it to the following program
             let maybe_initial_stream = (initial_filter.data.create_input_stream)(sending_program, following_core.clone());
@@ -409,23 +410,14 @@ impl FilterHandleCrateExt for FilterHandle {
     /// from the specified sending program. The core returned by this function should be closed when disconnected, or it will leave
     /// behind a process in the scene that can never run.
     ///
-    fn create_input_stream_core(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
+    fn create_input_stream_core(&self, scene_core: &mut SceneCore, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<(Arc<dyn Send + Sync + Any>, Option<Waker>), ConnectionError> {
         // Create a future that will run the filter
         let (send_future, filtering_input_core) = (self.data.create_input_stream)(sending_program, target_input_core)?;
 
         // Start it as a process in the core
-        let (_process_handle, waker) = {
-            let mut scene_core = scene_core.lock().unwrap();
+        let (_process_handle, waker) = scene_core.start_process(send_future);
 
-            scene_core.start_process(send_future)
-        };
-
-        // Wake up a thread to run the new future if needed
-        if let Some(waker) = waker {
-            waker.wake();
-        }
-
-        Ok(filtering_input_core)
+        Ok((filtering_input_core, waker))
     }
 
     ///
@@ -436,10 +428,14 @@ impl FilterHandleCrateExt for FilterHandle {
     ///
     fn chain_filters(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, next_filter: FilterHandle, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
         // Send to the target from the filter that follows this one
-        let following_filter = next_filter.create_input_stream_core(scene_core, sending_program, target_input_core)?;
+        let (following_filter, waker) = next_filter.create_input_stream_core(&mut *scene_core.lock().unwrap(), sending_program, target_input_core)?;
+        if let Some(waker) = waker { waker.wake() }
 
         // Receive from the source and send to the target
-        self.create_input_stream_core(scene_core, sending_program, following_filter)
+        let (filter, waker) = self.create_input_stream_core(&mut *scene_core.lock().unwrap(), sending_program, following_filter)?;
+        if let Some(waker) = waker { waker.wake() }
+
+        Ok(filter)
     }
 
     ///

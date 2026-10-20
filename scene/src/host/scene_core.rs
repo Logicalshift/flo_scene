@@ -456,6 +456,7 @@ impl SceneCore {
         for waker in wakers { waker.wake() }
     }
 
+    /*
     ///
     /// Adds a connection route to a subprogram
     ///
@@ -504,23 +505,22 @@ impl SceneCore {
             },
         }
     }
+    */
 
     ///
     /// Retrieves the target for an output sink on a route
     ///
-    fn sink_target_for_route<TMessageType: SceneMessage>(scene_core: &Arc<Mutex<SceneCore>>, source_program_id: SubProgramId, route: ConnectionRoute) -> Result<OutputSinkTarget<TMessageType>, ConnectionError> {
-        Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessageType>());
-
+    fn sink_target_for_route<TMessageType: SceneMessage>(&mut self, source_program_id: SubProgramId, route: ConnectionRoute) -> Result<(OutputSinkTarget<TMessageType>, Option<Waker>), ConnectionError> {
         match route.endpoint() {
             ConnectionRoute::Filter(_, _)   |       // Filters can't be an endpoint, we treat them like 'None' if they show up because of a bug
             ConnectionRoute::None           => {
                 // Output sink is disconnected
-                Ok(OutputSinkTarget::Discard)
+                Ok((OutputSinkTarget::Discard, None))
             }
 
             ConnectionRoute::Hold => {
                 // Disconnect the output for this sink
-                Ok(OutputSinkTarget::Disconnected)
+                Ok((OutputSinkTarget::Disconnected, None))
             },
 
             ConnectionRoute::DeliverTo(target_program) => {
@@ -531,20 +531,44 @@ impl SceneCore {
                     .unwrap_or_else(|| Ok(StreamId::with_message_type::<TMessageType>()))?;
 
                 // Start with the input for the target program
-                let mut target_input        = scene_core.lock().unwrap().get_target_input(&target_program, &stream)?;
+                let mut target_input        = self.get_target_input(&target_program, &stream)?;
                 let mut close_when_dropped  = false;
 
                 // Apply filters in reverse to get the core to connect
+                let mut wakers = vec![];
+
                 for filter in filters.into_iter().rev() {
-                    target_input        = filter.create_input_stream_core(scene_core, source_program_id, target_input)?;
+                    let (input, waker)  = filter.create_input_stream_core(self, source_program_id, target_input)?;
+                    target_input        = input;
                     close_when_dropped  = true;
+
+                    wakers.extend(waker);
                 }
+
+                // Create a waker from those returned by the filter
+                let waker = if wakers.is_empty() {
+                    None
+                } else if wakers.len() == 1 {
+                    wakers.pop()
+                } else {
+                    struct WakeAll(Mutex<Vec<Waker>>);
+
+                    impl ArcWake for WakeAll {
+                        fn wake_by_ref(arc_self: &Arc<Self>) {
+                            for waker in arc_self.0.lock().unwrap().drain(..) {
+                                waker.wake()
+                            }
+                        }
+                    }
+
+                    Some(waker(Arc::new(WakeAll(Mutex::new(wakers)))))
+                };
 
                 let input_core = target_input.downcast().unwrap();
                 if close_when_dropped {
-                    Ok(OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&input_core)))
+                    Ok((OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&input_core)), waker))
                 } else {
-                    Ok(OutputSinkTarget::Input(Arc::downgrade(&input_core)))
+                    Ok((OutputSinkTarget::Input(Arc::downgrade(&input_core)), waker))
                 }
             },
         }
@@ -944,20 +968,17 @@ impl SceneCore {
     ///
     /// Returns the output sink target configured for a particular stream
     ///
-    pub (crate) fn sink_for_target<TMessageType>(scene_core: &Arc<Mutex<SceneCore>>, source: &SubProgramId, target: StreamTarget) -> Result<OutputSinkTarget<TMessageType>, ConnectionError>
+    pub (crate) fn sink_for_target<TMessageType>(&mut self, source: &SubProgramId, target: StreamTarget) -> Result<(OutputSinkTarget<TMessageType>, Option<Waker>), ConnectionError>
     where
         TMessageType: 'static + SceneMessage,
     {
-        // Make sure that the message type is ready to use
-        Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessageType>());
-
         let stream  = StreamId::with_message_type::<TMessageType>();
-        let route   = scene_core.lock().unwrap().connectome.route_for(&stream, *source, &target);
+        let route   = self.connectome.route_for(&stream, *source, &target);
 
-        match route.and_then(|route| Self::sink_target_for_route(scene_core, *source, route)) {
-            Ok(target)                                  => Ok(target),
-            Err(ConnectionError::WrongInputType(_, _))  => Ok(OutputSinkTarget::Disconnected),
-            Err(ConnectionError::TargetNotInScene)      => Ok(OutputSinkTarget::Disconnected),
+        match route.and_then(|route| self.sink_target_for_route(*source, route)) {
+            Ok((target, waker))                         => Ok((target, waker)),
+            Err(ConnectionError::WrongInputType(_, _))  => Ok((OutputSinkTarget::Disconnected, None)),
+            Err(ConnectionError::TargetNotInScene)      => Ok((OutputSinkTarget::Disconnected, None)),
             Err(other)                                  => Err(other)
         }
     }
@@ -1587,7 +1608,8 @@ impl SceneCore {
         }
 
         // Fetch the input sink for the program
-        let Ok(error_target) = Self::sink_for_target::<Error>(&scene_core, &program_id, StreamTarget::Any) else { return Err(panic); };
+        let Ok((error_target, waker)) = scene_core.lock().unwrap().sink_for_target::<Error>(&program_id, StreamTarget::Any) else { return Err(panic); };
+        if let Some(waker) = waker { waker.wake(); }
 
         match &error_target {
             OutputSinkTarget::Disconnected  |
