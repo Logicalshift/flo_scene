@@ -423,7 +423,8 @@ impl SceneCore {
     ///
     fn reconnect_invalidated_streams(scene_core: &Arc<Mutex<SceneCore>>, invalidated: InvalidatedStreams) {
         // Connect any disconnected sinks in the affected programs/streams
-        let mut wakers = vec![];
+        let mut wakers          = vec![];
+        let mut scene_updates   = vec![];
 
         for (source_program, stream) in invalidated.iter() {
             let Some(program)       = scene_core.lock().unwrap().get_sub_program(*source_program) else { continue };
@@ -435,25 +436,60 @@ impl SceneCore {
                 .map(|(program_stream, core)| (program_stream.clone(), core.clone()))
                 .collect::<Vec<_>>();
 
-            for (program_stream, core) in output_sink_cores {
-                // Get the active target for this sink
-                let target = program_stream.active_target_for_output_sink(&core);
-                let target = if let Ok(StreamTarget::Any) = &target && let Some(program) = program_stream.target_program() {
-                    Ok(StreamTarget::Program(program))
-                } else {
-                    target
-                };
+            let (new_wakers, new_updates) = Self::reconnect_output_sinks(scene_core, *source_program, output_sink_cores);
+            wakers.extend(new_wakers);
+            scene_updates.extend(new_updates);
+        }
 
-                // Try to reconnect it
-                if let Ok(target) = target {
-                    let waker = program_stream.reconnect_output_sink(scene_core, &core, *source_program, target);
-                    if let Ok(Some(waker)) = waker { wakers.push(waker) }
+        // Notify the subscribers of any connections that have changed
+        SceneCore::send_scene_updates(scene_core, scene_updates);
+
+        // Wake everything that's been affected
+        for waker in wakers { waker.wake() }
+    }
+
+    ///
+    /// Reconnects a set of output sinks belonging to a source program to the targets indicated by the connectome
+    ///
+    /// Returns the wakers that need to be woken once the reconnection is complete, and the scene updates indicating any connections
+    /// that have changed as a result of the reconnection (the caller should send these using `send_scene_updates()`)
+    ///
+    pub (crate) fn reconnect_output_sinks(scene_core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, output_sink_cores: Vec<(StreamId, Arc<dyn Send + Sync + Any>)>) -> (Vec<Waker>, Vec<SceneUpdate>) {
+        let mut wakers          = vec![];
+        let mut scene_updates   = vec![];
+
+        for (program_stream, core) in output_sink_cores {
+            // Get the active target for this sink
+            let old_program = program_stream.active_program_for_output_sink(&core);
+            let target      = program_stream.active_target_for_output_sink(&core);
+            let target      = if let Ok(StreamTarget::Any) = &target && let Some(program) = program_stream.target_program() {
+                Ok(StreamTarget::Program(program))
+            } else {
+                target
+            };
+
+            // Try to reconnect it
+            if let Ok(target) = target {
+                let waker = program_stream.reconnect_output_sink(scene_core, &core, source_program, target);
+
+                if let Ok(waker) = waker {
+                    if let Some(waker) = waker { wakers.push(waker) }
+
+                    // Generate an update if the target of the connection changed
+                    let new_program = program_stream.active_program_for_output_sink(&core);
+
+                    if new_program != old_program {
+                        if let Some(new_program) = new_program {
+                            scene_updates.push(SceneUpdate::Connected(source_program, new_program, program_stream.clone()));
+                        } else {
+                            scene_updates.push(SceneUpdate::Disconnected(source_program, program_stream.clone()));
+                        }
+                    }
                 }
             }
         }
 
-        // Wake everything that's been affected
-        for waker in wakers { waker.wake() }
+        (wakers, scene_updates)
     }
 
     /*

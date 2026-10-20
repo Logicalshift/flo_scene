@@ -3,7 +3,6 @@ use crate::host::process_core::*;
 use crate::host::scene_core::*;
 use crate::host::scene_message::*;
 use crate::host::stream_id::*;
-use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
@@ -177,22 +176,10 @@ impl SubProgramCore {
         };
 
         // Reconnect the outputs to their existing targets
-        let mut wakers = vec![];
-        for (stream_id, core) in output_sink_cores {
-            // Get the active target for this sink
-            let target = reconnect_stream_id.active_target_for_output_sink(&core);
-            let target = if let Ok(StreamTarget::Any) = &target && let Some(program) = stream_id.target_program() {
-                Ok(StreamTarget::Program(program))
-            } else {
-                target
-            };
+        let (mut wakers, scene_updates) = SceneCore::reconnect_output_sinks(scene_core, program_id, output_sink_cores);
 
-            // Try to reconnect it
-            if let Ok(target) = target {
-                let waker = reconnect_stream_id.reconnect_output_sink(scene_core, &core, program_id, target);
-                if let Ok(Some(waker)) = waker { wakers.push(waker) }
-            }
-        }
+        // Notify the subscribers of any connections that have changed
+        SceneCore::send_scene_updates(scene_core, scene_updates);
 
         if wakers.len() <= 1 {
             // Just the one waker
