@@ -156,6 +156,8 @@ where
     ///
     #[inline]
     pub (crate) fn set_new_target(core: &Arc<Mutex<Self>>, new_target: OutputSinkTarget<TMessage>) -> Option<Waker> {
+        use std::mem;
+
         let mut core = core.lock().unwrap();
 
         if let OutputSinkTarget::FixedInput(_) = &core.target {
@@ -163,8 +165,14 @@ where
             None
         } else {
             // Change the target
-            core.target = new_target;
-            core.take_waker_when_target_changed()
+            let old_target  = mem::replace(&mut core.target, new_target);
+            let waker       = core.take_waker_when_target_changed();
+
+            // Dropping the old target can close an input stream and wake the scene core, so only do that once this core is unlocked
+            mem::drop(core);
+            mem::drop(old_target);
+
+            waker
         }
     }
 
