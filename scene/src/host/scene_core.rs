@@ -426,8 +426,12 @@ impl SceneCore {
             let Some(program) = scene_core.lock().unwrap().get_sub_program(*source_program) else { continue };
 
             // Disconnect this stream
-            program.lock().unwrap().disconnect_output_sink(&stream);
-            SubProgramCore::reconnect_disconnected_outputs(&program, scene_core, &stream);
+            let waker1 = program.lock().unwrap().disconnect_output_sink(&stream);
+            let waker2 = SubProgramCore::reconnect_disconnected_outputs(&program, scene_core, &stream);
+
+            // Call the wakers
+            if let Some(waker1) = waker1 { waker1.wake() }
+            if let Some(waker2) = waker2 { waker2.wake() }
         }
     }
 
