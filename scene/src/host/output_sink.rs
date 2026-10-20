@@ -155,6 +155,7 @@ where
     /// Updates the target of this core, returning the waker to use
     ///
     #[inline]
+    #[must_use = "will not be woken if dropped"]
     pub (crate) fn set_new_target(core: &Arc<Mutex<Self>>, new_target: OutputSinkTarget<TMessage>) -> Option<Waker> {
         use std::mem;
 
@@ -180,6 +181,7 @@ where
     /// Takes the waker from inside this sink and returns it
     ///
     #[inline]
+    #[must_use = "will not be woken if dropped"]
     pub (crate) fn take_waker_when_target_changed(&mut self) -> Option<Waker> {
         if self.when_target_changed.is_empty() {
             None

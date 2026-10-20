@@ -144,6 +144,7 @@ impl SubProgramCore {
     ///
     /// Connects all of the streams that matches a particular stream ID to a new target
     ///
+    #[must_use = "will not be woken if dropped"]
     pub (crate) fn reconnect_output_sinks(program_core: &Arc<Mutex<SubProgramCore>>, target_input: &Arc<dyn Send + Sync + Any>, stream_id: &StreamId, close_when_dropped: bool) -> Option<Waker> {
         if let Some(output_sink) = Self::output_sink_core(program_core, stream_id) {
             // This stream has an output matching the input (the stream types should always match)
@@ -157,6 +158,7 @@ impl SubProgramCore {
     ///
     /// Attempts to reconnect any output sinks that are marked as disconnected
     ///
+    #[must_use = "will not be woken if dropped"]
     pub (crate) fn reconnect_disconnected_outputs(program_core: &Arc<Mutex<SubProgramCore>>, scene_core: &Arc<Mutex<SceneCore>>, reconnect_stream_id: &StreamId) -> Option<Waker> {
         // Get the disconnected output sinks that match this
         let (output_sink_cores, program_id) = {
@@ -214,6 +216,7 @@ impl SubProgramCore {
     ///
     /// Disconnects an output sink for a particular stream
     ///
+    #[must_use = "will not be woken if dropped"]
     pub (crate) fn disconnect_output_sink(program_core: &Arc<Mutex<SubProgramCore>>, stream_id: &StreamId) -> Option<Waker> {
         if let Some(output_sink) = Self::output_sink_core(program_core, stream_id) {
             // This stream has an output matching the stream
@@ -226,6 +229,7 @@ impl SubProgramCore {
     ///
     /// Discards any output sent to an output stream
     ///
+    #[must_use = "will not be woken if dropped"]
     pub (crate) fn discard_output_from(program_core: &Arc<Mutex<SubProgramCore>>, stream_id: &StreamId) -> Option<Waker> {
         if let Some(output_sink) = Self::output_sink_core(program_core, stream_id) {
             // This stream has an output matching the stream

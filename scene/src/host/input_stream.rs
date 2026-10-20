@@ -314,6 +314,7 @@ where
     ///
     /// Sets this stream as 'closed' (which generally stops the process from running any further)
     ///
+    #[must_use = "will not be woken if dropped"]
     pub (crate) fn close(&mut self) -> Option<Waker> {
         self.closed = true;
 
