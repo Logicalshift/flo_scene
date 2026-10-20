@@ -176,28 +176,12 @@ impl SubProgramCore {
         };
 
         // Reconnect the outputs to their existing targets
-        let (mut wakers, scene_updates) = SceneCore::reconnect_output_sinks(scene_core, program_id, output_sink_cores);
+        let scene_updates = SceneCore::reconnect_output_sinks(scene_core, program_id, output_sink_cores);
 
         // Notify the subscribers of any connections that have changed
         SceneCore::send_scene_updates(scene_core, scene_updates);
 
-        if wakers.len() <= 1 {
-            // Just the one waker
-            wakers.pop()
-        } else {
-            // Create a waker that wakes up all of the items
-            struct WakeAll(Mutex<Vec<Waker>>);
-
-            impl ArcWake for WakeAll {
-                fn wake_by_ref(arc_self: &Arc<Self>) {
-                    for waker in arc_self.0.lock().unwrap().drain(..) {
-                        waker.wake()
-                    }
-                }
-            }
-
-            Some(waker(Arc::new(WakeAll(Mutex::new(wakers)))))
-        }
+        None
     }
 
     ///

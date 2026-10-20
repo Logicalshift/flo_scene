@@ -423,7 +423,6 @@ impl SceneCore {
     ///
     fn reconnect_invalidated_streams(scene_core: &Arc<Mutex<SceneCore>>, invalidated: InvalidatedStreams) {
         // Connect any disconnected sinks in the affected programs/streams
-        let mut wakers          = vec![];
         let mut scene_updates   = vec![];
 
         for (source_program, stream) in invalidated.iter() {
@@ -436,16 +435,12 @@ impl SceneCore {
                 .map(|(program_stream, core)| (program_stream.clone(), core.clone()))
                 .collect::<Vec<_>>();
 
-            let (new_wakers, new_updates) = Self::reconnect_output_sinks(scene_core, *source_program, output_sink_cores);
-            wakers.extend(new_wakers);
-            scene_updates.extend(new_updates);
+            let updates = Self::reconnect_output_sinks(scene_core, *source_program, output_sink_cores);
+            scene_updates.extend(updates);
         }
 
         // Notify the subscribers of any connections that have changed
         SceneCore::send_scene_updates(scene_core, scene_updates);
-
-        // Wake everything that's been affected
-        for waker in wakers { waker.wake() }
     }
 
     ///
@@ -454,7 +449,7 @@ impl SceneCore {
     /// Returns the wakers that need to be woken once the reconnection is complete, and the scene updates indicating any connections
     /// that have changed as a result of the reconnection (the caller should send these using `send_scene_updates()`)
     ///
-    pub (crate) fn reconnect_output_sinks(scene_core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, output_sink_cores: Vec<(StreamId, Arc<dyn Send + Sync + Any>)>) -> (Vec<Waker>, Vec<SceneUpdate>) {
+    pub (crate) fn reconnect_output_sinks(scene_core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, output_sink_cores: Vec<(StreamId, Arc<dyn Send + Sync + Any>)>) -> Vec<SceneUpdate> {
         let mut wakers          = vec![];
         let mut scene_updates   = vec![];
 
@@ -473,7 +468,7 @@ impl SceneCore {
                 let waker = program_stream.reconnect_output_sink(scene_core, &core, source_program, target);
 
                 if let Ok(waker) = waker {
-                    if let Some(waker) = waker { wakers.push(waker) }
+                    wakers.extend(waker);
 
                     // Generate an update if the target of the connection changed
                     let new_program = program_stream.active_program_for_output_sink(&core);
@@ -489,7 +484,11 @@ impl SceneCore {
             }
         }
 
-        (wakers, scene_updates)
+        for waker in wakers {
+            waker.wake()
+        }
+
+        scene_updates
     }
 
     /*
