@@ -358,7 +358,9 @@ impl SceneControl {
         let scene_core              = context.scene_core();
         let mut update_subscribers  = EventSubscribers::new();
 
-        update_subscribers.add_target(context.send::<SceneUpdate>(StreamTarget::None).unwrap());
+        // Sending to 'Any' ensures that we send to anyone who's listening
+        // The default 'None' target will discard these messages by default
+        update_subscribers.add_target(context.send::<SceneUpdate>(StreamTarget::Any).unwrap());
 
         // We read from the update stream and the input stream at the same time
         enum ControlInput {
