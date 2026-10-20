@@ -498,6 +498,16 @@ impl StreamId {
     }
 
     ///
+    /// The target that was requested when this stream was created (Any for streams that just specify a message type)
+    ///
+    pub (crate) fn requested_target(&self) -> StreamTarget {
+        match &self.stream_id_type {
+            StreamIdType::MessageType       => StreamTarget::Any,
+            StreamIdType::Target(target)    => target.clone(),
+        }
+    }
+
+    ///
     /// None if this stream ID is not for a specific target, otherwise the program ID of the target that this stream is for
     ///
     pub fn target_program(&self) -> Option<SubProgramId> {

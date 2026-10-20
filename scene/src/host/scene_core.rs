@@ -455,12 +455,7 @@ impl SceneCore {
         for (program_stream, core) in output_sink_cores {
             // Get the active target for this sink
             let old_program = program_stream.active_program_for_output_sink(&core);
-            let target      = program_stream.active_target_for_output_sink(&core);
-            let target      = if let Ok(StreamTarget::Any) = &target && let Some(program) = program_stream.target_program() {
-                Ok(StreamTarget::Program(program))
-            } else {
-                target
-            };
+            let target      = Ok::<_, ConnectionError>(program_stream.requested_target());
 
             // Try to reconnect it
             if let Ok(target) = target {
