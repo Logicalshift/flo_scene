@@ -45,7 +45,7 @@ pub (crate) struct OutputSinkCore<TMessage: 'static + Send> {
     target: OutputSinkTarget<TMessage>,
 
     /// Waker that is notified when the target is changed
-    when_target_changed: Option<Waker>,
+    when_target_changed: Vec<Waker>,
 }
 
 ///
@@ -124,7 +124,7 @@ where
     pub (crate) fn new(target: OutputSinkTarget<TMessage>) -> Self {
         OutputSinkCore {
             target:                 target,
-            when_target_changed:    None,
+            when_target_changed:    vec![],
         }
     }
 
@@ -164,7 +164,38 @@ where
         } else {
             // Change the target
             core.target = new_target;
-            core.when_target_changed.take()
+            core.take_waker_when_target_changed()
+        }
+    }
+
+    ///
+    /// Takes the waker from inside this sink and returns it
+    ///
+    #[inline]
+    pub (crate) fn take_waker_when_target_changed(&mut self) -> Option<Waker> {
+        if self.when_target_changed.is_empty() {
+            None
+        } else if self.when_target_changed.len() == 1 {
+            // Just one waker
+            self.when_target_changed.pop()
+        } else {
+            // Multiple wakers
+            use futures::task::{ArcWake, waker};
+            use std::mem;
+
+            struct WakeAll(Mutex<Vec<Waker>>);
+            impl ArcWake for WakeAll {
+                fn wake_by_ref(arc_self: &Arc<Self>) {
+                    for waker in arc_self.0.lock().unwrap().drain(..) {
+                        waker.wake()
+                    }
+                }
+            }
+
+            let wake_all = WakeAll(Mutex::new(mem::replace(&mut self.when_target_changed, vec![])));
+            let wake_all = Arc::new(wake_all);
+
+            Some(waker(wake_all))
         }
     }
 }
@@ -221,7 +252,7 @@ where
             match &core.target {
                 // Wake whenever the target of thiis core changes
                 OutputSinkTarget::Disconnected => {
-                    core.when_target_changed = Some(context.waker().clone());
+                    core.when_target_changed.push(context.waker().clone());
                     Poll::Pending
                 },
 
@@ -235,7 +266,7 @@ where
                     if input_core.upgrade().is_none() {
                         // Downgrade to a disconnected core so the sending can be retried
                         core.target                 = OutputSinkTarget::Disconnected;
-                        core.when_target_changed    = Some(context.waker().clone());
+                        core.when_target_changed.push(context.waker().clone());
 
                         Poll::Pending
                     } else {
@@ -505,7 +536,7 @@ where
 
             match &core.target {
                 OutputSinkTarget::Disconnected => {
-                    core.when_target_changed = Some(context.waker().clone());
+                    core.when_target_changed.push(context.waker().clone());
                     mem::drop(core);
 
                     // TODO: this is duplicated in poll_flush
@@ -698,7 +729,7 @@ where
         match &core.target {
             OutputSinkTarget::Disconnected => {
                 // Wait for the target to change
-                core.when_target_changed = Some(context.waker().clone());
+                core.when_target_changed.push(context.waker().clone());
                 mem::drop(core);
 
                 // Trigger or wait for an idle message
@@ -792,7 +823,7 @@ where
                                     input_core.wake_when_slots_available(context);
 
                                     mem::drop(input_core);
-                                    self.core.lock().unwrap().when_target_changed = Some(context.waker().clone());
+                                    self.core.lock().unwrap().when_target_changed.push(context.waker().clone());
                                     Poll::Pending
                                 }
                             }
@@ -806,7 +837,7 @@ where
                     core.target = OutputSinkTarget::Disconnected;
 
                     // When the core is released during a send, the target program has terminated, so we generate an error
-                    core.when_target_changed    = Some(context.waker().clone());
+                    core.when_target_changed.push(context.waker().clone());
                     Poll::Ready(Err(SceneSendError::TargetProgramEndedBeforeReady))
                 }
             }
@@ -837,7 +868,7 @@ mod test {
         pub (crate) fn new(program_id: SubProgramId, scene_core: &Arc<Mutex<SceneCore>>) -> OutputSink<TMessage> {
             let core = OutputSinkCore {
                 target:                 OutputSinkTarget::Disconnected,
-                when_target_changed:    None,
+                when_target_changed:    vec![],
             };
 
             OutputSink {
