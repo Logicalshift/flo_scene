@@ -157,8 +157,7 @@ impl SubProgramCore {
     ///
     /// Attempts to reconnect any output sinks that are marked as disconnected
     ///
-    #[must_use = "will not be woken if dropped"]
-    pub (crate) fn reconnect_disconnected_outputs(program_core: &Arc<Mutex<SubProgramCore>>, scene_core: &Arc<Mutex<SceneCore>>, reconnect_stream_id: &StreamId) -> Option<Waker> {
+    pub (crate) fn reconnect_disconnected_outputs(program_core: &Arc<Mutex<SubProgramCore>>, scene_core: &Arc<Mutex<SceneCore>>, reconnect_stream_id: &StreamId) {
         // Get the disconnected output sinks that match this
         let (output_sink_cores, program_id) = {
             let core = program_core.lock().unwrap();
@@ -180,8 +179,6 @@ impl SubProgramCore {
 
         // Notify the subscribers of any connections that have changed
         SceneCore::send_scene_updates(scene_core, scene_updates);
-
-        None
     }
 
     ///

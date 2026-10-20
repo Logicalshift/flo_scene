@@ -409,8 +409,7 @@ impl SceneCore {
         let subprograms = core.lock().unwrap().sub_programs.iter().flatten().cloned().collect::<Vec<_>>();
         for subprogram in subprograms {
             if subprogram.lock().unwrap().output_streams().any(|(output_stream, _)| output_stream.message_type() == stream_id.message_type()) {
-                let waker = SubProgramCore::reconnect_disconnected_outputs(&subprogram, core, &stream_id);
-                if let Some(waker) = waker { waker.wake() }
+                SubProgramCore::reconnect_disconnected_outputs(&subprogram, core, &stream_id);
             }
         }
 
