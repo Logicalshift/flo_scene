@@ -114,6 +114,24 @@ where
     }
 }
 
+impl<TMessage> OutputSinkTarget<TMessage>
+where
+    TMessage: 'static + Send
+{
+    ///
+    /// True if this target sends its messages to the input of a program (which may no longer be running)
+    ///
+    #[inline]
+    pub (crate) fn is_connected_to_input(&self) -> bool {
+        use OutputSinkTarget::*;
+
+        match self {
+            Disconnected | Discard                          => false,
+            Input(_) | FixedInput(_) | CloseWhenDropped(_)  => true,
+        }
+    }
+}
+
 impl<TMessage> OutputSinkCore<TMessage> 
 where
     TMessage: Send
@@ -601,9 +619,7 @@ where
                 OutputSinkTarget::FixedInput(input_core)          |
                 OutputSinkTarget::CloseWhenDropped(input_core)    => {
                     if input_core.upgrade().is_none() {
-                        // Downgrade to a disconnected core so the sending can be retried
-                        core.target = OutputSinkTarget::Disconnected;
-
+                        // Once connected, a sink stays connected to the program that has stopped (and generates errors) until it's reconnected
                         mem::drop(core);
                         self.wait_for_idle = None;
 
@@ -701,10 +717,7 @@ where
                         }
                     } 
                 } else {
-                    // Downgrade to a disconnected core so the sending can be retried
-                    core.target = OutputSinkTarget::Disconnected;
-
-                    // Target program is not available
+                    // Target program is not available (the sink stays connected to it, so sending will keep generating errors until it's reconnected)
                     Err(SceneSendError::TargetProgramEnded(item))
                 }
             }
@@ -840,11 +853,8 @@ where
                         Poll::Ready(Ok(()))
                     }
                 } else {
-                    // Downgrade to a disconnected core so the sending can be retried
-                    core.target = OutputSinkTarget::Disconnected;
-
                     // When the core is released during a send, the target program has terminated, so we generate an error
-                    core.when_target_changed.push(context.waker().clone());
+                    // (the sink stays connected to the stopped program until it's reconnected, so further sends will also generate errors)
                     Poll::Ready(Err(SceneSendError::TargetProgramEndedBeforeReady))
                 }
             }

@@ -244,8 +244,16 @@ impl StreamTypeFunctions {
                 let (new_target, waker) = scene_core.lock().unwrap().sink_for_target::<TMessageType>(&source_program, stream_target)?;
                 if let Some(waker) = waker { waker.wake(); }
 
-                // Update the output sink
                 let output_sink = output_sink_core_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+
+                // Holding the stream is for waiting for programs to start: once a sink has been connected to a program, it stays connected so it generates errors if that program stops
+                if let OutputSinkTarget::Disconnected = &new_target {
+                    if output_sink.lock().unwrap().target().is_connected_to_input() {
+                        return Ok(None);
+                    }
+                }
+
+                // Update the output sink
                 let waker       = OutputSinkCore::set_new_target(&output_sink, new_target);
 
                 Ok(waker)
