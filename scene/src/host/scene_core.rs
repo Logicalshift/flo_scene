@@ -409,7 +409,8 @@ impl SceneCore {
         let subprograms = core.lock().unwrap().sub_programs.iter().flatten().cloned().collect::<Vec<_>>();
         for subprogram in subprograms {
             if subprogram.lock().unwrap().output_streams().any(|(output_stream, _)| output_stream.message_type() == stream_id.message_type()) {
-                SubProgramCore::reconnect_disconnected_outputs(&subprogram, core, &stream_id);
+                let waker = SubProgramCore::reconnect_disconnected_outputs(&subprogram, core, &stream_id);
+                if let Some(waker) = waker { waker.wake() }
             }
         }
 
@@ -466,13 +467,15 @@ impl SceneCore {
             ConnectionRoute::Filter(_, _)   |       // Filters can't be an endpoint, we treat them like 'None' if they show up because of a bug
             ConnectionRoute::None           => {
                 // Output sink is disconnected
-                SubProgramCore::discard_output_from(&source_program, &stream);
+                let waker = SubProgramCore::discard_output_from(&source_program, &stream);
+                if let Some(waker) = waker { waker.wake() }
                 Ok(ConnectionResult::Ready)
             }
 
             ConnectionRoute::Hold => {
                 // Disconnect the output for this sink
-                SubProgramCore::disconnect_output_sink(&source_program, &stream);
+                let waker = SubProgramCore::disconnect_output_sink(&source_program, &stream);
+                if let Some(waker) = waker { waker.wake() }
 
                 // Target isn't ready if this is a 'hold' stream
                 Ok(ConnectionResult::TargetNotReady)
@@ -480,7 +483,8 @@ impl SceneCore {
 
             ConnectionRoute::DeliverTo(target_program) => {
                 // Disconnect the source program so we don't keep sending if there's an error
-                SubProgramCore::disconnect_output_sink(&source_program, &stream);
+                let waker = SubProgramCore::disconnect_output_sink(&source_program, &stream);
+                if let Some(waker) = waker { waker.wake() }
 
                 // Start with the input for the target program
                 let mut target_input        = scene_core.lock().unwrap().get_target_input(&target_program, &stream)?;
@@ -493,7 +497,8 @@ impl SceneCore {
                 }
 
                 // Connect the output to the input
-                SubProgramCore::reconnect_output_sinks(&source_program, &target_input, &stream, close_when_dropped);
+                let waker = SubProgramCore::reconnect_output_sinks(&source_program, &target_input, &stream, close_when_dropped);
+                if let Some(waker) = waker { waker.wake() }
 
                 Ok(ConnectionResult::Ready)
             },
