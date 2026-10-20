@@ -696,6 +696,17 @@ impl StreamId {
     }
 
     ///
+    /// Returns the program that an output sink is connected to
+    ///
+    pub (crate) fn active_program_for_output_sink(&self, output_sink_core: &Arc<dyn Send + Sync + Any>) -> Option<SubProgramId> {
+        match self.active_target_for_output_sink(output_sink_core) {
+            Ok(StreamTarget::Program(program_id))       => Some(program_id),
+            Ok(StreamTarget::Filtered(_, program_id))   => Some(program_id),
+            _                                           => None,
+        }
+    }
+
+    ///
     /// Attempts to reconnect an output sink core to a new target within a scene (returning a waker if successful)
     ///
     pub (crate) fn reconnect_output_sink(&self, scene_core: &Arc<Mutex<SceneCore>>, output_sink_core: &Arc<dyn Send + Sync + Any>, source_program: SubProgramId, new_target: StreamTarget) -> Result<Option<Waker>, ConnectionError> {
