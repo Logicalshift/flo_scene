@@ -617,14 +617,6 @@ impl Connectome {
     }
 }
 
-///
-/// True if a stream target is for a specific program
-///
-#[inline]
-fn is_specific_target(target: &StreamTarget) -> bool {
-    target.target_sub_program().is_some()
-}
-
 impl Default for Connectome {
     fn default() -> Self {
         // The default connectome is just empty

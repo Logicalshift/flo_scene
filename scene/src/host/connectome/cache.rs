@@ -214,5 +214,4 @@ impl ConnectionDescription {
 
     #[inline] pub fn source(&self) -> SubProgramId  { self.source }
     #[inline] pub fn stream(&self) -> &StreamId     { &self.stream }
-    #[inline] pub fn target(&self) -> &StreamTarget { &self.target }
 }
