@@ -260,7 +260,7 @@ impl Connectome {
                         let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
                         state = new_state;
 
-                    } else if let Some(target) = connections.direct_target_for_messages(source_program, state.target_program) {
+                    } else if let Some(target) = connections.direct_target_for_messages(source_program, state.target_program) && (target.is_filter() || target.target_sub_program() != Some(state.target_program)) {
                         // There's a direct specifier for this program
                         let Some(new_state) = state.next_from_target(&target)? else { return Ok((target.into(), StreamTarget::Program(target_program))) };
                         state = new_state;
@@ -270,7 +270,7 @@ impl Connectome {
                         let Some(new_state) = state.next_from_route(&route)? else { return Ok((route, StreamTarget::Program(target_program))) };
                         state = new_state;
 
-                    } else if let Some(target) = connections.general_target_for_program(state.target_program) {
+                    } else if let Some(target) = connections.general_target_for_program(state.target_program) && (target.is_filter() || target.target_sub_program() != Some(state.target_program)) {
                         // The target program has a general route for this stream
                         let Some(new_state) = state.next_from_target(&target)? else { return Ok((target.into(), StreamTarget::Program(target_program))) };
                         state = new_state;
@@ -431,7 +431,7 @@ impl Connectome {
                 (StreamSource::Program(source), new_target)                                     => { connection.add_redirect(Some(*source), target_program, new_target.clone())?; }
 
                 (StreamSource::Filtered(_source), StreamTarget::None)                           => { connection.add_redirect(None, target_program, StreamTarget::None)?; } // Filter has no effect
-                (StreamSource::Filtered(_source), StreamTarget::Any)                            => { todo!() } // TODO: a filter-then-connect-anywhere connection
+                (StreamSource::Filtered(source), StreamTarget::Any)                             => { connection.add_redirect(None, target_program, StreamTarget::Filtered(source.clone(), target_program))?; } // Kind of the same things as a filtered stream target
                 (StreamSource::Filtered(source), StreamTarget::Filtered(new_target, program))   => { connection.add_redirect(None, target_program, StreamTarget::Filtered(source.chain(new_target.clone())?, *program))?; } // Same as a single filter
                 (StreamSource::Filtered(source), StreamTarget::Program(program))                => { connection.add_redirect(None, target_program, StreamTarget::Filtered(source.clone(), *program))?; }
             }
@@ -615,14 +615,6 @@ impl Connectome {
 
         affected
     }
-}
-
-///
-/// True if a stream target is for a specific program
-///
-#[inline]
-fn is_specific_target(target: &StreamTarget) -> bool {
-    target.target_sub_program().is_some()
 }
 
 impl Default for Connectome {

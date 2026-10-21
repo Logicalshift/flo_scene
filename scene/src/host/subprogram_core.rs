@@ -3,10 +3,10 @@ use crate::host::process_core::*;
 use crate::host::scene_core::*;
 use crate::host::scene_message::*;
 use crate::host::stream_id::*;
+use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
-use futures::task::{ArcWake, Waker, waker};
 
 use std::any::*;
 use std::collections::*;
@@ -124,38 +124,19 @@ impl SubProgramCore {
     }
 
     ///
-    /// Returns true if this program has an output for a particular stream
+    /// Attempts to reconnect any output sinks that are marked as disconnected
     ///
-    pub (crate) fn has_output_sink(&mut self, stream_id: &StreamId) -> bool {
-        self.outputs.contains_key(stream_id)
-    }
-
-    ///
-    /// Connects all of the streams that matches a particular stream ID to a new target
-    ///
-    pub (crate) fn reconnect_output_sinks(&mut self, target_input: &Arc<dyn Send + Sync + Any>, stream_id: &StreamId, close_when_dropped: bool) -> Option<Waker> {
-        if let Some(output_sink) = self.outputs.get_mut(stream_id) {
-            // This stream has an output matching the input (the stream types should always match)
-            // TODO: fails with filters? (specifically source filters)
-            stream_id.connect_output_to_input(output_sink, target_input, close_when_dropped).expect("Input and output types do not match")
-        } else {
-            None
-        }
-    }
-
-    ///
-    /// Attempts to reconnect any output sinks that are 
-    ///
-    pub (crate) fn reconnect_disconnected_outputs(program_core: &Arc<Mutex<SubProgramCore>>, scene_core: &Arc<Mutex<SceneCore>>, reconnect_stream_id: &StreamId) -> Option<Waker> {
+    pub (crate) fn reconnect_disconnected_outputs(program_core: &Arc<Mutex<SubProgramCore>>, scene_core: &Arc<Mutex<SceneCore>>, reconnect_stream_id: &StreamId) {
         // Get the disconnected output sinks that match this
         let (output_sink_cores, program_id) = {
             let core = program_core.lock().unwrap();
 
-            // TODO: filter out output sinks that are already attached, we only want disconnected ones here
+            // Only the disconnected output sinks are reconnected here (sinks that are already attached are reconnected via the connectome's invalidated streams)
             let output_sink_cores = core.outputs
                 .iter()
                 .filter(|(output_stream_id, _)| reconnect_stream_id.message_type() == output_stream_id.message_type())
-                .map(|(_, output_sink_core)| output_sink_core.clone())
+                .filter(|(output_stream_id, output_sink_core)| matches!(output_stream_id.active_target_for_output_sink(output_sink_core), Ok(StreamTarget::Any)))
+                .map(|(stream_id, output_sink_core)| (stream_id.clone(), output_sink_core.clone()))
                 .collect::<Vec<_>>();
 
             let program_id = core.id;
@@ -164,59 +145,10 @@ impl SubProgramCore {
         };
 
         // Reconnect the outputs to their existing targets
-        let mut wakers = vec![];
-        for core in output_sink_cores {
-            // Get the active target for this sink
-            let target = reconnect_stream_id.active_target_for_output_sink(&core);
+        let scene_updates = SceneCore::reconnect_output_sinks(scene_core, program_id, output_sink_cores);
 
-            // Try to reconnect it
-            if let Ok(target) = target {
-                let waker = reconnect_stream_id.reconnect_output_sink(scene_core, &core, program_id, target);
-                if let Ok(Some(waker)) = waker { wakers.push(waker) }
-            }
-        }
-
-        if wakers.len() <= 1 {
-            // Just the one waker
-            wakers.pop()
-        } else {
-            // Create a waker that wakes up all of the items
-            struct WakeAll(Mutex<Vec<Waker>>);
-
-            impl ArcWake for WakeAll {
-                fn wake_by_ref(arc_self: &Arc<Self>) {
-                    for waker in arc_self.0.lock().unwrap().drain(..) {
-                        waker.wake()
-                    }
-                }
-            }
-
-            Some(waker(Arc::new(WakeAll(Mutex::new(wakers)))))
-        }
-    }
-
-    ///
-    /// Disconnects an output sink for a particular stream
-    ///
-    pub (crate) fn disconnect_output_sink(&mut self, stream_id: &StreamId) -> Option<Waker> {
-        if let Some(output_sink) = self.outputs.get_mut(stream_id) {
-            // This stream has an output matching the stream
-            stream_id.disconnect_output(output_sink).expect("Stream type does not match")
-        } else {
-            None
-        }
-    }
-
-    ///
-    /// Discards any output sent to an output stream
-    ///
-    pub (crate) fn discard_output_from(&mut self, stream_id: &StreamId) -> Option<Waker> {
-        if let Some(output_sink) = self.outputs.get_mut(stream_id) {
-            // This stream has an output matching the stream
-            stream_id.connect_output_to_discard(output_sink).expect("Stream type does not match")
-        } else {
-            None
-        }
+        // Notify the subscribers of any connections that have changed
+        SceneCore::send_scene_updates(scene_core, scene_updates);
     }
 
     ///

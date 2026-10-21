@@ -94,12 +94,21 @@ impl SceneContext {
 
                 Ok(sink)
             } else {
-                // Fetch the target from the core (possibly creating a new one)
-                let new_target  = SceneCore::sink_for_target(&scene_core, &program_id, target)?;
+                SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TMessageType>());
 
-                // The scene core could provide a sink target for this stream, which we'll set in the program core
-                // Locking both so the scene's target can't change before we're done
-                let new_or_old_target = program_core.lock().unwrap().try_create_output_target(&stream_id, new_target);
+                let new_or_old_target = {
+                    // Fetch the target from the core (possibly creating a new one)
+                    let mut core            = scene_core.lock().unwrap();
+                    let (new_target, waker) = core.sink_for_target(&program_id, target)?;
+
+                    // The scene core could provide a sink target for this stream, which we'll set in the program core
+                    // Locking both so the scene's target can't change before we're done
+                    let new_or_old_target = program_core.lock().unwrap().try_create_output_target(&stream_id, new_target);
+                    drop(core);
+
+                    if let Some(waker) = waker { waker.wake(); }
+                    new_or_old_target
+                };
 
                 match new_or_old_target {
                     Ok(new_target) => {

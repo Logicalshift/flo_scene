@@ -176,14 +176,16 @@ where
                     left.await;
 
                     // When the left future finishes, stop the main input (which will cause the whole program to stop eventually)
-                    main_core_1.lock().unwrap().close();
+                    let waker = main_core_1.lock().unwrap().close();
+                    if let Some(waker) = waker { waker.wake() }
                 },
                 async move {
                     // Wait for the right future
                     right.await;
 
                     // Stop the whole program when the future stops
-                    main_core_2.lock().unwrap().close();
+                    let waker = main_core_2.lock().unwrap().close();
+                    if let Some(waker) = waker { waker.wake() }
                 },
                 async move {
                     let mut input = input.messages_with_sources();
@@ -198,8 +200,12 @@ where
                         }
                     }
 
-                    left_core.lock().unwrap().close();
-                    right_core.lock().unwrap().close();
+                    let waker_left  = left_core.lock().unwrap().close();
+                    let waker_right = right_core.lock().unwrap().close();
+
+                    for waker in waker_left.into_iter().chain(waker_right) {
+                        waker.wake()
+                    }
                 }
             ).await;
         }.boxed()

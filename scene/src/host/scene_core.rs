@@ -1,4 +1,5 @@
 use crate::host::connect_result::*;
+use crate::host::connectome::*;
 use crate::host::error::*;
 use crate::host::filter::*;
 use crate::host::output_sink::*;
@@ -79,15 +80,8 @@ pub (crate) struct SceneCore {
     /// Wakers for when a process stops
     pub (super) on_stop: Vec<Waker>,
 
-    /// The connections to assign between programs. More specific sources override less specific sources.
-    connections: HashMap<(StreamSource, StreamId), StreamTarget>,
-
-    /// Filters that can convert between a output stream type and an input stream type
-    filter_conversions: HashMap<(StreamId, StreamId), FilterHandle>,
-
-    /// Maps source streams to target streams where the source stream should be filtered to the target stream before connecting (this 
-    /// is used for streams with an 'Any' target where there's no existing connection)
-    filtered_targets: HashMap<StreamId, Vec<StreamId>>,
+    /// The connectome, which defines how programs are connected to one another
+    connectome: Connectome,
 
     /// True if this scene is stopped and shouldn't be run any more
     stopped: bool,
@@ -122,9 +116,7 @@ impl SceneCore {
             next_process:               0,
             program_indexes:            HashMap::new(),
             awake_processes:            VecDeque::new(),
-            connections:                HashMap::new(),
-            filter_conversions:         HashMap::new(),
-            filtered_targets:           HashMap::new(),
+            connectome:                 Connectome::default(),
             thread_wakers:              vec![],
             on_stop:                    vec![],
             stopped:                    false,
@@ -178,7 +170,7 @@ impl SceneCore {
 
         Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessage>());
 
-        let (subprogram, waker) = {
+        let (subprogram, waker, invalidated_streams) = {
             let start_core      = Arc::downgrade(scene_core);
             let process_core    = Arc::downgrade(scene_core);
             let mut core        = scene_core.lock().unwrap();
@@ -233,6 +225,9 @@ impl SceneCore {
                     core.program_indexes.remove(&program_id);
                     core.next_subprogram    = core.next_subprogram.min(handle);
 
+                    // Remove from the connectome and retrieve the invalidated streams
+                    let invalidated_streams = core.connectome.remove_subprogram(program_id);
+
                     // Drop in order: first release the core lock, then drop the subprograms (which may re-take it)
                     mem::drop(core);
 
@@ -243,6 +238,9 @@ impl SceneCore {
 
                     mem::drop(old_input_core);
                     mem::drop(old_sub_program);
+
+                    // Reconnect any invalidated streams
+                    Self::reconnect_invalidated_streams(&scene_core, invalidated_streams);
 
                     // Core might be idle now the program has finished
                     SceneCore::check_if_idle(&scene_core);
@@ -283,7 +281,10 @@ impl SceneCore {
                 core.next_subprogram += 1;
             }
 
-            (subprogram, waker)
+            // Add to the connectome and get the invalidated streams
+            let invalidated = core.connectome.add_subprogram(program_id, StreamId::with_message_type::<TMessage>());
+
+            (subprogram, waker, invalidated)
         };
 
         // Safe to wake the waker once the core lock is released
@@ -292,7 +293,7 @@ impl SceneCore {
         }
 
         // If there are any pending connections that can be connected to this subprogram, reconnect them here
-        Self::reconnect_subprogram(scene_core, program_id);
+        Self::reconnect_invalidated_streams(scene_core, invalidated_streams);
 
         // Result is the subprogram
         subprogram
@@ -328,17 +329,11 @@ impl SceneCore {
         let target_input = self.sub_program_inputs[handle].as_ref().ok_or(ConnectionError::TargetNotAvailable)?;
 
         if (*target_input.1).type_id() != expected_message_type {
-            // The target doesn't have the expected message type. If there's a conversion filter, we can still return the target type
-            if self.filter_conversions.contains_key(&(stream_id.as_message_type(), target_input.0.as_message_type())) {
-                // The input stream doesn't match the output but there's a filter to convert between them available (only direct conversions are supported, so a chain of filters won't be followed)
-                Ok(Arc::clone(&target_input.1))
-            } else {
-                // Can't use this stream as it doesn't match stream_id
-                let stream_type     = stream_id.message_type_name();
-                let program_type    = self.sub_programs[handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
+            // Can't use this stream as it doesn't match stream_id
+            let stream_type     = stream_id.message_type_name();
+            let program_type    = self.sub_programs[handle].as_ref().unwrap().lock().unwrap().expected_input_type_name.to_string();
 
-                Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream_type), TargetInputMessageType(program_type)))
-            }
+            Err(ConnectionError::WrongInputType(SourceStreamMessageType(stream_type), TargetInputMessageType(program_type)))
         } else {
             Ok(Arc::clone(&target_input.1))
         }
@@ -394,570 +389,185 @@ impl SceneCore {
             Self::initialise_filter(core, filter.clone());
         }
 
-        // Check source/target filter streams
-        match (&source, &target) {
-            (StreamSource::Filtered(source_filter), StreamTarget::Filtered(target_filter, _)) => {
-                let source_stream_id = source_filter.source_stream_id_any()?;
-                if source_stream_id.as_message_type() != stream_id.as_message_type() {
-                    return Err(ConnectionError::FilterSourceInputMustMatchStream);
-                }
+        // Call the connectome to perform the connection
+        let invalidated_streams = core.lock().unwrap().connectome.connect(&source, &target, stream_id.clone());
 
-                let middle_stream_id = source_filter.target_stream_id_any()?;
-                let target_stream_id = target_filter.source_stream_id_any()?;
-                if middle_stream_id != target_stream_id {
-                    return Err(ConnectionError::FilterTargetInputMustMatchStream);
-                }
-            },
+        let invalidated_streams = match invalidated_streams {
+            Ok(streams) => streams,
+            Err(err)    => {
+                let update = SceneUpdate::FailedConnection(err.clone(), source, target, stream_id);
+                SceneCore::send_scene_updates(core, vec![update]);
+                return Err(err);
+            }
+        };
 
-            (StreamSource::Filtered(source_filter), _) => {
-                let source_stream_id = source_filter.source_stream_id_any()?;
-                if source_stream_id.as_message_type() != stream_id.as_message_type() {
-                    return Err(ConnectionError::FilterSourceInputMustMatchStream);
-                }
-            },
+        // Reconnect any affected streams
+        Self::reconnect_invalidated_streams(core, invalidated_streams);
 
-            (_, StreamTarget::Filtered(target_filter, _)) => {
-                let target_stream_id = target_filter.source_stream_id_any()?;
-                if target_stream_id.as_message_type() != stream_id.as_message_type() {
-                    return Err(ConnectionError::FilterTargetInputMustMatchStream);
-                }
-            },
-
-            _ => { 
-                // Not filtered
+        // Reconnect all subprograms with this kind of output sink
+        // TODO: this iterates all streams in all programs which isn't great performance-wise
+        let subprograms = core.lock().unwrap().sub_programs.iter().flatten().cloned().collect::<Vec<_>>();
+        for subprogram in subprograms {
+            if subprogram.lock().unwrap().output_streams().any(|(output_stream, _)| output_stream.message_type() == stream_id.message_type()) {
+                SubProgramCore::reconnect_disconnected_outputs(&subprogram, core, &stream_id);
             }
         }
 
-        // Certain combinations of source and target can be expressed in a more 'standard' way
-        let (source, target) = match (source, target) {
-            (StreamSource::Filtered(filter), StreamTarget::Program(program)) => {
-                // Connecting a filter source to a program is the same as connecting anything to the filter
-                (StreamSource::All, StreamTarget::Filtered(filter, program))
-            },
+        // TODO: generate the other connection results (generates TargetNotReady if the connection doesn't have a target)
+        Ok(ConnectionResult::Ready)
+    }
 
-            (source, target) => (source, target),
-        };
+    ///
+    /// Invalidate and reconnect any streams affected by invalidation
+    ///
+    fn reconnect_invalidated_streams(scene_core: &Arc<Mutex<SceneCore>>, invalidated: InvalidatedStreams) {
+        // Connect any disconnected sinks in the affected programs/streams
+        let mut scene_updates   = vec![];
 
-        // Call finish_connecting_programs to determine the result of the connection
-        let result = SceneCore::finish_connecting_programs(core, source.clone(), target.clone(), stream_id.clone());
+        for (source_program, stream) in invalidated.iter() {
+            let Some(program)       = scene_core.lock().unwrap().get_sub_program(*source_program) else { continue };
 
-        // If successful and the target is a filter, connect the specific stream for the target as well as the 'all' stream
-        if result.is_ok() {
-            // Reconnect any streams that specifically target the filter as well
-            if let StreamTarget::Filtered(_, target_program_id) = target {
-                if stream_id.target_program().is_none() {
-                    SceneCore::finish_connecting_programs(core, source.clone(), target.clone(), stream_id.for_target(target_program_id)).ok();
-                }
-            }
-
-            // Reconnect any streams that are affected by an 'any' source filter: that is, anything in filter_conversions that targets the affected stream
-            let filter_conversions = core.lock().unwrap().filter_conversions
-                .keys()
-                .filter(|(_, target)| target.message_type() == stream_id.message_type())
-                .cloned()
+            // Copy the output sink cores that reference this program
+            let output_sink_cores   = program.lock().unwrap().outputs
+                .iter()
+                .filter(|(program_stream, _core)| stream.message_type() == program_stream.message_type())
+                .map(|(program_stream, core)| (program_stream.clone(), core.clone()))
                 .collect::<Vec<_>>();
-            let subprograms = if filter_conversions.is_empty() { 
-                vec![] 
-            } else {
-                core.lock().unwrap().sub_programs.iter().flatten().cloned().collect()
-            };
 
-            // filter_conversions is the list of every stream that uses this message type and might be affected by the source filter
-            for (convert_from, _) in filter_conversions {
-                // Check for subprograms that write the to the stream affected by this connection
-                for subprogram in subprograms.iter() {
-                    // If the subprogram sends a message that can be converted by this filter, reconnect it
-                    if subprogram.lock().unwrap().has_output_sink(&convert_from) {
-                        let waker = SubProgramCore::reconnect_disconnected_outputs(subprogram, core, &convert_from);
-
-                        if let Some(waker) = waker {
-                            waker.wake();
-                        }
-                    }
-                }
-            }
+            let updates = Self::reconnect_output_sinks(scene_core, *source_program, output_sink_cores);
+            scene_updates.extend(updates);
         }
 
-        // Send an update if there's an error
-        if let Err(err) = &result {
-            let update = SceneUpdate::FailedConnection(err.clone(), source, target, stream_id);
-            SceneCore::send_scene_updates(core, vec![update]);
-        }
-
-        result
+        // Notify the subscribers of any connections that have changed
+        SceneCore::send_scene_updates(scene_core, scene_updates);
     }
 
     ///
-    /// Finishes a program connection, sending updates if successful
+    /// Reconnects a set of output sinks belonging to a source program to the targets indicated by the connectome
     ///
-    #[allow(clippy::type_complexity)]   // Creating a type for reconnect_subprogram just looks super goofy and is a lifetime nightmare
-    fn finish_connecting_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectionResult, ConnectionError> {
-        // If the source is a filter source, then add to the list of available filter programs
-        if let StreamSource::Filtered(source_filter) = &source {
-            // Get the source and target streams IDs, with no target
-            let source_stream = source_filter.source_stream_id_any()?;
-            let target_stream = source_filter.target_stream_id_any()?;
+    /// Returns the wakers that need to be woken once the reconnection is complete, and the scene updates indicating any connections
+    /// that have changed as a result of the reconnection (the caller should send these using `send_scene_updates()`)
+    ///
+    pub (crate) fn reconnect_output_sinks(scene_core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, output_sink_cores: Vec<(StreamId, Arc<dyn Send + Sync + Any>)>) -> Vec<SceneUpdate> {
+        let mut wakers          = vec![];
+        let mut scene_updates   = vec![];
 
-            // Store this filter handle as a possible conversion for a mismatched input
-            let mut core = core.lock().unwrap();
-            core.filter_conversions.insert((source_stream.clone(), target_stream.clone()), source_filter.clone());
+        for (program_stream, core) in output_sink_cores {
+            // Get the active target for this sink
+            let old_program = program_stream.active_program_for_output_sink(&core);
+            let target      = Ok::<_, ConnectionError>(program_stream.requested_target());
 
-            match target {
-                StreamTarget::None | StreamTarget::Program(_) | StreamTarget::Filtered(_, _) => { 
-                    // Nothing to do
-                }
+            // Try to reconnect it
+            if let Ok(target) = target {
+                let waker = program_stream.reconnect_output_sink(scene_core, &core, source_program, target);
 
-                StreamTarget::Any => { 
-                    // Add this as a possible target for an output stream of the specified type. This stream becomes the lowest priority stream if there are several choices
-                    // for making a connection
-                    let possible_targets = core.filtered_targets.entry(source_stream.clone())
-                        .or_insert_with(|| vec![]);
-                    possible_targets.retain(|old_target| old_target != &target_stream);
-                    possible_targets.push(target_stream);
+                if let Ok(waker) = waker {
+                    wakers.extend(waker);
 
-                    // This replaces the 'all' connection for this stream type, if there is one
-                    core.connections.remove(&(StreamSource::All, source_stream));
-                }
-            }
-        }
+                    // Generate an update if the target of the connection changed
+                    let new_program = program_stream.active_program_for_output_sink(&core);
 
-        // Create a function to reconnect a subprogram
-        let finish_reconnecting_subprogram: Box<dyn Fn(&Arc<Mutex<SubProgramCore>>) -> Option<Waker>> = match &target {
-            StreamTarget::None                  => Box::new(|sub_program| sub_program.lock().unwrap().discard_output_from(&stream_id)),
-            StreamTarget::Any                   => {
-                if let StreamSource::Filtered(source_filter) = &source {
-                    let source_stream = source_filter.source_stream_id_any()?;
-
-                    Box::new(move |sub_program| SubProgramCore::reconnect_disconnected_outputs(sub_program, core, &source_stream))
-                } else {
-                    Box::new(|sub_program| sub_program.lock().unwrap().disconnect_output_sink(&stream_id))
-                }
-            },
-
-            StreamTarget::Program(subprogid)    => {
-                let mut core        = core.lock().unwrap();
-                let stream_id       = &stream_id;
-                let target_input    = core.get_target_input(subprogid, stream_id);
-
-                match target_input {
-                    Ok(target_input)                            => Box::new(move |sub_program| sub_program.lock().unwrap().reconnect_output_sinks(&target_input, stream_id, false)),
-                    Err(ConnectionError::TargetNotInScene)      => Box::new(move |sub_program| sub_program.lock().unwrap().disconnect_output_sink(&stream_id)),
-                    Err(ConnectionError::WrongInputType(_, _))  => Box::new(move |sub_program| sub_program.lock().unwrap().disconnect_output_sink(&stream_id)),
-                    Err(err)                                    => { return Err(err); },
-                }
-            },
-
-            StreamTarget::Filtered(filter_handle, subprogid) => {
-                let core            = core.clone();
-                let input_stream_id = filter_handle.target_stream_id(*subprogid)?;
-                let target_input    = core.lock().unwrap().get_target_input(subprogid, &input_stream_id)?;
-                let stream_id       = &stream_id;
-
-                Box::new(move |sub_program| {
-                    if sub_program.lock().unwrap().has_output_sink(stream_id) {
-                        let sub_program_id  = sub_program.lock().unwrap().id;
-                        let input           = filter_handle.create_input_stream_core(&core, sub_program_id, Arc::clone(&target_input));
-
-                        if let Ok(input) = input {
-                            sub_program.lock().unwrap().reconnect_output_sinks(&input, stream_id, true)
+                    if new_program != old_program {
+                        if let Some(new_program) = new_program {
+                            scene_updates.push(SceneUpdate::Connected(source_program, new_program, program_stream.clone()));
                         } else {
-                            None
+                            scene_updates.push(SceneUpdate::Disconnected(source_program, program_stream.clone()));
                         }
-                    } else {
-                        None
                     }
-                })
+                }
+            }
+        }
+
+        for waker in wakers {
+            waker.wake()
+        }
+
+        scene_updates
+    }
+
+    ///
+    /// Retrieves the target for an output sink on a route
+    ///
+    fn sink_target_for_route<TMessageType: SceneMessage>(&mut self, source_program_id: SubProgramId, route: ConnectionRoute) -> Result<(OutputSinkTarget<TMessageType>, Option<Waker>), ConnectionError> {
+        match route.endpoint() {
+            ConnectionRoute::Filter(_, _)   |       // Filters can't be an endpoint, we treat them like 'None' if they show up because of a bug
+            ConnectionRoute::None           => {
+                // Output sink is disconnected
+                Ok((OutputSinkTarget::Discard, None))
+            }
+
+            ConnectionRoute::Hold => {
+                // Disconnect the output for this sink
+                Ok((OutputSinkTarget::Disconnected, None))
             },
-        };
 
-        // TODO: pause the inputs of all the sub-programs matching the source, so the update is atomic?
-        // TODO: if there's a filtered connection we really should wait for the filter program to stop before starting new input to avoid situations where some values can arrive out-of-order
+            ConnectionRoute::DeliverTo(target_program) => {
+                // The target stream will be the output of the last filter
+                let filters = route.filters().collect::<Vec<_>>();
+                let stream  = filters
+                    .last().map(|last_filter| last_filter.target_stream_id_any())
+                    .unwrap_or_else(|| Ok(StreamId::with_message_type::<TMessageType>()))?;
 
-        let sub_programs = {
-            let mut core = core.lock().unwrap();
+                // Start with the input for the target program
+                let mut target_input        = self.get_target_input(&target_program, &stream)?;
+                let mut close_when_dropped  = false;
 
-            // Store the connection
-            core.connections.insert((source.clone(), stream_id.clone()), target.clone());
+                // Apply filters in reverse to get the core to connect
+                let mut wakers = vec![];
 
-            // Fetch the sub-programs to update
-            core.sub_programs.clone()
-        };
+                for filter in filters.into_iter().rev() {
+                    let (input, waker)  = filter.create_input_stream_core(self, source_program_id, target_input)?;
+                    target_input        = input;
+                    close_when_dropped  = true;
 
-        // Update the existing connections
-        let mut scene_updates = vec![];
-        let target_program_id = target.target_sub_program();
+                    wakers.extend(waker);
+                }
 
-        for sub_program in sub_programs.iter().flatten() {
-            // Update the streams of the subprogram
-            let sub_program_id = sub_program.lock().unwrap().id;
-
-            if source.matches_subprogram(&sub_program_id) && sub_program.lock().unwrap().has_output_sink(&stream_id) {
-                // Reconnect the program
-                let waker = finish_reconnecting_subprogram(sub_program);
-
-                if let Some(target_program_id) = target_program_id {
-                    scene_updates.push(SceneUpdate::Connected(sub_program_id, target_program_id, stream_id.clone()));
+                // Create a waker from those returned by the filter
+                let waker = if wakers.is_empty() {
+                    None
+                } else if wakers.len() == 1 {
+                    wakers.pop()
                 } else {
-                    scene_updates.push(SceneUpdate::Disconnected(sub_program_id, stream_id.clone()));
-                }
+                    struct WakeAll(Mutex<Vec<Waker>>);
 
-                // Wake the input stream
-                if let Some(waker) = waker {
-                    waker.wake();
-                }
-            }
-        }
-
-        // Send the updates on how the connections have changed
-        SceneCore::send_scene_updates(core, scene_updates);
-
-        if target_program_id.is_some() {
-            // TODO: determine if the target program can accept connections of this type
-            Ok(ConnectionResult::Ready)
-        } else {
-            Ok(ConnectionResult::TargetNotReady)
-        }
-    }
-
-    ///
-    /// Creates an InputStreamCore that reads the input type of a filter, then chains the output through another filter to generate an output
-    ///
-    fn filtered_chain_input_for_program<TSourceMessageType>(core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, initial_filter: FilterHandle, second_filter: FilterHandle, target_program: SubProgramId) -> Result<Arc<Mutex<InputStreamCore<TSourceMessageType>>>, ConnectionError> 
-    where
-        TSourceMessageType: 'static + SceneMessage,
-    {
-        // Fetch the input core for the target program
-        let target_input_core = {
-            let core            = core.lock().unwrap();
-
-            let target_index    = core.program_indexes.get(&target_program).ok_or(ConnectionError::TargetNotInScene)?;
-            let target_core     = core.sub_program_inputs.get(*target_index).ok_or(ConnectionError::TargetNotInScene)?.as_ref().ok_or(ConnectionError::TargetNotInScene)?;
-
-            Arc::clone(&target_core.1)
-        };
-
-        // Create an input stream core to use with it by chaining the two filters
-        initial_filter.chain_filters(core, source_program, second_filter, target_input_core)
-            .and_then(|input_core| input_core
-                .downcast::<Mutex<InputStreamCore<TSourceMessageType>>>()
-                .map_err(|_| ConnectionError::FilterInputDoesNotMatch))
-    }
-
-    ///
-    /// Creates an InputStreamCore that reads the input type of a filter, and outputs to the input core of a program with the output type of the filter (if the types all match up)
-    ///
-    fn filtered_input_for_program<TSourceMessageType>(core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, filter_handle: FilterHandle, target_program: SubProgramId) -> Result<Arc<Mutex<InputStreamCore<TSourceMessageType>>>, ConnectionError> 
-    where
-        TSourceMessageType: 'static + SceneMessage,
-    {
-        // Fetch the input core for the target program
-        let target_input_core = {
-            let core            = core.lock().unwrap();
-
-            let target_index    = core.program_indexes.get(&target_program).ok_or(ConnectionError::TargetNotInScene)?;
-            let target_core     = core.sub_program_inputs.get(*target_index).ok_or(ConnectionError::TargetNotInScene)?.as_ref().ok_or(ConnectionError::TargetNotInScene)?;
-
-            Arc::clone(&target_core.1)
-        };
-
-        let source_stream_id    = StreamId::with_message_type::<TSourceMessageType>();
-        let filter_input        = filter_handle.source_stream_id_any()?;
-
-        // If a source filter is applied to the output of the program, then the filter input might not match the source stream ID (we'll need to apply a conversion filter)
-        if filter_input != source_stream_id {
-            // The filter needs further mapping to change the source stream to its input
-            let initial_filter = core.lock().unwrap().filter_conversions.get(&(source_stream_id, filter_input)).cloned();
-
-            if let Some(initial_filter) = initial_filter {
-                // Chain the filter we found to the filter that was requested
-                initial_filter.chain_filters(core, source_program, filter_handle, target_input_core)
-                    .and_then(|input_core| input_core
-                        .downcast::<Mutex<InputStreamCore<TSourceMessageType>>>()
-                        .map_err(|_| ConnectionError::FilterInputDoesNotMatch))
-            } else {
-                // Filter not defined (in general if we reach here it should have been defined)
-                Err(ConnectionError::FilterMappingMissing)
-            }
-        } else {
-            // Create an input stream core to use with it
-            filter_handle.create_input_stream_core(core, source_program, target_input_core)
-                .and_then(|input_core| input_core
-                    .downcast::<Mutex<InputStreamCore<TSourceMessageType>>>()
-                    .map_err(|_| ConnectionError::FilterInputDoesNotMatch))
-        }
-    }
-
-    ///
-    /// Checks for a filter that can map between a source output and a target input, and generates appropriate filtered input if one exists
-    ///
-    pub (crate) fn filter_source_for_program<TSourceMessageType>(scene_core: &Arc<Mutex<SceneCore>>, source_program: SubProgramId, source_id: &StreamId, target_id: &StreamId, target_program: SubProgramId) -> Result<Arc<Mutex<InputStreamCore<TSourceMessageType>>>, ConnectionError>
-    where
-        TSourceMessageType: 'static + SceneMessage,
-    {
-        use std::mem;
-
-        // Strip out any target program from the source and target
-        let source_id = source_id.as_message_type();
-        let target_id = target_id.as_message_type();
-
-        // Look up a direct filter between the source and target programs
-        let filter = {
-            let core    = scene_core.lock().unwrap();
-            let filter  = core.filter_conversions.get(&(source_id.clone(), target_id.clone())).cloned();
-
-            filter
-        };
-
-        if let Some(filter) = filter {
-            // There's a simple conversion between the output of the source and the input of the target
-            Self::filtered_input_for_program(scene_core, source_program, filter, target_program)
-        } else {
-            // TODO: this is a little dense, might be good to split this up/cut things down a bit
-
-            // Search for a source filter that can map from the source_id to an input supported by the stream (we'll need to use a chained filter to do this)
-            let core = scene_core.lock().unwrap();
-            if let Some(source_filters) = core.filtered_targets.get(&source_id) {
-                // Try to find a source filter that matches a connection for the target program
-                let filtered_connection = source_filters.iter()
-                    .find_map(|filter_output_stream| {
-                        // Use this filter if the target program has a connection that accepts its output
-                        if let Some(connection) = core.connections.get(&(StreamSource::Program(source_program), filter_output_stream.for_target(target_program))) {
-                            // There's a filter we can use from this specific program
-                            Some((connection.clone(), filter_output_stream.clone()))
-                        } else if let Some(connection) = core.connections.get(&(StreamSource::All, filter_output_stream.for_target(target_program))) {
-                            // There's a filter we can use for any connection to this program
-                            Some((connection.clone(), filter_output_stream.clone()))
-                        } else {
-                            None
+                    impl ArcWake for WakeAll {
+                        fn wake_by_ref(arc_self: &Arc<Self>) {
+                            for waker in arc_self.0.lock().unwrap().drain(..) {
+                                waker.wake()
+                            }
                         }
-                    });
-
-                // filtered_connection will contain a connection if there's a filter we can apply to the source that will connect to the target
-                if let Some((connection, filter_output_stream_id)) = filtered_connection {
-                    // Get the filter conversion for the source stream
-                    let input_filter = core.filter_conversions.get(&(source_id.clone(), filter_output_stream_id)).cloned();
-
-                    // Get the filter conversion and 'true' target for the connection
-                    let (output_filter, target_program) = match connection {
-                        StreamTarget::Any | StreamTarget::None      => (None, None),
-                        StreamTarget::Program(program_id)           => (None, Some(program_id)),
-                        StreamTarget::Filtered(filter, program_id)  => (Some(filter), Some(program_id)),
-                    };
-
-                    mem::drop(core);
-
-                    // Generate the connection, if we can - chain if there's both an output and an input filter, or use a direct connection if there's just an input filter
-                    // If the input filter was not found, then that's usually a bug as it should exist for the filtered connection to be non-None (we'll indicate a bad input type as if there's no conversion)
-                    match (input_filter, output_filter, target_program) {
-                        (_, _, None) => Err(ConnectionError::WrongInputType(SourceStreamMessageType(source_id.message_type_name()), TargetInputMessageType(target_id.message_type_name()))),
-
-                        (Some(input_filter), None, Some(target_program))                => Self::filtered_input_for_program(scene_core, source_program, input_filter, target_program),
-                        (Some(input_filter), Some(output_filter), Some(target_program)) => Self::filtered_chain_input_for_program(scene_core, source_program, input_filter, output_filter, target_program),
-
-                        _ => Err(ConnectionError::WrongInputType(SourceStreamMessageType(source_id.message_type_name()), TargetInputMessageType(target_id.message_type_name()))),
                     }
+
+                    Some(waker(Arc::new(WakeAll(Mutex::new(wakers)))))
+                };
+
+                let input_core = target_input.downcast().unwrap();
+                if close_when_dropped {
+                    Ok((OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&input_core)), waker))
                 } else {
-                    // There's no way to map this stream
-                    Err(ConnectionError::WrongInputType(SourceStreamMessageType(source_id.message_type_name()), TargetInputMessageType(target_id.message_type_name())))
+                    Ok((OutputSinkTarget::Input(Arc::downgrade(&input_core)), waker))
                 }
-            } else {
-                // There are no source filters for this stream type
-                Err(ConnectionError::WrongInputType(SourceStreamMessageType(source_id.message_type_name()), TargetInputMessageType(target_id.message_type_name())))
-            }
-        }
-    }
-
-    ///
-    /// If a stream can be mapped by a filter, this will return the stream ID of the target of that filter
-    ///
-    pub (crate) fn filter_mapped_target(&self, source_stream_id: &StreamId) -> Option<StreamTarget> {
-        if let Some(possible_target_stream_ids) = self.filtered_targets.get(source_stream_id) {
-            // Search for a connection that can accept a connection of this type
-            for target_stream_id in possible_target_stream_ids {
-                match self.connections.get(&(StreamSource::All, target_stream_id.clone())) {
-                    None                        |
-                    Some(StreamTarget::None)    | 
-                    Some(StreamTarget::Any)     => { /* No connection for this stream type */ },
-                    Some(target)                => {
-                        // There exists a connection for this stream type
-                        return Some(target.clone());
-                    }
-                }
-            }
-
-            None
-        } else {
-            None
-        }
-    }
-
-    ///
-    /// Returns the 'mapped' StreamTarget for a connection. This is the actual target that a program should be sent to: for example if the `target` is passed
-    /// in as 'Any' and there's a connection specified for that target, this will return that connection.
-    ///
-    /// This can still return 'Any' (indicating that output should be held until a connection is specified), or 'None' (indicating that output should be
-    /// immediately discarded).
-    ///
-    /// The result of this function should not be mapped further, as it will point at the actual program that is the target if there 
-    /// is one.
-    ///
-    pub (crate) fn mapped_target_for_connection(&self, source: &StreamSource, target: &StreamTarget, stream_id: &StreamId) -> Result<StreamTarget, ConnectionError> {
-        let mapped_target = match target {
-            StreamTarget::None | StreamTarget::Any => {
-                if let Some(source_specific_target) = self.connections.get(&(source.clone(), stream_id.clone())) {
-                    // If there's a specific mapping for this stream ID from this source, use that for preference
-                    source_specific_target.clone()
-                } else if let Some(general_target) = self.connections.get(&(StreamSource::All, stream_id.clone())) {
-                    // Otherwise, if there's a general connection for all streams, use that
-                    general_target.clone()
-                } else if let Some(filter_mapped_target) = self.filter_mapped_target(stream_id) {
-                    // If there's no way to directly connect a stream, then see if there's a filter that can be used to make the connection instead 
-                    filter_mapped_target
-                } else if let StreamTarget::Any = target {
-                    // The 'any' stream target can use the default target for this stream ID
-                    stream_id.default_target()
-                } else {
-                    // This stream has no target at the moment (StreamTarget::None should discard its output and StreamTarget::Any should wait for a stream to become available)
-                    target.clone()
-                }
-            }
-
-            StreamTarget::Program(program_id) => {
-                if let Some(overridden_target) = self.connections.get(&(source.clone(), stream_id.for_target(program_id))) {
-                    // There's a connection that overrides the specific connection from this source to this target
-                    overridden_target.clone()
-                } else if let Some(overridden_target) = self.connections.get(&(StreamSource::All, stream_id.for_target(program_id))) {
-                    // All streams targeting this program are overidden by a different connection
-                    overridden_target.clone()
-                } else {
-                    // Use the program specified by the target
-                    StreamTarget::Program(*program_id)
-                }
-            }
-
-            StreamTarget::Filtered(filter_handle, program_id) => {
-                let filter_output = filter_handle.target_stream_id_any()?;
-
-                if let Some(filtered_redirect) = self.connections.get(&(source.clone(), filter_output.for_target(program_id))) {
-                    // The type that is output by the filter has an overridden connection
-                    filtered_redirect.clone()
-                } else if let Some(filtered_redirect) = self.connections.get(&(StreamSource::All, filter_output.for_target(program_id))) {
-                    // The type that is output by the filter has an overridden connection
-                    filtered_redirect.clone()
-                } else {
-                    // Just send directly to the target program
-                    StreamTarget::Program(*program_id)
-                }
-            }
-        };
-
-        if let StreamTarget::Program(target_program) = &mapped_target {
-            // If the target we got was for a specific program without a filter, check if there's an 'all' filter for this program
-            let all_target = self.connections.get(&(StreamSource::All, stream_id.for_target(target_program)));
-            if let Some(StreamTarget::Filtered(filter_handle, filter_target)) = all_target {
-                // TODO: should we also redirect specific connections if there's an 'all' redirect? (I think we should, it's more consistent and I think not applying the 'all' redirects is similarly confusing)
-                // TODO: This looks easy: we can just use the filter target here, but we'll need to deal with the case where there's just
-                // TODO: a redirect, and also any cases where there's a chain of redirects
-                // TODO: (is there actually a way to do this? I think you have to redirect specific streams to do this)
-                if filter_target == target_program {
-                    // The 'all' input for this stream has a filter on it, so override the target to use the same filter
-                    Ok(StreamTarget::Filtered(filter_handle.clone(), *target_program))
-                } else {
-                    // There is a filter, but it's also redirecting to another program, and we want to target this program specifically, so don't remap anything
-                    Ok(mapped_target)
-                }
-            } else {
-                // No filter, so just use the target directly
-                Ok(mapped_target)
-            }
-        } else {
-            // Other targets stay the same
-            Ok(mapped_target)
+            },
         }
     }
 
     ///
     /// Returns the output sink target configured for a particular stream
     ///
-    pub (crate) fn sink_for_target<TMessageType>(scene_core: &Arc<Mutex<SceneCore>>, source: &SubProgramId, target: StreamTarget) -> Result<OutputSinkTarget<TMessageType>, ConnectionError>
+    pub (crate) fn sink_for_target<TMessageType>(&mut self, source: &SubProgramId, target: StreamTarget) -> Result<(OutputSinkTarget<TMessageType>, Option<Waker>), ConnectionError>
     where
         TMessageType: 'static + SceneMessage,
     {
-        use std::mem;
+        let stream  = StreamId::with_message_type::<TMessageType>();
+        let route   = self.connectome.route_for(&stream, *source, &target);
 
-        // Make sure that the message type is ready to use
-        Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessageType>());
-
-        // Get the filter we're using as the output for the current stream
-        let output_filter = match &target {
-            StreamTarget::Filtered(filter, _)   => Some(filter.clone()),
-            _                                   => None,
-        };
-
-        // Map the target to get the real target
-        let core            = scene_core.lock().unwrap();
-        let mapped_target   = core.mapped_target_for_connection(&source.into(), &target, &StreamId::with_message_type::<TMessageType>())?;
-
-        let output_sink_target = match (output_filter, mapped_target) {
-            (_, StreamTarget::None) => OutputSinkTarget::<TMessageType>::Discard,
-            (_, StreamTarget::Any)  => OutputSinkTarget::Disconnected,
-
-            (None, StreamTarget::Program(target_program_id)) => {
-                // Fetch the input for the target program
-                let target_program_handle   = core.program_indexes.get(&target_program_id);
-                let target_program_handle   = if let Some(target_program_handle) = target_program_handle { target_program_handle } else { return Ok(OutputSinkTarget::Disconnected); };
-                let target_program_input    = core.sub_program_inputs.get(*target_program_handle).ok_or(ConnectionError::TargetNotInScene)?.clone().ok_or(ConnectionError::TargetNotInScene)?;
-                mem::drop(core);
-
-                // Connect directly to the output if it matches the source stream type, otherwise apply an input filter to convert the type
-                let target_program_input = target_program_input.1.downcast::<Mutex<InputStreamCore<TMessageType>>>()
-                    .or_else(|_| Self::filter_source_for_program::<TMessageType>(scene_core, *source, &StreamId::with_message_type::<TMessageType>(), &target_program_input.0, target_program_id));
-
-                // If the target program is running but doesn't support 
-                match target_program_input {
-                    Ok(target_program_input)                    => OutputSinkTarget::Input(Arc::downgrade(&target_program_input)),
-                    Err(ConnectionError::WrongInputType(_, _))  => OutputSinkTarget::Disconnected,      // The filter can be added later, so using a currently invalid type is allowed, creates a disconnected stream
-                    Err(ConnectionError::TargetNotInScene)      => OutputSinkTarget::Disconnected,      // The target can be started later on, so we start disconnected
-                    Err(err)                                    => { return Err(err); }
-                }
-                
-            }
-
-            (None, StreamTarget::Filtered(input_filter, target_program_id)) => {
-                // Connect the core using the input filter
-                mem::drop(core);
-                match Self::filtered_input_for_program(scene_core, *source, input_filter, target_program_id) {
-                    Ok(filtered_input_core)                         => OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_input_core)),
-                    Err(ConnectionError::WrongInputType(_, _))      => OutputSinkTarget::Disconnected,
-                    Err(ConnectionError::TargetNotInScene)          => OutputSinkTarget::Disconnected,
-                    Err(err)                                        => { return Err(err); }
-                }
-            }
-
-            (Some(output_filter), StreamTarget::Program(target_program_id)) => {
-                // Filter the output
-                mem::drop(core);
-                match Self::filtered_input_for_program(scene_core, *source, output_filter, target_program_id) {
-                    Ok(filtered_output_core)                        => OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_output_core)),
-                    Err(ConnectionError::WrongInputType(_, _))      => OutputSinkTarget::Disconnected,
-                    Err(ConnectionError::TargetNotInScene)          => OutputSinkTarget::Disconnected,
-                    Err(err)                                        => { return Err(err); }
-                }
-            }
-
-            (Some(output_filter), StreamTarget::Filtered(input_filter, target_program_id)) => {
-                // Source filters can't be used when both sides are filtered as we need to chain the source and the target
-                mem::drop(core);
-                match Self::filtered_chain_input_for_program(scene_core, *source, output_filter, input_filter, target_program_id) {
-                    Ok(filtered_core)                               => OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filtered_core)),
-                    Err(ConnectionError::WrongInputType(_, _))      => OutputSinkTarget::Disconnected,
-                    Err(ConnectionError::TargetNotInScene)          => OutputSinkTarget::Disconnected,
-                    Err(err)                                        => { return Err(err); }
-                }
-            }
-        };
-
-        Ok(output_sink_target)
+        match route.and_then(|route| self.sink_target_for_route(*source, route)) {
+            Ok((target, waker))                         => Ok((target, waker)),
+            Err(ConnectionError::WrongInputType(_, _))  => Ok((OutputSinkTarget::Disconnected, None)),
+            Err(ConnectionError::TargetNotInScene)      => Ok((OutputSinkTarget::Disconnected, None)),
+            Err(other)                                  => Err(other)
+        }
     }
 
     ///
@@ -1288,6 +898,7 @@ impl SceneCore {
         }
     }
 
+    /*
     ///
     /// After a program has started, finds any connections that are targetting it and remakes them
     ///
@@ -1377,6 +988,7 @@ impl SceneCore {
             }
         }
     }
+    */
 
     ///
     /// Shuts down the input stream for a subprogram (which generally should cause the program itself to stop)
@@ -1583,7 +1195,8 @@ impl SceneCore {
         }
 
         // Fetch the input sink for the program
-        let Ok(error_target) = Self::sink_for_target::<Error>(&scene_core, &program_id, StreamTarget::Any) else { return Err(panic); };
+        let Ok((error_target, waker)) = scene_core.lock().unwrap().sink_for_target::<Error>(&program_id, StreamTarget::Any) else { return Err(panic); };
+        if let Some(waker) = waker { waker.wake(); }
 
         match &error_target {
             OutputSinkTarget::Disconnected  |

@@ -408,6 +408,21 @@ fn query_control_program() {
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
 
+///
+/// Repeat the 'query_control_program' test many times to try to trigger the flaky failure where the query never
+/// receives a response (the equivalent of 'running it a few times' but in a single process)
+///
+#[test]
+fn query_control_program_times_100() {
+    for iteration in 0..100 {
+        println!();
+        println!("*** iteration {}", iteration);
+        println!();
+
+        query_control_program();
+    }
+}
+
 #[test]
 fn tags_are_removed_when_program_stops() {
     // When a program stops, any tags that were applied to it should be removed from the control program's state, so

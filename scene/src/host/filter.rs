@@ -8,7 +8,7 @@ use crate::host::subprogram_id::*;
 use futures::prelude::*;
 use futures::{pin_mut};
 use futures::future::{poll_fn, BoxFuture};
-use futures::task::{Poll};
+use futures::task::{Poll, Waker};
 use once_cell::sync::{Lazy};
 use serde::*;
 
@@ -22,7 +22,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 // TODO: rename FilterHandle, it's just a filter now
 // TODO: filter handles are shareable out of necessity, so we can send stream sources and targets to other programs, but they currently will be invalid after being sent
 
-type CreateInputStreamFn = Arc<dyn Send + Sync + Fn(SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>;
+type CreateInputStreamFn = Arc<dyn Send + Sync + Fn(&mut SceneCore, SubProgramId, Arc<dyn Send + Sync + Any>) -> Result<(BoxFuture<'static, ()>, Arc<dyn Send + Sync + Any>), ConnectionError>>;
 type StreamIdForTargetFn = Arc<dyn Send + Sync + Fn(Option<SubProgramId>) -> StreamId>;
 
 static NEXT_FILTER_HANDLE: AtomicUsize = AtomicUsize::new(0);
@@ -144,15 +144,7 @@ pub (crate) trait FilterHandleCrateExt {
     /// from the specified sending program. The core returned by this function should be closed when disconnected, or it will leave
     /// behind a process in the scene that can never run.
     ///
-    fn create_input_stream_core(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError>;
-
-    ///
-    /// Chains this filter with a following filter.
-    ///
-    /// This generates an input stream that first applies this filter, and then sends its results through another filter. `next_filter` must have an input type
-    /// that matches the output type of this filter.
-    ///
-    fn chain_filters(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, next_filter: FilterHandle, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError>;
+    fn create_input_stream_core(&self, scene_core: &mut SceneCore, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<(Arc<dyn Send + Sync + Any>, Option<Waker>), ConnectionError>;
 
     ///
     /// Creates a stream ID for the output of a filter and a target program
@@ -180,7 +172,7 @@ impl FilterHandleExt for FilterHandle {
         let filter = Arc::new(filter);
 
         // Generate the filter functions for this filter
-        let create_input_stream: CreateInputStreamFn = Arc::new(move |sending_program, target_input_core| {
+        let create_input_stream: CreateInputStreamFn = Arc::new(move |_scene_core, sending_program, target_input_core| {
             // Downcast the source and target to the expected types
             let target_input_core   = target_input_core.downcast::<Mutex<InputStreamCore<TTargetStream::Item>>>().or(Err(ConnectionError::FilterOutputDoesNotMatch))?;
             let buffer_size         = target_input_core.lock().unwrap().num_slots();
@@ -352,19 +344,15 @@ impl FilterHandleExt for FilterHandle {
         let source_stream_id        = self.data.source_stream_id.clone();
 
         // The input stream is created by creating an input stream for the following filter, then using that as the target for the initial filter
-        let create_input_stream: CreateInputStreamFn = Arc::new(move |sending_program, target_input_core| {
+        let create_input_stream: CreateInputStreamFn = Arc::new(move |scene_core, sending_program, target_input_core| {
             let following_source_stream_id = following_source_stream_id.clone();
 
-            // Fetch the scene core
-            let target_stream_id    = following_filter.target_stream_id_any()?;
-            let scene_core          = target_stream_id.scene_core(&target_input_core);
-            let Some(scene_core)    = scene_core else { return Err(ConnectionError::TargetNotInScene); };
-
             // Create the following input core, and chain it to our core
-            let following_core  = following_filter.create_input_stream_core(&scene_core, sending_program, target_input_core)?;
+            let (following_core, waker) = following_filter.create_input_stream_core(scene_core, sending_program, target_input_core)?;
+            if let Some(waker) = waker { waker.wake() }
 
             // Create the input stream for the initial program, and connect it to the following program
-            let maybe_initial_stream = (initial_filter.data.create_input_stream)(sending_program, following_core.clone());
+            let maybe_initial_stream = (initial_filter.data.create_input_stream)(scene_core, sending_program, following_core.clone());
 
             let (initial_stream, initial_core) = match maybe_initial_stream {
                 Ok(initial_stream) => initial_stream,
@@ -389,7 +377,6 @@ impl FilterHandleExt for FilterHandle {
             Ok((initial_stream, initial_core))
         });
 
-
         Ok(FilterHandle {
             serial: handle,
             data:   Arc::new(FilterData {
@@ -409,37 +396,14 @@ impl FilterHandleCrateExt for FilterHandle {
     /// from the specified sending program. The core returned by this function should be closed when disconnected, or it will leave
     /// behind a process in the scene that can never run.
     ///
-    fn create_input_stream_core(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
+    fn create_input_stream_core(&self, scene_core: &mut SceneCore, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<(Arc<dyn Send + Sync + Any>, Option<Waker>), ConnectionError> {
         // Create a future that will run the filter
-        let (send_future, filtering_input_core) = (self.data.create_input_stream)(sending_program, target_input_core)?;
+        let (send_future, filtering_input_core) = (self.data.create_input_stream)(scene_core, sending_program, target_input_core)?;
 
         // Start it as a process in the core
-        let (_process_handle, waker) = {
-            let mut scene_core = scene_core.lock().unwrap();
+        let (_process_handle, waker) = scene_core.start_process(send_future);
 
-            scene_core.start_process(send_future)
-        };
-
-        // Wake up a thread to run the new future if needed
-        if let Some(waker) = waker {
-            waker.wake();
-        }
-
-        Ok(filtering_input_core)
-    }
-
-    ///
-    /// Chains this filter with a following filter.
-    ///
-    /// This generates an input stream that first applies this filter, and then sends its results through another filter. `next_filter` must have an input type
-    /// that matches the output type of this filter.
-    ///
-    fn chain_filters(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, next_filter: FilterHandle, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
-        // Send to the target from the filter that follows this one
-        let following_filter = next_filter.create_input_stream_core(scene_core, sending_program, target_input_core)?;
-
-        // Receive from the source and send to the target
-        self.create_input_stream_core(scene_core, sending_program, following_filter)
+        Ok((filtering_input_core, waker))
     }
 
     ///

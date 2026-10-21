@@ -26,6 +26,7 @@ impl GuestInputStreamCore {
     ///
     /// Enqueues a message into an input stream core, returning the waker for the future
     ///
+    #[must_use = "will not be woken if dropped"]
     pub (crate) fn send_message(core: &Shared<GuestInputStreamCore>, message: Vec<u8>) -> Option<Waker> {
         with_shared(core, |core| {
             // Enqueue the message

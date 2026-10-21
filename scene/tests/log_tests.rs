@@ -169,6 +169,13 @@ fn log_failure_immediately() {
 }
 
 #[test]
+fn log_failure_immediately_100() {
+    for _ in 0..100 {
+        log_failure_immediately();
+    }
+}
+
+#[test]
 fn log_failure_immediately_with_name() {
     let scene = Scene::default();
 

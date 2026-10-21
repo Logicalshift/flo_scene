@@ -682,3 +682,31 @@ fn affected_streams_ignores_duplicates() {
     assert_eq!(affected.len(), 1);
     assert!(!affected.is_empty());
 }
+
+///
+/// Connecting every source of one type to a program that accepts a different type does not cause a redirect
+/// loop: the route is unresolvable until a source filter is added, and then resolves through that filter
+///
+#[test]
+fn route_to_program_with_mismatched_type_does_not_loop() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+    let filter          = (*TESTMESSAGE_1_TO_2).clone();
+
+    // The target program only accepts TestMessage2, but we connect it up so that TestMessage messages go to it
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+    connectome.connect(&StreamSource::All, &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    // Without a source filter the route cannot resolve, but it must report a wrong input type rather than looping
+    let route = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
+    assert!(matches!(route, Err(crate::host::error::ConnectionError::WrongInputType(_, _))), "{:?}", route);
+
+    // Adding the source filter makes the connection resolvable
+    connectome.connect(&StreamSource::Filtered(filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    let expected = Ok(ConnectionRoute::Filter(filter, Box::new(ConnectionRoute::DeliverTo(target))));
+    let route    = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
+
+    assert!(route == expected, "{:?} != {:?}", route, expected);
+}
