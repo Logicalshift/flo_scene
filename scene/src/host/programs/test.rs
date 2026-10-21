@@ -346,9 +346,9 @@ impl TestBuilder {
                 }
 
                 // Close the assertions stream (which will end the test)
-                mem::drop(sender);
-
                 *tests_finished.lock().unwrap() = true;
+
+                mem::drop(sender);
             }
         }, 100);
 
