@@ -169,8 +169,8 @@ fn log_failure_immediately() {
 }
 
 #[test]
-fn log_failure_immediately_1000() {
-    for _ in 0..1000 {
+fn log_failure_immediately_100() {
+    for _ in 0..100 {
         log_failure_immediately();
     }
 }

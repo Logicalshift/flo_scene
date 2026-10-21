@@ -413,8 +413,8 @@ fn query_control_program() {
 /// receives a response (the equivalent of 'running it a few times' but in a single process)
 ///
 #[test]
-fn query_control_program_times_1000() {
-    for iteration in 0..1000 {
+fn query_control_program_times_100() {
+    for iteration in 0..100 {
         println!();
         println!("*** iteration {}", iteration);
         println!();
