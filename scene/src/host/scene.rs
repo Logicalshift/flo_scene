@@ -110,7 +110,7 @@ impl Scene {
     /// This scene must have a `OUTSIDE_SCENE_PROGRAM` running in order to act as a source for these messages (and this can also be used to
     /// connect or reconnect the streams returned by this function) .
     ///
-    pub fn send_to_scene<TMessage>(&self, target: impl Into<StreamTarget>) -> Result<impl Sink<TMessage, Error=SceneSendError<TMessage>>, ConnectionError> 
+    pub fn send_to_scene<TMessage>(&self, target: impl Into<StreamTarget>) -> Result<impl 'static + Sink<TMessage, Error=SceneSendError<TMessage>>, ConnectionError> 
     where
         TMessage: 'static + SceneMessage,
     {
@@ -188,7 +188,7 @@ impl Scene {
     ///
     /// Returns a future that will run any waiting programs on the current thread
     ///
-    pub fn run_scene(&self) -> impl Future<Output=()> {
+    pub fn run_scene(&self) -> impl Future<Output=()> + use<> {
         let core = Arc::clone(&self.core);
 
         async move {
@@ -202,7 +202,7 @@ impl Scene {
     ///
     /// The subthreads will end when the scene is ended, or the returned future is dropped.
     ///
-    pub fn run_scene_with_threads(&self, num_threads: usize) -> impl Future<Output=()> {
+    pub fn run_scene_with_threads(&self, num_threads: usize) -> impl Future<Output=()> + use<> {
         use futures::executor;
         use std::thread::{JoinHandle};
         use std::thread;

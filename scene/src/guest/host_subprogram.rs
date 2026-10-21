@@ -334,7 +334,7 @@ where
 ///
 /// Creates a connection that sends to a host stream by decoding messages from a guest
 ///
-fn connect(stream_id: StreamId, target: StreamTarget, context: &SceneContext, serialization_context: HostSerializationContext) -> Result<impl Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>, ConnectionError> {
+fn connect(stream_id: StreamId, target: StreamTarget, context: &SceneContext, serialization_context: HostSerializationContext) -> Result<impl Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>> + use<>, ConnectionError> {
     let raw_stream = stream_id.send_guest_messages(target, context, serialization_context)?;
 
     Ok(Box::into_pin(raw_stream))

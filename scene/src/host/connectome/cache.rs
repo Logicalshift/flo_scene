@@ -109,7 +109,7 @@ impl ResolvedRoutes {
     ///
     /// Removes a program from this cache, returning the streams that the program was connected to
     ///
-    pub fn remove_program(&mut self, program_id: SubProgramId) -> impl Iterator<Item=(StreamId, StreamTarget)> {
+    pub fn remove_program(&mut self, program_id: SubProgramId) -> impl Iterator<Item=(StreamId, StreamTarget)> + use<> {
         let removed = self.routes_for_source_program.remove(&program_id);
 
         // Clear out the other caches

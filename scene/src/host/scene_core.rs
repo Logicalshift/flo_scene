@@ -1347,7 +1347,7 @@ impl SceneProcessState {
 ///
 /// Runs the programs attached to a scene core
 ///
-pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> {
+pub (crate) fn run_core(core: &Arc<Mutex<SceneCore>>) -> impl Future<Output=()> + use<> {
     use std::mem;
 
     let unlocked_core = Arc::clone(core);
