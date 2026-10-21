@@ -7,7 +7,6 @@ use crate::host::stream_target::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
-use futures::task::{ArcWake, Waker, waker};
 
 use std::any::*;
 use std::collections::*;
@@ -125,37 +124,6 @@ impl SubProgramCore {
     }
 
     ///
-    /// Returns true if this program has an output for a particular stream
-    ///
-    pub (crate) fn has_output_sink(&mut self, stream_id: &StreamId) -> bool {
-        self.outputs.contains_key(stream_id)
-    }
-
-    ///
-    /// Retrieves the output sink core for a stream, if there is one
-    ///
-    /// Changing the target of an output sink can drop its old target, which can close an input stream and wake up the scene core,
-    /// so callers should release the lock on this subprogram before changing the sink (to avoid a lock-order deadlock with the scene core)
-    ///
-    fn output_sink_core(program_core: &Arc<Mutex<SubProgramCore>>, stream_id: &StreamId) -> Option<Arc<dyn Send + Sync + Any>> {
-        program_core.lock().unwrap().outputs.get(stream_id).cloned()
-    }
-
-    ///
-    /// Connects all of the streams that matches a particular stream ID to a new target
-    ///
-    #[must_use = "will not be woken if dropped"]
-    pub (crate) fn reconnect_output_sinks(program_core: &Arc<Mutex<SubProgramCore>>, target_input: &Arc<dyn Send + Sync + Any>, stream_id: &StreamId, close_when_dropped: bool) -> Option<Waker> {
-        if let Some(output_sink) = Self::output_sink_core(program_core, stream_id) {
-            // This stream has an output matching the input (the stream types should always match)
-            // TODO: fails with filters? (specifically source filters)
-            stream_id.connect_output_to_input(&output_sink, target_input, close_when_dropped).expect("Input and output types do not match")
-        } else {
-            None
-        }
-    }
-
-    ///
     /// Attempts to reconnect any output sinks that are marked as disconnected
     ///
     pub (crate) fn reconnect_disconnected_outputs(program_core: &Arc<Mutex<SubProgramCore>>, scene_core: &Arc<Mutex<SceneCore>>, reconnect_stream_id: &StreamId) {
@@ -181,32 +149,6 @@ impl SubProgramCore {
 
         // Notify the subscribers of any connections that have changed
         SceneCore::send_scene_updates(scene_core, scene_updates);
-    }
-
-    ///
-    /// Disconnects an output sink for a particular stream
-    ///
-    #[must_use = "will not be woken if dropped"]
-    pub (crate) fn disconnect_output_sink(program_core: &Arc<Mutex<SubProgramCore>>, stream_id: &StreamId) -> Option<Waker> {
-        if let Some(output_sink) = Self::output_sink_core(program_core, stream_id) {
-            // This stream has an output matching the stream
-            stream_id.disconnect_output(&output_sink).expect("Stream type does not match")
-        } else {
-            None
-        }
-    }
-
-    ///
-    /// Discards any output sent to an output stream
-    ///
-    #[must_use = "will not be woken if dropped"]
-    pub (crate) fn discard_output_from(program_core: &Arc<Mutex<SubProgramCore>>, stream_id: &StreamId) -> Option<Waker> {
-        if let Some(output_sink) = Self::output_sink_core(program_core, stream_id) {
-            // This stream has an output matching the stream
-            stream_id.connect_output_to_discard(&output_sink).expect("Stream type does not match")
-        } else {
-            None
-        }
     }
 
     ///
