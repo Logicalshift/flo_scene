@@ -147,14 +147,6 @@ pub (crate) trait FilterHandleCrateExt {
     fn create_input_stream_core(&self, scene_core: &mut SceneCore, sending_program: SubProgramId, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<(Arc<dyn Send + Sync + Any>, Option<Waker>), ConnectionError>;
 
     ///
-    /// Chains this filter with a following filter.
-    ///
-    /// This generates an input stream that first applies this filter, and then sends its results through another filter. `next_filter` must have an input type
-    /// that matches the output type of this filter.
-    ///
-    fn chain_filters(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, next_filter: FilterHandle, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError>;
-
-    ///
     /// Creates a stream ID for the output of a filter and a target program
     ///
     fn target_stream_id(&self, target_program: SubProgramId) -> Result<StreamId, ConnectionError>;
@@ -180,7 +172,7 @@ impl FilterHandleExt for FilterHandle {
         let filter = Arc::new(filter);
 
         // Generate the filter functions for this filter
-        let create_input_stream: CreateInputStreamFn = Arc::new(move |scene_core, sending_program, target_input_core| {
+        let create_input_stream: CreateInputStreamFn = Arc::new(move |_scene_core, sending_program, target_input_core| {
             // Downcast the source and target to the expected types
             let target_input_core   = target_input_core.downcast::<Mutex<InputStreamCore<TTargetStream::Item>>>().or(Err(ConnectionError::FilterOutputDoesNotMatch))?;
             let buffer_size         = target_input_core.lock().unwrap().num_slots();
@@ -412,24 +404,6 @@ impl FilterHandleCrateExt for FilterHandle {
         let (_process_handle, waker) = scene_core.start_process(send_future);
 
         Ok((filtering_input_core, waker))
-    }
-
-    ///
-    /// Chains this filter with a following filter.
-    ///
-    /// This generates an input stream that first applies this filter, and then sends its results through another filter. `next_filter` must have an input type
-    /// that matches the output type of this filter.
-    ///
-    fn chain_filters(&self, scene_core: &Arc<Mutex<SceneCore>>, sending_program: SubProgramId, next_filter: FilterHandle, target_input_core: Arc<dyn Send + Sync + Any>) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
-        // Send to the target from the filter that follows this one
-        let (following_filter, waker) = next_filter.create_input_stream_core(&mut *scene_core.lock().unwrap(), sending_program, target_input_core)?;
-        if let Some(waker) = waker { waker.wake() }
-
-        // Receive from the source and send to the target
-        let (filter, waker) = self.create_input_stream_core(&mut *scene_core.lock().unwrap(), sending_program, following_filter)?;
-        if let Some(waker) = waker { waker.wake() }
-
-        Ok(filter)
     }
 
     ///
