@@ -643,7 +643,7 @@ where
         self.yield_after_sending = false;
         self.wait_for_idle       = None;
 
-        let mut core = self.core.lock().unwrap();
+        let core = self.core.lock().unwrap();
         match &core.target {
             OutputSinkTarget::Disconnected                  => {
                 mem::drop(core);
