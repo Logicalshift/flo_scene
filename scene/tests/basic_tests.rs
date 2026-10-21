@@ -381,7 +381,7 @@ fn send_output_from_outside() {
         }, 0);
 
     // Create a sink that will send messages to this program
-    let mut write_messages = scene.send_to_scene::<String>(program_1).unwrap();
+    let mut write_messages = scene.send_to_scene::<String, _>(program_1).unwrap();
 
     // Run this scene, and send some messages
     executor::block_on(select(async {

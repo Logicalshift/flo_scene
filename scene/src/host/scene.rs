@@ -110,9 +110,10 @@ impl Scene {
     /// This scene must have a `OUTSIDE_SCENE_PROGRAM` running in order to act as a source for these messages (and this can also be used to
     /// connect or reconnect the streams returned by this function) .
     ///
-    pub fn send_to_scene<TMessage>(&self, target: impl Into<StreamTarget>) -> Result<impl 'static + Sink<TMessage, Error=SceneSendError<TMessage>>, ConnectionError> 
+    pub fn send_to_scene<TMessage, TTarget>(&self, target: TTarget) -> Result<impl 'static + Sink<TMessage, Error=SceneSendError<TMessage>> + use<TMessage, TTarget>, ConnectionError> 
     where
-        TMessage: 'static + SceneMessage,
+        TMessage:   'static + SceneMessage,
+        TTarget:    Into<StreamTarget>,
     {
         let target = target.into();
 

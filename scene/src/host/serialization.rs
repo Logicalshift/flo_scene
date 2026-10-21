@@ -328,9 +328,10 @@ impl SceneContext {
     ///
     /// Creates a stream to send messages using a known serialized type
     ///
-    pub fn send_serialized<TMessageType>(&self, target: impl Into<SerializedStreamTarget>) -> Result<impl 'static + Sink<TMessageType, Error=SceneSendError<TMessageType>>, ConnectionError>
+    pub fn send_serialized<TMessageType, TTarget>(&self, target: TTarget) -> Result<impl 'static + Sink<TMessageType, Error=SceneSendError<TMessageType>> + use<TMessageType, TTarget>, ConnectionError>
     where
-        TMessageType: 'static + Send + Unpin + Serialize,
+        TMessageType:   'static + Send + Unpin + Serialize,
+        TTarget:        Into<SerializedStreamTarget>,
     {
         match target.into() {
             SerializedStreamTarget::Stream(stream_id) => {

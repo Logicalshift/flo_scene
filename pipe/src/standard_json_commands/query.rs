@@ -76,7 +76,7 @@ pub fn command_query(input: QueryArguments, context: SceneContext) -> impl Futur
             QueryArguments::SubProgram { program, .. }  => SerializedStreamTarget::Stream(request_stream.for_target(program)),
         };
 
-        let query_stream = context.send_serialized::<serde_json::Value>(query_target);
+        let query_stream = context.send_serialized::<serde_json::Value, _>(query_target);
         let mut query_stream = match query_stream {
             Ok(query_stream)    => query_stream,
             Err(err)            => { return CommandResponse::Error(format!("Could not send query request: {:?}", err)); }

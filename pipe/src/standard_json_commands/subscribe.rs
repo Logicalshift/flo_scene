@@ -86,7 +86,7 @@ pub fn command_subscribe(input: SubscribeArguments, context: SceneContext) -> im
             SubscribeArguments::SubProgram { program, .. }  => SerializedStreamTarget::Stream(request_stream.for_target(program)),
         };
 
-        let subscribe_stream     = context.send_serialized::<serde_json::Value>(subscribe_target);
+        let subscribe_stream     = context.send_serialized::<serde_json::Value, _>(subscribe_target);
         let mut subscribe_stream = match subscribe_stream {
             Ok(subscribe_stream)    => subscribe_stream,
             Err(err)                => { return CommandResponse::Error(format!("Could not send subscribe request: {:?}", err)); }
