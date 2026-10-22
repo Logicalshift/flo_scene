@@ -4,9 +4,11 @@ use crate::host::scene_core::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
+use futures::future::{BoxFuture};
 use futures::task::{ArcWake, Waker, waker, Poll, Context};
 
 use std::collections::*;
+use std::pin::*;
 use std::sync::*;
 
 ///
@@ -57,6 +59,12 @@ pub (crate) struct InputStreamCore<TMessage> {
 
     /// The number of times the owner of this input stream is waiting for the scene to become idle
     waiting_for_idle: usize,
+
+    /// Functions that can be called to unblock this stream when the scene is otherwise idle
+    idle_unblockers: HashMap<usize, Box<dyn 'static + Send + FnOnce() -> ()>>,
+
+    /// Next handle for an idle unblocker
+    next_idle_unblocker: usize,
 }
 
 /// A struct that unblocks an input stream when dropped
@@ -183,6 +191,8 @@ where
             next_idle_blocker:      0,
             dropped:                false,
             waiting_for_idle:       0,
+            idle_unblockers:        HashMap::new(),
+            next_idle_unblocker:    0,
         };
 
         InputStream {
@@ -445,6 +455,87 @@ where
         // Return the idle blocker object
         InputStreamIdleBlocker(Arc::downgrade(core), handle)
     }
+
+    ///
+    /// Returns a future that completes if this stream is blocking the scene from going idle
+    ///
+    /// This is a chance to abort operations that expected something to resolve in the scene that didn't
+    /// actually resolve (eg, when connecting to a program, if the program is not available when the scene
+    /// becomes idle it's not likely to become available)
+    ///
+    /// Note that deadlocks interact in an interesting way with this: if something isn't resolving because
+    /// several programs get into this state, they'll all be unblocked - typically this cancels resolution 
+    /// as a whole but this could result in something resolving after something else has failed.
+    ///
+    /// This future is generally used with future::select to abort an operation if the Scene wants to become
+    /// idle. Unlike wait_for_idle, the Scene does not count as idle while these unblockers are still around
+    /// (ie, the scene isn't idle when this returns, just in a 'ready for idle' state that could change back
+    /// to a 'not idle' state depending on what happens next)
+    ///
+    pub (crate) fn unblock_for_idle(core_locked: &Arc<Mutex<Self>>) -> IdleUnblocker {
+        use std::sync::atomic::{Ordering};
+
+        let mut core = core_locked.lock().unwrap();
+
+        // Create a handle for this item
+        let handle = core.next_idle_unblocker;
+        core.next_idle_unblocker += 1;
+
+        // Unset when we're unblocked
+        let is_blocked = Arc::new(atomic::AtomicBool::new(true));
+
+        // Wakers to call when unblocked
+        let wakers          = Arc::new(Mutex::<Vec<Waker>>::new(vec![]));
+        let wakers_copy     = Arc::downgrade(&wakers);
+        let blocked_flag    = Arc::clone(&is_blocked);
+        let on_unblock      = move || {
+            // Mark as unblocked
+            blocked_flag.store(false, Ordering::Relaxed);
+
+            // Wake up anything that's listening
+            let Some(wakers) = wakers_copy.upgrade() else { return; };
+            let wakers = wakers.lock().unwrap().drain(..).collect::<Vec<_>>();
+
+            for waker in wakers {
+                waker.wake();
+            }
+        };
+
+        // Future to populate the wakers
+        let input_stream_core = core_locked.clone();
+
+        let future = future::poll_fn(move |context| {
+            if !is_blocked.load(Ordering::Relaxed) {
+                // Clear this handle from the core
+                input_stream_core.lock().unwrap().idle_unblockers.remove(&handle);
+
+                // Unblock if no longer blocked
+                Poll::Ready(())
+            } else {
+                // Add to the waker list and go back to sleep
+                wakers.lock().unwrap().push(context.waker().clone());
+                Poll::Pending
+            }
+        });
+
+        // Also remove the handle when dropped
+        let input_stream_core = core_locked.clone();
+        let on_drop = move || {
+            input_stream_core.lock().unwrap().idle_unblockers.remove(&handle);
+        };
+
+        // Create the blocker
+        let idle_blocker = IdleUnblocker {
+            on_drop:    Some(Box::new(on_drop)),
+            future:     future.boxed(),
+        };
+
+        // Add to the list of blockers
+        core.idle_unblockers.insert(handle, Box::new(on_unblock));
+
+        // Return as an idle unblocker
+        idle_blocker
+    }
 }
 
 /// Object that marks an input stream as no longer waiting for idle when it's dropped
@@ -455,6 +546,29 @@ impl<'a> Drop for IdleInputStreamCore {
         if let Some(on_drop) = self.0.take() {
             on_drop();
         }
+    }
+}
+
+/// Object that marks an input stream as no longer able to unblock idle when it's dropped
+pub (crate) struct IdleUnblocker {
+    on_drop:    Option<Box<dyn Send + FnOnce() -> ()>>,
+    future:     BoxFuture<'static, ()>,
+}
+
+impl<'a> Drop for IdleUnblocker {
+    fn drop(&mut self) {
+        if let Some(on_drop) = self.on_drop.take() {
+            on_drop();
+        }
+    }
+}
+
+impl Future for IdleUnblocker {
+    type Output = ();
+
+    #[inline]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.future.poll_unpin(cx)
     }
 }
 
