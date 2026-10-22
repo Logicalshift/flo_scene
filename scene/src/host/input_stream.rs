@@ -543,6 +543,26 @@ where
         // Return as an idle unblocker
         idle_blocker
     }
+
+    ///
+    /// True if the process that owns this input stream can be unblocked (ie, wants to know if the scene would
+    /// be idle if not for the 'unblockable' streams)
+    ///
+    #[inline]
+    pub (crate) fn can_be_unblocked(&self) -> bool {
+        !self.idle_unblockers.is_empty()
+    }
+
+    ///
+    /// Triggers the unblockers for this core
+    ///
+    pub (crate) fn unblock(input_stream_core: &Arc<Mutex<Self>>) {
+        // Drain the unblockers
+        let unblockers = input_stream_core.lock().unwrap().idle_unblockers.drain().collect::<Vec<_>>();
+
+        // Invoke them, outside the lock
+        unblockers.into_iter().for_each(|(_, unblocker)| (unblocker)());
+    }
 }
 
 /// Object that marks an input stream as no longer waiting for idle when it's dropped

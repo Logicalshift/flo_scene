@@ -32,7 +32,9 @@ static STREAM_TYPE_FUNCTIONS: Lazy<RwLock<HashMap<TypeId, StreamTypeFunctions>>>
 
 type CloseInputFn               = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
 type IsIdleFn                   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<bool, ConnectionError>>;
+type CanBeUnblockedFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<bool, ConnectionError>>;
 type NotIdleFn                  = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Box<dyn Send + Any>, ConnectionError>>;
+type UnblockFn                  = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ConnectionError>>;
 type WaitingForIdleFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, usize) -> Result<IdleInputStreamCore, ConnectionError>>;
 type DefaultTargetFn            = Arc<dyn Send + Sync + Fn() -> StreamTarget>;
 type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>>;
@@ -53,8 +55,16 @@ struct StreamTypeFunctions {
     /// Indicates if an input stream is idle or not (idle = has an empty input queue and is waiting for a new message to arrive)
     is_idle: IsIdleFn,
 
+    /// True if this stream can be unblocked in order to try to return the scene to an idle state
+    /// (Unblocking is used when the scene is in a state where it could go idle if there were no blockers: it indicates that
+    /// things like stream connections have not resolved with the current set of requests)
+    can_be_unblocked: CanBeUnblockedFn,
+
     /// Forces a stream to be 'not idle' even if it has no messages queued
     not_idle: NotIdleFn,
+
+    /// Unblocks everything attached to an input stream core
+    unblock: UnblockFn,
 
     /// Indicates that the input stream is in a 'waiting for idle' state (where it will queue messages up to a limit until the scene is idle)
     waiting_for_idle: WaitingForIdleFn,
@@ -145,11 +155,25 @@ impl StreamTypeFunctions {
                 Ok(is_idle)
             }),
 
+            can_be_unblocked: Arc::new(|input_stream_any| {
+                let input_stream        = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let can_be_unblocked    = input_stream.lock().unwrap().can_be_unblocked();
+
+                Ok(can_be_unblocked)
+            }),
+
             not_idle: Arc::new(|input_stream_any| {
                 let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
                 let idle_blocker    = InputStreamCore::<TMessageType>::not_idle(&input_stream);
 
                 Ok(Box::new(idle_blocker))
+            }),
+
+            unblock: Arc::new(|input_stream_any| {
+                let input_stream = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                InputStreamCore::<TMessageType>::unblock(&input_stream);
+
+                Ok(())
             }),
 
             waiting_for_idle: Arc::new(|input_stream_any, max_idle_queue_len| {
@@ -310,11 +334,25 @@ impl StreamTypeFunctions {
             .map(|all_functions| Arc::clone(&all_functions.is_idle))
     }
 
+    pub fn can_be_unblocked(type_id: &TypeId) -> Option<CanBeUnblockedFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.can_be_unblocked))
+    }
+
     pub fn not_idle(type_id: &TypeId) -> Option<NotIdleFn> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.not_idle))
+    }
+
+    pub fn unblock(type_id: &TypeId) -> Option<UnblockFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.unblock))
     }
 
     pub fn waiting_for_idle(type_id: &TypeId) -> Option<WaitingForIdleFn> {
@@ -499,6 +537,22 @@ impl StreamId {
     }
 
     ///
+    /// Given an input stream (an 'Any' that maps to an InputStreamCore of the same type as this stream ID), returns
+    /// if it can be unblocked when the core would become idle
+    ///
+    pub (crate) fn can_be_unblocked(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<bool, ConnectionError> {
+        let message_type = self.message_type();
+
+        if let Some(can_be_unblocked) = StreamTypeFunctions::can_be_unblocked(&message_type) {
+            // Determine if the stream is idle
+            (can_be_unblocked)(input_stream)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
     /// Blocks an input stream from being idle until the returned value is dropped
     ///
     pub (crate) fn not_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<Box<dyn Any + Send>, ConnectionError> {
@@ -507,6 +561,25 @@ impl StreamId {
         if let Some(not_idle) = StreamTypeFunctions::not_idle(&message_type) {
             // Determine if the stream is idle
             (not_idle)(input_stream)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Given an input stream (an 'Any' that maps to an InputStreamCore of the same type as this stream ID), unblocks
+    /// anything that's requested an 'unblock to idle' notification. This is used when the scene is in a state where
+    /// it would become idle if it weren't for the 'unblockable' processes, which indicates that whatever stream/state
+    /// update they were expecting has failed to resolve. (Eg, when connecting to a stream, if the scene wants to go
+    /// idle and the stream is still not connected, then it's not likely to be connected so should error out)
+    ///
+    pub (crate) fn unblock(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<(), ConnectionError> {
+        let message_type = self.message_type();
+
+        if let Some(unblock) = StreamTypeFunctions::unblock(&message_type) {
+            // Determine if the stream is idle
+            (unblock)(input_stream)
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)
