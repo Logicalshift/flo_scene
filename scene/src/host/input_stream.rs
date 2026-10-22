@@ -486,7 +486,7 @@ where
         let is_blocked = Arc::new(atomic::AtomicBool::new(true));
 
         // Wakers to call when unblocked
-        let wakers          = Arc::new(Mutex::<Vec<Waker>>::new(vec![]));
+        let wakers          = Arc::new(Mutex::<Option<Waker>>::new(None));
         let wakers_copy     = Arc::downgrade(&wakers);
         let blocked_flag    = Arc::clone(&is_blocked);
         let on_unblock      = move || {
@@ -495,7 +495,7 @@ where
 
             // Wake up anything that's listening
             let Some(wakers) = wakers_copy.upgrade() else { return; };
-            let wakers = wakers.lock().unwrap().drain(..).collect::<Vec<_>>();
+            let wakers = wakers.lock().unwrap().take().into_iter().collect::<Vec<_>>();
 
             for waker in wakers {
                 waker.wake();
@@ -506,6 +506,8 @@ where
         let input_stream_core = core_locked.clone();
 
         let future = future::poll_fn(move |context| {
+            let mut wakers = wakers.lock().unwrap();
+
             if !is_blocked.load(Ordering::Relaxed) {
                 // Clear this handle from the core
                 input_stream_core.lock().unwrap().idle_unblockers.remove(&handle);
@@ -514,7 +516,7 @@ where
                 Poll::Ready(())
             } else {
                 // Add to the waker list and go back to sleep
-                wakers.lock().unwrap().push(context.waker().clone());
+                *wakers = Some(context.waker().clone());
                 Poll::Pending
             }
         });
