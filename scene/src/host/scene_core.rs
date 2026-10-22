@@ -842,6 +842,15 @@ impl SceneCore {
         if let InputState::CanBeUnblocked(streams) = inputs_state {
             // All streams can be unblocked to get to an idle state (ie, whatever situation they were waiting on has not resolved itself)
             // (Would be 'Busy' if any of the input streams were still working on things)
+            let locked_core = core.lock().unwrap();
+
+            if locked_core.idle_count != idle_count {
+                return false;
+            }
+
+            mem::drop(locked_core);
+
+            // Unblock the streams
             for (stream_id, input_core) in streams {
                 stream_id.unblock(&input_core).ok();
             }

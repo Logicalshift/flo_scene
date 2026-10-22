@@ -552,7 +552,7 @@ where
     ///
     #[inline]
     pub (crate) fn can_be_unblocked(&self) -> bool {
-        !self.idle_unblockers.is_empty()
+        !self.idle_unblockers.is_empty() && self.idle_blockers.is_empty()
     }
 
     ///
