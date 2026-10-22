@@ -424,6 +424,9 @@ impl SceneContext {
     /// idle while some result is expected, then it's not doing any work that can produce that result, so the result can be
     /// considered to be unresolved.
     ///
+    /// Unlike 'wait_for_idle' this doesn't actually set the program as idle so this won't generate actual idle notifications
+    /// until the scene is really in an 'idle' state.
+    ///
     pub (crate) async fn unblock_for_idle(&self, max_idle_queue_len: usize) {
         let unblock = if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
             // Get the input stream ID from the program core
