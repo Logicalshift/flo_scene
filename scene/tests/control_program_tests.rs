@@ -653,7 +653,7 @@ fn sending_scene_update_to_stopped_program_does_not_block() {
 
             // Query the current state of the scene (this creates more 'connected' messages which can block the scene control program)
             println!("Querying status...");
-            let mut query = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).unwrap();
+            let mut query = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).await.unwrap();
             let mut query_result = HashSet::new();
 
             while let Some(result) = query.next().await {
@@ -783,7 +783,7 @@ fn subscription_events_match_query_messages() {
 
         // Query the current state of the scene
         println!("Querying status...");
-        let query = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).unwrap();
+        let query = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).await.unwrap();
         let query = query.collect::<HashSet<_>>().await;
         println!("Query done: {} updates", query.len());
 

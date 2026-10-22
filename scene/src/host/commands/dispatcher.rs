@@ -58,7 +58,7 @@ where
         // We update if the LIST_COMMANDS command is sent, or if the command is not known, or if there's no way to contact the existing target
         if next_command.name() == LIST_COMMANDS || next_command.name() == DESCRIBE_COMMAND || command_owner_stream.is_none() {
             // Request the current scene status
-            let scene_status = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ());
+            let scene_status = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).await;
             let scene_status = if let Ok(scene_status) = scene_status {
                 scene_status
             } else {
@@ -99,7 +99,7 @@ where
                 if *added_program_id == our_program_id { continue; }
 
                 // Send the LIST_COMMANDS command to the new program
-                if let Ok(supported_commands) = context.spawn_query(ReadCommand::default(), RunCommand::<TParameter, TResponse>::new((), LIST_COMMANDS, ()), added_program_id) {
+                if let Ok(supported_commands) = context.spawn_query(ReadCommand::default(), RunCommand::<TParameter, TResponse>::new((), LIST_COMMANDS, ()), added_program_id).await {
                     let mut supported_commands = supported_commands;
                     while let Some(cmd) = supported_commands.next().await {
                         // Convert to a list command response

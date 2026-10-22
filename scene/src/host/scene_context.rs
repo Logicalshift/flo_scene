@@ -264,7 +264,7 @@ impl SceneContext {
     /// or any kind of dependency: both of these can be set up entirely independently. Queries can also be used to forward the response elsewhere. A 
     /// `query_target` of `StreamTarget::Any` is a good sign that this API is being used appropriately.
     ///
-    pub fn spawn_query<TCommand, TQueryRequest, TQueryTarget>(&self, command: TCommand, query: TQueryRequest, query_target: TQueryTarget) -> Result<impl 'static + Stream<Item=TCommand::Output> + use<TCommand, TQueryRequest, TQueryTarget>, ConnectionError>
+    pub async fn spawn_query<TCommand, TQueryRequest, TQueryTarget>(&self, command: TCommand, query: TQueryRequest, query_target: TQueryTarget) -> Result<impl 'static + Stream<Item=TCommand::Output> + use<TCommand, TQueryRequest, TQueryTarget>, ConnectionError>
     where
         TCommand:       'static + Command<Message=()>,
         TQueryRequest:  'static + QueryRequest<ResponseData=TCommand::Input>,
@@ -291,6 +291,9 @@ impl SceneContext {
             let command_result      = InputStream::new(our_program_id, &scene_core, 4);
             let command_result_core = command_result.core();
 
+            // Send the query to the target (request should wait until the subprogram is ready)
+            target_connection.send(query.with_new_target(task_program_id.into())).await?;
+
             // We need to receive the context after the subprogram has been added to the core
             let (send_context, recv_context)    = oneshot::channel::<SceneContext>();
             let command_result_core             = Arc::downgrade(&command_result_core);
@@ -299,27 +302,24 @@ impl SceneContext {
                 if let Ok(scene_context) = recv_context.await {
                     // Send the query
                     let mut response_input_stream = response_input_stream;
-                    if let Ok(()) = target_connection.send(query.with_new_target(task_program_id.into())).await {
-                        // Wait for the response
-                        if let Some(response) = response_input_stream.next().await {
-                            // Refuse any further input
-                            drop(response_input_stream);
 
-                            // Run the command with the response to the query
-                            command.run(response, empty_input, scene_context).await;
+                    // Wait for the response
+                    if let Some(response) = response_input_stream.next().await {
+                        // Refuse any further input
+                        drop(response_input_stream);
 
-                            // Close the result stream once the command finishes running
-                            if let Some(command_result_core) = command_result_core.upgrade() {
-                                let waker = command_result_core.lock().unwrap().close();
-                                if let Some(waker) = waker {
-                                    waker.wake();
-                                }
+                        // Run the command with the response to the query
+                        command.run(response, empty_input, scene_context).await;
+
+                        // Close the result stream once the command finishes running
+                        if let Some(command_result_core) = command_result_core.upgrade() {
+                            let waker = command_result_core.lock().unwrap().close();
+                            if let Some(waker) = waker {
+                                waker.wake();
                             }
-                        } else {
-                            // Could not receive the response (TODO)
                         }
                     } else {
-                        // Could not send the query (TODO: maybe make the input a TryStream?)
+                        // Could not receive the response (TODO)
                     }
                 }
             };

@@ -70,7 +70,7 @@ struct Command {
 ///
 async fn read_new_commands(context: &SceneContext, known_subprograms: &mut HashSet<SubProgramId>) -> Vec<(String, Command)> {
     // Query the subprograms from the control program
-    let scene_status = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ());
+    let scene_status = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).await;
     let scene_status = if let Ok(scene_status) = scene_status {
         scene_status
     } else {
@@ -94,7 +94,7 @@ async fn read_new_commands(context: &SceneContext, known_subprograms: &mut HashS
         // Add to the list of known commands
         known_subprograms.insert(added_program_id);
 
-        if let Ok(supported_commands) = context.spawn_query(ReadCommand::default(), RunCommand::<JsonParameter, CommandResponse>::new((), LIST_COMMANDS, ()), added_program_id) {
+        if let Ok(supported_commands) = context.spawn_query(ReadCommand::default(), RunCommand::<JsonParameter, CommandResponse>::new((), LIST_COMMANDS, ()), added_program_id).await {
             let mut supported_commands = supported_commands;
 
             // Create Command objects for each command
@@ -104,7 +104,7 @@ async fn read_new_commands(context: &SceneContext, known_subprograms: &mut HashS
                 // Commands get an empty help topic
                 for description in cmd.0 {
                     // Request more details about this command
-                    let describe_result = context.spawn_query(ReadCommand::default(), RunCommand::<JsonParameter, CommandResponse>::new((), DESCRIBE_COMMAND, DescribeCommandRequest(description.name.clone())), added_program_id);
+                    let describe_result = context.spawn_query(ReadCommand::default(), RunCommand::<JsonParameter, CommandResponse>::new((), DESCRIBE_COMMAND, DescribeCommandRequest(description.name.clone())), added_program_id).await;
 
                     if let Ok(mut describe_result) = describe_result {
                         if let Some(describe_result) = describe_result.next().await {
@@ -256,7 +256,7 @@ pub fn command_help(input: Option<String>, context: SceneContext) -> impl Future
     async move {
         let input = input.unwrap_or_else(|| "".into());
 
-        match context.spawn_query(ReadCommand::default(), HelpQueryTopic::with_topic(input.clone()), ()) {
+        match context.spawn_query(ReadCommand::default(), HelpQueryTopic::with_topic(input.clone()), ()).await {
             Ok(markdown) => {
                 // Send the resulting markdown to the target
                 let mut markdown = markdown;

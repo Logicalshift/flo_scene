@@ -50,7 +50,7 @@ impl SceneMessage for ListConnectionsResponse {
 pub fn command_list_connections(_input: serde_json::Value, context: SceneContext) -> impl Future<Output=CommandResponseData<Vec<ListConnectionsResponse>>> {
     async move {
         // Query the scene control program for the list of subprograms
-        match context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), *SCENE_CONTROL_PROGRAM) {
+        match context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), *SCENE_CONTROL_PROGRAM).await {
             Ok(updates) => {
                 let mut updates     = updates;
                 let mut responses   = HashMap::new();

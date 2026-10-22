@@ -50,7 +50,7 @@ impl Default for ListSubprogramsResponse {
 pub fn command_list_subprograms(_input: serde_json::Value, context: SceneContext) -> impl Future<Output=CommandResponseData<Vec<ListSubprogramsResponse>>> {
     async move {
         // Query the scene control program for the list of subprograms
-        match context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), *SCENE_CONTROL_PROGRAM) {
+        match context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), *SCENE_CONTROL_PROGRAM).await {
             Ok(updates) => {
                 let mut updates          = updates;
                 let mut subprograms      = HashMap::new();

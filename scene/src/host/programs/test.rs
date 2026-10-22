@@ -169,7 +169,7 @@ impl TestBuilder {
 
             async move {
                 // Run the command and gather the output
-                let command_result = context.spawn_query(command, query, query_target).unwrap().collect::<Vec<_>>().await;
+                let command_result = context.spawn_query(command, query, query_target).await.unwrap().collect::<Vec<_>>().await;
 
                 // Check the result against the assertion
                 let mut failed_assertions = failed_assertions;

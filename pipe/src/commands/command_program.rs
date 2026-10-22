@@ -320,7 +320,7 @@ impl CommandSession {
             let command = JsonCommand::new((), command, parameter, context.current_program_id());
 
             // Run the command and retrieve the first response if we can
-            let command_result = context.spawn_query(ReadCommand::default(), command, target);
+            let command_result = context.spawn_query(ReadCommand::default(), command, target).await;
 
             match command_result {
                 Err(err)            => stream::iter(iter::once(CommandResponse::Error(format!("Could not send command: {:?}", err)))).boxed(),

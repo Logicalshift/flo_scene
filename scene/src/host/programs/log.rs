@@ -287,7 +287,7 @@ impl Log {
                     program_names.insert(msg.source(), None);
 
                     // Query the names from the control program
-                    let mut current_scene_state = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), StreamTarget::Any).unwrap();
+                    let mut current_scene_state = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), StreamTarget::Any).await.unwrap();
                     while let Some(evt) = current_scene_state.next().await {
                         match evt {
                             SceneUpdate::Tagged(program_id, SceneProgramTag::Name(program_name)) => {
