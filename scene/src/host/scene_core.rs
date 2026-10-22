@@ -842,10 +842,16 @@ impl SceneCore {
         if let InputState::CanBeUnblocked(streams) = inputs_state {
             // All streams can be unblocked to get to an idle state (ie, whatever situation they were waiting on has not resolved itself)
             // (Would be 'Busy' if any of the input streams were still working on things)
-            let locked_core = core.lock().unwrap();
+            let mut locked_core = core.lock().unwrap();
 
             if locked_core.idle_count != idle_count {
+                // State might have changed
                 return false;
+            }
+
+            // Stop notifying if nothing is waiting for idle messages after this
+            if locked_core.when_idle.is_empty() {
+                locked_core.notify_when_idle = false;
             }
 
             mem::drop(locked_core);
