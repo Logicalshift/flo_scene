@@ -472,7 +472,10 @@ where
     /// (ie, the scene isn't idle when this returns, just in a 'ready for idle' state that could change back
     /// to a 'not idle' state depending on what happens next)
     ///
-    pub (crate) fn unblock_for_idle(core_locked: &Arc<Mutex<Self>>) -> IdleUnblocker {
+    /// The input queue length for subprograms in this state is typically extended to prevent deadlocks (as a
+    /// program might block on sending to this program)
+    ///
+    pub (crate) fn unblock_for_idle(core_locked: &Arc<Mutex<Self>>, max_idle_queue_len: usize) -> IdleUnblocker {
         use std::sync::atomic::{Ordering};
 
         let mut core    = core_locked.lock().unwrap();
@@ -539,11 +542,20 @@ where
         // Add to the list of blockers
         core.idle_unblockers.insert(handle, Box::new(on_unblock));
 
+        // We'll update the number of input slots available when we become 'unblockable'
+        let when_slots_available = core.when_slots_available.drain(..).collect::<Vec<_>>();
+        core.max_idle_queue_len = core.max_idle_queue_len.max(max_idle_queue_len);
+
         // Unlock the core
         drop(core);
 
         // Request an idle notification if one isn't already pending (to clear the unblocker in this case)
         if let Some(scene_core) = scene_core { SceneCore::notify_on_next_idle(&scene_core); }
+
+        // Wake anything waiting for slots as we've made more available
+        for waker in when_slots_available {
+            waker.wake();
+        }
 
         // Return as an idle unblocker
         idle_blocker
