@@ -419,6 +419,43 @@ impl SceneContext {
     }
 
     ///
+    /// Returns a future that completes when the scene is only blocked from becoming idle by programs in the 'unblock for idle'
+    /// state. This can be used to detect when an operation that was requested hasn't completed properly: if the scene becomes
+    /// idle while some result is expected, then it's not doing any work that can produce that result, so the result can be
+    /// considered to be unresolved.
+    ///
+    pub (crate) async fn unblock_for_idle(&self, max_idle_queue_len: usize) {
+        let unblock = if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
+            // Get the input stream ID from the program core
+            let (program_id, stream_id) = {
+                let program_core = program_core.lock().unwrap();
+
+                (*program_core.program_id(), program_core.input_stream_id())
+            };
+
+            // Fetch the input stream core for the current program
+            let input_stream_core = scene_core.lock().unwrap().get_input_stream_core(program_id);
+            let input_stream_core = if let Some(input_stream_core) = input_stream_core { input_stream_core } else { return; };
+
+            // Say we're waiting for idle (so input can accrue without blocking the idle message)
+            let unblock = stream_id.unblock_for_idle(&input_stream_core, max_idle_queue_len);
+
+            // Trigger a check immediately
+            SceneCore::check_if_idle(&scene_core);
+
+            // Wait for the scene to signal that it can become idle
+            Some(unblock)
+        } else {
+            None
+        };
+
+        // Return when the scene can be unblocked by this task
+        if let Some(Ok(unblock)) = unblock {
+            unblock.await;
+        }
+    }
+
+    ///
     /// Adds a short background process to this subprogram
     ///
     /// Background processes are complete in an arbitrary order (they're all run in parallel). We always poll the

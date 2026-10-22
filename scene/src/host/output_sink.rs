@@ -588,11 +588,11 @@ where
                                 }
                             }).await;
 
-                            // Then wait for the scene to become idle
+                            // Mark this thread as 'unblockable'
                             // TODO: the '1000' here is arbitrary, it causes backpressure errors if enough messages are queued up while we're blocked waiting for this target to connect
                             // TODO: this behaviour may be unexpected and cause backpressure problems at times of high load
                             // TODO: maybe pick something based on the queue length requested by the program?
-                            scene_context.wait_for_idle(1000).await;
+                            scene_context.unblock_for_idle(1000).await;
                         };
 
                         *wait_for_idle = Some(wait_for_idle_task.boxed());
