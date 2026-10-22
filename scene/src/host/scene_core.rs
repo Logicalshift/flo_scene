@@ -824,7 +824,9 @@ impl SceneCore {
                         }
                     }
                     InputState::CanBeUnblocked(mut streams) => {
-                        if stream_id.can_be_unblocked(input_stream) == Ok(true) {
+                        if stream_id.is_idle(input_stream) == Ok(true) {
+                            InputState::CanBeUnblocked(streams)
+                        } else if stream_id.can_be_unblocked(input_stream) == Ok(true) {
                             streams.push((stream_id.clone(), input_stream.clone()));
                             InputState::CanBeUnblocked(streams)
                         } else {
