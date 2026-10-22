@@ -418,7 +418,7 @@ where
                     let mut core = core.lock().unwrap();
 
                     core.waiting_for_idle -= 1;
-                    if core.waiting_for_idle == 0 {
+                    if core.waiting_for_idle == 0 && core.idle_unblockers.is_empty() {
                         core.max_idle_queue_len = core.max_waiting;
                     }
                 }
@@ -529,7 +529,13 @@ where
         let input_stream_core = Arc::downgrade(core_locked);
         let on_drop = move || {
             if let Some(input_stream_core) = input_stream_core.upgrade() {
-                input_stream_core.lock().unwrap().idle_unblockers.remove(&handle);
+                let mut core = input_stream_core.lock().unwrap();
+
+                core.idle_unblockers.remove(&handle);
+
+                if core.waiting_for_idle == 0 && core.idle_unblockers.is_empty() {
+                    core.max_idle_queue_len = core.max_waiting;
+                }
             }
         };
 
@@ -599,7 +605,7 @@ pub (crate) struct IdleUnblocker {
     future:     BoxFuture<'static, ()>,
 }
 
-impl<'a> Drop for IdleUnblocker {
+impl Drop for IdleUnblocker {
     fn drop(&mut self) {
         if let Some(on_drop) = self.on_drop.take() {
             on_drop();
