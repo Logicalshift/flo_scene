@@ -503,10 +503,11 @@ where
         };
 
         // Future to populate the wakers
-        let input_stream_core = core_locked.clone();
+        let input_stream_core = Arc::downgrade(core_locked);
 
         let future = future::poll_fn(move |context| {
-            let mut wakers = wakers.lock().unwrap();
+            let Some(input_stream_core) = input_stream_core.upgrade() else { return Poll::Ready(()) };
+            let mut wakers              = wakers.lock().unwrap();
 
             if !is_blocked.load(Ordering::Relaxed) {
                 // Clear this handle from the core
@@ -522,9 +523,11 @@ where
         });
 
         // Also remove the handle when dropped
-        let input_stream_core = core_locked.clone();
+        let input_stream_core = Arc::downgrade(core_locked);
         let on_drop = move || {
-            input_stream_core.lock().unwrap().idle_unblockers.remove(&handle);
+            if let Some(input_stream_core) = input_stream_core.upgrade() {
+                input_stream_core.lock().unwrap().idle_unblockers.remove(&handle);
+            }
         };
 
         // Create the blocker
@@ -570,7 +573,7 @@ where
 /// Object that marks an input stream as no longer waiting for idle when it's dropped
 pub (crate) struct IdleInputStreamCore(Option<Box<dyn Send + FnOnce() -> ()>>);
 
-impl<'a> Drop for IdleInputStreamCore {
+impl Drop for IdleInputStreamCore {
     fn drop(&mut self) {
         if let Some(on_drop) = self.0.take() {
             on_drop();
