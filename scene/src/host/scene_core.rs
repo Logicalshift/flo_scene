@@ -815,19 +815,19 @@ impl SceneCore {
             .fold(InputState::Idle, |state, (stream_id, input_stream, _program_id)| {
                 match state {
                     InputState::Idle => {
-                        if stream_id.is_idle(input_stream) == Ok(true) {
-                            InputState::Idle
-                        } else if stream_id.can_be_unblocked(input_stream) == Ok(true) {
+                        if stream_id.can_be_unblocked(input_stream) == Ok(true) {
                             InputState::CanBeUnblocked(vec![(stream_id.clone(), input_stream.clone())])
+                        } else if stream_id.is_idle(input_stream) == Ok(true) {
+                            InputState::Idle
                         } else {
                             InputState::Busy
                         }
                     }
                     InputState::CanBeUnblocked(mut streams) => {
-                        if stream_id.is_idle(input_stream) == Ok(true) {
-                            InputState::CanBeUnblocked(streams)
-                        } else if stream_id.can_be_unblocked(input_stream) == Ok(true) {
+                        if stream_id.can_be_unblocked(input_stream) == Ok(true) {
                             streams.push((stream_id.clone(), input_stream.clone()));
+                            InputState::CanBeUnblocked(streams)
+                        } else if stream_id.is_idle(input_stream) == Ok(true) {
                             InputState::CanBeUnblocked(streams)
                         } else {
                             InputState::Busy
