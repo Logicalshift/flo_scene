@@ -793,7 +793,7 @@ impl SceneCore {
                 return false;
             }
 
-            // Increase the idle count so that future 
+            // Increase the idle count so that future notifications have a different value
             core.idle_count += 1;
             idle_count = core.idle_count;
 

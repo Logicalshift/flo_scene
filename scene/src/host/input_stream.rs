@@ -475,7 +475,8 @@ where
     pub (crate) fn unblock_for_idle(core_locked: &Arc<Mutex<Self>>) -> IdleUnblocker {
         use std::sync::atomic::{Ordering};
 
-        let mut core = core_locked.lock().unwrap();
+        let mut core    = core_locked.lock().unwrap();
+        let scene_core  = core.scene_core.upgrade();
 
         // Create a handle for this item
         let handle = core.next_idle_unblocker;
@@ -532,6 +533,12 @@ where
 
         // Add to the list of blockers
         core.idle_unblockers.insert(handle, Box::new(on_unblock));
+
+        // Unlock the core
+        drop(core);
+
+        // Request an idle notification if one isn't already pending (to clear the unblocker in this case)
+        if let Some(scene_core) = scene_core { SceneCore::notify_on_next_idle(&scene_core); }
 
         // Return as an idle unblocker
         idle_blocker
