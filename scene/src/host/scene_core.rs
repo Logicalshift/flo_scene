@@ -804,9 +804,46 @@ impl SceneCore {
                 .collect::<Vec<_>>()
         };
 
-        // Check the inputs to see if they are idle
-        let all_inputs_idle = sub_program_inputs.iter()
-            .all(|(stream_id, input_stream, _program_id)| stream_id.is_idle(input_stream) == Ok(true));
+        // Check the inputs to see if they are idle or if everything can be unblocked
+        enum InputState {
+            Idle,
+            CanBeUnblocked(Vec<(StreamId, Arc<dyn Any + Send + Sync>)>),
+            Busy
+        }
+
+        let inputs_state = sub_program_inputs.iter()
+            .fold(InputState::Idle, |state, (stream_id, input_stream, _program_id)| {
+                match state {
+                    InputState::Idle => {
+                        if stream_id.is_idle(input_stream) == Ok(true) {
+                            InputState::Idle
+                        } else if stream_id.can_be_unblocked(input_stream) == Ok(true) {
+                            InputState::CanBeUnblocked(vec![(stream_id.clone(), input_stream.clone())])
+                        } else {
+                            InputState::Busy
+                        }
+                    }
+                    InputState::CanBeUnblocked(mut streams) => {
+                        if stream_id.can_be_unblocked(input_stream) == Ok(true) {
+                            streams.push((stream_id.clone(), input_stream.clone()));
+                            InputState::CanBeUnblocked(streams)
+                        } else {
+                            InputState::Busy
+                        }
+                    }
+                    InputState::Busy => InputState::Busy,
+                }
+            });
+
+        let all_inputs_idle = matches!(inputs_state, InputState::Idle);
+
+        if let InputState::CanBeUnblocked(streams) = inputs_state {
+            // All streams can be unblocked to get to an idle state (ie, whatever situation they were waiting on has not resolved itself)
+            // (Would be 'Busy' if any of the input streams were still working on things)
+            for (stream_id, input_core) in streams {
+                stream_id.unblock(&input_core).ok();
+            }
+        }
 
         let all_processes_idle = if !all_inputs_idle {
             // If the inputs are not idle, then the core is not idle (we'll just assume that the processes are asleep)
@@ -897,98 +934,6 @@ impl SceneCore {
             false
         }
     }
-
-    /*
-    ///
-    /// After a program has started, finds any connections that are targetting it and remakes them
-    ///
-    pub fn reconnect_subprogram(scene_core: &Arc<Mutex<SceneCore>>, subprogram_id: SubProgramId) {
-        // Get the subprograms and active connections from the core
-        let (subprograms, connections) = {
-            let core = scene_core.lock().unwrap();
-
-            let subprograms = core.sub_programs.iter()
-                .flatten()
-                .cloned()
-                .collect::<Vec<_>>();
-            let connections = core.connections.clone();
-
-            (subprograms, connections)
-        };
-
-        // For each subprogram, find any outputs that might connect to our target, and reconnect them
-        for subprogram in subprograms {
-            let core = subprogram.lock().unwrap();
-
-            let source_id = core.id;
-            if source_id == subprogram_id {
-                // Don't connect the target program
-                continue;
-            }
-
-            let mut targets_to_reconnect = vec![];
-            for (stream_id, output_sink_core) in core.outputs.iter() {
-                // Skip this connection if it does not target us
-                if let Some(target) = stream_id.target_program() {
-                    // Souce stream is targeting a specific program
-                    let connection = connections.get(&(target.into(), stream_id.clone()));
-                    if let Some(connection) = connection {
-                        if connection.target_sub_program() == Some(subprogram_id) {
-                            // This connection matches our subprogram (may be redirected from a different target)
-                        } else {
-                            // This connection does not match our stream
-                            continue;
-                        }
-                    } else if target == subprogram_id {
-                        // Direct connection to this subprogram
-                    } else {
-                        // Connection to somewhere else
-                        continue;
-                    }
-                } else {
-                    let any_connection = connections.get(&(StreamSource::All, stream_id.clone()));
-
-                    if let Some(connection) = any_connection {
-                        if connection.target_sub_program() == Some(subprogram_id) {
-                            // This is an 'any' connection that targets this program
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        // This stream has no target
-                        continue;
-                    }
-                }
-
-                // This target is needs reconnecting as it targets our program, we'll do this once we've released the lock
-                targets_to_reconnect.push((stream_id.clone(), output_sink_core.clone()));
-            }
-
-            // Reconnect any targets
-            drop(core);
-    
-            let mut scene_updates = vec![];
-            for (stream_id, output_sink_core) in targets_to_reconnect.into_iter() {
-                // Try to connect this core to this program
-                let reconnect_result = stream_id.reconnect_output_sink(scene_core, &output_sink_core, source_id, StreamTarget::Program(subprogram_id));
-
-                if reconnect_result.is_ok() {
-                    // Add to the update list
-                    scene_updates.push(SceneUpdate::Connected(source_id, subprogram_id, stream_id.clone()));
-                }
-
-                if let Ok(Some(waker)) = reconnect_result {
-                    // Errors are ignored, they'll leave the sink's state alone
-                    waker.wake();
-                }
-            }
-
-            if !scene_updates.is_empty() {
-                SceneCore::send_scene_updates(scene_core, scene_updates);
-            }
-        }
-    }
-    */
 
     ///
     /// Shuts down the input stream for a subprogram (which generally should cause the program itself to stop)
