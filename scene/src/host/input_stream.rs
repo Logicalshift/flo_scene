@@ -412,8 +412,8 @@ where
         };
 
         // Create the dropper that will put the core back into the normal state (when the idle notification is received)
-        let core = Arc::downgrade(core);
-        let idle_dropper = IdleInputStreamCore(Some(Box::new(move ||
+        let core            = Arc::downgrade(core);
+        let idle_dropper    = IdleInputStreamCore(Some(Box::new(move ||
                 if let Some(core) = core.upgrade() {
                     let mut core = core.lock().unwrap();
 
