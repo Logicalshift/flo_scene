@@ -427,7 +427,7 @@ impl SceneContext {
     /// Unlike 'wait_for_idle' this doesn't actually set the program as idle so this won't generate actual idle notifications
     /// until the scene is really in an 'idle' state.
     ///
-    pub (crate) async fn unblock_for_idle(&self, max_idle_queue_len: usize) {
+    pub (crate) fn unblock_for_idle<'a>(&'a self, max_idle_queue_len: usize) -> impl 'a + Future<Output=()> {
         let unblock = if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
             // Get the input stream ID from the program core
             let (program_id, stream_id) = {
@@ -438,23 +438,28 @@ impl SceneContext {
 
             // Fetch the input stream core for the current program
             let input_stream_core = scene_core.lock().unwrap().get_input_stream_core(program_id);
-            let input_stream_core = if let Some(input_stream_core) = input_stream_core { input_stream_core } else { return; };
 
-            // Say we're waiting for idle (so input can accrue without blocking the idle message)
-            let unblock = stream_id.unblock_for_idle(&input_stream_core, max_idle_queue_len);
+            if let Some(input_stream_core) = input_stream_core {
+                // Say we're waiting for idle (so input can accrue without blocking the idle message)
+                let unblock = stream_id.unblock_for_idle(&input_stream_core, max_idle_queue_len);
 
-            // Trigger a check immediately
-            SceneCore::check_if_idle(&scene_core);
+                // Trigger a check immediately
+                SceneCore::check_if_idle(&scene_core);
 
-            // Wait for the scene to signal that it can become idle
-            Some(unblock)
+                // Wait for the scene to signal that it can become idle
+                Some(unblock)
+            } else {
+                None
+            }
         } else {
             None
         };
 
-        // Return when the scene can be unblocked by this task
-        if let Some(Ok(unblock)) = unblock {
-            unblock.await;
+        async move {
+            // Return when the scene can be unblocked by this task
+            if let Some(Ok(unblock)) = unblock {
+                unblock.await;
+            }
         }
     }
 
