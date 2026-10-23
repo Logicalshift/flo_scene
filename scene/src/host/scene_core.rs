@@ -839,7 +839,22 @@ impl SceneCore {
 
         let all_inputs_idle = matches!(inputs_state, InputState::Idle);
 
-        if let InputState::CanBeUnblocked(streams) = inputs_state {
+        let all_processes_idle = if let InputState::Busy = inputs_state {
+            // If the inputs are not idle, then the core is not idle (we'll just assume that the processes are asleep)
+            // (The scene is not idle until all the processes are asleep and all subprograms are ready to process their next input)
+            false
+        } else {
+            // If the inputs are all idle, then all the processes must be asleep and waiting for more input as well
+            core.lock().unwrap()
+                .processes.iter()
+                .all(|process| if let SceneProcessState::Running(process) = process {
+                    !process.is_awake && process.future.is_waiting()
+                } else {
+                    true
+                })
+        };
+
+        if let InputState::CanBeUnblocked(streams) = inputs_state && all_processes_idle {
             // All streams can be unblocked to get to an idle state (ie, whatever situation they were waiting on has not resolved itself)
             // (Would be 'Busy' if any of the input streams were still working on things)
             let mut locked_core = core.lock().unwrap();
@@ -861,21 +876,6 @@ impl SceneCore {
                 stream_id.unblock(&input_core).ok();
             }
         }
-
-        let all_processes_idle = if !all_inputs_idle {
-            // If the inputs are not idle, then the core is not idle (we'll just assume that the processes are asleep)
-            // (The scene is not idle until all the processes are asleep and all subprograms are ready to process their next input)
-            false
-        } else {
-            // If the inputs are all idle, then all the processes must be asleep and waiting for more input as well
-            core.lock().unwrap()
-                .processes.iter()
-                .all(|process| if let SceneProcessState::Running(process) = process {
-                    !process.is_awake && process.future.is_waiting()
-                } else {
-                    true
-                })
-        };
 
         // If all inputs are idle and the core is still in 'notification' mode, notify the waiting messages
         if all_inputs_idle && all_processes_idle {
