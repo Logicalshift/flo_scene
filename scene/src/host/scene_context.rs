@@ -239,7 +239,25 @@ impl SceneContext {
             // Send the context to the waiting program (needs to be after the connection is made as the default behaviour in subtasks is to discard output)
             send_context.send(subtask_context.clone()).ok();
 
-            Ok(command_result)
+            // Resulting stream marks this thread as unblockable to allow situations where the command target needs to generate an OutputFailedToConnect error
+            let context         = self.clone();
+            let command_result  = stream::unfold(command_result, move |mut command_result| {
+                let context = context.clone();
+                async move {
+                    // Unblocker protects agains the situation where a query triggers another query which needs to fail (we don't actually unblock)
+                    let unblocker = context.unblock_for_idle(1000);
+
+                    // Get the next result with the unblocker
+                    let result = command_result.next().await;
+
+                    // Move back to blocking the stream from going idle when not awaiting the next value
+                    drop(unblocker);
+
+                    result.map(move |result| (result, command_result))
+                }
+            });
+
+            Ok(command_result.boxed())
         } else {
             // The core or the program is not running any more
             Err(ConnectionError::SubProgramNotRunning)
@@ -264,7 +282,7 @@ impl SceneContext {
     /// or any kind of dependency: both of these can be set up entirely independently. Queries can also be used to forward the response elsewhere. A 
     /// `query_target` of `StreamTarget::Any` is a good sign that this API is being used appropriately.
     ///
-    pub async fn spawn_query<TCommand, TQueryRequest, TQueryTarget>(&self, command: TCommand, query: TQueryRequest, query_target: TQueryTarget) -> Result<impl 'static + Stream<Item=TCommand::Output> + use<TCommand, TQueryRequest, TQueryTarget>, ConnectionError>
+    pub async fn spawn_query<TCommand, TQueryRequest, TQueryTarget>(&self, command: TCommand, query: TQueryRequest, query_target: TQueryTarget) -> Result<impl 'static + Unpin + Stream<Item=TCommand::Output> + use<TCommand, TQueryRequest, TQueryTarget>, ConnectionError>
     where
         TCommand:       'static + Command<Message=()>,
         TQueryRequest:  'static + QueryRequest<ResponseData=TCommand::Input>,
@@ -347,7 +365,25 @@ impl SceneContext {
             // Send the context to the waiting program (needs to be after the connection is made as the default behaviour in subtasks is to discard output)
             send_context.send(subtask_context.clone()).ok();
 
-            Ok(command_result)
+            // Resulting stream marks this thread as unblockable to allow situations where the query target needs to generate an OutputFailedToConnect error
+            let context         = self.clone();
+            let command_result  = stream::unfold(command_result, move |mut command_result| {
+                let context = context.clone();
+                async move {
+                    // Unblocker protects agains the situation where a query triggers another query which needs to fail (we don't actually unblock)
+                    let unblocker = context.unblock_for_idle(1000);
+
+                    // Get the next result with the unblocker
+                    let result = command_result.next().await;
+
+                    // Move back to blocking the stream from going idle when not awaiting the next value
+                    drop(unblocker);
+
+                    result.map(move |result| (result, command_result))
+                }
+            });
+
+            Ok(command_result.boxed())
         } else {
             // The core or the program is not running any more
             Err(ConnectionError::SubProgramNotRunning)
