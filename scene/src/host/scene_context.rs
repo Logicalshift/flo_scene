@@ -463,6 +463,9 @@ impl SceneContext {
     /// Unlike 'wait_for_idle' this doesn't actually set the program as idle so this won't generate actual idle notifications
     /// until the scene is really in an 'idle' state.
     ///
+    /// The unblocker will mark the thread as 'unblockable' until it's dropped or its future returns (so if you create an unblocker
+    /// and never await it, this will enable the other unblockers in the scene to fire as long as it exists)
+    ///
     pub (crate) fn unblock_for_idle<'a>(&'a self, max_idle_queue_len: usize) -> impl 'a + Future<Output=()> {
         let unblock = if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
             // Get the input stream ID from the program core

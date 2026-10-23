@@ -61,7 +61,7 @@ pub (crate) struct InputStreamCore<TMessage> {
     waiting_for_idle: usize,
 
     /// Functions that can be called to unblock this stream when the scene is otherwise idle
-    idle_unblockers: HashMap<usize, Box<dyn 'static + Send + FnOnce() -> ()>>,
+    idle_unblockers: HashMap<usize, Option<Box<dyn 'static + Send + FnOnce() -> ()>>>,
 
     /// Next handle for an idle unblocker
     next_idle_unblocker: usize,
@@ -546,7 +546,7 @@ where
         };
 
         // Add to the list of blockers
-        core.idle_unblockers.insert(handle, Box::new(on_unblock));
+        core.idle_unblockers.insert(handle, Some(Box::new(on_unblock)));
 
         // We'll update the number of input slots available when we become 'unblockable'
         let when_slots_available = core.when_slots_available.drain(..).collect::<Vec<_>>();
@@ -580,11 +580,15 @@ where
     /// Triggers the unblockers for this core
     ///
     pub (crate) fn unblock(input_stream_core: &Arc<Mutex<Self>>) {
-        // Drain the unblockers
-        let unblockers = input_stream_core.lock().unwrap().idle_unblockers.drain().collect::<Vec<_>>();
+        // Take any unblockers that haven't been activated
+        // Old unblockers are left behind until their future is awaited or they're dropped (to allow threads to trigger unblocking)
+        let unblockers = input_stream_core.lock().unwrap().idle_unblockers
+            .iter_mut()
+            .flat_map(|(_, unblocker)| unblocker.take())
+            .collect::<Vec<_>>();
 
         // Invoke them, outside the lock
-        unblockers.into_iter().for_each(|(_, unblocker)| (unblocker)());
+        unblockers.into_iter().for_each(|unblocker| (unblocker)());
     }
 }
 
