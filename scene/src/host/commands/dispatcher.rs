@@ -57,28 +57,14 @@ where
         // We might need to update our list of commands before evaluating this one
         // We update if the LIST_COMMANDS command is sent, or if the command is not known, or if there's no way to contact the existing target
         if next_command.name() == LIST_COMMANDS || next_command.name() == DESCRIBE_COMMAND || command_owner_stream.is_none() {
-            // Request the current scene status
-            let scene_status = context.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).await;
-            let scene_status = if let Ok(scene_status) = scene_status {
-                scene_status
-            } else {
-                // Can't list programs: need to reply with an error to the command target
-                if let Ok(mut response) = context.send(next_command.target())
-                {
-                    response.send(TResponse::from(CommandError::CannotQueryScene)).await.ok();
-                }
+            // Request everything that can receive a RunCommand query
+            let command_receivers       = context.subprograms_receiving::<RunCommand::<TParameter, TResponse>>().await.with_report("Could not request command receivers");
+            let Ok(command_receivers)   = command_receivers else { continue; };
 
-                // Fetch the next command
-                continue;
-            };
-
-            let scene_status        = scene_status.collect::<Vec<_>>().await;
+            // Collect into a hashset of program IDs
+            let active_subprograms = command_receivers.collect::<HashSet<SubProgramId>>().await;
 
             // Figure out which subprograms have been removed or added
-            let active_subprograms  = scene_status.iter().flat_map(|update| match update {
-                SceneUpdate::Started(program_id, _) => Some(*program_id),
-                _                                   => None,
-            }).collect::<HashSet<SubProgramId>>();
             let removed_subprograms = subprograms.iter()
                 .filter(|old_program| !active_subprograms.contains(old_program))
                 .copied()
