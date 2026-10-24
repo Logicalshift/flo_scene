@@ -11,6 +11,7 @@ use serde::*;
 use futures::prelude::*;
 
 use std::sync::*;
+use std::collections::{HashSet};
 
 #[derive(Serialize, Deserialize)]
 struct TestMessage;
@@ -709,4 +710,298 @@ fn route_to_program_with_mismatched_type_does_not_loop() {
     let route    = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
 
     assert!(route == expected, "{:?} != {:?}", route, expected);
+}
+
+///
+/// Collects the result of `subprograms_that_can_receive_stream` into a set so it can be compared
+///
+fn receivers_for<TMessage: SceneMessage>(connectome: &Connectome, source: Option<SubProgramId>) -> HashSet<SubProgramId> {
+    connectome.subprograms_that_can_receive_stream(&StreamId::with_message_type::<TMessage>(), source).collect()
+}
+
+///
+/// Checks the receivers for a message type both with no source and with a specific source program
+///
+fn assert_receivers<TMessage: SceneMessage>(connectome: &Connectome, source: SubProgramId, expected: &[SubProgramId]) {
+    let expected = expected.iter().copied().collect::<HashSet<_>>();
+
+    let no_source   = receivers_for::<TMessage>(connectome, None);
+    let with_source = receivers_for::<TMessage>(connectome, Some(source));
+
+    assert!(no_source == expected, "With no source: {:?} != {:?}", no_source, expected);
+    assert!(with_source == expected, "With source: {:?} != {:?}", with_source, expected);
+}
+
+#[test]
+fn receivers_unconnected() {
+    let connectome  = Connectome::default();
+    let source      = SubProgramId::new();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[]);
+}
+
+#[test]
+fn receivers_ignores_programs_that_have_not_started() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.connect(&StreamSource::All, &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[]);
+}
+
+#[test]
+fn receivers_direct_to_started_program() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+    let other_target    = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+    connectome.add_subprogram(other_target, StreamId::with_message_type::<TestMessage3>());
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+}
+
+#[test]
+fn receivers_excludes_wrong_message_type() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+
+    assert_receivers::<TestMessage2>(&connectome, source, &[]);
+}
+
+#[test]
+fn receivers_via_target_filter() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+    let other_target    = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+    connectome.add_subprogram(other_target, StreamId::with_message_type::<TestMessage3>());
+    connectome.connect(&().into(), &StreamTarget::Filtered((*TESTMESSAGE_1_TO_2).clone(), target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+}
+
+#[test]
+fn receivers_via_transitive_target_filters() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.connect(&().into(), &StreamTarget::Filtered((*TESTMESSAGE_1_TO_2).clone(), target), StreamId::with_message_type::<TestMessage>()).unwrap();
+    connectome.connect(&().into(), &StreamTarget::Filtered((*TESTMESSAGE_2_TO_3).clone(), target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage3>());
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+}
+
+#[test]
+fn receivers_via_source_filter() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+    let other_target    = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+    connectome.add_subprogram(other_target, StreamId::with_message_type::<TestMessage3>());
+    connectome.connect(&StreamSource::Filtered((*TESTMESSAGE_1_TO_2).clone()), &().into(), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+}
+
+#[test]
+fn receivers_for_program_from_all_sources() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+    connectome.connect(&StreamSource::All, &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+}
+
+#[test]
+fn receivers_for_program_from_specific_source() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let other_source    = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+    connectome.connect(&StreamSource::Program(source), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    // The program accepts the message type directly, so it can receive it from any source when targeted
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+    assert_receivers::<TestMessage>(&connectome, other_source, &[target]);
+}
+
+#[test]
+fn receivers_for_none_from_all_sources() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+
+    connectome.connect(&StreamSource::All, &StreamTarget::None, StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[]);
+}
+
+#[test]
+fn receivers_for_none_from_specific_source() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+
+    connectome.connect(&StreamSource::Program(source), &StreamTarget::None, StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[]);
+}
+
+#[test]
+fn receivers_via_target_filter_from_specific_source() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let other_source    = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+    connectome.connect(&StreamSource::Program(source), &StreamTarget::Filtered((*TESTMESSAGE_1_TO_2).clone(), target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    // Only the specified source has a route to the target
+    assert!(receivers_for::<TestMessage>(&connectome, Some(source)) == HashSet::from([target]));
+    assert!(receivers_for::<TestMessage>(&connectome, Some(other_source)).is_empty());
+    assert!(receivers_for::<TestMessage>(&connectome, None).is_empty());
+}
+
+#[test]
+fn receivers_via_source_filter_to_program() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+    connectome.connect(&StreamSource::Filtered((*TESTMESSAGE_1_TO_2).clone()), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+}
+
+#[test]
+fn receivers_via_source_filter_to_any_target() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+    connectome.connect(&StreamSource::All, &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+    connectome.connect(&StreamSource::Filtered((*TESTMESSAGE_1_TO_2).clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+}
+
+#[test]
+fn receivers_via_source_filter_to_source_specific_target() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+    connectome.connect(&StreamSource::Filtered((*TESTMESSAGE_1_TO_2).clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
+    connectome.connect(&StreamSource::Program(source), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+}
+
+#[test]
+fn receivers_via_source_filter_and_source_connection() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+    connectome.connect(&StreamSource::Filtered((*TESTMESSAGE_1_TO_2).clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
+    connectome.connect(&StreamSource::Program(source), &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+}
+
+#[test]
+fn receivers_via_chained_filters() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage3>());
+    connectome.connect(&StreamSource::Filtered((*TESTMESSAGE_1_TO_2).clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
+    connectome.connect(&StreamSource::All, &StreamTarget::Filtered((*TESTMESSAGE_2_TO_3).clone(), target), StreamId::with_message_type::<TestMessage2>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+}
+
+#[test]
+fn receivers_via_multiple_source_filters() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target2         = SubProgramId::new();
+    let target3         = SubProgramId::new();
+    let target4         = SubProgramId::new();
+
+    connectome.add_subprogram(target2, StreamId::with_message_type::<TestMessage2>());
+    connectome.add_subprogram(target3, StreamId::with_message_type::<TestMessage3>());
+    connectome.add_subprogram(target4, StreamId::with_message_type::<TestMessage4>());
+    connectome.connect(&StreamSource::Filtered((*TESTMESSAGE_1_TO_2).clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
+    connectome.connect(&StreamSource::Filtered((*TESTMESSAGE_1_TO_4).clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    // Both of the source filters can be used when targeting a program directly
+    assert_receivers::<TestMessage>(&connectome, source, &[target2, target4]);
+}
+
+#[test]
+fn receivers_uses_default_message_target() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+
+    assert_receivers::<NoneMessage>(&connectome, source, &[]);
+}
+
+#[test]
+fn receivers_excludes_program_after_it_stops() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage>());
+    connectome.connect(&StreamSource::All, &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
+
+    connectome.remove_subprogram(target);
+
+    assert_receivers::<TestMessage>(&connectome, source, &[]);
+}
+
+#[test]
+fn receivers_for_program_with_mismatched_type() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target          = SubProgramId::new();
+
+    // The target only accepts TestMessage2, so connecting TestMessage to it isn't enough to make it a receiver
+    connectome.add_subprogram(target, StreamId::with_message_type::<TestMessage2>());
+    connectome.connect(&StreamSource::All, &StreamTarget::Program(target), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[]);
+
+    // Adding a source filter makes it reachable
+    connectome.connect(&StreamSource::Filtered((*TESTMESSAGE_1_TO_2).clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target]);
 }
