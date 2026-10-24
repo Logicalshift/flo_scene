@@ -1,4 +1,6 @@
 use super::control::*;
+use super::query::*;
+use crate::host::commands::*;
 use crate::host::error::*;
 use crate::host::input_stream::*;
 use crate::host::scene_context::*;
@@ -44,6 +46,12 @@ pub trait SceneControlExt {
 
     /// Adds a task for the current subprogram
     fn my_task_is(&self, task: impl Into<String>) { self.tag(SceneProgramTag::Task(task.into().into())).ok(); }
+
+    /// Queries the list of running subprograms
+    fn running_subprograms<'a>(&'a self) -> impl 'a + Future<Output=Result<impl 'a + Stream<Item=SubProgramId>, ConnectionError>>;
+
+    /// Queries the list of running subprograms that can receive the specified message type
+    fn subprograms_receiving<'a, TMessageType: SceneMessage>(&'a self) -> impl 'a + Future<Output=Result<impl 'a + Stream<Item=SubProgramId>, ConnectionError>>;
 }
 
 impl SceneControlExt for SceneContext {
@@ -111,5 +119,20 @@ impl SceneControlExt for SceneContext {
         });
 
         Ok(())
+    }
+
+    async fn running_subprograms<'a>(&'a self) -> Result<impl 'a + Stream<Item=SubProgramId>, ConnectionError> {
+        let subprograms = self.spawn_query(ReadCommand::default(), Query::<SceneUpdate>::with_no_target(), ()).await?;
+
+        Ok(subprograms.filter_map(|update| match update {
+            SceneUpdate::Started(program_id, _) => future::ready(Some(program_id)),
+            _                                   => future::ready(None),
+        }))
+    }
+
+    async fn subprograms_receiving<'a, TMessageType: SceneMessage>(&'a self) -> Result<impl 'a + Stream<Item=SubProgramId>, ConnectionError> {
+        let subprograms = self.spawn_query(ReadCommand::default(), QueryMessageReceivers::for_message::<TMessageType>(), ()).await?;
+
+        Ok(subprograms.map(|receiver| receiver.program))
     }
 }
