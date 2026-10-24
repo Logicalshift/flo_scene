@@ -1231,6 +1231,14 @@ impl SceneCore {
         // Wake up anything that needs to be awoken to stop the core
         wakers.into_iter().for_each(|waker| waker.wake());
     }
+
+    ///
+    /// Retrieves the program IDs that can receive the specified stream type
+    ///
+    #[inline]
+    pub (crate) fn subprograms_that_can_receive_stream(&self, stream: &StreamId, source: Option<SubProgramId>) -> impl Iterator<Item=SubProgramId> {
+        self.connectome.subprograms_that_can_receive_stream(stream, source)
+    }
 }
 
 impl SceneCoreWaker {

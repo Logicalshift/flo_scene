@@ -38,10 +38,16 @@ use std::sync::*;
 pub static SCENE_CONTROL_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::scene_control");
 
 /// Filter that maps the 'Subscribe' message to a SceneControl message
-static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe<SceneUpdate>>| stream.map(|msg| SceneControl::Subscribe(msg.target()))));
+static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe<SceneUpdate>>| 
+    stream.map(|msg| SceneControl::Subscribe(msg.target()))));
 
 /// Filter that maps the 'Query' message to a SceneControl message
-static SCENE_CONTROL_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Query<SceneUpdate>>| stream.map(|msg| SceneControl::Query(msg.target()))));
+static SCENE_CONTROL_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Query<SceneUpdate>>| 
+    stream.map(|msg| SceneControl::Query(msg.target()))));
+
+/// Filter that maps the 'QueryMessageReceivers' message to a SceneControl message
+static SCENE_CONTROL_QUERY_RECEIVERS_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<QueryMessageReceivers>| 
+    stream.messages_with_sources().map(|(source, QueryMessageReceivers(stream, target))| SceneControl::QueryReceivers(stream, Some(source), target))));
 
 ///
 /// Represents a program start function
@@ -139,6 +145,12 @@ pub enum SceneControl {
     /// sometimes return programs that haven't yet sent their notifications to subscribers.
     ///
     Query(StreamTarget),
+
+    ///
+    /// Sends a QueryResponse<SceneMessageReceiver> message to the target for all the subprograms that can receive the specified 
+    /// message type. The optional program ID is the program that will be sending the message.
+    ///
+    QueryReceivers(StreamId, Option<SubProgramId>, StreamTarget),
 }
 
 // TODO: make the scene updates serializable (needs StreamId to be serializable first)
@@ -167,6 +179,24 @@ pub enum SceneUpdate {
     /// A tag has been applied to a subprogram ID
     Tagged(SubProgramId, SceneProgramTag),
 }
+
+///
+/// Query response (use Query<SceneMessageReceiver<MessageType>>) for which subprograms in a scene can receive
+/// a particular type of message
+///
+#[derive(Clone, Debug, PartialEq, Hash, Eq)]
+#[derive(Serialize, Deserialize)]
+pub struct SceneMessageReceiver {
+    /// ID of a running program that can be contacted with this message type
+    pub program: SubProgramId,
+}
+
+///
+/// Query request that retrieves the SceneMessageReceivers for a particular scene type
+///
+#[derive(Clone, Debug, PartialEq, Hash, Eq)]
+#[derive(Serialize, Deserialize)]
+pub struct QueryMessageReceivers(StreamId, StreamTarget);
 
 impl SceneProgramFn {
     ///
@@ -305,6 +335,45 @@ impl SceneMessage for SceneUpdate {
 
     #[inline]
     fn message_type_name() -> String { "flo_scene::SceneUpdate".into() }
+}
+
+impl SceneMessage for SceneMessageReceiver {
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::SceneMessageReceiver".into() }
+}
+
+impl SceneMessage for QueryMessageReceivers {
+    fn default_target() -> StreamTarget {
+        StreamTarget::Filtered(SCENE_CONTROL_QUERY_RECEIVERS_FILTER.clone(), *SCENE_CONTROL_PROGRAM)
+    }
+
+    #[inline]
+    fn message_type_name() -> String { "flo_scene::SceneMessageReceiver".into() }
+}
+
+impl QueryMessageReceivers {
+    /// 
+    /// Queries the subprograms that can accept messages from the specified stream type
+    ///
+    pub fn for_stream(stream: StreamId) -> Self {
+        Self(stream, StreamTarget::None)
+    }
+
+    ///
+    /// Queries the subprograms that can accept messages from the specified message type
+    ///
+    pub fn for_message<TMessageType: SceneMessage>() -> Self {
+        Self::for_stream(StreamId::with_message_type::<TMessageType>())
+    }
+}
+
+impl QueryRequest for QueryMessageReceivers {
+    type ResponseData = SceneMessageReceiver;
+
+    fn with_new_target(self, new_target: StreamTarget) -> Self {
+        let QueryMessageReceivers(stream, _) = self;
+        Self(stream, new_target)
+    }
 }
 
 impl SceneControl {
@@ -533,6 +602,16 @@ impl SceneControl {
                     }
                 }
 
+                Control(QueryReceivers(stream, source, target)) => {
+                    if let (Ok(mut query_response), Some(scene_core)) = (context.send(target), scene_core.upgrade()) {
+                        // Query the receivers and send them as a query response
+                        let receivers = scene_core.lock().unwrap().subprograms_that_can_receive_stream(&stream, source).collect::<Vec<_>>();
+                        let receivers = receivers.into_iter().map(|program_id| SceneMessageReceiver { program: program_id });
+
+                        query_response.send(QueryResponse::with_iterator(receivers)).await.ok();
+                    }
+                }
+
                 Control(Tag(program_id, tag)) => {
                     // Add the tag
                     tags.entry(program_id).or_insert_with(|| HashSet::new())
@@ -577,6 +656,7 @@ enum SerializedSceneControl {
     StopScene,
     Subscribe(StreamTarget),
     Query(StreamTarget),
+    QueryReceivers(StreamId, Option<SubProgramId>, StreamTarget),
     Tag(SubProgramId, SceneProgramTag),
 }
 
@@ -586,14 +666,15 @@ impl Serialize for SceneControl {
         S: Serializer 
     {
         let intermediate = match self {
-            SceneControl::Connect(source, target, stream)   => Ok(SerializedSceneControl::Connect(source.clone(), target.clone(), stream.clone())),
-            SceneControl::Close(program)                    => Ok(SerializedSceneControl::Close(*program)),
-            SceneControl::StopSceneWhenIdle                 => Ok(SerializedSceneControl::StopSceneWhenIdle),
-            SceneControl::StopScene                         => Ok(SerializedSceneControl::StopScene),
-            SceneControl::Subscribe(target)                 => Ok(SerializedSceneControl::Subscribe(target.clone())),
-            SceneControl::Query(target)                     => Ok(SerializedSceneControl::Query(target.clone())),
-            SceneControl::Tag(program_id, tag)              => Ok(SerializedSceneControl::Tag(*program_id, tag.clone())),
-            SceneControl::Start(_)                          => Err(S::Error::custom("SceneControl::Start cannot be serialized (uses a function)"))
+            SceneControl::Connect(source, target, stream)           => Ok(SerializedSceneControl::Connect(source.clone(), target.clone(), stream.clone())),
+            SceneControl::Close(program)                            => Ok(SerializedSceneControl::Close(*program)),
+            SceneControl::StopSceneWhenIdle                         => Ok(SerializedSceneControl::StopSceneWhenIdle),
+            SceneControl::StopScene                                 => Ok(SerializedSceneControl::StopScene),
+            SceneControl::Subscribe(target)                         => Ok(SerializedSceneControl::Subscribe(target.clone())),
+            SceneControl::Query(target)                             => Ok(SerializedSceneControl::Query(target.clone())),
+            SceneControl::QueryReceivers(stream, source, target)    => Ok(SerializedSceneControl::QueryReceivers(stream.clone(), *source, target.clone())),
+            SceneControl::Tag(program_id, tag)                      => Ok(SerializedSceneControl::Tag(*program_id, tag.clone())),
+            SceneControl::Start(_)                                  => Err(S::Error::custom("SceneControl::Start cannot be serialized (uses a function)"))
         }?;
 
         intermediate.serialize(serializer)
@@ -608,13 +689,14 @@ impl<'a> Deserialize<'a> for SceneControl {
         let intermediate = SerializedSceneControl::deserialize(deserializer)?;
 
         match intermediate {
-            SerializedSceneControl::Connect(source, target, stream) => Ok(SceneControl::Connect(source, target, stream)),
-            SerializedSceneControl::Close(program)                  => Ok(SceneControl::Close(program)),
-            SerializedSceneControl::StopSceneWhenIdle               => Ok(SceneControl::StopSceneWhenIdle),
-            SerializedSceneControl::StopScene                       => Ok(SceneControl::StopScene),
-            SerializedSceneControl::Subscribe(target)               => Ok(SceneControl::Subscribe(target)),
-            SerializedSceneControl::Query(target)                   => Ok(SceneControl::Query(target)),
-            SerializedSceneControl::Tag(program_id, tag)            => Ok(SceneControl::Tag(program_id, tag)),
+            SerializedSceneControl::Connect(source, target, stream)         => Ok(SceneControl::Connect(source, target, stream)),
+            SerializedSceneControl::Close(program)                          => Ok(SceneControl::Close(program)),
+            SerializedSceneControl::StopSceneWhenIdle                       => Ok(SceneControl::StopSceneWhenIdle),
+            SerializedSceneControl::StopScene                               => Ok(SceneControl::StopScene),
+            SerializedSceneControl::Subscribe(target)                       => Ok(SceneControl::Subscribe(target)),
+            SerializedSceneControl::Query(target)                           => Ok(SceneControl::Query(target)),
+            SerializedSceneControl::QueryReceivers(stream, source, target)  => Ok(SceneControl::QueryReceivers(stream, source, target)),
+            SerializedSceneControl::Tag(program_id, tag)                    => Ok(SceneControl::Tag(program_id, tag)),
         }
     }
 }
