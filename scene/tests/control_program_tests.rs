@@ -408,6 +408,89 @@ fn query_control_program() {
         .run_in_scene_with_threads(&scene, test_program, 5);
 }
 
+#[test]
+fn query_receivers_1() {
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+    let program_1       = SubProgramId::new();
+
+    scene.add_subprogram(program_1,
+        move |mut input: InputStream<()>, _| async move {
+            input.next().await.unwrap();
+        },
+        0);
+
+    // Need to make sure that the query happens after the control program has had time to load the initial set of programs: using a timeout for this at the moment
+    TestBuilder::new()
+        .send_message(IdleRequest::WhenIdle(test_program))
+        .expect_message(|IdleNotification| { Ok(()) })
+        .run_query(ReadCommand::default(), QueryMessageReceivers::for_message::<SceneControl>(), *SCENE_CONTROL_PROGRAM, 
+            move |response| {
+                if response.is_empty() { return Err("No updates in query response".to_string()); }
+                if !response.iter().any(|update| update.program == *SCENE_CONTROL_PROGRAM) { return Err(format!("Control not in query response ({:?})", response)); }
+                if response.len() != 1 { return Err(format!("Extra programs respond to SceneControl ({:?})", response)); }
+
+                Ok(()) 
+            })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
+fn query_receivers_2() {
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+    let program_1       = SubProgramId::new();
+
+    scene.add_subprogram(program_1,
+        move |mut input: InputStream<()>, _| async move {
+            input.next().await.unwrap();
+        },
+        0);
+
+    // Need to make sure that the query happens after the control program has had time to load the initial set of programs: using a timeout for this at the moment
+    TestBuilder::new()
+        .send_message(IdleRequest::WhenIdle(test_program))
+        .expect_message(|IdleNotification| { Ok(()) })
+        .run_query(ReadCommand::default(), QueryMessageReceivers::for_message::<SceneControl>(), (), 
+            move |response| {
+                if response.is_empty() { return Err("No updates in query response".to_string()); }
+                if !response.iter().any(|update| update.program == *SCENE_CONTROL_PROGRAM) { return Err(format!("Control not in query response ({:?})", response)); }
+                if response.len() != 1 { return Err(format!("Extra programs respond to SceneControl ({:?})", response)); }
+
+                Ok(()) 
+            })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
+#[test]
+fn query_receivers_3() {
+    let scene           = Scene::default();
+    let test_program    = SubProgramId::new();
+    let program_1       = SubProgramId::new();
+
+    scene.add_subprogram(program_1,
+        move |mut input: InputStream<()>, _| async move {
+            input.next().await.unwrap();
+        },
+        0);
+
+    // Need to make sure that the query happens after the control program has had time to load the initial set of programs: using a timeout for this at the moment
+    TestBuilder::new()
+        .send_message(IdleRequest::WhenIdle(test_program))
+        .expect_message(|IdleNotification| { Ok(()) })
+        .send_message(SceneControl::QueryReceivers(StreamId::with_message_type::<SceneControl>(), None, test_program.into()))
+        .expect_message_async(move |response: QueryResponse<SceneMessageReceiver>| async move {
+            let response = response.collect::<Vec<_>>().await;
+
+            if response.is_empty() { return Err("No updates in query response".to_string()); }
+            if !response.iter().any(|update| update.program == *SCENE_CONTROL_PROGRAM) { return Err(format!("Control not in query response ({:?})", response)); }
+            if response.len() != 1 { return Err(format!("Extra programs respond to SceneControl ({:?})", response)); }
+
+            Ok(()) 
+        })
+        .run_in_scene_with_threads(&scene, test_program, 5);
+}
+
 ///
 /// Repeat the 'query_control_program' test many times to try to trigger the flaky failure where the query never
 /// receives a response (the equivalent of 'running it a few times' but in a single process)
