@@ -348,7 +348,7 @@ impl SceneMessage for QueryMessageReceivers {
     }
 
     #[inline]
-    fn message_type_name() -> String { "flo_scene::SceneMessageReceiver".into() }
+    fn message_type_name() -> String { "flo_scene::QueryMessageReceivers".into() }
 }
 
 impl QueryMessageReceivers {
