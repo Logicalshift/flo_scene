@@ -154,6 +154,12 @@ impl SceneCore {
             // Create a fake scene object for the 'initialise' routine (same core)
             let fake_scene = Scene::with_core(core);
 
+            // Create the default connection for this message type in the connectome
+            let default_target = message_type.default_target();
+            if default_target != StreamTarget::Any {
+                core.lock().unwrap().connectome.connect(&().into(), &default_target, message_type.clone()).ok();
+            }
+
             // Initialise the message type
             message_type.initialise_in_scene(&fake_scene).ok();
         }
