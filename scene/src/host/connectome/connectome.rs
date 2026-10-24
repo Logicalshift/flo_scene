@@ -615,6 +615,88 @@ impl Connectome {
 
         affected
     }
+
+    ///
+    /// Computes the set of subprograms that can receive a particular type of stream (optionally from the point of view of a source program)
+    ///
+    /// Ignores redirects if they exist and would resolve the type.
+    ///
+    pub fn subprograms_that_can_receive_stream(&self, stream: &StreamId, source: Option<SubProgramId>) -> impl Iterator<Item = SubProgramId>{
+        // List of programs, the types we've already processed and the types we're going to visit
+        let mut programs    = HashSet::new();
+        let mut visited     = HashSet::new();
+        let mut to_visit    = vec![(stream.message_type(), None)];
+
+        while let Some((next_type, target_program)) = to_visit.pop() {
+            // Only visit each type once
+            if !visited.insert((next_type, target_program)) { continue; }
+
+            if target_program.is_none() {
+                // Add all programs that receive this type directly
+                programs.extend(self.active_programs.iter()
+                    .filter_map(|(program, stream)| {
+                        if stream.message_type() == next_type {
+                            Some(*program)
+                        } else {
+                            None
+                        }
+                    }));
+            }
+
+            // Fetch the connections for this stream when used as a source
+            let Some(connections) = self.connections_for_message_type.get(&next_type) else { continue; };
+
+            if let Some(target_program) = target_program {
+                // Add this program if it receives this type
+                if let Some(target_stream) = self.active_programs.get(&target_program) && target_stream.message_type() == next_type {
+                    // As we're following to a target here, we don't follow any source streams and just accept the connection
+                    programs.insert(target_program);
+                    continue;
+                }
+
+                // Follow the connections for this program
+                if let Some(source) = source && let Some(StreamTarget::Filtered(filter_handle, next_target)) = connections.direct_target_for_messages(source, target_program) {
+                    // Follow this filter to see if the target program can be reached
+                    if let Ok(target_type) = filter_handle.target_stream_id_any().map(|stream| stream.message_type()) {
+                        to_visit.push((target_type, Some(next_target)))
+                    }
+                } else if let Some(StreamTarget::Filtered(filter_handle, next_target)) = connections.general_target_for_program(target_program) {
+                    // Follow this filter to see if the target program can be reached
+                    if let Ok(target_type) = filter_handle.target_stream_id_any().map(|stream| stream.message_type()) {
+                        to_visit.push((target_type, Some(next_target)))
+                    }
+                }
+            } else {
+                // Also follow the default route for this stream type (will indicate target filters that can be used)
+                let default_route = connections.default_route(source).or_else(|| connections.default_route(None));
+                match default_route {
+                    Some(StreamTarget::Filtered(filter_handle, program_id)) => {
+                        // Follow this filter to see if the target program can be reached
+                        if let Ok(target_type) = filter_handle.target_stream_id_any().map(|stream| stream.message_type()) {
+                            to_visit.push((target_type, Some(program_id)))
+                        }
+                    }
+
+                    Some(StreamTarget::Program(program_id)) => {
+                        // Might have a default route that resolves the stream
+                        to_visit.push((next_type, Some(program_id)));
+                    }
+
+                    Some(_) => {
+                        // Other route types are covered by the check for programs that accept the type directly
+                    }
+
+                    None => { }
+                }
+            }
+
+            // If there are any source conversions for this type, then follow them
+            to_visit.extend(connections.source_filters.iter()
+                    .map(|(target_type, _)| (*target_type, target_program)));
+        }
+
+        programs.into_iter()
+    }
 }
 
 impl Default for Connectome {
