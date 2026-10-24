@@ -435,6 +435,10 @@ impl TestBuilder {
             failures.push(format!("Scene did not stop after tests"));
         }
 
+        if !timed_out && !received_all {
+            failures.push(format!("Test program stopped before all actions completed"));
+        }
+
         // Report any assertion failures
         let succeeded = failures.is_empty();
         assert!(succeeded, "Scene tests failed\n\n  {}",
