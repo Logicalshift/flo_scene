@@ -632,15 +632,14 @@ impl Connectome {
             if !visited.insert((next_type, target_program)) { continue; }
 
             if target_program.is_none() {
-                // Add all programs that receive this type directly
-                programs.extend(self.active_programs.iter()
-                    .filter_map(|(program, stream)| {
-                        if stream.message_type() == next_type {
-                            Some(*program)
-                        } else {
-                            None
-                        }
-                    }));
+                // Add all programs that receive this type directly, and try targeting the others directly (they may have target filters that accept this type)
+                for (program, stream) in self.active_programs.iter() {
+                    if stream.message_type() == next_type {
+                        programs.insert(*program);
+                    } else {
+                        to_visit.push((next_type, Some(*program)));
+                    }
+                }
             }
 
             // Fetch the connections for this stream when used as a source

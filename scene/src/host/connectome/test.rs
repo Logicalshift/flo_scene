@@ -1005,3 +1005,23 @@ fn receivers_for_program_with_mismatched_type() {
 
     assert_receivers::<TestMessage>(&connectome, source, &[target]);
 }
+
+#[test]
+fn receivers_via_multiple_target_filters() {
+    let mut connectome  = Connectome::default();
+    let source          = SubProgramId::new();
+    let target2         = SubProgramId::new();
+    let target4         = SubProgramId::new();
+
+    // Each program has its own target filter for TestMessage: only the most recent one becomes the default route
+    connectome.add_subprogram(target2, StreamId::with_message_type::<TestMessage2>());
+    connectome.add_subprogram(target4, StreamId::with_message_type::<TestMessage4>());
+    connectome.connect(&().into(), &StreamTarget::Filtered((*TESTMESSAGE_1_TO_2).clone(), target2), StreamId::with_message_type::<TestMessage>()).unwrap();
+    connectome.connect(&().into(), &StreamTarget::Filtered((*TESTMESSAGE_1_TO_4).clone(), target4), StreamId::with_message_type::<TestMessage>()).unwrap();
+
+    // Both programs can be reached when targeted directly
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &target2.into()).unwrap().target_program() == Some(target2));
+    assert!(connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &target4.into()).unwrap().target_program() == Some(target4));
+
+    assert_receivers::<TestMessage>(&connectome, source, &[target2, target4]);
+}
