@@ -1,6 +1,7 @@
 [workspace]
 members     = [
     "scene",
+    "messages",
     "pipe",
     "wasm",
     "guest-nostd",
@@ -10,6 +11,7 @@ resolver    = "2"
 
 [patch.crates-io]
 flo_scene               = { path = "./scene" }
+flo_scene_messages      = { path = "./messages" }
 flo_scene_pipe          = { path = "./pipe" }
 flo_scene_wasm          = { path = "./wasm" }
 flo_scene_guest         = { path = "./guest-nostd" }

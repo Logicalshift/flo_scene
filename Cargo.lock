@@ -922,6 +922,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "flo_scene_messages"
+version = "0.3.0"
+dependencies = [
+ "futures",
+ "postcard",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "flo_scene_pipe"
 version = "0.3.0"
 dependencies = [

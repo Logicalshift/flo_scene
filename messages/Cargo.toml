@@ -1,0 +1,20 @@
+[package]
+name            = "flo_scene_messages"
+version         = "0.3.0"
+edition         = "2021"
+authors         = ["Andrew Hunter"]
+license         = "Apache-2.0"
+readme          = "../README.md"
+repository      = "https://github.com/Logicalshift/flo_scene"
+description     = "The base set of messages for flo_scene"
+categories      = [ "concurrency", "data-structures" ]
+keywords        = [ "message-queue" ]
+
+[features]
+json            = [ "serde_json" ]
+
+[dependencies]
+futures     = "0.3"
+serde       = { version = "1.0", features = [ "derive" ] }
+serde_json  = { version = "1.0", optional = true }
+postcard    = { version = "1.0", optional = true, features = [ "use-std" ] }
