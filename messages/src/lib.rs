@@ -2,8 +2,8 @@
 //!
 //!
 
-pub mod scene_message;
+pub mod messages;
 
 pub mod prelude {
-    use crate::scene_message::*;
+    use crate::messages::*;
 }
