@@ -134,6 +134,8 @@ impl SceneCore {
     ///
     #[inline]
     pub (crate) fn initialise_message_type(core: &Arc<Mutex<SceneCore>>, message_type: StreamId) {
+        // TODO: error/panic if the type is not in StreamTypeFunctions
+
         // If the message type is not yet initialised, mark it as such and then call the initialisation function
         // TODO: if there are multiple threads dealing with the scene, the message type might be used 'uninitialised' for a brief while on other threads
         let type_id             = message_type.message_type();
@@ -191,6 +193,7 @@ impl SceneCore {
     {
         use std::mem;
 
+        StreamTypeFunctions::add::<TMessage>();
         Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessage>());
 
         let (subprogram, waker, invalidated_streams) = {
