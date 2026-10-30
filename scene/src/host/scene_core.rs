@@ -9,6 +9,7 @@ use crate::host::programs::*;
 use crate::host::scene::*;
 use crate::host::scene_message::*;
 use crate::host::stream_id::*;
+use crate::host::stream_type_functions::*;
 use crate::host::stream_source::*;
 use crate::host::stream_target::*;
 use crate::host::subprogram_core::*;
@@ -155,7 +156,7 @@ impl SceneCore {
             let fake_scene = Scene::with_core(core);
 
             // Create the default connection for this message type in the connectome
-            let default_target = message_type.default_target();
+            let default_target = message_type.message_type().default_target();
 
             match default_target {
                 StreamTarget::Any => { /* No connection to set up */ }
@@ -177,7 +178,7 @@ impl SceneCore {
             }
 
             // Initialise the message type
-            message_type.initialise_in_scene(&fake_scene).ok();
+            message_type.message_type().initialise_in_scene(&fake_scene).ok();
         }
     }
 
@@ -344,7 +345,7 @@ impl SceneCore {
     ///
     pub (crate) fn get_target_input(&mut self, target: &SubProgramId, stream_id: &StreamId) -> Result<Arc<dyn Send + Sync + Any>, ConnectionError> {
         // Fetch the sub-program handle (or return an error if it doesn't exist)
-        let expected_message_type   = stream_id.input_stream_core_type();
+        let expected_message_type   = stream_id.message_type().input_stream_core_type()?;
         let handle                  = *self.program_indexes.get(target).ok_or(ConnectionError::TargetNotInScene)?;
 
         // The message type must match the expected type
@@ -476,18 +477,18 @@ impl SceneCore {
 
         for (program_stream, core) in output_sink_cores {
             // Get the active target for this sink
-            let old_program = program_stream.active_program_for_output_sink(&core);
+            let old_program = program_stream.message_type().active_program_for_output_sink(&core);
             let target      = Ok::<_, ConnectionError>(program_stream.requested_target());
 
             // Try to reconnect it
             if let Ok(target) = target {
-                let waker = program_stream.reconnect_output_sink(scene_core, &core, source_program, target);
+                let waker = program_stream.message_type().reconnect_output_sink(scene_core, &core, source_program, target);
 
                 if let Ok(waker) = waker {
                     wakers.extend(waker);
 
                     // Generate an update if the target of the connection changed
-                    let new_program = program_stream.active_program_for_output_sink(&core);
+                    let new_program = program_stream.message_type().active_program_for_output_sink(&core);
 
                     if new_program != old_program {
                         if let Some(new_program) = new_program {
@@ -837,19 +838,19 @@ impl SceneCore {
             .fold(InputState::Idle, |state, (stream_id, input_stream, _program_id)| {
                 match state {
                     InputState::Idle => {
-                        if stream_id.can_be_unblocked(input_stream) == Ok(true) {
+                        if stream_id.message_type().can_be_unblocked(input_stream) == Ok(true) {
                             InputState::CanBeUnblocked(vec![(stream_id.clone(), input_stream.clone())])
-                        } else if stream_id.is_idle(input_stream) == Ok(true) {
+                        } else if stream_id.message_type().is_idle(input_stream) == Ok(true) {
                             InputState::Idle
                         } else {
                             InputState::Busy
                         }
                     }
                     InputState::CanBeUnblocked(mut streams) => {
-                        if stream_id.can_be_unblocked(input_stream) == Ok(true) {
+                        if stream_id.message_type().can_be_unblocked(input_stream) == Ok(true) {
                             streams.push((stream_id.clone(), input_stream.clone()));
                             InputState::CanBeUnblocked(streams)
-                        } else if stream_id.is_idle(input_stream) == Ok(true) {
+                        } else if stream_id.message_type().is_idle(input_stream) == Ok(true) {
                             InputState::CanBeUnblocked(streams)
                         } else {
                             InputState::Busy
@@ -895,7 +896,7 @@ impl SceneCore {
 
             // Unblock the streams
             for (stream_id, input_core) in streams {
-                stream_id.unblock(&input_core).ok();
+                stream_id.message_type().unblock(&input_core).ok();
             }
         }
 
@@ -985,7 +986,7 @@ impl SceneCore {
             if let (Some(program), Some(input_core)) = (program, input_core) {
                 let input_stream_id = program.lock().unwrap().input_stream_id();
 
-                input_stream_id.close_input(&input_core)
+                input_stream_id.message_type().close_input(&input_core)
             } else {
                 Ok(None)
             }

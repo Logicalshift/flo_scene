@@ -1,6 +1,7 @@
 use super::guest_message_wrapper::*;
 use super::stream_target::*;
 use crate::host::*;
+use crate::host::stream_type_functions::*;
 use crate::util::*;
 use flo_scene_guest::guest_types::*;
 
@@ -335,7 +336,7 @@ where
 /// Creates a connection that sends to a host stream by decoding messages from a guest
 ///
 fn connect(stream_id: StreamId, target: StreamTarget, context: &SceneContext, serialization_context: HostSerializationContext) -> Result<impl Send + Unpin + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>> + use<>, ConnectionError> {
-    let raw_stream = stream_id.send_guest_messages(target, context, serialization_context)?;
+    let raw_stream = stream_id.message_type().send_guest_messages(target, context, serialization_context)?;
 
     Ok(Box::into_pin(raw_stream))
 }

@@ -7,6 +7,7 @@ pub (crate) mod process_core;
 pub (crate) mod scene_context;
 pub (crate) mod subprogram_id;
 pub (crate) mod stream_id;
+pub (crate) mod stream_type_functions;
 pub (crate) mod stream_source;
 pub (crate) mod stream_target;
 pub (crate) mod input_stream;

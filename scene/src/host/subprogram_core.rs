@@ -4,6 +4,7 @@ use crate::host::scene_core::*;
 use crate::host::scene_message::*;
 use crate::host::stream_id::*;
 use crate::host::stream_target::*;
+use crate::host::stream_type_functions::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
@@ -135,7 +136,7 @@ impl SubProgramCore {
             let output_sink_cores = core.outputs
                 .iter()
                 .filter(|(output_stream_id, _)| reconnect_stream_id.message_type() == output_stream_id.message_type())
-                .filter(|(output_stream_id, output_sink_core)| matches!(output_stream_id.active_target_for_output_sink(output_sink_core), Ok(StreamTarget::Any)))
+                .filter(|(output_stream_id, output_sink_core)| matches!(output_stream_id.message_type().active_target_for_output_sink(output_sink_core), Ok(StreamTarget::Any)))
                 .map(|(stream_id, output_sink_core)| (stream_id.clone(), output_sink_core.clone()))
                 .collect::<Vec<_>>();
 

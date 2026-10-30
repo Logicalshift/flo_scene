@@ -3,6 +3,7 @@ use crate::host::input_stream::*;
 use crate::host::scene_core::*;
 use crate::host::scene_message::*;
 use crate::host::stream_id::*;
+use crate::host::stream_type_functions::*;
 use crate::host::subprogram_id::*;
 
 use futures::prelude::*;
@@ -359,7 +360,7 @@ impl FilterHandleExt for FilterHandle {
 
                 Err(err) => { 
                     // Close the following stream if there's an error creating the initial stream
-                    let waker = following_source_stream_id.close_input(&following_core);
+                    let waker = following_source_stream_id.message_type().close_input(&following_core);
                     debug_assert!(waker.is_ok());
                     if let Ok(Some(waker)) = waker { waker.wake() };
 
@@ -369,7 +370,7 @@ impl FilterHandleExt for FilterHandle {
 
             let initial_stream = async move {
                 initial_stream.await;
-                let waker = following_source_stream_id.close_input(&following_core);
+                let waker = following_source_stream_id.message_type().close_input(&following_core);
                 debug_assert!(waker.is_ok());
                 if let Ok(Some(waker)) = waker { waker.wake() };
             }.boxed();

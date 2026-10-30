@@ -1,0 +1,652 @@
+use crate::host::error::*;
+use crate::host::filter::*;
+use crate::host::initialisation_context::*;
+use crate::host::input_stream::*;
+use crate::host::output_sink::*;
+use crate::host::scene::*;
+use crate::host::scene_context::*;
+use crate::host::scene_core::*;
+use crate::host::scene_message::*;
+use crate::host::serialization::*;
+use crate::host::serialization_context::*;
+use crate::host::stream_source::*;
+use crate::host::stream_target::*;
+use crate::host::subprogram_id::*;
+use crate::host::programs::{SceneControl};
+
+#[cfg(feature="guest_programs")]
+use crate::guest::*;
+
+use futures::prelude::*;
+use futures::channel::mpsc::{Sender};
+use futures::stream::{BoxStream};
+use futures::task::{Waker};
+use once_cell::sync::{Lazy};
+
+use std::any::*;
+use std::collections::*;
+use std::sync::*;
+
+static STREAM_TYPE_FUNCTIONS: Lazy<RwLock<HashMap<TypeId, StreamTypeFunctions>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
+type CloseInputFn               = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>>;
+type IsIdleFn                   = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<bool, ConnectionError>>;
+type CanBeUnblockedFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<bool, ConnectionError>>;
+type NotIdleFn                  = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<Box<dyn Send + Any>, ConnectionError>>;
+type UnblockFn                  = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ConnectionError>>;
+type WaitingForIdleFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, usize) -> Result<IdleInputStreamCore, ConnectionError>>;
+type UnblockForIdleFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, usize) -> Result<IdleUnblocker, ConnectionError>>;
+type DefaultTargetFn            = Arc<dyn Send + Sync + Fn() -> StreamTarget>;
+type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>>;
+type ReconnectSinkFn            = Arc<dyn Send + Sync + Fn(&Arc<Mutex<SceneCore>>, &Arc<dyn Send + Sync + Any>, SubProgramId, StreamTarget) -> Result<Option<Waker>, ConnectionError>>;
+type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
+type SendGuestMessagesFn        = Arc<dyn Send + Sync + Fn(StreamTarget, &SceneContext, Box<dyn SerializationContext>) -> Result<Box<dyn 'static + Send + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>, ConnectionError>>;
+
+#[cfg(feature="guest_programs")]
+type RunHostSubProgramFn        = Arc<dyn Send + Sync + Fn(SubProgramId, usize, Sender<GuestAction>, BoxStream<'static, GuestResult>) -> SceneControl>;
+
+///
+/// Functions that work on the 'Any' versions of various streams, used for creating connections
+///
+pub (crate) struct StreamTypeFunctions {
+    /// TypeID of the input stream core that this represents
+    input_stream_core_type: TypeId,
+
+    /// Closes the input to a stream
+    close_input: CloseInputFn,
+
+    /// Indicates if an input stream is idle or not (idle = has an empty input queue and is waiting for a new message to arrive)
+    is_idle: IsIdleFn,
+
+    /// True if this stream can be unblocked in order to try to return the scene to an idle state
+    /// (Unblocking is used when the scene is in a state where it could go idle if there were no blockers: it indicates that
+    /// things like stream connections have not resolved with the current set of requests)
+    can_be_unblocked: CanBeUnblockedFn,
+
+    /// Forces a stream to be 'not idle' even if it has no messages queued
+    not_idle: NotIdleFn,
+
+    /// Unblocks everything attached to an input stream core
+    unblock: UnblockFn,
+
+    /// Indicates that the input stream is in a 'waiting for idle' state (where it will queue messages up to a limit until the scene is idle)
+    waiting_for_idle: WaitingForIdleFn,
+
+    /// Creates a future that will complete if the stream should try to unblock to make the scene idle (usually indicating that some operation has not resolved)
+    unblock_for_idle: UnblockForIdleFn,
+
+    /// Returns the default target for this stream type
+    default_target: DefaultTargetFn,
+
+    /// Returns the active target for an output sink
+    active_target: ActiveTargetFn,
+
+    /// Reconnects an output sink core to an input stream
+    reconnect_sink: ReconnectSinkFn,
+
+    /// Runs a host subprogram using this stream type as input and the postcard encoder
+    #[cfg(all(feature="postcard", feature="guest_programs"))]
+    run_host_subprogram_postcard: RunHostSubProgramFn,
+
+    /// Sends deserialized guest messages from a Vec<u8> sink
+    #[cfg(any(feature="postcard", target_family="wasm"))]
+    send_guest_messages: SendGuestMessagesFn,
+
+    /// Initialises the message type inside a scene
+    initialise: InitialiseFn,
+}
+
+impl StreamTypeFunctions {
+    ///
+    /// Creates the stream type functions for a particular message type
+    ///
+    pub fn for_message_type<TMessageType>() -> Self 
+    where
+        TMessageType: 'static + SceneMessage,
+    {
+        // Maps types to their filter handles (so we only create the filters once per application)
+        // Could be simplified if Rust ever adds support for generic static values
+        static FILTERS: Lazy<RwLock<HashMap<TypeId, Vec<FilterHandle>>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
+        StreamTypeFunctions {
+            input_stream_core_type: TypeId::of::<Mutex<InputStreamCore<TMessageType>>>(),
+
+            close_input: Arc::new(|input_stream_any| {
+                let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let waker           = input_stream.lock().unwrap().close();
+
+                Ok(waker)
+            }),
+
+            is_idle: Arc::new(|input_stream_any| {
+                let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let is_idle         = input_stream.lock().unwrap().is_idle();
+
+                Ok(is_idle)
+            }),
+
+            can_be_unblocked: Arc::new(|input_stream_any| {
+                let input_stream        = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let can_be_unblocked    = input_stream.lock().unwrap().can_be_unblocked();
+
+                Ok(can_be_unblocked)
+            }),
+
+            not_idle: Arc::new(|input_stream_any| {
+                let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let idle_blocker    = InputStreamCore::<TMessageType>::not_idle(&input_stream);
+
+                Ok(Box::new(idle_blocker))
+            }),
+
+            unblock: Arc::new(|input_stream_any| {
+                let input_stream = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                InputStreamCore::<TMessageType>::unblock(&input_stream);
+
+                Ok(())
+            }),
+
+            waiting_for_idle: Arc::new(|input_stream_any, max_idle_queue_len| {
+                let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let dropper         = InputStreamCore::<TMessageType>::waiting_for_idle(&input_stream, max_idle_queue_len);
+
+                Ok(dropper)
+            }),
+
+            unblock_for_idle: Arc::new(|input_stream_any, max_idle_queue_len| {
+                let input_stream    = input_stream_any.clone().downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let future          = InputStreamCore::<TMessageType>::unblock_for_idle(&input_stream, max_idle_queue_len);
+
+                Ok(future)
+            }),
+
+            default_target: Arc::new(|| {
+                TMessageType::default_target()
+            }),
+
+            active_target: Arc::new(|output_sink_core_any| {
+                let output_sink         = output_sink_core_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let output_sink_target  = output_sink.lock().unwrap().target().clone();
+
+                match &output_sink_target {
+                    OutputSinkTarget::Disconnected                  => Ok(StreamTarget::Any),
+                    OutputSinkTarget::Discard                       => Ok(StreamTarget::None),
+                    OutputSinkTarget::Input(input_core)             |
+                    OutputSinkTarget::FixedInput(input_core)        |
+                    OutputSinkTarget::CloseWhenDropped(input_core)  => {
+                        if let Some(input_core) = input_core.upgrade() {
+                            // Target is the program being run by the input stream core
+                            // TODO: properly figure out filters (this will be the 'fake' input program for a filter if a filter is in use)
+                            Ok(StreamTarget::Program(input_core.lock().unwrap().target_program_id()))
+                        } else {
+                            // Input core has been lost (next message will generate an error, we'll indicate 'None' as the connection)
+                            Ok(StreamTarget::None)
+                        }
+                    }
+                }
+            }),
+
+            reconnect_sink: Arc::new(|scene_core, output_sink_core_any, source_program, stream_target| {
+                // Try to create an output sink target for this message type
+                let (new_target, waker) = scene_core.lock().unwrap().sink_for_target::<TMessageType>(&source_program, stream_target)?;
+                if let Some(waker) = waker { waker.wake(); }
+
+                let output_sink = output_sink_core_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+
+                // Holding the stream is for waiting for programs to start: once a sink has been connected to a program, it stays connected so it generates errors if that program stops
+                if let OutputSinkTarget::Disconnected = &new_target {
+                    if output_sink.lock().unwrap().target().is_connected_to_input() {
+                        return Ok(None);
+                    }
+                }
+
+                // Update the output sink
+                let waker       = OutputSinkCore::set_new_target(&output_sink, new_target);
+
+                Ok(waker)
+            }),
+
+            #[cfg(feature="postcard")]
+            run_host_subprogram_postcard: Arc::new(|program_id, max_waiting, actions, results| 
+                SceneControl::start_program(program_id, move |input: InputStream<TMessageType>, context| async move {
+                    run_host_subprogram(input, context, actions, results).await; 
+                }, max_waiting)),
+
+            #[cfg(any(feature="postcard", target_family="wasm"))]
+            send_guest_messages: Arc::new(|target, context, serialization_context| {
+                // Send to the target
+                let sink = context.send::<TMessageType>(target)?;
+
+                // Deserialize the messages
+                let sink = sink
+                    .sink_map_err(|_| SceneSendError::<Vec<u8>>::ErrorAfterDeserialization)            // The error doesn't preserve the input value, so we can't return it
+                    .with(move |msg: Vec<u8>| {
+                        let deserialized = TMessageType::from_guest_message(&msg, &serialization_context)
+                            .map_err(move |err| err.map(move |_| msg));
+
+                        async move {
+                            deserialized
+                        }
+                    });
+
+                Ok(Box::new(sink))
+            }),
+
+            initialise: Arc::new(move |scene| {
+                use std::mem;
+
+                let serialization_filters = {
+                    let filters = (*FILTERS).read().unwrap();
+                    if let Some(existing_filters) = filters.get(&TypeId::of::<TMessageType>()) {
+                        // We only create the filters once
+                        existing_filters.clone()
+                    } else {
+                        mem::drop(filters);
+
+                        // Set up the serialization for this type if it's not already set up
+                        #[cfg(feature="json")]
+                        install_serializable_type(|msg: TMessageType| msg.to_json(), |json| TMessageType::from_json(json)).unwrap();
+
+                        #[cfg(any(feature="postcard", target_family="wasm"))]
+                        install_serializable_type(
+                            |msg: TMessageType| msg.to_guest_message(&DisconnectedSerializationContext).map(|ok| GuestMessage(ok)), 
+                            |postcard| TMessageType::from_guest_message(&postcard.0, &DisconnectedSerializationContext))
+                            .unwrap();
+
+                        // Create the filters for this type
+                        let mut filters = (*FILTERS).write().unwrap();
+                        if let Some(existing_filters) = filters.get(&TypeId::of::<TMessageType>()) {
+                            // Lost the race: someone else created the filters
+                            existing_filters.clone()
+                        } else {
+                            // Create the filters for this type
+                            let new_filters = if TMessageType::serializable() {
+                                create_default_serializer_filters::<TMessageType>()
+                            } else {
+                                vec![]
+                            };
+                            filters.insert(TypeId::of::<TMessageType>(), new_filters.clone());
+
+                            new_filters
+                        }
+                    }
+                };
+
+                // Install the default filters for this type
+                for filter in serialization_filters.iter() {
+                    scene.connect_programs(StreamSource::Filtered(filter.clone()), (), filter.source_stream_id_any().unwrap()).ok();
+                }
+
+                // Call the message-specific initialisation
+                TMessageType::initialise(scene)
+            }),
+        }
+    }
+
+    ///
+    /// Store the type functions for a message type, if they aren't stored already
+    ///
+    pub fn add<TMessageType>()
+    where
+        TMessageType: 'static + SceneMessage,
+    {
+        let type_id                     = TypeId::of::<TMessageType>();
+        let mut stream_type_functions   = STREAM_TYPE_FUNCTIONS.write().unwrap();
+
+        stream_type_functions.entry(type_id)
+            .or_insert_with(|| StreamTypeFunctions::for_message_type::<TMessageType>());
+    }
+
+    pub fn input_stream_core_type(type_id: &TypeId) -> Option<TypeId> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| all_functions.input_stream_core_type)
+    }
+
+    pub fn close_input(type_id: &TypeId) -> Option<CloseInputFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.close_input))
+    }
+
+    pub fn is_idle(type_id: &TypeId) -> Option<IsIdleFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.is_idle))
+    }
+
+    pub fn can_be_unblocked(type_id: &TypeId) -> Option<CanBeUnblockedFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.can_be_unblocked))
+    }
+
+    pub fn not_idle(type_id: &TypeId) -> Option<NotIdleFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.not_idle))
+    }
+
+    pub fn unblock(type_id: &TypeId) -> Option<UnblockFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.unblock))
+    }
+
+    pub fn waiting_for_idle(type_id: &TypeId) -> Option<WaitingForIdleFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.waiting_for_idle))
+    }
+
+    pub fn unblock_for_idle(type_id: &TypeId) -> Option<UnblockForIdleFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.unblock_for_idle))
+    }
+
+    pub fn default_target(type_id: &TypeId) -> Option<DefaultTargetFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.default_target))
+    }
+
+    pub fn active_target(type_id: &TypeId) -> Option<ActiveTargetFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.active_target))
+    }
+
+    pub fn reconnect_output_sink(type_id: &TypeId) -> Option<ReconnectSinkFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.reconnect_sink))
+    }
+
+    #[cfg(all(feature="postcard", feature="guest_programs"))]
+    pub fn run_host_subprogram_postcard(type_id: &TypeId) -> Option<RunHostSubProgramFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.run_host_subprogram_postcard))
+    }
+
+    #[cfg(any(feature="postcard", target_family="wasm"))]
+    pub fn send_guest_messages(type_id: &TypeId) -> Option<SendGuestMessagesFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.send_guest_messages))
+    }
+
+    pub fn initialise(type_id: &TypeId) -> Option<InitialiseFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.initialise))
+    }
+}
+
+///
+/// Extensions for TypeId that allows arbitrary types to be used in flo_scene streams
+///
+pub (crate) trait StreamTypeFunctionsExt {
+    fn default_target(&self) -> StreamTarget;
+    fn input_stream_core_type(&self) -> Result<TypeId, ConnectionError>;
+    fn close_input(&self, input_stream: &Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>;
+    fn is_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<bool, ConnectionError>;
+    fn can_be_unblocked(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<bool, ConnectionError>;
+    fn not_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<Box<dyn Any + Send>, ConnectionError>;
+    fn unblock(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<(), ConnectionError>;
+    fn waiting_for_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>, max_idle_queue_len: usize) -> Result<IdleInputStreamCore, ConnectionError>;
+    fn unblock_for_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>, max_idle_queue_len: usize) -> Result<IdleUnblocker, ConnectionError>;
+    fn initialise_in_scene(&self, scene: &Scene) -> Result<(), ConnectionError>;
+    fn active_target_for_output_sink(&self, output_sink_core: &Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>;
+    fn active_program_for_output_sink(&self, output_sink_core: &Arc<dyn Send + Sync + Any>) -> Option<SubProgramId>;
+    fn reconnect_output_sink(&self, scene_core: &Arc<Mutex<SceneCore>>, output_sink_core: &Arc<dyn Send + Sync + Any>, source_program: SubProgramId, new_target: StreamTarget) -> Result<Option<Waker>, ConnectionError>;
+    #[cfg(all(feature="postcard", feature="guest_programs"))]
+    fn run_host_subprogram_postcard(&self, program_id: SubProgramId, max_input_waiting: usize, actions: Sender<GuestAction>, results: impl 'static + Send + Stream<Item=GuestResult>) -> Result<SceneControl, ConnectionError>;
+    #[cfg(any(feature="postcard", target_family="wasm"))]
+    fn send_guest_messages(&self, target: StreamTarget, context: &SceneContext, serialization_context: impl 'static + SerializationContext) -> Result<Box<dyn 'static + Send + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>, ConnectionError>;
+}
+
+impl StreamTypeFunctionsExt for TypeId {
+    ///
+    /// Returns the default target defined for the message type represented by this stream ID
+    ///
+    fn default_target(&self) -> StreamTarget {
+        let message_type = *self;
+
+        if let Some(default_target) = StreamTypeFunctions::default_target(&message_type) {
+            default_target()
+        } else {
+            StreamTarget::None
+        }
+    }
+
+    ///
+    /// The type of the `Mutex<InputStreamCore<...>>` that will be used for the stream id
+    ///
+    fn input_stream_core_type(&self) -> Result<TypeId, ConnectionError> {
+        StreamTypeFunctions::input_stream_core_type(self)
+            .ok_or(ConnectionError::UnexpectedConnectionType)
+    }
+
+    ///
+    /// Closes an input stream (an 'Any' that maps to an InputStreamCore of the same type as this stream ID) 
+    ///
+    fn close_input(&self, input_stream: &Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError> {
+        let message_type = *self;
+
+        if let Some(close_input) = StreamTypeFunctions::close_input(&message_type) {
+            // Close the input stream
+            (close_input)(input_stream)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Given an input stream (an 'Any' that maps to an InputStreamCore of the same type as this stream ID), returns
+    /// whether or not it is considered to be idle (being waited upon + has an empty queue)
+    ///
+    fn is_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<bool, ConnectionError> {
+        let message_type = *self;
+
+        if let Some(is_idle) = StreamTypeFunctions::is_idle(&message_type) {
+            // Determine if the stream is idle
+            (is_idle)(input_stream)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Given an input stream (an 'Any' that maps to an InputStreamCore of the same type as this stream ID), returns
+    /// if it can be unblocked when the core would become idle
+    ///
+    fn can_be_unblocked(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<bool, ConnectionError> {
+        let message_type = *self;
+
+        if let Some(can_be_unblocked) = StreamTypeFunctions::can_be_unblocked(&message_type) {
+            // Determine if the stream is idle
+            (can_be_unblocked)(input_stream)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Blocks an input stream from being idle until the returned value is dropped
+    ///
+    fn not_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<Box<dyn Any + Send>, ConnectionError> {
+        let message_type = *self;
+
+        if let Some(not_idle) = StreamTypeFunctions::not_idle(&message_type) {
+            // Determine if the stream is idle
+            (not_idle)(input_stream)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Given an input stream (an 'Any' that maps to an InputStreamCore of the same type as this stream ID), unblocks
+    /// anything that's requested an 'unblock to idle' notification. This is used when the scene is in a state where
+    /// it would become idle if it weren't for the 'unblockable' processes, which indicates that whatever stream/state
+    /// update they were expecting has failed to resolve. (Eg, when connecting to a stream, if the scene wants to go
+    /// idle and the stream is still not connected, then it's not likely to be connected so should error out)
+    ///
+    fn unblock(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<(), ConnectionError> {
+        let message_type = *self;
+
+        if let Some(unblock) = StreamTypeFunctions::unblock(&message_type) {
+            // Determine if the stream is idle
+            (unblock)(input_stream)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Given an input stream, indicates that's in the 'waiting for idle' state with the specified length of allowed extra waiting messages
+    ///
+    fn waiting_for_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>, max_idle_queue_len: usize) -> Result<IdleInputStreamCore, ConnectionError> {
+        let message_type = *self;
+
+        if let Some(waiting_for_idle) = StreamTypeFunctions::waiting_for_idle(&message_type) {
+            // Determine if the stream is idle
+            (waiting_for_idle)(input_stream, max_idle_queue_len)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Given an input stream, returns an 'unblocker' future that will complete if the stream could go idle if all the unblockers clear
+    ///
+    /// This is used when there's some operation waiting on something to complete in the scene, and the operation is lost or
+    /// otherwise doesn't complete (eg, connecting to a stream). If everything but the 'unblockable' operations are left when the
+    /// stream can go idle, the scene won't make any progress so they can be considered unresolved.
+    ///
+    /// (Eg, when writing to a stream, if the stream is disconnected and becomes the only thing blocking the scene from becoming idle
+    /// then it won't be connected and we can return 'OutputFailedToConnect')
+    ///
+    fn unblock_for_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>, max_idle_queue_len: usize) -> Result<IdleUnblocker, ConnectionError> {
+        let message_type = *self;
+
+        if let Some(unblock_for_idle) = StreamTypeFunctions::unblock_for_idle(&message_type) {
+            // Future that will complete when the scene can become idle if the current task returns to the idle state
+            (unblock_for_idle)(input_stream, max_idle_queue_len)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Calls the 'initialise' function for a message type within a scene
+    ///
+    /// (Each type should only be initialised once per scene)
+    ///
+    fn initialise_in_scene(&self, scene: &Scene) -> Result<(), ConnectionError> {
+        let message_type = *self;
+
+        if let Some(initialise) = StreamTypeFunctions::initialise(&message_type) {
+            // Determine if the stream is idle
+            (initialise)(scene);
+            Ok(())
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Returns the stream target for an output sink
+    ///
+    fn active_target_for_output_sink(&self, output_sink_core: &Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError> {
+        let message_type = *self;
+
+        if let Some(active_target) = StreamTypeFunctions::active_target(&message_type) {
+            (active_target)(output_sink_core)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Returns the program that an output sink is connected to
+    ///
+    fn active_program_for_output_sink(&self, output_sink_core: &Arc<dyn Send + Sync + Any>) -> Option<SubProgramId> {
+        match self.active_target_for_output_sink(output_sink_core) {
+            Ok(StreamTarget::Program(program_id))       => Some(program_id),
+            Ok(StreamTarget::Filtered(_, program_id))   => Some(program_id),
+            _                                           => None,
+        }
+    }
+
+    ///
+    /// Attempts to reconnect an output sink core to a new target within a scene (returning a waker if successful)
+    ///
+    fn reconnect_output_sink(&self, scene_core: &Arc<Mutex<SceneCore>>, output_sink_core: &Arc<dyn Send + Sync + Any>, source_program: SubProgramId, new_target: StreamTarget) -> Result<Option<Waker>, ConnectionError> {
+        let message_type = *self;
+
+        if let Some(reconnect_output_sink) = StreamTypeFunctions::reconnect_output_sink(&message_type) {
+            (reconnect_output_sink)(scene_core, output_sink_core, source_program, new_target)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Returns the scene control message required to start a guest host subprogram using the postcard encoding for messages 
+    ///
+    #[cfg(all(feature="postcard", feature="guest_programs"))]
+    fn run_host_subprogram_postcard(&self, program_id: SubProgramId, max_input_waiting: usize, actions: Sender<GuestAction>, results: impl 'static + Send + Stream<Item=GuestResult>) -> Result<SceneControl, ConnectionError> {
+        let message_type = *self;
+
+        if let Some(run_host_subprogram_postcard) = StreamTypeFunctions::run_host_subprogram_postcard(&message_type) {
+            Ok((run_host_subprogram_postcard)(program_id, max_input_waiting, actions, results.boxed()))
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+
+    ///
+    /// Creates a sink connected to the specified target that deserializes guest messages
+    ///
+    #[cfg(any(feature="postcard", target_family="wasm"))]
+    fn send_guest_messages(&self, target: StreamTarget, context: &SceneContext, serialization_context: impl 'static + SerializationContext) -> Result<Box<dyn 'static + Send + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>, ConnectionError> {
+        let serialization_context = Box::new(serialization_context);
+
+        let message_type = *self;
+
+        if let Some(send_guest_messages) = StreamTypeFunctions::send_guest_messages(&message_type) {
+            (send_guest_messages)(target, context, serialization_context)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+}

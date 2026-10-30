@@ -9,6 +9,7 @@ use crate::host::scene_message::*;
 use crate::host::stream_id::*;
 use crate::host::stream_source::*;
 use crate::host::stream_target::*;
+use crate::host::stream_type_functions::*;
 use crate::host::subprogram_id::*;
 
 use super::idle_request::*;
@@ -570,7 +571,7 @@ impl SceneControl {
                                     // Fetch the targets for each stream and map to subprogram IDs when known
                                     let output_streams = output_streams.into_iter()
                                         .map(|(stream_id, output_sink)| {
-                                            let target = stream_id.active_target_for_output_sink(&output_sink);
+                                            let target = stream_id.message_type().active_target_for_output_sink(&output_sink);
 
                                             (stream_id, target)
                                         })

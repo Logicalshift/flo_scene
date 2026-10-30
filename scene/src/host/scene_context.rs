@@ -8,6 +8,7 @@ use crate::host::process_core::*;
 use crate::host::scene_core::*;
 use crate::host::scene_message::*;
 use crate::host::stream_id::*;
+use crate::host::stream_type_functions::*;
 use crate::host::stream_target::*;
 use crate::host::subprogram_core::*;
 use crate::host::subprogram_id::*;
@@ -71,6 +72,8 @@ impl SceneContext {
         TMessageType: 'static + SceneMessage,
     {
         use std::mem;
+
+        StreamTypeFunctions::add::<TMessageType>();
 
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
             // Convert the target to a stream ID. If we need to create the sink target, we can create it in 'wait' or 'discard' mode
@@ -185,6 +188,8 @@ impl SceneContext {
         TCommand:       'static + Command,
         TInputStream:   'static + Send + Stream<Item=TCommand::Input>,
     {
+        StreamTypeFunctions::add::<TCommand::Input>();
+
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
             // Get the ID for this task
             let our_program_id  = program_core.lock().unwrap().id;
@@ -289,6 +294,7 @@ impl SceneContext {
         TQueryTarget:   Into<StreamTarget>,
     {
         // TODO: this is very similar to spawn_command, might be more easy to maintain if some common core is extracted from both messages (the different handling of the input stream makes it tricky to find something natural, though)
+        StreamTypeFunctions::add::<TQueryRequest>();
 
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
             // Get the ID for this task
@@ -427,7 +433,7 @@ impl SceneContext {
             let input_stream_core = if let Some(input_stream_core) = input_stream_core { input_stream_core } else { return; };
 
             // Say we're waiting for idle (so input can accrue without blocking the idle message)
-            let we_are_waiting = stream_id.waiting_for_idle(&input_stream_core, max_idle_queue_len);
+            let we_are_waiting = stream_id.message_type().waiting_for_idle(&input_stream_core, max_idle_queue_len);
 
             if let Ok(we_are_waiting) = we_are_waiting {
                 // Wait for the scene to become idle
@@ -480,7 +486,7 @@ impl SceneContext {
 
             if let Some(input_stream_core) = input_stream_core {
                 // Say we're waiting for idle (so input can accrue without blocking the idle message)
-                let unblock = stream_id.unblock_for_idle(&input_stream_core, max_idle_queue_len);
+                let unblock = stream_id.message_type().unblock_for_idle(&input_stream_core, max_idle_queue_len);
 
                 // Trigger a check immediately
                 SceneCore::check_if_idle(&scene_core);
@@ -575,7 +581,7 @@ impl SceneContext {
             (program_core.input_stream_id.clone(), *program_core.program_id()) 
         };
         let Some(input_stream_core) = scene_core.lock().unwrap().get_input_stream_core(program_id) else { return };
-        let mut not_idle            = Some(stream_id.not_idle(&input_stream_core));
+        let mut not_idle            = Some(stream_id.message_type().not_idle(&input_stream_core));
 
         let (process_handle, waker) = {
             // The background process handle is used to clear the future from the scene core when we're done

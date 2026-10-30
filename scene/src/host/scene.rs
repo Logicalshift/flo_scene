@@ -8,6 +8,7 @@ use crate::host::scene_message::*;
 use crate::host::stream_id::*;
 use crate::host::stream_source::*;
 use crate::host::stream_target::*;
+use crate::host::stream_type_functions::*;
 use crate::host::subprogram_id::*;
 use crate::host::error::*;
 use crate::host::programs::*;
@@ -378,6 +379,8 @@ impl SceneInitialisationContext for Scene {
         TInputMessage:  'static + SceneMessage,
         TProgramFn:     'a + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture,
     {
+        StreamTypeFunctions::add::<TInputMessage>();
+
         // Create the context and input stream for the program
         let input_stream    = InputStream::new(program_id, &self.core, max_input_waiting);
         let input_core      = input_stream.core();
