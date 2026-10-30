@@ -404,9 +404,6 @@ impl SceneCore {
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectionResult, ConnectionError> {
-        // Make sure the target stream ID type  is initialised
-        Self::initialise_message_type(core, stream_id.clone());
-
         if let StreamSource::Filtered(filter) = &source {
             Self::initialise_filter(core, filter.clone());
         }
