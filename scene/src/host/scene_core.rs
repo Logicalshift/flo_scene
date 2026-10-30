@@ -158,7 +158,7 @@ impl SceneCore {
             let fake_scene = Scene::with_core(core);
 
             // Create the default connection for this message type in the connectome
-            let default_target = message_type.message_type().default_target();
+            let default_target = message_type.default_target().clone();
 
             match default_target {
                 StreamTarget::Any => { /* No connection to set up */ }

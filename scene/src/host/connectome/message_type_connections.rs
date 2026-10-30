@@ -2,7 +2,6 @@ use crate::host::error::*;
 use crate::host::filter::*;
 use crate::host::stream_id::*;
 use crate::host::stream_target::*;
-use crate::host::stream_type_functions::*;
 use crate::host::subprogram_id::*;
 
 use std::collections::*;
@@ -64,7 +63,7 @@ impl MessageTypeConnections {
     pub (super) fn with_message_type(stream_id: &StreamId) -> Self {
         // Establish the default route, if specified by the stream
         let mut targets     = HashMap::new();
-        let default_route   = stream_id.message_type().default_target();
+        let default_route   = stream_id.default_target().clone();
 
         if default_route != StreamTarget::Any {
             targets.insert(TargetSpecifier::DefaultRoute(None), default_route);

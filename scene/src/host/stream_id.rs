@@ -1,5 +1,4 @@
 use crate::host::error::*;
-use crate::host::input_stream::*;
 use crate::host::scene_message::*;
 use crate::host::stream_target::*;
 use crate::host::stream_type_functions::*;
@@ -14,7 +13,6 @@ use futures::channel::mpsc::{Sender};
 
 use std::any::*;
 use std::hash::*;
-use std::sync::*;
 
 ///
 /// Identifies a stream produced by a subprogram 
@@ -36,7 +34,7 @@ pub struct StreamId {
     stream_id_type:         StreamIdType,
     message_type_name:      &'static str,
     message_type:           TypeId,
-    input_stream_core_type: TypeId,
+    default_target:         StreamTarget,
 }
 
 impl PartialEq for StreamId {
@@ -66,7 +64,7 @@ impl StreamId {
             stream_id_type:         StreamIdType::MessageType,
             message_type_name:      type_name::<TMessageType>(),
             message_type:           TypeId::of::<TMessageType>(),
-            input_stream_core_type: TypeId::of::<Mutex<InputStreamCore<TMessageType>>>(),
+            default_target:         TMessageType::default_target(),
         }
     }
 
@@ -78,7 +76,7 @@ impl StreamId {
             stream_id_type:         StreamIdType::Target(target.into()),
             message_type_name:      self.message_type_name,
             message_type:           self.message_type,
-            input_stream_core_type: self.input_stream_core_type,
+            default_target:         self.default_target.clone(),
         }
     }
 
@@ -90,8 +88,16 @@ impl StreamId {
             stream_id_type:         StreamIdType::MessageType,
             message_type_name:      self.message_type_name,
             message_type:           self.message_type,
-            input_stream_core_type: self.input_stream_core_type,
+            default_target:         self.default_target.clone(),
         }
+    }
+
+    ///
+    /// The default target for this stream type
+    ///
+    #[inline]
+    pub (crate) fn default_target(&self) -> &StreamTarget {
+        &self.default_target
     }
 
     ///

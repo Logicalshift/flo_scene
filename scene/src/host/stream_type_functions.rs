@@ -36,7 +36,6 @@ type NotIdleFn                  = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync 
 type UnblockFn                  = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<(), ConnectionError>>;
 type WaitingForIdleFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, usize) -> Result<IdleInputStreamCore, ConnectionError>>;
 type UnblockForIdleFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>, usize) -> Result<IdleUnblocker, ConnectionError>>;
-type DefaultTargetFn            = Arc<dyn Send + Sync + Fn() -> StreamTarget>;
 type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>>;
 type ReconnectSinkFn            = Arc<dyn Send + Sync + Fn(&Arc<Mutex<SceneCore>>, &Arc<dyn Send + Sync + Any>, SubProgramId, StreamTarget) -> Result<Option<Waker>, ConnectionError>>;
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
@@ -74,9 +73,6 @@ pub (crate) struct StreamTypeFunctions {
 
     /// Creates a future that will complete if the stream should try to unblock to make the scene idle (usually indicating that some operation has not resolved)
     unblock_for_idle: UnblockForIdleFn,
-
-    /// Returns the default target for this stream type
-    default_target: DefaultTargetFn,
 
     /// Returns the active target for an output sink
     active_target: ActiveTargetFn,
@@ -158,10 +154,6 @@ impl StreamTypeFunctions {
                 let future          = InputStreamCore::<TMessageType>::unblock_for_idle(&input_stream, max_idle_queue_len);
 
                 Ok(future)
-            }),
-
-            default_target: Arc::new(|| {
-                TMessageType::default_target()
             }),
 
             active_target: Arc::new(|output_sink_core_any| {
@@ -353,13 +345,6 @@ impl StreamTypeFunctions {
             .map(|all_functions| Arc::clone(&all_functions.unblock_for_idle))
     }
 
-    pub fn default_target(type_id: &TypeId) -> Option<DefaultTargetFn> {
-        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
-
-        stream_type_functions.get(type_id)
-            .map(|all_functions| Arc::clone(&all_functions.default_target))
-    }
-
     pub fn active_target(type_id: &TypeId) -> Option<ActiveTargetFn> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
@@ -402,7 +387,6 @@ impl StreamTypeFunctions {
 /// Extensions for TypeId that allows arbitrary types to be used in flo_scene streams
 ///
 pub (crate) trait StreamTypeFunctionsExt {
-    fn default_target(&self) -> StreamTarget;
     fn input_stream_core_type(&self) -> Result<TypeId, ConnectionError>;
     fn close_input(&self, input_stream: &Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>;
     fn is_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<bool, ConnectionError>;
@@ -422,19 +406,6 @@ pub (crate) trait StreamTypeFunctionsExt {
 }
 
 impl StreamTypeFunctionsExt for TypeId {
-    ///
-    /// Returns the default target defined for the message type represented by this stream ID
-    ///
-    fn default_target(&self) -> StreamTarget {
-        let message_type = *self;
-
-        if let Some(default_target) = StreamTypeFunctions::default_target(&message_type) {
-            default_target()
-        } else {
-            StreamTarget::None
-        }
-    }
-
     ///
     /// The type of the `Mutex<InputStreamCore<...>>` that will be used for the stream id
     ///
