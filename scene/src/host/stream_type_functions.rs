@@ -289,6 +289,15 @@ impl StreamTypeFunctions {
             .or_insert_with(|| StreamTypeFunctions::for_message_type::<TMessageType>());
     }
 
+    ///
+    /// True if the functions for the message of the specified type have had their stream type functions declared
+    ///
+    pub fn contains(message_type: &TypeId) -> bool {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.contains_key(message_type)
+    }
+
     pub fn input_stream_core_type(type_id: &TypeId) -> Option<TypeId> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
 
