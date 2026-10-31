@@ -298,10 +298,12 @@ impl SceneContext {
         TQueryTarget:   Into<StreamTarget>,
     {
         // TODO: this is very similar to spawn_command, might be more easy to maintain if some common core is extracted from both messages (the different handling of the input stream makes it tricky to find something natural, though)
+        StreamTypeFunctions::add::<TCommand::Input>();
         StreamTypeFunctions::add::<TQueryRequest>();
 
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
             SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TCommand::Input>()).ok();
+            SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TQueryRequest>()).ok();
 
             // Get the ID for this task
             let our_program_id  = program_core.lock().unwrap().id;
