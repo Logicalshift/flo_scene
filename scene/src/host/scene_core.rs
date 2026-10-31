@@ -464,9 +464,6 @@ impl SceneCore {
                     .entry(stream_id.message_type())
                     .or_insert_with(|| vec![])
                     .push((source.clone(), target.clone(), stream_id.clone()));
-
-                // Can't tell if this is an error or not
-                return Ok(ConnectionResult::Ready)
             }
         }
 
