@@ -170,7 +170,7 @@ impl SceneCore {
     /// If a message type has not been initialised in a core, calls the initialisation function
     ///
     #[inline]
-    pub (crate) fn initialise_message_type(core: &Arc<Mutex<SceneCore>>, message_type: StreamId) -> Result<(), ()> {
+    pub (crate) fn initialise_message_type(core: &Arc<Mutex<SceneCore>>, message_type: &StreamId) -> Result<(), ()> {
         // Set up the default route if it's not already set
         Self::set_up_default_route(core, &message_type);
 
@@ -197,8 +197,6 @@ impl SceneCore {
             }
         };
 
-        let mut result = Ok(());
-
         if needs_initialising {
             // Create a fake scene object for the 'initialise' routine (same core)
             let fake_scene = Scene::with_core(core);
@@ -207,7 +205,7 @@ impl SceneCore {
             message_type.message_type().initialise_in_scene(&fake_scene).ok();
         }
 
-        result
+        Ok(())
     }
 
     ///
@@ -220,7 +218,7 @@ impl SceneCore {
         use std::mem;
 
         StreamTypeFunctions::add::<TMessage>();
-        if Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessage>()).is_err() {
+        if Self::initialise_message_type(scene_core, &StreamId::with_message_type::<TMessage>()).is_err() {
             panic!("Could not initialise message type for program (types not registered)");
         }
 
@@ -420,11 +418,11 @@ impl SceneCore {
     ///
     fn initialise_filter(core: &Arc<Mutex<SceneCore>>, filter_handle: FilterHandle) {
         if let Ok(source_stream) = filter_handle.source_stream_id_any() {
-            Self::initialise_message_type(core, source_stream).ok();
+            Self::initialise_message_type(core, &source_stream).ok();
         }
 
         if let Ok(target_stream) = filter_handle.target_stream_id_any() {
-            Self::initialise_message_type(core, target_stream).ok();
+            Self::initialise_message_type(core, &target_stream).ok();
         }
     }
 
@@ -432,6 +430,8 @@ impl SceneCore {
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectionResult, ConnectionError> {
+        Self::initialise_message_type(core, &stream_id).ok();
+
         if let StreamSource::Filtered(filter) = &source {
             Self::initialise_filter(core, filter.clone());
         }

@@ -119,7 +119,7 @@ impl Scene {
         let target = target.into();
 
         StreamTypeFunctions::add::<TMessage>();
-        if SceneCore::initialise_message_type(&self.core, StreamId::with_message_type::<TMessage>()).is_err() {
+        if SceneCore::initialise_message_type(&self.core, &StreamId::with_message_type::<TMessage>()).is_err() {
             panic!("Message type not initialised");
         }
 

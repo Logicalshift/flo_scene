@@ -76,7 +76,7 @@ impl SceneContext {
         StreamTypeFunctions::add::<TMessageType>();
 
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
-            if SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TMessageType>()).is_err() {
+            if SceneCore::initialise_message_type(&scene_core, &StreamId::with_message_type::<TMessageType>()).is_err() {
                 panic!("Message type not initialised");
             }
 
@@ -193,7 +193,7 @@ impl SceneContext {
         StreamTypeFunctions::add::<TCommand::Input>();
 
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
-            SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TCommand::Input>()).ok();
+            SceneCore::initialise_message_type(&scene_core, &StreamId::with_message_type::<TCommand::Input>()).ok();
 
             // Get the ID for this task
             let our_program_id  = program_core.lock().unwrap().id;
@@ -302,8 +302,8 @@ impl SceneContext {
         StreamTypeFunctions::add::<TQueryRequest>();
 
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
-            SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TCommand::Input>()).ok();
-            SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TQueryRequest>()).ok();
+            SceneCore::initialise_message_type(&scene_core, &StreamId::with_message_type::<TCommand::Input>()).ok();
+            SceneCore::initialise_message_type(&scene_core, &StreamId::with_message_type::<TQueryRequest>()).ok();
 
             // Get the ID for this task
             let our_program_id  = program_core.lock().unwrap().id;
