@@ -433,6 +433,14 @@ impl SceneCore {
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectionResult, ConnectionError> {
+        if let StreamSource::Filtered(filter) = &source {
+            Self::initialise_filter(core, filter.clone());
+        }
+
+        if let StreamTarget::Filtered(filter, _) = &target {
+            Self::initialise_filter(core, filter.clone());
+        }
+
         if Self::initialise_message_type(core, &stream_id).is_err() {
             // Connect the message when the message type is fully initialised
             let mut core_locked = core.lock().unwrap();
@@ -447,14 +455,6 @@ impl SceneCore {
                 // Can't tell if this is an error or not
                 return Ok(ConnectionResult::Ready)
             }
-        }
-
-        if let StreamSource::Filtered(filter) = &source {
-            Self::initialise_filter(core, filter.clone());
-        }
-
-        if let StreamTarget::Filtered(filter, _) = &target {
-            Self::initialise_filter(core, filter.clone());
         }
 
         // Call the connectome to perform the connection
