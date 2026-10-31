@@ -12,7 +12,9 @@ use futures::prelude::*;
 use futures::channel::mpsc::{Sender};
 
 use std::any::*;
+use std::fmt;
 use std::hash::*;
+use std::sync::*;
 
 ///
 /// Identifies a stream produced by a subprogram 
@@ -29,18 +31,31 @@ enum StreamIdType {
 ///
 /// Identifies a stream produced by a subprogram 
 ///
-#[derive(Clone, Eq, Debug)]
+#[derive(Clone)]
 pub struct StreamId {
     stream_id_type:         StreamIdType,
     message_type_name:      &'static str,
     message_type:           TypeId,
-    default_target:         StreamTarget,
+    default_target:         Arc<dyn Send + Sync + Fn() -> StreamTarget>,
 }
 
 impl PartialEq for StreamId {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.stream_id_type == other.stream_id_type && self.message_type == other.message_type
+    }
+}
+
+impl Eq for StreamId {
+}
+
+impl fmt::Debug for StreamId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StreamId")
+            .field("stream_id_type", &self.stream_id_type)
+            .field("message_type_name", &self.message_type_name)
+            .field("message_type", &self.message_type)
+            .finish()
     }
 }
 
@@ -64,7 +79,7 @@ impl StreamId {
             stream_id_type:         StreamIdType::MessageType,
             message_type_name:      type_name::<TMessageType>(),
             message_type:           TypeId::of::<TMessageType>(),
-            default_target:         TMessageType::default_target(),
+            default_target:         Arc::new(|| TMessageType::default_target()),
         }
     }
 
@@ -96,8 +111,8 @@ impl StreamId {
     /// The default target for this stream type
     ///
     #[inline]
-    pub (crate) fn default_target(&self) -> &StreamTarget {
-        &self.default_target
+    pub (crate) fn default_target(&self) -> StreamTarget {
+        (self.default_target)()
     }
 
     ///
