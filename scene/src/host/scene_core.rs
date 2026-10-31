@@ -145,6 +145,19 @@ impl SceneCore {
         match default_target {
             StreamTarget::Any => { drop(core); /* No connection to set up */ }
 
+            StreamTarget::Filtered(filter, target_program) => {
+                let source_stream = filter.source_stream_id_any();
+                let target_stream = filter.target_stream_id_any();
+
+                // Connect the filter
+                core.connectome.connect(&().into(), &StreamTarget::Filtered(filter, target_program), message_type.clone()).ok();
+                drop(core);
+
+                // Initialise the filter message types if there are any
+                if let Ok(source_stream) = source_stream { Self::initialise_message_type(scene_core, &source_stream).ok(); }
+                if let Ok(target_stream) = target_stream { Self::initialise_message_type(scene_core, &target_stream).ok(); }
+            }
+
             other => { 
                 core.connectome.connect(&().into(), &other, message_type.clone()).ok();
                 drop(core);
