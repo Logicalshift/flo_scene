@@ -207,7 +207,7 @@ impl SceneCore {
             let mut core_locked = core.lock().unwrap();
 
             if let Some(deferred_connections) = core_locked.deferred_connections.remove(&message_type.message_type()) {
-                let mut invalidated = HashMap::new();
+                let mut invalidated = HashSet::new();
 
                 for (source, target, stream) in deferred_connections {
                     if let Ok(new_invalidated) = core_locked.connectome.connect(&source, &target, stream) {
