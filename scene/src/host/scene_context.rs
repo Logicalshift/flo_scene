@@ -76,6 +76,10 @@ impl SceneContext {
         StreamTypeFunctions::add::<TMessageType>();
 
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
+            if SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TMessageType>()).is_err() {
+                panic!("Message type not initialised");
+            }
+
             // Convert the target to a stream ID. If we need to create the sink target, we can create it in 'wait' or 'discard' mode
             let target      = target.into();
             let stream_id   = match &target {
@@ -97,8 +101,6 @@ impl SceneContext {
 
                 Ok(sink)
             } else {
-                SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TMessageType>());
-
                 let new_or_old_target = {
                     // Fetch the target from the core (possibly creating a new one)
                     let mut core            = scene_core.lock().unwrap();
@@ -191,6 +193,8 @@ impl SceneContext {
         StreamTypeFunctions::add::<TCommand::Input>();
 
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
+            SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TCommand::Input>()).ok();
+
             // Get the ID for this task
             let our_program_id  = program_core.lock().unwrap().id;
             let task_program_id = program_core.lock().unwrap().new_task_id();
@@ -297,6 +301,8 @@ impl SceneContext {
         StreamTypeFunctions::add::<TQueryRequest>();
 
         if let (Some(scene_core), Some(program_core)) = (self.scene_core.upgrade(), self.program_core.upgrade()) {
+            SceneCore::initialise_message_type(&scene_core, StreamId::with_message_type::<TCommand::Input>()).ok();
+
             // Get the ID for this task
             let our_program_id  = program_core.lock().unwrap().id;
             let task_program_id = program_core.lock().unwrap().new_task_id();

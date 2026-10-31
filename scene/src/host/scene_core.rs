@@ -133,11 +133,11 @@ impl SceneCore {
     /// If a message type has not been initialised in a core, calls the initialisation function
     ///
     #[inline]
-    pub (crate) fn initialise_message_type(core: &Arc<Mutex<SceneCore>>, message_type: StreamId) {
+    pub (crate) fn initialise_message_type(core: &Arc<Mutex<SceneCore>>, message_type: StreamId) -> Result<(), ()> {
         // TODO: error/panic if the type is not in StreamTypeFunctions
         if !StreamTypeFunctions::contains(&message_type.message_type()) {
             // Don't initialise messages until their type functions are ready to use
-            return;
+            return Err(());
         }
 
         // If the message type is not yet initialised, mark it as such and then call the initialisation function
@@ -157,6 +157,8 @@ impl SceneCore {
             }
         };
 
+        let mut result = Ok(());
+
         if needs_initialising {
             // Create a fake scene object for the 'initialise' routine (same core)
             let fake_scene = Scene::with_core(core);
@@ -172,8 +174,10 @@ impl SceneCore {
                     let target_type = filter_handle.target_stream_id_any();
 
                     // Initialise the filter types (target type will often be the same as our type, but we've marked it initialised so we won't init it again)
-                    if let Ok(source_type) = source_type { Self::initialise_message_type(core, source_type); }
-                    if let Ok(target_type) = target_type { Self::initialise_message_type(core, target_type); }
+                    let src_err = if let Ok(source_type) = source_type { Self::initialise_message_type(core, source_type) } else { Ok(()) };
+                    let tgt_err = if let Ok(target_type) = target_type { Self::initialise_message_type(core, target_type) } else { Ok(()) };
+
+                    result = result.and_then(move |_| src_err).and_then(move |_| tgt_err);
 
                     core.lock().unwrap().connectome.connect(&().into(), &StreamTarget::Filtered(filter_handle, program), message_type.clone()).ok();
                 }
@@ -186,6 +190,8 @@ impl SceneCore {
             // Initialise the message type
             message_type.message_type().initialise_in_scene(&fake_scene).ok();
         }
+
+        result
     }
 
     ///
@@ -198,7 +204,9 @@ impl SceneCore {
         use std::mem;
 
         StreamTypeFunctions::add::<TMessage>();
-        Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessage>());
+        if Self::initialise_message_type(scene_core, StreamId::with_message_type::<TMessage>()).is_err() {
+            panic!("Could not initialise message type for program (types not registered)");
+        }
 
         let (subprogram, waker, invalidated_streams) = {
             let start_core      = Arc::downgrade(scene_core);
@@ -396,11 +404,11 @@ impl SceneCore {
     ///
     fn initialise_filter(core: &Arc<Mutex<SceneCore>>, filter_handle: FilterHandle) {
         if let Ok(source_stream) = filter_handle.source_stream_id_any() {
-            Self::initialise_message_type(core, source_stream);
+            Self::initialise_message_type(core, source_stream).ok();
         }
 
         if let Ok(target_stream) = filter_handle.target_stream_id_any() {
-            Self::initialise_message_type(core, target_stream);
+            Self::initialise_message_type(core, target_stream).ok();
         }
     }
 
