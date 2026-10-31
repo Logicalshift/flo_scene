@@ -54,6 +54,9 @@ pub (crate) struct SceneCore {
     /// The sub-programs that are active in this scene
     sub_programs: Vec<Option<Arc<Mutex<SubProgramCore>>>>,
 
+    /// The messages where the default route is set up
+    message_types_with_default_routes: HashSet<TypeId>,
+
     /// The message types where the 'initialise' routine has been called
     initialised_message_types: HashSet<TypeId>,
 
@@ -109,33 +112,34 @@ impl SceneCore {
     ///
     pub fn new() -> SceneCore {
         SceneCore {
-            sub_programs:               vec![],
-            sub_program_inputs:         vec![],
-            initialised_message_types:  HashSet::new(),
-            next_subprogram:            0,
-            processes:                  vec![],
-            next_process:               0,
-            program_indexes:            HashMap::new(),
-            awake_processes:            VecDeque::new(),
-            connectome:                 Connectome::default(),
-            thread_wakers:              vec![],
-            on_stop:                    vec![],
-            stopped:                    false,
-            notify_when_idle:           false,
-            idle_count:                 0,
-            when_idle:                  vec![],
-            updates:                    None,
-            active_panics:              vec![],
+            sub_programs:                       vec![],
+            sub_program_inputs:                 vec![],
+            message_types_with_default_routes:  HashSet::new(),
+            initialised_message_types:          HashSet::new(),
+            next_subprogram:                    0,
+            processes:                          vec![],
+            next_process:                       0,
+            program_indexes:                    HashMap::new(),
+            awake_processes:                    VecDeque::new(),
+            connectome:                         Connectome::default(),
+            thread_wakers:                      vec![],
+            on_stop:                            vec![],
+            stopped:                            false,
+            notify_when_idle:                   false,
+            idle_count:                         0,
+            when_idle:                          vec![],
+            updates:                            None,
+            active_panics:                      vec![],
         }
     }
 
     ///
-    /// If a message type has not been initialised in a core, calls the initialisation function
+    /// Sets the default route for a message
     ///
-    #[inline]
-    pub (crate) fn initialise_message_type(core: &Arc<Mutex<SceneCore>>, message_type: StreamId) -> Result<(), ()> {
-        // Do not fully initialise the message type for types that have not been registered yet
-        if !StreamTypeFunctions::contains(&message_type.message_type()) {
+    fn set_up_default_route(scene_core: &Arc<Mutex<SceneCore>>, message_type: &StreamId) {
+        let mut core = scene_core.lock().unwrap();
+
+        if core.message_types_with_default_routes.insert(message_type.message_type()) {
             // Create the default connection for this message type in the connectome
             let default_target = message_type.default_target().clone();
 
@@ -146,18 +150,32 @@ impl SceneCore {
                     let source_type = filter_handle.source_stream_id_any();
                     let target_type = filter_handle.target_stream_id_any();
 
-                    // Initialise the filter types (target type will often be the same as our type, but we've marked it initialised so we won't init it again)
-                    if let Ok(source_type) = source_type { Self::initialise_message_type(core, source_type).ok(); }
-                    if let Ok(target_type) = target_type { Self::initialise_message_type(core, target_type).ok(); }
+                    core.connectome.connect(&().into(), &StreamTarget::Filtered(filter_handle, program), message_type.clone()).ok();
 
-                    core.lock().unwrap().connectome.connect(&().into(), &StreamTarget::Filtered(filter_handle, program), message_type.clone()).ok();
+                    drop(core);
+
+                    // Initialise the filter types (target type will often be the same as our type, but we've marked it initialised so we won't init it again)
+                    if let Ok(source_type) = source_type { Self::set_up_default_route(scene_core, &source_type); }
+                    if let Ok(target_type) = target_type { Self::set_up_default_route(scene_core, &target_type); }
                 }
 
                 other => { 
-                    core.lock().unwrap().connectome.connect(&().into(), &other, message_type.clone()).ok();
+                    core.connectome.connect(&().into(), &other, message_type.clone()).ok();
                 }
             }
+        }
+    }
 
+    ///
+    /// If a message type has not been initialised in a core, calls the initialisation function
+    ///
+    #[inline]
+    pub (crate) fn initialise_message_type(core: &Arc<Mutex<SceneCore>>, message_type: StreamId) -> Result<(), ()> {
+        // Set up the default route if it's not already set
+        Self::set_up_default_route(core, &message_type);
+
+        // Do not fully initialise the message type for types that have not been registered yet
+        if !StreamTypeFunctions::contains(&message_type.message_type()) {
             // Don't initialise messages until their type functions are ready to use
             return Err(());
         }
@@ -184,30 +202,6 @@ impl SceneCore {
         if needs_initialising {
             // Create a fake scene object for the 'initialise' routine (same core)
             let fake_scene = Scene::with_core(core);
-
-            // Create the default connection for this message type in the connectome
-            let default_target = message_type.default_target().clone();
-
-            match default_target {
-                StreamTarget::Any => { /* No connection to set up */ }
-
-                StreamTarget::Filtered(filter_handle, program) => {
-                    let source_type = filter_handle.source_stream_id_any();
-                    let target_type = filter_handle.target_stream_id_any();
-
-                    // Initialise the filter types (target type will often be the same as our type, but we've marked it initialised so we won't init it again)
-                    let src_err = if let Ok(source_type) = source_type { Self::initialise_message_type(core, source_type) } else { Ok(()) };
-                    let tgt_err = if let Ok(target_type) = target_type { Self::initialise_message_type(core, target_type) } else { Ok(()) };
-
-                    result = result.and_then(move |_| src_err).and_then(move |_| tgt_err);
-
-                    core.lock().unwrap().connectome.connect(&().into(), &StreamTarget::Filtered(filter_handle, program), message_type.clone()).ok();
-                }
-
-                other => { 
-                    core.lock().unwrap().connectome.connect(&().into(), &other, message_type.clone()).ok();
-                }
-            }
 
             // Initialise the message type
             message_type.message_type().initialise_in_scene(&fake_scene).ok();
