@@ -217,7 +217,23 @@ impl SceneCore {
 
                 drop(core_locked);
 
+                let message_types = invalidated.iter().map(|(_, stream_id)| stream_id.message_type()).collect::<HashSet<_>>();
+
+                // Reconnect the invalidated streams
                 Self::reconnect_invalidated_streams(core, invalidated);
+
+                // Reconnect all subprograms with an affected output sink
+                let subprograms = core.lock().unwrap().sub_programs.iter().flatten().cloned().collect::<Vec<_>>();
+                for subprogram in subprograms {
+                    let affected_streams = subprogram.lock().unwrap().output_streams()
+                        .filter(|(output_stream, _)| message_types.contains(&output_stream.message_type()))
+                        .map(|(output_stream, _)| output_stream.clone())
+                        .collect::<Vec<_>>();
+
+                    affected_streams.into_iter().for_each(|stream_id| {
+                        SubProgramCore::reconnect_disconnected_outputs(&subprogram, core, &stream_id);
+                    });
+                }
             }
         }
 
