@@ -54,8 +54,8 @@ pub (crate) struct SceneCore {
     /// The sub-programs that are active in this scene
     sub_programs: Vec<Option<Arc<Mutex<SubProgramCore>>>>,
 
-    /// The messages where the default route is set up
-    message_types_with_default_routes: HashSet<TypeId>,
+    /// Connections that have been requested before the type was set up (we have to set these up when initialising the type to ensure that the ordering is correct)
+    deferred_connections: HashMap<TypeId, Vec<(StreamSource, StreamTarget, StreamId)>>,
 
     /// The message types where the 'initialise' routine has been called
     initialised_message_types: HashSet<TypeId>,
@@ -112,24 +112,24 @@ impl SceneCore {
     ///
     pub fn new() -> SceneCore {
         SceneCore {
-            sub_programs:                       vec![],
-            sub_program_inputs:                 vec![],
-            message_types_with_default_routes:  HashSet::new(),
-            initialised_message_types:          HashSet::new(),
-            next_subprogram:                    0,
-            processes:                          vec![],
-            next_process:                       0,
-            program_indexes:                    HashMap::new(),
-            awake_processes:                    VecDeque::new(),
-            connectome:                         Connectome::default(),
-            thread_wakers:                      vec![],
-            on_stop:                            vec![],
-            stopped:                            false,
-            notify_when_idle:                   false,
-            idle_count:                         0,
-            when_idle:                          vec![],
-            updates:                            None,
-            active_panics:                      vec![],
+            sub_programs:               vec![],
+            sub_program_inputs:         vec![],
+            deferred_connections:       HashMap::new(),
+            initialised_message_types:  HashSet::new(),
+            next_subprogram:            0,
+            processes:                  vec![],
+            next_process:               0,
+            program_indexes:            HashMap::new(),
+            awake_processes:            VecDeque::new(),
+            connectome:                 Connectome::default(),
+            thread_wakers:              vec![],
+            on_stop:                    vec![],
+            stopped:                    false,
+            notify_when_idle:           false,
+            idle_count:                 0,
+            when_idle:                  vec![],
+            updates:                    None,
+            active_panics:              vec![],
         }
     }
 
@@ -139,29 +139,15 @@ impl SceneCore {
     fn set_up_default_route(scene_core: &Arc<Mutex<SceneCore>>, message_type: &StreamId) {
         let mut core = scene_core.lock().unwrap();
 
-        if core.message_types_with_default_routes.insert(message_type.message_type()) {
-            // Create the default connection for this message type in the connectome
-            let default_target = message_type.default_target().clone();
+        // Create the default connection for this message type in the connectome
+        let default_target = message_type.default_target().clone();
 
-            match default_target {
-                StreamTarget::Any => { /* No connection to set up */ }
+        match default_target {
+            StreamTarget::Any => { drop(core); /* No connection to set up */ }
 
-                StreamTarget::Filtered(filter_handle, program) => {
-                    let source_type = filter_handle.source_stream_id_any();
-                    let target_type = filter_handle.target_stream_id_any();
-
-                    core.connectome.connect(&().into(), &StreamTarget::Filtered(filter_handle, program), message_type.clone()).ok();
-
-                    drop(core);
-
-                    // Initialise the filter types (target type will often be the same as our type, but we've marked it initialised so we won't init it again)
-                    if let Ok(source_type) = source_type { Self::set_up_default_route(scene_core, &source_type); }
-                    if let Ok(target_type) = target_type { Self::set_up_default_route(scene_core, &target_type); }
-                }
-
-                other => { 
-                    core.connectome.connect(&().into(), &other, message_type.clone()).ok();
-                }
+            other => { 
+                core.connectome.connect(&().into(), &other, message_type.clone()).ok();
+                drop(core);
             }
         }
     }
@@ -171,9 +157,6 @@ impl SceneCore {
     ///
     #[inline]
     pub (crate) fn initialise_message_type(core: &Arc<Mutex<SceneCore>>, message_type: &StreamId) -> Result<(), ()> {
-        // Set up the default route if it's not already set
-        Self::set_up_default_route(core, &message_type);
-
         // Do not fully initialise the message type for types that have not been registered yet
         if !StreamTypeFunctions::contains(&message_type.message_type()) {
             // Don't initialise messages until their type functions are ready to use
@@ -198,11 +181,31 @@ impl SceneCore {
         };
 
         if needs_initialising {
+            // Set up the default route if it's not already set
+            Self::set_up_default_route(core, &message_type);
+
             // Create a fake scene object for the 'initialise' routine (same core)
             let fake_scene = Scene::with_core(core);
 
             // Initialise the message type
             message_type.message_type().initialise_in_scene(&fake_scene).ok();
+
+            // Create any deferred connections that were added before we saw anything that uses the underlying type
+            let mut core_locked = core.lock().unwrap();
+
+            if let Some(deferred_connections) = core_locked.deferred_connections.remove(&message_type.message_type()) {
+                let mut invalidated = HashMap::new();
+
+                for (source, target, stream) in deferred_connections {
+                    if let Ok(new_invalidated) = core_locked.connectome.connect(&source, &target, stream) {
+                        invalidated.extend(new_invalidated)
+                    }
+                }
+
+                drop(core_locked);
+
+                Self::reconnect_invalidated_streams(core, invalidated);
+            }
         }
 
         Ok(())
@@ -430,7 +433,21 @@ impl SceneCore {
     /// Adds or updates a program connection in this core
     ///
     pub (crate) fn connect_programs(core: &Arc<Mutex<SceneCore>>, source: StreamSource, target: StreamTarget, stream_id: StreamId) -> Result<ConnectionResult, ConnectionError> {
-        Self::initialise_message_type(core, &stream_id).ok();
+        if Self::initialise_message_type(core, &stream_id).is_err() {
+            // Connect the message when the message type is fully initialised
+            let mut core_locked = core.lock().unwrap();
+
+            if !core_locked.initialised_message_types.contains(&stream_id.message_type()) {
+                // Message still not initialised: add to the deferred connections
+                core_locked.deferred_connections
+                    .entry(stream_id.message_type())
+                    .or_insert_with(|| vec![])
+                    .push((source.clone(), target.clone(), stream_id.clone()));
+
+                // Can't tell if this is an error or not
+                return Ok(ConnectionResult::Ready)
+            }
+        }
 
         if let StreamSource::Filtered(filter) = &source {
             Self::initialise_filter(core, filter.clone());
@@ -471,12 +488,12 @@ impl SceneCore {
     ///
     /// Invalidate and reconnect any streams affected by invalidation
     ///
-    fn reconnect_invalidated_streams(scene_core: &Arc<Mutex<SceneCore>>, invalidated: InvalidatedStreams) {
+    fn reconnect_invalidated_streams(scene_core: &Arc<Mutex<SceneCore>>, invalidated: impl IntoIterator<Item=(SubProgramId, StreamId)>) {
         // Connect any disconnected sinks in the affected programs/streams
         let mut scene_updates   = vec![];
 
-        for (source_program, stream) in invalidated.iter() {
-            let Some(program)       = scene_core.lock().unwrap().get_sub_program(*source_program) else { continue };
+        for (source_program, stream) in invalidated.into_iter() {
+            let Some(program)       = scene_core.lock().unwrap().get_sub_program(source_program) else { continue };
 
             // Copy the output sink cores that reference this program
             let output_sink_cores   = program.lock().unwrap().outputs
@@ -485,7 +502,7 @@ impl SceneCore {
                 .map(|(program_stream, core)| (program_stream.clone(), core.clone()))
                 .collect::<Vec<_>>();
 
-            let updates = Self::reconnect_output_sinks(scene_core, *source_program, output_sink_cores);
+            let updates = Self::reconnect_output_sinks(scene_core, source_program, output_sink_cores);
             scene_updates.extend(updates);
         }
 
