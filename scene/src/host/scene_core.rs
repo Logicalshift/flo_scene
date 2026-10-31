@@ -134,8 +134,30 @@ impl SceneCore {
     ///
     #[inline]
     pub (crate) fn initialise_message_type(core: &Arc<Mutex<SceneCore>>, message_type: StreamId) -> Result<(), ()> {
-        // TODO: error/panic if the type is not in StreamTypeFunctions
+        // Do not fully initialise the message type for types that have not been registered yet
         if !StreamTypeFunctions::contains(&message_type.message_type()) {
+            // Create the default connection for this message type in the connectome
+            let default_target = message_type.default_target().clone();
+
+            match default_target {
+                StreamTarget::Any => { /* No connection to set up */ }
+
+                StreamTarget::Filtered(filter_handle, program) => {
+                    let source_type = filter_handle.source_stream_id_any();
+                    let target_type = filter_handle.target_stream_id_any();
+
+                    // Initialise the filter types (target type will often be the same as our type, but we've marked it initialised so we won't init it again)
+                    if let Ok(source_type) = source_type { Self::initialise_message_type(core, source_type).ok(); }
+                    if let Ok(target_type) = target_type { Self::initialise_message_type(core, target_type).ok(); }
+
+                    core.lock().unwrap().connectome.connect(&().into(), &StreamTarget::Filtered(filter_handle, program), message_type.clone()).ok();
+                }
+
+                other => { 
+                    core.lock().unwrap().connectome.connect(&().into(), &other, message_type.clone()).ok();
+                }
+            }
+
             // Don't initialise messages until their type functions are ready to use
             return Err(());
         }
