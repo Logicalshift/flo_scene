@@ -1,4 +1,5 @@
 use crate::messages::errors::*;
+use crate::messages::serialization_id::*;
 
 use futures::future::{BoxFuture};
 use futures::stream::{BoxStream};
@@ -39,36 +40,6 @@ pub trait SerializationContext : Send + Sync {
 ///
 #[derive(Clone, Debug)]
 pub struct DisconnectedSerializationContext;
-
-impl SerializationId {
-    ///
-    /// Returns the 'opposite' of the current stream (converts 'MyStream' to 'TheirStream' and vice-vera)
-    ///
-    pub fn invert(&self) -> Self {
-        match self {
-            Self::MyStream(id)      => Self::TheirStream(*id),
-            Self::TheirStream(id)   => Self::MyStream(*id),
-        }
-    }
-
-    ///
-    /// Converts a serialization ID to one that's owned on 'this side' of the connection
-    ///
-    pub fn to_mine(&self) -> Self {
-        match self {
-            Self::MyStream(id) | Self::TheirStream(id) => Self::MyStream(*id)
-        }
-    }
-
-    ///
-    /// Converts a serialization ID to one that's owned on the 'other side' of the connection
-    ///
-    pub fn to_theirs(&self) -> Self {
-        match self {
-            Self::MyStream(id) | Self::TheirStream(id) => Self::TheirStream(*id)
-        }
-    }
-}
 
 impl SerializationContext for DisconnectedSerializationContext {
     fn send_stream(&self, stream: BoxStream<'static, Vec<u8>>) -> Result<SerializationId, SceneSendError<BoxStream<'static, Vec<u8>>>> {
