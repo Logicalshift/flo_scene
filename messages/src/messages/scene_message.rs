@@ -1,5 +1,6 @@
 use super::errors::*;
 use super::stream_target::*;
+use super::traits::*;
 
 use serde::*;
 
