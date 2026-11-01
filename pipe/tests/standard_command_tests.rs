@@ -99,7 +99,14 @@ where
 }
 
 #[test]
-fn send_command() {
+fn send_command_1() {
+    /// TestSucceeded message is used to indicate when a test has passed
+    #[derive(Serialize, Deserialize, Debug)]
+    struct SendCommandSucceeded { message: String }
+    impl SceneMessage for SendCommandSucceeded {
+        fn message_type_name() -> String { "test::SendCommandSucceeded".into() }
+    }
+
     let scene           = Scene::default().with_standard_json_commands();
     let internal_socket = SubProgramId::called("send_internal_socket");
     let test_program    = SubProgramId::called("send_test_program");
@@ -107,7 +114,7 @@ fn send_command() {
     // Set up the internal socket and the test case
     create_internal_command_socket(&scene, internal_socket);
     add_command_runner(&scene, internal_socket, 
-        r#"send { "Type": "test::TestSucceeded" }
+        r#"send { "Type": "test::SendCommandSucceeded" }
         { "message": "test 1" }
         { "message": "test 2" }
         "#, 
@@ -115,8 +122,40 @@ fn send_command() {
 
     // Create a test program that receives the TestSucceeded message
     TestBuilder::new()
-        .expect_message(|_: TestSucceeded| Ok(()))
-        .expect_message(|_: TestSucceeded| Ok(()))
+        .expect_message(|_: SendCommandSucceeded| Ok(()))
+        .expect_message(|_: SendCommandSucceeded| Ok(()))
+        .run_in_scene(&scene, test_program);
+}
+
+#[test]
+fn send_command_2() {
+    /// TestSucceeded message is used to indicate when a test has passed
+    #[derive(Serialize, Deserialize, Debug)]
+    struct SendCommandSucceeded2 { message: String }
+    impl SceneMessage for SendCommandSucceeded2 {
+        fn message_type_name() -> String { "test::SendCommandSucceeded2".into() }
+    }
+
+    let scene           = Scene::default().with_standard_json_commands();
+    let internal_socket = SubProgramId::called("send_internal_socket");
+    let test_program    = SubProgramId::called("send_test_program");
+
+    // Adding a subprogram initialises the message type (which makes the filter work)
+    scene.add_subprogram(SubProgramId::new(), |_input: InputStream<SendCommandSucceeded2>, _| async move { }, 5);
+ 
+    // Set up the internal socket and the test case
+    create_internal_command_socket(&scene, internal_socket);
+    add_command_runner(&scene, internal_socket, 
+        r#"send { "Type": "test::SendCommandSucceeded2" }
+        { "message": "test 1" }
+        { "message": "test 2" }
+        "#, 
+        |_, _| async { });
+
+    // Create a test program that receives the TestSucceeded message
+    TestBuilder::new()
+        .expect_message(|_: SendCommandSucceeded2| Ok(()))
+        .expect_message(|_: SendCommandSucceeded2| Ok(()))
         .run_in_scene(&scene, test_program);
 }
 
