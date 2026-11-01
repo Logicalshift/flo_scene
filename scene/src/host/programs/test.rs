@@ -1,4 +1,5 @@
 use crate::host::*;
+use crate::host::stream_type_functions::*;
 use super::control::*;
 use super::query::*;
 
@@ -205,6 +206,10 @@ impl TestBuilder {
     where
         TFuture: 'static + Send + Future<Output=Result<(), String>>,
     {
+        // Ensure that the type is registered
+        // TODO: add a way to register the type whenever a filter is created (a message type only encountered in filters might cause issues)
+        StreamTypeFunctions::add::<TMessage>();
+
         // Create a filter for the message type
         self.filters.entry(StreamId::with_message_type::<TMessage>())
             .or_insert_with(|| {
