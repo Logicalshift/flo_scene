@@ -1,10 +1,12 @@
-mod scene_message;
+mod errors;
 mod filter;
+mod scene_message;
 mod stream_id;
 mod stream_source;
 mod stream_target;
 mod subprogram_id;
 
+pub use errors::*;
 pub use scene_message::*;
 pub use filter::*;
 pub use stream_id::*;
