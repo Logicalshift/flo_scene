@@ -6,6 +6,8 @@ use std::any::*;
 use std::hash::*;
 use std::sync::*;
 
+use core::fmt;
+
 ///
 /// Identifies a stream produced by a subprogram 
 ///
