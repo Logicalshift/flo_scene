@@ -1,3 +1,4 @@
+mod connect_result;
 mod errors;
 mod filter;
 mod scene_message;
@@ -8,6 +9,7 @@ mod stream_target;
 mod subprogram_id;
 mod traits;
 
+pub use connect_result::*;
 pub use errors::*;
 pub use filter::*;
 pub use scene_message::*;
