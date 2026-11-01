@@ -11,5 +11,14 @@ pub mod messages;
 pub mod no_std;
 
 pub mod prelude {
-    use crate::messages::*;
+    pub use crate::messages::*;
+    pub use crate::no_std;
+
+    pub use uuid;
+    pub use serde;
+    #[cfg(feature="postcard")]
+    pub use postcard;
+    #[cfg(feature="json")]
+    pub use serde_json;
+
 }
