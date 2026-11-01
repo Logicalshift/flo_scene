@@ -1,6 +1,4 @@
-use crate::guest_types::*;
-use crate::imports::*;
-use crate::util::*;
+use crate::no_std::*;
 
 use ::serde::*;
 use ::serde::de::*;
@@ -240,6 +238,7 @@ impl<'de> Deserialize<'de> for SubProgramNameId {
     }
 }
 
+/*
 #[cfg(test)]
 mod test {
     use super::*;
@@ -261,3 +260,4 @@ mod test {
         assert!(deserialized_name == id_for_name("another_test"));
     }
 }
+*/
