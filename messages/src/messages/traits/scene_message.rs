@@ -1,6 +1,6 @@
-use super::errors::*;
-use super::stream_target::*;
-use super::traits::*;
+use crate::messages::errors::*;
+use crate::messages::stream_target::*;
+use super::serialization_context::*;
 
 use serde::*;
 
@@ -118,12 +118,6 @@ pub trait SceneMessage :
     /// commonly encountered when using dependency injection to link together a large program.
     ///
     fn default_target() -> StreamTarget { StreamTarget::Any }
-
-    ///
-    /// Sets up this message type in a scene. This can be an opportunity to set up default filters and connections for a
-    /// particular message type. This is called the first time that a message is referenced in a scene.
-    ///
-    fn initialise(init_context: &impl SceneInitialisationContext) { let _ = init_context; }
 
     ///
     /// True if input streams for this message type should allow thread stealing by default
