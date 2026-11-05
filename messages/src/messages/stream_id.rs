@@ -1,4 +1,4 @@
-use super::scene_message::*;
+use super::traits::*;
 use super::stream_target::*;
 use super::subprogram_id::*;
 
