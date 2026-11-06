@@ -6,26 +6,77 @@ use serde::*;
 use futures::prelude::*;
 
 use std::any::*;
+use std::sync::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static NEXT_SERIAL: AtomicUsize = AtomicUsize::new(0);
 
 ///
 /// Represents a filter from one stream type to another
 ///
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct FilterHandle {
+    /// Data associated with this filter
+    data: Arc<FilterData>,
 
+    /// Serial number that allows us to recognise clones of a filter
+    serial: usize,
+}
+
+///
+/// Internal data for a filter handle
+///
+struct FilterData {
+    /// The type of the items in the input stream
+    source_stream_id:   StreamId,
+
+    /// The type of the items in the output stream
+    target_stream_id:   StreamId,
+
+    /// Takes a boxed BoxSceneStream, and creates a boxed BoxStream (as Any) by applying this filter
+    create_stream:      Box<dyn 'static + Send + Sync + Fn(Box<dyn 'static + Send + Any>) -> Result<Box<dyn 'static + Send + Any>, ConnectionError>>,
 }
 
 impl FilterHandle {
     ///
     /// Creates a filter for a filtering function
     ///
-    pub fn for_filter<TSourceMessage, TTargetStream>(filter_fn: impl 'static + Send + Fn(BoxSceneStream<TSourceMessage>) -> TTargetStream) -> Self 
+    pub fn for_filter<TSourceMessage, TTargetStream>(filter_fn: impl 'static + Send + Sync + Fn(BoxSceneStream<TSourceMessage>) -> TTargetStream) -> Self 
     where
         TSourceMessage:         'static + Unpin + SceneMessage,
         TTargetStream:          'static + Send + Stream,
         TTargetStream::Item:    'static + SceneMessage,
     {
-        todo!()
+        // Assign a serial number to this new filter
+        let serial = NEXT_SERIAL.fetch_add(1, Ordering::Relaxed);
+
+        // Source & target IDs
+        let source_stream_id = StreamId::with_message_type::<TSourceMessage>();
+        let target_stream_id = StreamId::with_message_type::<TTargetStream::Item>();
+
+        // Create the factory function
+        let create_stream = move |boxed_stream: Box<dyn 'static + Send + Any>| {
+            // Turn the input stream back into a stream of the appropriate type
+            let Ok(input_stream)    = boxed_stream.downcast::<BoxSceneStream<TSourceMessage>>() else { return Err(ConnectionError::FilterInputDoesNotMatch) };
+            let input_stream        = *input_stream;
+
+            // Apply the filter function to generate the output
+            let output_stream                                   = filter_fn(input_stream).boxed();
+            let output_stream: Box<dyn 'static + Send + Any>    = Box::new(output_stream);
+
+            Ok(output_stream)
+        };
+        let create_stream = Box::new(create_stream);
+
+        // Put into a data structure
+        let data = FilterData {
+            source_stream_id, target_stream_id, create_stream,
+        };
+
+        Self {
+            data:   Arc::new(data),
+            serial: serial,
+        }
     }
 
     ///
