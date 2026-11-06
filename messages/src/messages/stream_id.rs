@@ -67,12 +67,16 @@ impl StreamId {
     where
         TMessageType: 'static + SceneMessage,
     {
-        StreamId {
+        let new_stream = StreamId {
             stream_id_type:         StreamIdType::MessageType,
             message_type_name:      type_name::<TMessageType>(),
             message_type:           TypeId::of::<TMessageType>(),
             default_target:         Arc::new(|| TMessageType::default_target()),
-        }
+        };
+
+        new_stream.install_serialization_names::<TMessageType>();
+
+        new_stream
     }
 
     ///
@@ -103,14 +107,14 @@ impl StreamId {
     /// The default target for this stream type
     ///
     #[inline]
-    pub (crate) fn default_target(&self) -> StreamTarget {
+    pub fn default_target(&self) -> StreamTarget {
         (self.default_target)()
     }
 
     ///
     /// The target that was requested when this stream was created (Any for streams that just specify a message type)
     ///
-    pub (crate) fn requested_target(&self) -> StreamTarget {
+    pub fn requested_target(&self) -> StreamTarget {
         match &self.stream_id_type {
             StreamIdType::MessageType       => StreamTarget::Any,
             StreamIdType::Target(target)    => target.clone(),
@@ -149,13 +153,15 @@ mod serialization {
 
     use serde::*;
 
+    use std::borrow::*;
+
     #[derive(Serialize, Deserialize)]
     enum SerializedStreamId {
         /// A known serializable type
-        Serializable { type_name: String, target: Option<SubProgramId> },
+        Serializable { type_name: Cow<'static, str>, target: Option<SubProgramId> },
 
         /// A Rust type, with the specified type name (note that this name may not be consistent between applications)
-        RustType { type_name: String, target: Option<SubProgramId> },
+        RustType { type_name: Cow<'static, str>, target: Option<SubProgramId> },
     }
 
     impl Serialize for StreamId {
@@ -166,7 +172,7 @@ mod serialization {
             let serialized = if let Some(serializable_name) = self.serialization_type_name() {
                 SerializedStreamId::Serializable { type_name: serializable_name, target: self.target_program() }
             } else {
-                SerializedStreamId::RustType { type_name: self.message_type_name(), target: self.target_program() }
+                SerializedStreamId::RustType { type_name: self.message_type_name().into(), target: self.target_program() }
             };
 
             serialized.serialize(serializer)
