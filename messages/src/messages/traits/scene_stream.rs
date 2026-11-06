@@ -4,6 +4,8 @@ use crate::messages::subprogram_id::*;
 use futures::prelude::*;
 use futures::stream::{BoxStream};
 
+use std::pin::*;
+
 ///
 /// Trait implemented by input streams for a flo_scene scene
 ///
@@ -20,4 +22,4 @@ where
 ///
 /// A SceneStream in a box
 ///
-pub type BoxSceneStream<TMessageType> = Box<dyn 'static + SceneStream<Item=TMessageType>>;
+pub type BoxSceneStream<TMessageType> = Pin<Box<dyn 'static + SceneStream<Item=TMessageType>>>;
