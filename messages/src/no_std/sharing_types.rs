@@ -103,7 +103,7 @@ mod one_thread_sharing_types {
 }
 
 #[cfg(feature="use-std")]
-pub (crate) use std_sharing_types::*;
+pub use std_sharing_types::*;
 
 #[cfg(all(feature="one-thread", not(feature="use-std")))]
-pub (crate) use one_thread_sharing_types::*;
+pub use one_thread_sharing_types::*;
