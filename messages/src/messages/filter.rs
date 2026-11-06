@@ -6,6 +6,8 @@ use serde::*;
 use futures::prelude::*;
 
 use std::any::*;
+use std::fmt::{Debug};
+use std::hash::{Hash, Hasher};
 use std::sync::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -112,5 +114,49 @@ impl FilterHandle {
         TSourceMessage: SceneMessage,
     {
         todo!()
+    }
+}
+
+impl PartialEq for FilterHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.serial == other.serial
+    }
+}
+
+impl Eq for FilterHandle {
+}
+
+impl Hash for FilterHandle {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.serial.hash(state)
+    }
+}
+
+impl Serialize for FilterHandle {
+    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer 
+    {
+        use serde::ser::{Error};
+        Err(S::Error::custom("Filters cannot be serialized"))
+    }
+}
+
+impl<'de> Deserialize<'de> for FilterHandle {
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de> 
+    {
+        use serde::de::{Error};
+        Err(D::Error::custom("Filters cannot be deserialized"))
+    }
+}
+
+impl Debug for FilterHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let source_stream_id = self.data.source_stream_id.clone();
+        let target_stream_id = self.data.target_stream_id.clone();
+
+        write!(f, "FilterHandle({}: {} -> {})", self.serial, source_stream_id.message_type_name(), target_stream_id.message_type_name())
     }
 }
