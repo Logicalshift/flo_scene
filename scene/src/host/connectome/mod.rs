@@ -7,5 +7,4 @@ mod cache;
 #[cfg(test)] mod test;
 
 pub use route::*;
-pub use invalidated_streams::*;
 pub use connectome::*;
