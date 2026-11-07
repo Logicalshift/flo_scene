@@ -39,3 +39,67 @@ where
         self.inner_stream.take().unwrap()
     }
 }
+
+impl<TStream, TMessage> SceneStreamWrapper<TStream>
+where
+    TStream:    'static + Send + Stream<Item=(SubProgramId, TMessage)>,
+{
+    ///
+    /// Transforms the message via a mapping function
+    ///
+    pub fn map<TTarget>(mut self, map_fn: impl 'static + Send + Fn(TMessage) -> TTarget) -> SceneStreamWrapper<impl Stream<Item=(SubProgramId, TTarget)>> {
+        let inner_stream = self.inner_stream.take().unwrap();
+        let inner_stream = inner_stream.map(move |(program, msg)| {
+            (program, map_fn(msg))
+        });
+
+        SceneStreamWrapper {
+            inner_stream: Some(Box::pin(inner_stream))
+        }
+    }
+
+    ///
+    /// Filters out messages that return false from a function
+    ///
+    pub fn filter(mut self, filter_fn: impl 'static + Send + Fn(&TMessage) -> bool) -> SceneStreamWrapper<impl Stream<Item=(SubProgramId, TMessage)>> {
+        let inner_stream = self.inner_stream.take().unwrap();
+        let inner_stream = inner_stream.filter(move |(_, msg)| {
+            future::ready(filter_fn(msg))
+        });
+
+        SceneStreamWrapper {
+            inner_stream: Some(Box::pin(inner_stream))
+        }
+    }
+
+    ///
+    /// Transforms the message via a mapping function, removing any items that return None
+    ///
+    pub fn filter_map<TTarget>(mut self, map_fn: impl 'static + Send + Fn(TMessage) -> Option<TTarget>) -> SceneStreamWrapper<impl Stream<Item=(SubProgramId, TTarget)>> {
+        let inner_stream = self.inner_stream.take().unwrap();
+        let inner_stream = inner_stream.filter_map(move |(program, msg)| {
+            future::ready(map_fn(msg).map(move |tgt| (program, tgt)))
+        });
+
+        SceneStreamWrapper {
+            inner_stream: Some(Box::pin(inner_stream))
+        }
+    }
+    
+    ///
+    /// Transforms the message via a mapping function
+    ///
+    pub fn flat_map<TTarget>(mut self, map_fn: impl 'static + Send + Fn(TMessage) -> TTarget) -> SceneStreamWrapper<impl Stream<Item=(SubProgramId, TTarget::Item)>>
+    where
+        TTarget: IntoIterator,
+    {
+        let inner_stream = self.inner_stream.take().unwrap();
+        let inner_stream = inner_stream.flat_map(move |(program, msg)| {
+            stream::iter(map_fn(msg).into_iter().map(move |tgt| (program.clone(), tgt)))
+        });
+
+        SceneStreamWrapper {
+            inner_stream: Some(Box::pin(inner_stream))
+        }
+    }
+}
