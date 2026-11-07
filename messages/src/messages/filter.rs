@@ -4,6 +4,7 @@ use super::traits::*;
 
 use serde::*;
 use futures::prelude::*;
+use futures::stream::{BoxStream};
 
 use std::any::*;
 use std::fmt::{Debug};
@@ -46,7 +47,7 @@ impl FilterHandle {
     pub fn for_filter<TSourceMessage, TTargetStream>(filter_fn: impl 'static + Send + Sync + Fn(BoxSceneStream<TSourceMessage>) -> TTargetStream) -> Self 
     where
         TSourceMessage:         'static + Unpin + SceneMessage,
-        TTargetStream:          'static + Send + SceneStream,
+        TTargetStream:          'static + Send + Stream,
         TTargetStream::Item:    'static + SceneMessage,
     {
         // Assign a serial number to this new filter
@@ -100,7 +101,7 @@ impl FilterHandle {
     ///
     /// Applies this filter to a source stream, returning a target stream
     ///
-    pub fn filter<TSourceMessage, TTargetMessage>(&self, source: impl 'static + SceneStream<Item=TSourceMessage>) -> Result<BoxSceneStream<TTargetMessage>, ConnectionError>
+    pub fn filter<TSourceMessage, TTargetMessage>(&self, source: impl 'static + SceneStream<Item=TSourceMessage>) -> Result<BoxStream<'static, TTargetMessage>, ConnectionError>
     where 
         TSourceMessage: SceneMessage,
         TTargetMessage: SceneMessage,
