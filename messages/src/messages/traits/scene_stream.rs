@@ -42,6 +42,6 @@ where
 {
     #[inline]
     fn messages_with_sources_boxed(self: Pin<Box<Self>>) -> BoxStream<'static, (SubProgramId, Self::Item)> {
-        (*Pin::into_inner(self)).messages_with_sources()        
+        (*Pin::into_inner(self)).messages_with_sources_boxed()        
     }
 }
