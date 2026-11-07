@@ -42,7 +42,7 @@ where
 
 impl<TStream, TMessage> SceneStreamWrapper<TStream>
 where
-    TStream:    'static + Send + Stream<Item=(SubProgramId, TMessage)>,
+    TStream: 'static + Send + Stream<Item=(SubProgramId, TMessage)>,
 {
     ///
     /// Transforms the message via a mapping function
@@ -85,7 +85,7 @@ where
             inner_stream: Some(Box::pin(inner_stream))
         }
     }
-    
+
     ///
     /// Transforms the message via a mapping function
     ///
