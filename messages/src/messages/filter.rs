@@ -118,7 +118,7 @@ impl FilterHandle {
     where 
         TSourceMessage: SceneMessage,
     {
-        let source = Box::new(source.boxed());
+        let source = Box::new(source.into_box());
         (self.data.create_stream)(source)
     }
 }

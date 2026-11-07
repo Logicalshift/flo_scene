@@ -45,7 +45,7 @@ pub trait SceneStreamExt : Send + Stream {
     ///
     /// Puts this stream into a box
     ///
-    fn boxed(self) -> BoxSceneStream<Self::Item>
+    fn into_box(self) -> BoxSceneStream<Self::Item>
     where
         Self: 'static + Sized;
 }
@@ -64,7 +64,7 @@ where
     }
 
     #[inline]
-    fn boxed(self) -> BoxSceneStream<Self::Item>
+    fn into_box(self) -> BoxSceneStream<Self::Item>
     where
         Self: 'static + Sized,
     {
