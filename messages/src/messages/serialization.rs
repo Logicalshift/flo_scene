@@ -15,7 +15,6 @@ static STREAM_ID_FOR_SERIALIZABLE_TYPE: LazyLock<RwLock<HashMap<Cow<'static, str
 /// The stream ID for a rust type name
 static STREAM_ID_FOR_RUST_TYPE: LazyLock<RwLock<HashMap<Cow<'static, str>, StreamId>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
-
 impl StreamId {
     #[inline]
     pub (super) fn install_serialization_names<TMessageType>(&self)

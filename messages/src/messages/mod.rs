@@ -1,6 +1,7 @@
 mod connect_result;
 mod errors;
 mod filter;
+mod scene_stream_wrapper;
 mod serialization;
 mod serialization_id;
 mod stream_id;
@@ -12,6 +13,7 @@ mod traits;
 pub use connect_result::*;
 pub use errors::*;
 pub use filter::*;
+pub use scene_stream_wrapper::*;
 pub use serialization::*;
 pub use serialization_id::*;
 pub use stream_id::*;

@@ -9,6 +9,11 @@ use std::pin::*;
 ///
 /// Trait implemented by input streams for a flo_scene scene
 ///
+/// These are streams of messages along with their sender which hide the sender information unless specifically requested. Normally
+/// a subprogram shouldn't use information about the sender to decide what to do with a message - ie, if a message sends another message
+/// in response to a message, it should send it to a requested target and not back to the sender. To enforce this design constraint,
+/// flo_scene hides the sender unless it's specifically requested in a stream.
+///
 pub trait SceneStream : Send + Stream 
 where 
     Self::Item: SceneMessage,
