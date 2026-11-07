@@ -46,7 +46,7 @@ impl FilterHandle {
     pub fn for_filter<TSourceMessage, TTargetStream>(filter_fn: impl 'static + Send + Sync + Fn(BoxSceneStream<TSourceMessage>) -> TTargetStream) -> Self 
     where
         TSourceMessage:         'static + Unpin + SceneMessage,
-        TTargetStream:          'static + Send + Stream,
+        TTargetStream:          'static + Send + SceneStream,
         TTargetStream::Item:    'static + SceneMessage,
     {
         // Assign a serial number to this new filter
