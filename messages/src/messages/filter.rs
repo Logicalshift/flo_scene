@@ -84,15 +84,17 @@ impl FilterHandle {
     ///
     /// Returns the type of message that this filter reads from
     ///
+    #[inline]
     pub fn source_stream_id(&self) -> StreamId {
-        todo!()
+        self.data.source_stream_id.clone()
     }
 
     ///
     /// Returns the type of message that this filter writes
     ///
+    #[inline]
     pub fn target_stream_id(&self) -> StreamId {
-        todo!()
+        self.data.target_stream_id.clone()
     }
 
     ///
@@ -103,7 +105,10 @@ impl FilterHandle {
         TSourceMessage: SceneMessage,
         TTargetMessage: SceneMessage,
     {
-        todo!()
+        let filter_any = self.filter_any::<TSourceMessage>(source)?;
+        let Ok(filter) = filter_any.downcast() else { return Err(ConnectionError::FilterOutputDoesNotMatch); };
+
+        Ok(*filter)
     }
 
     ///
@@ -113,7 +118,8 @@ impl FilterHandle {
     where 
         TSourceMessage: SceneMessage,
     {
-        todo!()
+        let source = Box::new(source);
+        (self.data.create_stream)(source)
     }
 }
 
