@@ -11,7 +11,7 @@ use std::pin::*;
 ///
 pub struct SceneStreamWrapper<TStream> {
     /// The (SubProgramId, TMessage) stream that this is based on
-    inner_stream: Option<Pin<Box<TStream>>>,
+    pub (super) inner_stream: Option<Pin<Box<TStream>>>,
 }
 
 impl<TStream, TMessage> Stream for SceneStreamWrapper<TStream>

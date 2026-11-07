@@ -1,4 +1,5 @@
 use super::scene_message::*;
+use crate::messages::scene_stream_wrapper::*;
 use crate::messages::subprogram_id::*;
 
 use futures::prelude::*;
@@ -74,5 +75,29 @@ where
         Self: 'static + Sized,
     {
         Box::pin(self)
+    }
+}
+
+pub trait ToSceneStreamExt : Send + Stream {
+    ///
+    /// Converts this stream to a SceneStream
+    ///
+    fn to_scene_stream(self) -> SceneStreamWrapper<Self>
+    where 
+        Self: 'static + Sized;
+}
+
+impl<TStream, TMessage> ToSceneStreamExt for TStream
+where
+    TStream:    'static + Send + Stream<Item=(SubProgramId, TMessage)>,
+    TMessage:   'static + SceneMessage,
+{
+    fn to_scene_stream(self) -> SceneStreamWrapper<Self>
+    where 
+        Self: 'static + Sized,
+    {
+        SceneStreamWrapper {
+            inner_stream: Some(Box::pin(self))
+        }
     }
 }
