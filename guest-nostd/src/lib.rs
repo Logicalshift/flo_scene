@@ -15,10 +15,9 @@
 extern crate alloc;
 
 pub mod exports;
-pub mod imports;
 pub mod guest_types;
+pub mod imports;
 pub mod host_types;
-pub mod errors;
 pub mod runtime;
 pub mod util;
 
@@ -31,3 +30,5 @@ pub use guest_types::*;
 pub use host_types::*;
 pub use runtime::{GuestRuntime};
 pub use exports::{register_runtime};
+
+pub use flo_scene_messages::prelude as messages;
