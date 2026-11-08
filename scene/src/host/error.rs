@@ -1,9 +1,8 @@
-pub use flo_scene_guest::errors::*;
-
 #[cfg(feature="tokio_support")]
 mod tokio_errors {
-    use super::*;
     use tokio::io::{Error, ErrorKind};
+
+    pub use flo_scene_messages::errors::*;
 
     pub trait ConnectionErrorTokioExt {
         fn to_connection_error(self) -> ConnectionError;

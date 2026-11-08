@@ -1,7 +1,7 @@
-use crate::host::scene_message::*;
 use crate::host::error::*;
 use crate::host::serialization_context::*;
 
+use flo_scene_messages::prelude::*;
 pub use flo_scene_guest::guest_types::{SceneGuestMessage};
 
 ///

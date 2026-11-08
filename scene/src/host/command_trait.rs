@@ -1,7 +1,7 @@
 use crate::host::input_stream::*;
 use crate::host::scene_context::*;
-use crate::host::scene_message::*;
 use crate::host::commands::*;
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 

@@ -1,18 +1,14 @@
 use crate::host::error::*;
-use crate::host::filter::*;
 use crate::host::initialisation_context::*;
 use crate::host::input_stream::*;
 use crate::host::output_sink::*;
 use crate::host::scene::*;
 use crate::host::scene_context::*;
 use crate::host::scene_core::*;
-use crate::host::scene_message::*;
 use crate::host::serialization::*;
-use crate::host::serialization_context::*;
-use crate::host::stream_source::*;
-use crate::host::stream_target::*;
-use crate::host::subprogram_id::*;
 use crate::host::programs::{SceneControl};
+
+use flo_scene_messages::prelude::*;
 
 #[cfg(feature="guest_programs")]
 use crate::guest::*;

@@ -4,7 +4,8 @@ use crate::host::input_stream::*;
 use crate::host::scene::*;
 use crate::host::scene_core::*;
 use crate::host::scene_context::*;
-use crate::host::subprogram_id::*;
+
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};

@@ -1,12 +1,9 @@
 use crate::host::error::*;
-use crate::host::filter::*;
 use crate::host::scene::*;
 use crate::host::scene_context::*;
-use crate::host::scene_message::*;
-use crate::host::stream_target::*;
-use crate::host::stream_id::*;
-use crate::host::subprogram_id::*;
 use crate::host::programs::*;
+
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 use futures::stream;
@@ -381,28 +378,5 @@ impl<'a, TSerializer> Deref for SceneWithSerializer<'a, TSerializer> {
 
     fn deref(&self) -> &Self::Target {
         self.0
-    }
-}
-
-impl StreamId {
-    ///
-    /// If this stream can be serialized, then this is the serialization type name that can be used to specify it
-    ///
-    pub fn serialization_type_name(&self) -> Option<String> {
-        (*SERIALIZABLE_MESSAGE_TYPE_NAMES).read().unwrap().get(&self.message_type()).cloned()
-    }
-
-    ///
-    /// Changes a serialization name into a stream ID
-    ///
-    pub fn with_serialization_type(type_name: impl Into<String>) -> Option<Self> {
-        (*STREAM_ID_FOR_SERIALIZABLE_TYPE).read().unwrap().get(&type_name.into()).cloned()
-    }
-
-    ///
-    /// Changes a serialization name into a stream ID
-    ///
-    pub fn with_rust_type(type_name: impl Into<String>) -> Option<Self> {
-        (*STREAM_ID_FOR_RUST_TYPE).read().unwrap().get(&type_name.into()).cloned()
     }
 }
