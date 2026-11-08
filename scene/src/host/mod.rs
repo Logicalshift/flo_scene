@@ -13,6 +13,7 @@ pub (crate) mod thread_stealer;
 pub (crate) mod command_trait;
 pub (crate) mod serialization;
 pub (crate) mod serialization_context;
+pub (crate) mod single_source_stream;
 
 pub mod programs;
 pub mod commands;
