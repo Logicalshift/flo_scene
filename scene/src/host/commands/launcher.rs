@@ -1,12 +1,13 @@
 use crate::host::input_stream::*;
 use crate::host::programs::*;
 use crate::host::scene_context::*;
-use crate::host::scene_message::*;
 use super::error::*;
 use super::fn_command::*;
 use super::list_commands::*;
 use super::describe_command::*;
 use super::run_command::*;
+
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};

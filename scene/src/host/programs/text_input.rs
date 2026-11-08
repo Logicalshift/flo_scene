@@ -1,8 +1,9 @@
 use crate::host::*;
 use super::text_output::*;
-
 use super::control::*;
 use super::control_ext::*;
+
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc;

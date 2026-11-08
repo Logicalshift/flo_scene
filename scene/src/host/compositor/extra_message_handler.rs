@@ -1,8 +1,8 @@
 use crate::compositor::either_message::*;
 use crate::host::input_stream::*;
 use crate::host::scene_context::*;
-use crate::host::scene_message::*;
-use crate::host::subprogram_id::*;
+
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};

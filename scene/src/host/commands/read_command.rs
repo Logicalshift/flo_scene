@@ -1,7 +1,8 @@
 use crate::host::command_trait::*;
 use crate::host::input_stream::*;
 use crate::host::scene_context::*;
-use crate::host::scene_message::*;
+
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 

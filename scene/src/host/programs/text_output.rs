@@ -3,6 +3,8 @@ use crate::host::*;
 use super::control::*;
 use super::control_ext::*;
 
+use flo_scene_messages::prelude::*;
+
 use futures::prelude::*;
 use futures::{pin_mut};
 use once_cell::sync::{Lazy};

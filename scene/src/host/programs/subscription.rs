@@ -2,9 +2,9 @@ use crate::host::error::*;
 use crate::host::output_sink::*;
 use crate::host::initialisation_context::*;
 use crate::host::scene_context::*;
-use crate::host::scene_message::*;
 use crate::host::serialization::*;
-use crate::host::stream_target::*;
+
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 

@@ -1,6 +1,6 @@
-use crate::host::scene_message::*;
-use crate::host::stream_target::*;
 use crate::host::programs::*;
+
+use flo_scene_messages::prelude::*;
 
 use serde::*;
 

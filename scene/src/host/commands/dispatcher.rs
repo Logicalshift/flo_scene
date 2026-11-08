@@ -5,9 +5,9 @@ use super::error::*;
 use super::describe_command::*;
 use crate::host::input_stream::*;
 use crate::host::scene_context::*;
-use crate::host::scene_message::*;
-use crate::host::subprogram_id::*;
 use crate::host::programs::*;
+
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 use serde::*;

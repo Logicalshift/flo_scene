@@ -1,5 +1,4 @@
-use crate::host::stream_id::*;
-use crate::host::stream_target::*;
+use flo_scene_messages::prelude::*;
 
 use flo_scene_guest::guest_types::*;
 

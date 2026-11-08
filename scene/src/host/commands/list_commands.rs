@@ -1,4 +1,4 @@
-use crate::host::scene_message::*;
+use flo_scene_messages::prelude::*;
 
 use serde::*;
 
