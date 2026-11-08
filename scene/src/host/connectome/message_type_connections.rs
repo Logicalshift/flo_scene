@@ -135,12 +135,12 @@ impl MessageTypeConnections {
     ///
     pub (super) fn add_source_filter(&mut self, source_filter: &FilterHandle) -> Result<(), ConnectionError> {
         // Check the input type
-        if source_filter.source_stream_id_any()?.message_type() != self.message_type {
+        if source_filter.source_stream_id().message_type() != self.message_type {
             return Err(ConnectionError::FilterInputDoesNotMatch);
         }
 
         // Add to the filters list (we retain only one source per target type, newer ones overwrite older ones)
-        let target_type = source_filter.target_stream_id_any()?.message_type();
+        let target_type = source_filter.target_stream_id().message_type();
 
         self.source_filters.retain(|(filter_type, _)| filter_type != &target_type);
         self.source_filters.push((target_type, source_filter.clone()));

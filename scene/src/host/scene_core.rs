@@ -140,16 +140,16 @@ impl SceneCore {
             StreamTarget::Any => { drop(core); /* No connection to set up */ }
 
             StreamTarget::Filtered(filter, target_program) => {
-                let source_stream = filter.source_stream_id_any();
-                let target_stream = filter.target_stream_id_any();
+                let source_stream = filter.source_stream_id();
+                let target_stream = filter.target_stream_id();
 
                 // Connect the filter
                 core.connectome.connect(&().into(), &StreamTarget::Filtered(filter, target_program), message_type.clone()).ok();
                 drop(core);
 
                 // Initialise the filter message types if there are any
-                if let Ok(source_stream) = source_stream { Self::initialise_message_type(scene_core, &source_stream).ok(); }
-                if let Ok(target_stream) = target_stream { Self::initialise_message_type(scene_core, &target_stream).ok(); }
+                Self::initialise_message_type(scene_core, &source_stream).ok();
+                Self::initialise_message_type(scene_core, &target_stream).ok();
             }
 
             other => { 
@@ -443,13 +443,8 @@ impl SceneCore {
     /// Ensures that the source and target of a filter are initialised
     ///
     fn initialise_filter(core: &Arc<Mutex<SceneCore>>, filter_handle: FilterHandle) {
-        if let Ok(source_stream) = filter_handle.source_stream_id_any() {
-            Self::initialise_message_type(core, &source_stream).ok();
-        }
-
-        if let Ok(target_stream) = filter_handle.target_stream_id_any() {
-            Self::initialise_message_type(core, &target_stream).ok();
-        }
+        Self::initialise_message_type(core, &filter_handle.source_stream_id()).ok();
+        Self::initialise_message_type(core, &filter_handle.target_stream_id()).ok();
     }
 
     ///
@@ -593,8 +588,8 @@ impl SceneCore {
                 // The target stream will be the output of the last filter
                 let filters = route.filters().collect::<Vec<_>>();
                 let stream  = filters
-                    .last().map(|last_filter| last_filter.target_stream_id_any())
-                    .unwrap_or_else(|| Ok(StreamId::with_message_type::<TMessageType>()))?;
+                    .last().map(|last_filter| last_filter.target_stream_id())
+                    .unwrap_or_else(|| StreamId::with_message_type::<TMessageType>());
 
                 // Start with the input for the target program
                 let mut target_input        = self.get_target_input(&target_program, &stream)?;

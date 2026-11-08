@@ -203,7 +203,7 @@ impl Connectome {
                     self.filters.extend(route.filters().cloned());
 
                     if let Some(last_filter) = self.filters.last() {
-                        self.stream = last_filter.target_stream_id_any()?;
+                        self.stream = last_filter.target_stream_id();
                     }
 
                     Ok(Some(self))
@@ -296,8 +296,8 @@ impl Connectome {
     /// Routes from the result of a filter
     ///
     fn filtered_route(&self, stream: &StreamId, source_program: SubProgramId, filter: &FilterHandle, target_program: SubProgramId) -> Result<(ConnectionRoute, StreamTarget), ConnectionError> {
-        let source_type = filter.source_stream_id_any()?;
-        let target_type = filter.target_stream_id_any()?;
+        let source_type = filter.source_stream_id();
+        let target_type = filter.target_stream_id();
 
         if source_type.message_type() != stream.message_type() { return Err(ConnectionError::FilterInputDoesNotMatch) }
 
@@ -377,8 +377,8 @@ impl Connectome {
     /// Ensures that all the types for a filter are created
     ///
     fn create_filter_types(&mut self, filter: &FilterHandle) -> Result<(), ConnectionError> {
-        let source_type = filter.source_stream_id_any()?;
-        let target_type = filter.target_stream_id_any()?;
+        let source_type = filter.source_stream_id();
+        let target_type = filter.target_stream_id();
 
         self.connections_for_message_type.entry(source_type.message_type())
             .or_insert_with(|| MessageTypeConnections::with_message_type(&source_type));
@@ -444,7 +444,7 @@ impl Connectome {
                 (StreamSource::Filtered(_), StreamTarget::None)                             => { /* TODO: connect to None if the source filter is matched? */ },
                 (StreamSource::Filtered(filter), StreamTarget::Any)                         => {
                     // Add as a source filter to the current type
-                    let target = filter.target_stream_id_any()?;
+                    let target = filter.target_stream_id();
                     connection.add_source_filter(filter)?;
                     
                     // Add as a back reference to the target type
@@ -454,7 +454,7 @@ impl Connectome {
                 },
                 (StreamSource::Filtered(filter), StreamTarget::Program(program))            => {
                     // This is just a target filter written in a different way
-                    let source      = filter.source_stream_id_any()?;
+                    let source      = filter.source_stream_id();
                     let connection  = self.connections_for_message_type.entry(source.message_type())
                         .or_insert_with(|| MessageTypeConnections::with_message_type(&source));
 
@@ -462,7 +462,7 @@ impl Connectome {
                 },
                 (StreamSource::Filtered(filter1), StreamTarget::Filtered(filter2, program)) => {
                     // Combine the filters to make a target filter
-                    let source      = filter1.source_stream_id_any()?;
+                    let source      = filter1.source_stream_id();
                     let connection  = self.connections_for_message_type.entry(source.message_type())
                         .or_insert_with(|| MessageTypeConnections::with_message_type(&source));
 
@@ -660,14 +660,12 @@ impl Connectome {
                 // Follow the connections for this program
                 if let Some(source) = source && let Some(StreamTarget::Filtered(filter_handle, next_target)) = connections.direct_target_for_messages(source, target_program) {
                     // Follow this filter to see if the target program can be reached
-                    if let Ok(target_type) = filter_handle.target_stream_id_any().map(|stream| stream.message_type()) {
-                        to_visit.push((target_type, Some(next_target), RouteType::Direct))
-                    }
+                    let target_type = filter_handle.target_stream_id().message_type();
+                    to_visit.push((target_type, Some(next_target), RouteType::Direct))
                 } else if let Some(StreamTarget::Filtered(filter_handle, next_target)) = connections.general_target_for_program(target_program) {
                     // Follow this filter to see if the target program can be reached
-                    if let Ok(target_type) = filter_handle.target_stream_id_any().map(|stream| stream.message_type()) {
-                        to_visit.push((target_type, Some(next_target), RouteType::Direct))
-                    }
+                    let target_type = filter_handle.target_stream_id().message_type();
+                    to_visit.push((target_type, Some(next_target), RouteType::Direct))
                 }
             } else {
                 // Also follow the default route for this stream type (will indicate target filters that can be used)
@@ -675,9 +673,8 @@ impl Connectome {
                 match default_route {
                     Some(StreamTarget::Filtered(filter_handle, program_id)) => {
                         // Follow this filter to see if the target program can be reached
-                        if let Ok(target_type) = filter_handle.target_stream_id_any().map(|stream| stream.message_type()) {
-                            to_visit.push((target_type, Some(program_id), RouteType::Direct))
-                        }
+                        let target_type = filter_handle.target_stream_id().message_type();
+                        to_visit.push((target_type, Some(program_id), RouteType::Direct))
                     }
 
                     Some(StreamTarget::Program(program_id)) => {
