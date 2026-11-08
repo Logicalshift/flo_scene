@@ -1,4 +1,3 @@
-use crate::guest_types::*;
 use crate::util::*;
 
 use futures::prelude::*;
