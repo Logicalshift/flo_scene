@@ -115,7 +115,7 @@ impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryRespons
         };
 
         filters.for_each(|filter| {
-            scene.connect_programs(&filter, (), filter.source_stream_id_any().unwrap()).ok();
+            scene.connect_programs(&filter, (), filter.source_stream_id()).ok();
         });
     }
 

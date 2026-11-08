@@ -406,14 +406,14 @@ impl Connectome {
         if let StreamSource::Filtered(filter) = source {
             self.create_filter_types(filter)?;
 
-            if filter.source_stream_id_any()?.message_type() != stream.message_type() {
+            if filter.source_stream_id().message_type() != stream.message_type() {
                 return Err(ConnectionError::FilterInputDoesNotMatch);
             }
         }
         if let StreamTarget::Filtered(filter, _) = target {
             self.create_filter_types(filter)?;
 
-            if filter.source_stream_id_any()?.message_type() != stream.message_type() {
+            if filter.source_stream_id().message_type() != stream.message_type() {
                 return Err(ConnectionError::FilterInputDoesNotMatch);
             }
         }
