@@ -1,4 +1,4 @@
-use crate::messages::errors::*;
+use crate::errors::*;
 use crate::messages::stream_target::*;
 use super::serialization_context::*;
 

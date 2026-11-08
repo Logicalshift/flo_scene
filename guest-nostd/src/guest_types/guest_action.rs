@@ -1,7 +1,8 @@
 use super::sink::*;
 use super::subprogram_handle::*;
 use crate::host_types::*;
-use crate::errors::*;
+
+use flo_scene_messages::errors::*;
 
 use alloc::vec::*;
 

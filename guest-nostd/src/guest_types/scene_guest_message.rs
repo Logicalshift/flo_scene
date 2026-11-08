@@ -1,5 +1,6 @@
-use crate::errors::*;
 use crate::util::*;
+
+use flo_scene_messages::errors::*;
 
 use serde::*;
 

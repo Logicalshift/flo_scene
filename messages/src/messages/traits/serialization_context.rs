@@ -1,4 +1,4 @@
-use crate::messages::errors::*;
+use crate::errors::*;
 use crate::messages::serialization_id::*;
 
 use futures::future::{BoxFuture};

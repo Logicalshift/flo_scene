@@ -8,10 +8,12 @@
 #[macro_use]
 extern crate alloc;
 
+pub mod errors;
 pub mod messages;
 pub mod no_std;
 
 pub mod prelude {
+    pub use crate::errors::*;
     pub use crate::messages::*;
     pub use crate::no_std;
 

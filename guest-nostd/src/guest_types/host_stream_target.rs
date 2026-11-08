@@ -1,7 +1,8 @@
-use crate::errors::*;
 use crate::host_types::*;
 use super::host_stream_id::*;
 use super::scene_guest_message::*;
+
+use flo_scene_messages::errors::*;
 
 use serde::*;
 

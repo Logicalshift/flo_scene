@@ -1,8 +1,9 @@
-use crate::errors::*;
 use crate::guest_types::*;
 use crate::host_types::*;
 use super::core::*;
 use super::serialization_context::*;
+
+use flo_scene_messages::errors::*;
 
 use futures::prelude::*;
 
