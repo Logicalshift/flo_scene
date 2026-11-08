@@ -5,6 +5,7 @@ use crate::host::output_sink::*;
 use crate::host::scene::*;
 use crate::host::scene_context::*;
 use crate::host::scene_core::*;
+use crate::host::single_source_stream::*;
 use crate::host::serialization::*;
 use crate::host::programs::{SceneControl};
 
@@ -35,6 +36,7 @@ type UnblockForIdleFn           = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync 
 type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>>;
 type ReconnectSinkFn            = Arc<dyn Send + Sync + Fn(&Arc<Mutex<SceneCore>>, &Arc<dyn Send + Sync + Any>, SubProgramId, StreamTarget) -> Result<Option<Waker>, ConnectionError>>;
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
+type ChainFilterFn              = Arc<dyn Send + Sync + Fn(&FilterHandle, Box<dyn Send + Any>, SubProgramId) -> Result<(Box<dyn Send + Any>, StreamId), ConnectionError>>;
 type SendGuestMessagesFn        = Arc<dyn Send + Sync + Fn(StreamTarget, &SceneContext, Box<dyn SerializationContext>) -> Result<Box<dyn 'static + Send + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>, ConnectionError>>;
 
 #[cfg(feature="guest_programs")]
@@ -86,6 +88,9 @@ pub (crate) struct StreamTypeFunctions {
 
     /// Initialises the message type inside a scene
     initialise: InitialiseFn,
+
+    /// Takes the output of a filter (a boxed `BoxStream` of this message type) and passes it through another filter
+    chain_filter: ChainFilterFn,
 }
 
 impl StreamTypeFunctions {
@@ -269,6 +274,19 @@ impl StreamTypeFunctions {
                 let mut init_context = SceneInitialisationContext::with_core(scene.core());
                 TMessageType::initialise(&mut init_context)
             }),
+
+            chain_filter: Arc::new(|filter, filter_output, source_program_id| {
+                // The output of a filter is a BoxStream of the message type
+                let filter_output = filter_output.downcast::<BoxStream<'static, TMessageType>>().map_err(|_| ConnectionError::FilterInputDoesNotMatch)?;
+
+                // Filters read from SceneStreams, so treat the messages as if they came from the source program
+                let filter_input = SingleSourceStream::from_stream(*filter_output, source_program_id);
+
+                // Apply the next filter
+                let next_output = filter.filter_any(filter_input)?;
+
+                Ok((next_output, filter.target_stream_id()))
+            }),
         }
     }
 
@@ -386,6 +404,13 @@ impl StreamTypeFunctions {
 
         stream_type_functions.get(type_id)
             .map(|all_functions| Arc::clone(&all_functions.initialise))
+    }
+
+    pub fn chain_filter(type_id: &TypeId) -> Option<ChainFilterFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.chain_filter))
     }
 }
 
@@ -631,8 +656,18 @@ impl StreamTypeFunctionsExt for TypeId {
     ///
     /// Sends the output of one filter through another filter
     ///
+    /// `self` is the message type produced by the previous filter, and `output_scene_stream` is that filter's output (a boxed
+    /// `BoxStream` of that message type). The return value is the output of the new filter and the stream ID it produces.
+    ///
     fn chain_filter(&self, filter: &FilterHandle, output_scene_stream: Box<dyn Send + Any>, source_program_id: SubProgramId) -> Result<(Box<dyn Send + Any>, StreamId), ConnectionError> {
-        todo!()
+        let message_type = *self;
+
+        if let Some(chain_filter) = StreamTypeFunctions::chain_filter(&message_type) {
+            (chain_filter)(filter, output_scene_stream, source_program_id)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
     }
 }
 
