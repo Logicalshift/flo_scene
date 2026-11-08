@@ -2,7 +2,8 @@ use super::host_stream_id::*;
 use super::host_stream_target::*;
 use super::sink::*;
 use super::subprogram_handle::*;
-use crate::host_types::*;
+
+use flo_scene_messages::prelude::*;
 
 use serde::*;
 

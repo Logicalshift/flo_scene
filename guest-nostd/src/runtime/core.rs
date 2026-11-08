@@ -1,12 +1,11 @@
 use crate::guest_types::*;
-use crate::host_types::*;
 use crate::util::*;
 use super::input_stream::*;
 use super::input_stream_core::*;
 use super::serialization_context::*;
 use super::stream_core::*;
 
-use flo_scene_messages::errors::*;
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 use futures::future::{BoxFuture};

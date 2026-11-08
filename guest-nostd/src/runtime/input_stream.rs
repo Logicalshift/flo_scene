@@ -1,4 +1,5 @@
 use crate::guest_types::*;
+use crate::util::*;
 use super::core::*;
 use super::input_stream_core::*;
 use super::serialization_context::*;

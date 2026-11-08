@@ -1,9 +1,9 @@
 use crate::guest_types::*;
-use crate::host_types::*;
 use crate::util::*;
 use super::core::*;
 
 use flo_scene_messages::errors::*;
+use flo_scene_messages::messages::*;
 
 use futures::prelude::*;
 use futures::stream::{BoxStream};

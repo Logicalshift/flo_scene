@@ -17,7 +17,6 @@ extern crate alloc;
 pub mod exports;
 pub mod guest_types;
 pub mod imports;
-pub mod host_types;
 pub mod runtime;
 pub mod util;
 
@@ -27,7 +26,6 @@ pub use futures;
 pub use uuid;
 
 pub use guest_types::*;
-pub use host_types::*;
 pub use runtime::{GuestRuntime};
 pub use exports::{register_runtime};
 
