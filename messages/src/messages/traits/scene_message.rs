@@ -1,5 +1,6 @@
 use crate::errors::*;
 use crate::messages::stream_target::*;
+use super::initialisation_context::*;
 use super::serialization_context::*;
 
 use serde::*;
@@ -106,6 +107,14 @@ pub trait SceneMessage :
     Serialize               +
     for<'a> Deserialize<'a> + 
 {
+    ///
+    /// Called when this message type is first encountered in a scene. The InitialisationContext can be used to retrieve
+    /// initialisers for setting up this type in the scene.
+    ///
+    fn initialise(context: &mut impl InitialisationContext) {
+        let _ = context;
+    }
+
     ///
     /// The default target for this message type
     ///

@@ -1,5 +1,5 @@
 pub (crate) mod error;
-pub (crate) mod initialisation_context;
+pub (crate) mod scene_initialisation_context;
 pub (crate) mod scene;
 pub (crate) mod scene_core;
 pub (crate) mod connectome;
@@ -19,7 +19,7 @@ pub mod commands;
 pub mod compositor;
 
 pub use scene::*;
-pub use initialisation_context::*;
+pub use scene_initialisation_context::*;
 pub use scene_context::*;
 pub use input_stream::*;
 pub use output_sink::*;
