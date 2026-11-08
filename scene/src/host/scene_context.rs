@@ -83,7 +83,7 @@ impl SceneContext {
                 StreamTarget::None                      => StreamId::with_message_type::<TMessageType>(),
                 StreamTarget::Any                       => StreamId::with_message_type::<TMessageType>(),
                 StreamTarget::Program(prog_id)          => StreamId::with_message_type::<TMessageType>().for_target(*prog_id),
-                StreamTarget::Filtered(filter, prog_id) => filter.target_stream_id(*prog_id)?,
+                StreamTarget::Filtered(filter, prog_id) => filter.target_stream_id().for_target(*prog_id),
             };
 
             // Try to re-use an existing target
