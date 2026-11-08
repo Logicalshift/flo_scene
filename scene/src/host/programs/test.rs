@@ -216,7 +216,7 @@ impl TestBuilder {
         // Create a filter for the message type
         self.filters.entry(StreamId::with_message_type::<TMessage>())
             .or_insert_with(|| {
-                FilterHandle::for_filter(|source_stream: InputStream<TMessage>| source_stream.map(|msg| TestRequest::AnyMessage(Box::new(msg))))
+                FilterHandle::for_filter(|source_stream: BoxSceneStream<TMessage>| source_stream.map(|msg| TestRequest::AnyMessage(Box::new(msg))))
             });
 
         // Add an action to receive the message from the target
@@ -308,7 +308,7 @@ impl TestBuilder {
         // Create a filter for the message type
         let filter_handle = self.filters.entry(StreamId::with_message_type::<TMessage>())
             .or_insert_with(|| {
-                FilterHandle::for_filter(|source_stream: InputStream<TMessage>| source_stream.map(|msg| TestRequest::AnyMessage(Box::new(msg))))
+                FilterHandle::for_filter(|source_stream: BoxSceneStream<TMessage>| source_stream.map(|msg| TestRequest::AnyMessage(Box::new(msg))))
             })
             .clone();
 

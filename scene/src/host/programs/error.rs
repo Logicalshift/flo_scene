@@ -74,7 +74,7 @@ impl SceneMessage for ErrorSubscription {
     fn initialise(scene: &mut impl InitialisationContext) {
         scene.connect_programs(
             (), 
-            StreamTarget::Filtered(FilterHandle::for_filter(|msgs: InputStream<Subscribe<Error>>| 
+            StreamTarget::Filtered(FilterHandle::for_filter(|msgs: BoxSceneStream<Subscribe<Error>>| 
                 msgs.map(|msg| ErrorOrSubscription::Subscription(ErrorSubscription::SubscribeToAll(msg.target())))), *ERROR_PROGRAM), 
             StreamId::with_message_type::<Subscribe<Error>>()
         ).unwrap();

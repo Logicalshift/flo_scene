@@ -35,15 +35,15 @@ use std::sync::*;
 pub static SCENE_CONTROL_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::scene_control");
 
 /// Filter that maps the 'Subscribe' message to a SceneControl message
-static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Subscribe<SceneUpdate>>| 
+static SCENE_CONTROL_SUBSCRIBE_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: BoxSceneStream<Subscribe<SceneUpdate>>| 
     stream.map(|msg| SceneControl::Subscribe(msg.target()))));
 
 /// Filter that maps the 'Query' message to a SceneControl message
-static SCENE_CONTROL_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Query<SceneUpdate>>| 
+static SCENE_CONTROL_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: BoxSceneStream<Query<SceneUpdate>>| 
     stream.map(|msg| SceneControl::Query(msg.target()))));
 
 /// Filter that maps the 'QueryMessageReceivers' message to a SceneControl message
-static SCENE_CONTROL_QUERY_RECEIVERS_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<QueryMessageReceivers>| 
+static SCENE_CONTROL_QUERY_RECEIVERS_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: BoxSceneStream<QueryMessageReceivers>| 
     stream.messages_with_sources().map(|(source, QueryMessageReceivers(stream, target))| SceneControl::QueryReceivers(stream, Some(source), target))));
 
 ///

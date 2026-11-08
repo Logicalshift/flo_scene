@@ -112,7 +112,7 @@ impl SceneMessage for LogSubscription {
     fn initialise(scene: &mut impl InitialisationContext) {
         scene.connect_programs(
             (), 
-            StreamTarget::Filtered(FilterHandle::for_filter(|msgs: InputStream<Subscribe<Log>>| 
+            StreamTarget::Filtered(FilterHandle::for_filter(|msgs: BoxSceneStream<Subscribe<Log>>| 
                 msgs.map(|msg| LogOrSubscription::Subscription(LogSubscription::Subscribe(LogLevel::Debug, msg.target())))), *LOG_PROGRAM), 
             StreamId::with_message_type::<Subscribe<Log>>()
         ).unwrap();

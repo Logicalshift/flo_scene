@@ -16,7 +16,7 @@ use serde::*;
 
 pub static STDOUT_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::stdout");
 pub static STDERR_PROGRAM: StaticSubProgramId = StaticSubProgramId::called("flo_scene::stderr");
-static ERROR_TO_TEXT_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<ErrorOutput>| stream.map(|err| TextOutput::from(err))));
+static ERROR_TO_TEXT_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: BoxSceneStream<ErrorOutput>| stream.map(|err| TextOutput::from(err))));
 
 ///
 /// Messages for writing text to an output stream
