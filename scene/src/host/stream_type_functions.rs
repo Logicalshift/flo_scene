@@ -627,3 +627,60 @@ impl StreamTypeFunctionsExt for TypeId {
         }
     }
 }
+
+///
+/// Creates the default serializer filters for a scene message
+///
+fn create_default_serializer_filters<TMessage: SceneMessage>() -> Vec<FilterHandle> {
+    use std::iter;
+    use futures::prelude::*;
+    use std::sync::*;
+
+    let filters = iter::empty();
+
+    // Convert to and from JSON messages
+    #[cfg(feature="json")]
+    let filters = {
+        // Create the standard to/from JSON filters
+        let to_json     = serialization_function::<TMessage, SerializedMessage<serde_json::Value>>().unwrap();
+        let from_json   = serialization_function::<SerializedMessage<serde_json::Value>, TMessage>().unwrap();
+
+        let to_json = FilterHandle::for_filter(move |input_messages| {
+            let to_json = Arc::clone(&to_json);
+
+            input_messages.flat_map(move |msg| stream::iter((*to_json)(msg).ok()))
+        });
+
+        let from_json = FilterHandle::for_filter(move |input_messages| {
+            let from_json = Arc::clone(&from_json);
+
+            input_messages.flat_map(move |msg| stream::iter((*from_json)(msg).ok()))
+        });
+
+        filters.chain([to_json, from_json])
+    };
+
+    // Convert to and from postcard messages
+    #[cfg(any(feature="postcard", target_family="wasm"))]
+    let filters = {
+        // Create the standard to/from postcard filters
+        let to_postcard     = serialization_function::<TMessage, SerializedMessage<GuestMessage>>().unwrap();
+        let from_postcard   = serialization_function::<SerializedMessage<GuestMessage>, TMessage>().unwrap();
+
+        let to_postcard = FilterHandle::for_filter(move |input_messages| {
+            let to_postcard = Arc::clone(&to_postcard);
+
+            input_messages.flat_map(move |msg| stream::iter((*to_postcard)(msg).ok()))
+        });
+
+        let from_postcard = FilterHandle::for_filter(move |input_messages| {
+            let from_postcard = Arc::clone(&from_postcard);
+
+            input_messages.flat_map(move |msg| stream::iter((*from_postcard)(msg).ok()))
+        });
+
+        filters.chain([to_postcard, from_postcard])
+    };
+
+    filters.collect()
+}
