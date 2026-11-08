@@ -46,7 +46,7 @@ impl StreamTarget {
     /// True if this stream routes through a filter
     ///
     #[inline]
-    pub (crate) fn is_filter(&self) -> bool {
+    pub fn is_filter(&self) -> bool {
         match self {
             StreamTarget::Filtered(_, _) => true,
             _                            => false,
