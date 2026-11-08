@@ -4,6 +4,7 @@ use crate::host::scene_context::*;
 use crate::host::scene::*;
 use crate::host::scene_core::*;
 use crate::host::stream_type_functions::*;
+use crate::host::scene_initialisation_context::*;
 
 use flo_scene_messages::prelude::*;
 

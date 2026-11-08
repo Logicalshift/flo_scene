@@ -1,5 +1,6 @@
 use crate::host::input_stream::*;
 use crate::host::scene_context::*;
+use crate::host::scene_initialisation_context::*;
 
 use flo_scene_messages::prelude::*;
 
