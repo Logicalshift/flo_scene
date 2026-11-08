@@ -10,6 +10,7 @@ use futures::prelude::*;
 use futures::channel::oneshot;
 use futures::{pin_mut};
 
+use std::any::{Any};
 use std::panic::{AssertUnwindSafe};
 use std::sync::*;
 
@@ -21,8 +22,8 @@ pub struct SceneInitialisationContext {
 }
 
 impl InitialisationContext for SceneInitialisationContext {
-    fn get_init_context<TContextType>(&mut self) -> Option<&mut TContextType> {
-        todo!()
+    fn get_init_context<TContextType: 'static>(&mut self) -> Option<&mut TContextType> {
+        (self as &mut dyn Any).downcast_mut::<TContextType>()
     }
 }
 
