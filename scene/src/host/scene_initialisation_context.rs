@@ -36,6 +36,15 @@ impl InitialisationContext for SceneInitialisationContext {
 ///
 impl SceneInitialisationContext {
     ///
+    /// Creates a new initialisation context with a scene core
+    ///
+    pub (crate) fn with_core(scene_core: &Arc<Mutex<SceneCore>>) -> Self {
+        Self {
+            scene_core: scene_core.clone(),
+        }
+    }
+
+    ///
     /// Adds a subprogram to run in this scene
     ///
     pub fn add_subprogram<'a, TProgramFn, TInputMessage, TFuture>(&'a self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)

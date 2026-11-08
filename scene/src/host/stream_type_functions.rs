@@ -1,3 +1,4 @@
+use crate::SceneInitialisationContext;
 use crate::host::error::*;
 use crate::host::input_stream::*;
 use crate::host::output_sink::*;
@@ -265,7 +266,8 @@ impl StreamTypeFunctions {
                 }
 
                 // Call the message-specific initialisation
-                TMessageType::initialise(scene)
+                let mut init_context = SceneInitialisationContext::with_core(scene.core());
+                TMessageType::initialise(&mut init_context)
             }),
         }
     }
