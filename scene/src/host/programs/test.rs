@@ -3,6 +3,8 @@ use crate::host::stream_type_functions::*;
 use super::control::*;
 use super::query::*;
 
+use flo_scene_messages::prelude::*;
+
 use futures::prelude::*;
 use futures::executor;
 use futures::future;

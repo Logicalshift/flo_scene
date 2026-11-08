@@ -3,7 +3,9 @@ use super::stream_target::*;
 use crate::host::*;
 use crate::host::stream_type_functions::*;
 use crate::util::*;
+
 use flo_scene_guest::guest_types::*;
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc;

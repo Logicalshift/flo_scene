@@ -1,6 +1,8 @@
 use crate::host::*;
 use crate::host::scene_core::*;
 
+use flo_scene_messages::prelude::*;
+
 use super::control::*;
 use super::control_ext::*;
 

@@ -8,7 +8,7 @@ use crate::host::stream_type_functions::*;
 use crate::host::subprogram_core::*;
 use crate::host::thread_stealer::*;
 
-use flo_scene_messages::messages::*;
+use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 use futures::future::{poll_fn};
