@@ -14,6 +14,19 @@ pub struct SingleSourceStream<TStream> {
     stream: Option<Pin<Box<TStream>>>,
 }
 
+impl<TStream> SingleSourceStream<TStream>
+where 
+    TStream:        'static + Send + Stream,
+    TStream::Item:  'static + SceneMessage,
+{
+    pub fn from_stream(stream: TStream, program_id: SubProgramId) -> Self {
+        Self {
+            source: program_id,
+            stream: Some(Box::pin(stream)),
+        }
+    }
+}
+
 impl<TStream> Stream for SingleSourceStream<TStream>
 where 
     TStream: Stream,

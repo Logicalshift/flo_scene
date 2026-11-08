@@ -4,6 +4,7 @@ use crate::host::input_stream::*;
 use crate::host::process_core::*;
 use crate::host::programs::*;
 use crate::host::scene::*;
+use crate::host::single_source_stream::*;
 use crate::host::stream_type_functions::*;
 use crate::host::subprogram_core::*;
 use crate::host::thread_stealer::*;
@@ -598,12 +599,23 @@ impl SceneCore {
                 // Apply filters in reverse to get the core to connect
                 let mut wakers = vec![];
 
-                for filter in filters.into_iter().rev() {
-                    let (input, waker)  = filter.create_input_stream_core(self, source_program_id, target_input)?;
-                    target_input        = input;
-                    close_when_dropped  = true;
+                let mut filters = filters.into_iter();
+                if let Some(filter) = filters.next() {
+                    // We have at least one filter: create a channel to run the filter
+                    let (send_msg, recv_msg)    = mpsc::channel::<TMessageType>(0);
+                    let recv_msg                = SingleSourceStream::from_stream(recv_msg, source_program_id);
 
-                    wakers.extend(waker);
+                    // Create the filter output
+                    let mut filter_output       = filter.filter_any(recv_msg)?;
+                    let mut output_type         = filter.target_stream_id();
+
+                    // Apply each following filter
+                    for filter in filters {
+                        (filter_output, output_type) = output_type.message_type().chain_filter(filter, filter_output, source_program_id)?;
+                    }
+
+                    // TODO: create a program to push messages through the filter into the target core
+                    // TODO: set the target to send via send_msg
                 }
 
                 // Create a waker from those returned by the filter

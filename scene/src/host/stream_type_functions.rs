@@ -405,6 +405,7 @@ pub (crate) trait StreamTypeFunctionsExt {
     fn active_target_for_output_sink(&self, output_sink_core: &Arc<dyn Send + Sync + Any>) -> Result<StreamTarget, ConnectionError>;
     fn active_program_for_output_sink(&self, output_sink_core: &Arc<dyn Send + Sync + Any>) -> Option<SubProgramId>;
     fn reconnect_output_sink(&self, scene_core: &Arc<Mutex<SceneCore>>, output_sink_core: &Arc<dyn Send + Sync + Any>, source_program: SubProgramId, new_target: StreamTarget) -> Result<Option<Waker>, ConnectionError>;
+    fn chain_filter(&self, filter: &FilterHandle, output_scene_stream: Box<dyn Send + Any>, source_program_id: SubProgramId) -> Result<(Box<dyn Send + Any>, StreamId), ConnectionError>;
     #[cfg(all(feature="postcard", feature="guest_programs"))]
     fn run_host_subprogram_postcard(&self, program_id: SubProgramId, max_input_waiting: usize, actions: Sender<GuestAction>, results: impl 'static + Send + Stream<Item=GuestResult>) -> Result<SceneControl, ConnectionError>;
     #[cfg(any(feature="postcard", target_family="wasm"))]
@@ -625,6 +626,13 @@ impl StreamTypeFunctionsExt for TypeId {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)
         }
+    }
+    
+    ///
+    /// Sends the output of one filter through another filter
+    ///
+    fn chain_filter(&self, filter: &FilterHandle, output_scene_stream: Box<dyn Send + Any>, source_program_id: SubProgramId) -> Result<(Box<dyn Send + Any>, StreamId), ConnectionError> {
+        todo!()
     }
 }
 
