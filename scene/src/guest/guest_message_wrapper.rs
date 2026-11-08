@@ -34,26 +34,26 @@ impl<TMessage: SceneMessage> SceneGuestMessage for GuestMessageWrapper<TMessage>
 
     #[cfg(feature="json")]
     #[inline]
-    fn to_json(self) -> Result<serde_json::Value, flo_scene_guest::errors::SceneSendError<Self>> {
+    fn to_json(self) -> Result<serde_json::Value, SceneSendError<Self>> {
         self.0.to_json()
             .map_err(|err| err.map(|val| GuestMessageWrapper(val)))
     }
 
     #[cfg(feature="json")]
     #[inline]
-    fn from_json(value: &serde_json::Value) -> Result<Self, flo_scene_guest::errors::SceneSendError<()>> {
+    fn from_json(value: &serde_json::Value) -> Result<Self, SceneSendError<()>> {
         TMessage::from_json(value)
             .map(|val| GuestMessageWrapper(val))
     }
 
     #[inline]
-    fn to_guest_message(self, context: &impl flo_scene_guest::util::SerializationContext) -> Result<Vec<u8>, flo_scene_guest::errors::SceneSendError<Self>> {
+    fn to_guest_message(self, context: &impl SerializationContext) -> Result<Vec<u8>, SceneSendError<Self>> {
         self.0.to_guest_message(context)
             .map_err(|err| err.map(|val| GuestMessageWrapper(val)))
     }
 
     #[inline]
-    fn from_guest_message(value: &[u8], context: &impl flo_scene_guest::util::SerializationContext) -> Result<Self, flo_scene_guest::errors::SceneSendError<()>> {
+    fn from_guest_message(value: &[u8], context: &impl SerializationContext) -> Result<Self, SceneSendError<()>> {
         TMessage::from_guest_message(value, context)
             .map(|val| GuestMessageWrapper(val))
     }
