@@ -2,6 +2,8 @@ use flo_scene_messages::prelude::*;
 
 use flo_scene_guest::guest_types::*;
 
+use std::borrow::*;
+
 pub trait HostStreamTargetExt {
     ///
     /// Retrieves the stream ID, if there's a type within the current process that matches
@@ -20,11 +22,14 @@ impl HostStreamTargetExt for HostStreamTarget {
     ///
     #[inline]
     fn stream_id(&self) -> Option<StreamId> {
-        StreamId::with_serialization_type(match self {
+        let stream_name = match self {
             HostStreamTarget::None(stream)          |
             HostStreamTarget::Any(stream)           |
             HostStreamTarget::Program(_, stream)    => &stream.0,
-        })
+        };
+        let stream_name: Cow<'static, str> = stream_name.clone().into();
+
+        StreamId::with_serialization_type(stream_name)
     }
 
     ///
