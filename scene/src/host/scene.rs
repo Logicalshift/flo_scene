@@ -1,6 +1,4 @@
-use crate::host::input_stream::*;
 use crate::host::output_sink::*;
-use crate::host::scene_context::*;
 use crate::host::scene_core::*;
 use crate::host::stream_type_functions::*;
 use crate::host::error::*;
@@ -10,11 +8,8 @@ use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
 use futures::channel::oneshot;
-use futures::future::{poll_fn};
-use futures::{pin_mut};
 
 use std::io::{stdin, stdout, stderr, BufReader};
-use std::panic::{AssertUnwindSafe};
 use std::sync::*;
 use std::collections::{HashSet};
 
