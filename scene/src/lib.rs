@@ -202,6 +202,8 @@ pub use guest::*;
 #[cfg(feature="postcard")]
 pub use postcard;
 
+pub use flo_scene_messages::prelude as messages;
+
 // #[cfg(target_family="wasm")]
 #[cfg(any(feature="postcard", target_family="wasm"))]
 pub mod wasm_rt {
