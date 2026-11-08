@@ -11,6 +11,7 @@ use alloc::vec::*;
 
 use core::fmt;
 use core::fmt::{Debug, Formatter};
+use core::ops::{Deref};
 
 static IDS_FOR_NAMES: OnceLock<Shared<OrderedVec<String, SubProgramNameId>>> = OnceLock::new();
 static NAMES_FOR_IDS: OnceLock<Shared<Vec<String>>>                          = OnceLock::new();
@@ -245,6 +246,35 @@ impl<'de> Deserialize<'de> for SubProgramNameId {
 
         let name_string = deserializer.deserialize_str(StrVisitor)?;
         Ok(id_for_name(&name_string))
+    }
+}
+
+///
+/// A static subprogram ID can be used to declare a subprogram ID in a static variable
+///
+pub struct StaticSubProgramId(&'static str, OnceLock<SubProgramId>);
+
+impl StaticSubProgramId {
+    ///
+    /// Creates a subprogram ID with a well-known name
+    ///
+    #[inline]
+    pub const fn called(name: &'static str) -> StaticSubProgramId {
+        StaticSubProgramId(name, OnceLock::new())
+    }
+}
+
+impl Deref for StaticSubProgramId {
+    type Target = SubProgramId;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.1.get()
+            .unwrap_or_else(|| {
+                let subprogram = SubProgramId::called(self.0);
+                self.1.set(subprogram).ok();
+                self.1.get().unwrap()
+            })
     }
 }
 
