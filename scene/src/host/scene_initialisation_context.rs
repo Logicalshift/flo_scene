@@ -216,7 +216,7 @@ pub trait SceneInitialisationExt {
     /// scene.connect_programs(&example_filter, (), StreamId::with_message_type::<FilteredMessage>().for_target(&subprogram));
     /// ```
     ///
-    fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<ConnectionResult, ConnectionError>;
+    fn connect_programs(&mut self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<ConnectionResult, ConnectionError>;
 }
 
 impl<T: InitialisationContext> SceneInitialisationExt for T {

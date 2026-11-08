@@ -1,5 +1,6 @@
 use crate::host::error::*;
 use crate::host::serialization_context::*;
+use crate::host::scene_initialisation_context::*;
 
 use flo_scene_messages::prelude::*;
 
@@ -22,7 +23,7 @@ where
 {
     fn default_target() -> StreamTarget { StreamTarget::Any }
 
-    fn initialise(init_context: &impl SceneInitialisationContext) {
+    fn initialise(init_context: &mut impl InitialisationContext) {
         // Left/Right will generate their own initialisation when they're used for the first time
         init_context.connect_programs(StreamSource::Filtered(FilterHandle::for_filter(|left| left.map(|left| Self::Left(left)))), (), StreamId::with_message_type::<TLeft>()).ok();
         init_context.connect_programs(StreamSource::Filtered(FilterHandle::for_filter(|right| right.map(|right| Self::Right(right)))), (), StreamId::with_message_type::<TRight>()).ok();

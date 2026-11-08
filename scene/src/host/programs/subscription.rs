@@ -28,7 +28,7 @@ use serde::*;
 pub struct Subscribe<TMessageType: SceneMessage>(StreamTarget, PhantomData<TMessageType>);
 
 impl<TMessageType: SceneMessage> SceneMessage for Subscribe<TMessageType> { 
-    fn initialise(_: &impl SceneInitialisationContext) {
+    fn initialise(_: &mut impl InitialisationContext) {
         #[cfg(feature="json")]
         install_serializable_type(|msg: TMessageType| msg.to_json(), |json| TMessageType::from_json(json)).unwrap();
     }

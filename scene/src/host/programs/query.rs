@@ -1,6 +1,7 @@
 use crate::host::error::*;
 use crate::host::serialization::*;
 use crate::host::serialization_context::*;
+use crate::host::scene_initialisation_context::*;
 
 use flo_scene_messages::prelude::*;
 
