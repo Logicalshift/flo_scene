@@ -1,10 +1,30 @@
 use crate::host::error::*;
+use crate::host::scene_core::*;
 use crate::host::input_stream::*;
 use crate::host::scene_context::*;
+use crate::host::stream_type_functions::*;
 
 use flo_scene_messages::prelude::*;
 
 use futures::prelude::*;
+use futures::channel::oneshot;
+use futures::{pin_mut};
+
+use std::panic::{AssertUnwindSafe};
+use std::sync::*;
+
+///
+/// Concreate initialisation context for a scene
+///
+pub struct SceneInitialisationContext {
+    scene_core: Arc<Mutex<SceneCore>>,
+}
+
+impl InitialisationContext for SceneInitialisationContext {
+    fn get_init_context<TContextType>(&mut self) -> Option<&mut TContextType> {
+        todo!()
+    }
+}
 
 ///
 /// The initialisation context is used when setting up scenes and messages within scenes: it provides
@@ -13,15 +33,49 @@ use futures::prelude::*;
 /// Once the scene is running, the scene control program can be used to similar effect (by sending 
 /// `SceneControl` messages)
 ///
-pub trait SceneInitialisationContext {
+impl SceneInitialisationContext {
     ///
     /// Adds a subprogram to run in this scene
     ///
-    fn add_subprogram<'a, TProgramFn, TInputMessage, TFuture>(&'a self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)
+    pub fn add_subprogram<'a, TProgramFn, TInputMessage, TFuture>(&'a self, program_id: SubProgramId, program: TProgramFn, max_input_waiting: usize)
     where
         TFuture:        'static + Send + Future<Output=()>,
         TInputMessage:  'static + SceneMessage,
-        TProgramFn:     'a + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture;
+        TProgramFn:     'a + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture
+    {
+        StreamTypeFunctions::add::<TInputMessage>();
+
+        // Create the context and input stream for the program
+        let input_stream    = InputStream::new(program_id, &self.scene_core, max_input_waiting);
+        let input_core      = input_stream.core();
+
+        // Create the future that will be used to run the future
+        let (send_context, recv_context) = oneshot::channel::<(TFuture, SceneContext)>();
+        let run_program = async move {
+            if let Ok((program, scene_context)) = recv_context.await {
+                // Start the program running
+                pin_mut!(program);
+
+                // Poll the program with the scene context set
+                future::poll_fn(|context| {
+                    use futures::task::{Poll};
+                    match with_scene_context(&scene_context, AssertUnwindSafe(|| program.as_mut().poll(context))) {
+                        Ok(result)  => result,
+                        Err(())     => Poll::Pending
+                    }
+                }).await;
+            }
+        };
+
+        // Start the program running
+        let subprogram = SceneCore::start_subprogram(&self.scene_core, program_id, run_program, input_core);
+
+        // Call the start function to create the future, and pass it into the program that was started
+        let context = SceneContext::new(&self.scene_core, &subprogram);
+        let program = with_scene_context(&context, AssertUnwindSafe(|| program(input_stream, context.clone())));
+
+        if let Ok(program) = program { send_context.send((program, context)).ok(); }
+    }
 
     ///
     /// Connects the output `stream` of the `source` program to the input of `target`
@@ -82,5 +136,12 @@ pub trait SceneInitialisationContext {
     /// scene.connect_programs(&example_filter, (), StreamId::with_message_type::<FilteredMessage>().for_target(&subprogram));
     /// ```
     ///
-    fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<ConnectionResult, ConnectionError>;
+    fn connect_programs(&self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<ConnectionResult, ConnectionError> {
+        // Convert the source & target, then pass the request on to the core
+        let source = source.into();
+        let target = target.into();
+        let stream = stream.into();
+
+        SceneCore::connect_programs(&self.scene_core, source, target, stream)
+    }
 }
