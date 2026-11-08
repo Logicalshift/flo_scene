@@ -11,6 +11,7 @@ mod traits;
 
 pub use connect_result::*;
 pub use filter::*;
+pub use filter_chain_stream::*;
 pub use serialization_id::*;
 pub use stream_id::*;
 pub use stream_source::*;
