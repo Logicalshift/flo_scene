@@ -218,7 +218,7 @@ impl Connectome {
                         StreamTarget::Filtered(filter, program_id)  => {
                             self.target_program = *program_id;
                             self.filters.push(filter.clone());
-                            self.stream = filter.target_stream_id_any()?;
+                            self.stream = filter.target_stream_id();
                         },
                     }
 
