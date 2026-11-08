@@ -47,7 +47,7 @@ impl SceneMessage for WasmControl {
         StreamTarget::Program(SubProgramId::called("flo_scene_wasm::control"))
     }
 
-    fn initialise(scene: &impl SceneInitialisationContext) {
+    fn initialise(scene: &mut impl InitialisationContext) {
         // Connect to the default subprogram by default
         scene.connect_programs((), Self::default_target(), StreamId::with_message_type::<Self>()).unwrap();
 

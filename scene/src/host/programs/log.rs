@@ -89,7 +89,7 @@ impl SceneMessage for Log {
         (*LOG_PROGRAM).into()
     }
 
-    fn initialise(scene: &impl SceneInitialisationContext) {
+    fn initialise(scene: &mut impl InitialisationContext) {
         scene.connect_programs(
             (), 
             StreamTarget::Filtered(FilterHandle::for_filter(|msgs| 
@@ -108,7 +108,7 @@ impl SceneMessage for LogSubscription {
         (*LOG_PROGRAM).into()
     }
 
-    fn initialise(scene: &impl SceneInitialisationContext) {
+    fn initialise(scene: &mut impl InitialisationContext) {
         scene.connect_programs(
             (), 
             StreamTarget::Filtered(FilterHandle::for_filter(|msgs: InputStream<Subscribe<Log>>| 

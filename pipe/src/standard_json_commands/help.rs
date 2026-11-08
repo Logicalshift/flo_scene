@@ -132,7 +132,7 @@ impl SceneMessage for CommandHelp {
         StreamTarget::Program(SubProgramId::called("flo_scene_pipe::CommandHelp"))
     }
 
-    fn initialise(scene: &impl SceneInitialisationContext) {
+    fn initialise(scene: &mut impl InitialisationContext) {
         // Default behaviour for the CommandHelp subprogram
         scene.add_subprogram(SubProgramId::called(
             "flo_scene_pipe::CommandHelp"), 
@@ -223,7 +223,7 @@ impl SceneMessage for HelpQueryTopic {
         StreamTarget::Program(SubProgramId::called("flo_scene_pipe::CommandHelp"))
     }
 
-    fn initialise(scene: &impl SceneInitialisationContext) {
+    fn initialise(scene: &mut impl InitialisationContext) {
         // Convert help queries to CommandHelp requests
         scene.connect_programs(&*HELP_QUERY_FILTER, (), StreamId::with_message_type::<HelpQueryTopic>()).unwrap();
     }

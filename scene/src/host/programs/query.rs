@@ -60,7 +60,7 @@ impl<TResponseData: Send + Unpin + SceneMessage> SceneMessage for Query<TRespons
     #[inline]
     fn message_type_name() -> String { format!("query::{}", TResponseData::message_type_name()) }
 
-    fn initialise(_: &impl SceneInitialisationContext) {
+    fn initialise(_: &mut impl InitialisationContext) {
         #[cfg(feature="json")]
         install_serializable_type(|msg: TResponseData| msg.to_json(), |json| TResponseData::from_json(json)).unwrap();
     }
@@ -73,7 +73,7 @@ struct SerializedQueryResponse(SerializationId);
 impl<TResponseData: 'static + Send + SceneMessage> SceneMessage for QueryResponse<TResponseData> {
     fn serializable() -> bool { false }
 
-    fn initialise(scene: &impl SceneInitialisationContext) {
+    fn initialise(scene: &mut impl InitialisationContext) {
         use std::iter;
 
         let filters = iter::empty::<FilterHandle>();

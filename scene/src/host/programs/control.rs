@@ -311,7 +311,7 @@ impl SceneMessage for SceneControl {
         (*SCENE_CONTROL_PROGRAM).into()
     }
 
-    fn initialise(scene: &impl SceneInitialisationContext) {
+    fn initialise(scene: &mut impl InitialisationContext) {
         scene.connect_programs(&*SCENE_CONTROL_SUBSCRIBE_FILTER, (), StreamId::with_message_type::<Subscribe<SceneUpdate>>()).unwrap();
         scene.connect_programs(&*SCENE_CONTROL_QUERY_FILTER, (), StreamId::with_message_type::<Query<SceneUpdate>>()).unwrap();
 

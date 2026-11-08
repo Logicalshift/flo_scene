@@ -52,7 +52,7 @@ impl SceneMessage for Error {
     #[inline]
     fn message_type_name() -> String { "flo_scene::Error".into() }
 
-    fn initialise(scene: &impl SceneInitialisationContext) {
+    fn initialise(scene: &mut impl InitialisationContext) {
         scene.connect_programs(
             (), 
             StreamTarget::Filtered(FilterHandle::for_filter(|msgs| 
@@ -70,7 +70,7 @@ impl SceneMessage for ErrorSubscription {
     #[inline]
     fn message_type_name() -> String { "flo_scene::ErrorSubscription".into() }
 
-    fn initialise(scene: &impl SceneInitialisationContext) {
+    fn initialise(scene: &mut impl InitialisationContext) {
         scene.connect_programs(
             (), 
             StreamTarget::Filtered(FilterHandle::for_filter(|msgs: InputStream<Subscribe<Error>>| 
