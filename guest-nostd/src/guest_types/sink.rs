@@ -1,4 +1,4 @@
-use crate::errors::*;
+use flo_scene_messages::errors::*;
 
 use futures::task::{Waker};
 use serde::*;

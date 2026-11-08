@@ -1,4 +1,3 @@
-use crate::errors::*;
 use crate::guest_types::*;
 use crate::host_types::*;
 use super::context::*;
@@ -6,6 +5,8 @@ use super::core::*;
 use super::input_stream::*;
 use super::serialization_context::*;
 use super::stream_core::*;
+
+use flo_scene_messages::errors::*;
 
 use futures::prelude::*;
 #[cfg(feature="use-std")]
