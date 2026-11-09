@@ -16,6 +16,7 @@ use crate::guest::*;
 
 use futures::prelude::*;
 use futures::channel::mpsc::{Sender};
+use futures::future::{BoxFuture};
 use futures::stream::{BoxStream};
 use futures::task::{Waker};
 use once_cell::sync::{Lazy};
@@ -37,6 +38,7 @@ type ActiveTargetFn             = Arc<dyn Send + Sync + Fn(&Arc<dyn Send + Sync 
 type ReconnectSinkFn            = Arc<dyn Send + Sync + Fn(&Arc<Mutex<SceneCore>>, &Arc<dyn Send + Sync + Any>, SubProgramId, StreamTarget) -> Result<Option<Waker>, ConnectionError>>;
 type InitialiseFn               = Arc<dyn Send + Sync + Fn(&Scene)>;
 type ChainFilterFn              = Arc<dyn Send + Sync + Fn(&FilterHandle, Box<dyn Send + Any>, SubProgramId) -> Result<(Box<dyn Send + Any>, StreamId), ConnectionError>>;
+type DeliverStreamFn            = Arc<dyn Send + Sync + Fn(SubProgramId, Box<dyn Send + Any>, Arc<dyn Send + Sync + Any>) -> Result<BoxFuture<'static, ()>, ConnectionError>>;
 type SendGuestMessagesFn        = Arc<dyn Send + Sync + Fn(StreamTarget, &SceneContext, Box<dyn SerializationContext>) -> Result<Box<dyn 'static + Send + Sink<Vec<u8>, Error=SceneSendError<Vec<u8>>>>, ConnectionError>>;
 
 #[cfg(feature="guest_programs")]
@@ -78,6 +80,15 @@ pub (crate) struct StreamTypeFunctions {
     /// Reconnects an output sink core to an input stream
     reconnect_sink: ReconnectSinkFn,
 
+    /// Initialises the message type inside a scene
+    initialise: InitialiseFn,
+
+    /// Takes the output of a filter (a boxed `BoxStream` of this message type) and passes it through another filter
+    chain_filter: ChainFilterFn,
+
+    /// Sends a BoxStream to an input core
+    deliver_stream: DeliverStreamFn,
+
     /// Runs a host subprogram using this stream type as input and the postcard encoder
     #[cfg(all(feature="postcard", feature="guest_programs"))]
     run_host_subprogram_postcard: RunHostSubProgramFn,
@@ -85,12 +96,6 @@ pub (crate) struct StreamTypeFunctions {
     /// Sends deserialized guest messages from a Vec<u8> sink
     #[cfg(any(feature="postcard", target_family="wasm"))]
     send_guest_messages: SendGuestMessagesFn,
-
-    /// Initialises the message type inside a scene
-    initialise: InitialiseFn,
-
-    /// Takes the output of a filter (a boxed `BoxStream` of this message type) and passes it through another filter
-    chain_filter: ChainFilterFn,
 }
 
 impl StreamTypeFunctions {
@@ -202,32 +207,6 @@ impl StreamTypeFunctions {
                 Ok(waker)
             }),
 
-            #[cfg(feature="postcard")]
-            run_host_subprogram_postcard: Arc::new(|program_id, max_waiting, actions, results| 
-                SceneControl::start_program(program_id, move |input: InputStream<TMessageType>, context| async move {
-                    run_host_subprogram(input, context, actions, results).await; 
-                }, max_waiting)),
-
-            #[cfg(any(feature="postcard", target_family="wasm"))]
-            send_guest_messages: Arc::new(|target, context, serialization_context| {
-                // Send to the target
-                let sink = context.send::<TMessageType>(target)?;
-
-                // Deserialize the messages
-                let sink = sink
-                    .sink_map_err(|_| SceneSendError::<Vec<u8>>::ErrorAfterDeserialization)            // The error doesn't preserve the input value, so we can't return it
-                    .with(move |msg: Vec<u8>| {
-                        let deserialized = TMessageType::from_guest_message(&msg, &serialization_context)
-                            .map_err(move |err| err.map(move |_| msg));
-
-                        async move {
-                            deserialized
-                        }
-                    });
-
-                Ok(Box::new(sink))
-            }),
-
             initialise: Arc::new(move |scene| {
                 use std::mem;
 
@@ -290,6 +269,78 @@ impl StreamTypeFunctions {
 
                 Ok((next_output, filter.target_stream_id()))
             }),
+
+            deliver_stream: Arc::new(|source_program, source_stream, input_core| {
+                use futures::task::{Poll};
+
+                let source_stream   = source_stream.downcast::<BoxStream<'static, TMessageType>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+                let input_core      = input_core.downcast::<Mutex<InputStreamCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
+
+                let source_stream   = *source_stream;
+
+                Ok(async move {
+                    // Future that reads from the source stream and puts the values into the target input core
+                    let mut source_stream = source_stream;
+                    while let Some(msg) = source_stream.next().await {
+                        let mut msg = msg;
+                        loop {
+                            // Try to send the message
+                            {
+                                let mut locked_input    = input_core.lock().unwrap();
+                                let Err(old_msg)        = locked_input.send(source_program, msg) else { break; };
+
+                                // Message failed to send
+                                msg = old_msg;
+
+                                // Wait for space to send the message
+                                if locked_input.is_closed() {
+                                    // Target is no longer functional
+                                    return;
+                                }
+                            }
+
+                            // Wait for the core to have space in it
+                            let mut ready = false;
+                            future::poll_fn(|context| {
+                                if !ready {
+                                    ready = true;
+                                    input_core.lock().unwrap().wake_when_slots_available(context);
+                                    Poll::Pending
+                                } else {
+                                    Poll::Ready(())
+                                }
+                            }).await;
+                        }
+                    }
+                }.boxed())
+            }),
+
+            #[cfg(feature="postcard")]
+            run_host_subprogram_postcard: Arc::new(|program_id, max_waiting, actions, results| 
+                SceneControl::start_program(program_id, move |input: InputStream<TMessageType>, context| async move {
+                    run_host_subprogram(input, context, actions, results).await; 
+                }, max_waiting)),
+
+            #[cfg(any(feature="postcard", target_family="wasm"))]
+            send_guest_messages: Arc::new(|target, context, serialization_context| {
+                // Send to the target
+                let sink = context.send::<TMessageType>(target)?;
+
+                // Deserialize the messages
+                let sink = sink
+                    .sink_map_err(|_| SceneSendError::<Vec<u8>>::ErrorAfterDeserialization)            // The error doesn't preserve the input value, so we can't return it
+                    .with(move |msg: Vec<u8>| {
+                        let deserialized = TMessageType::from_guest_message(&msg, &serialization_context)
+                            .map_err(move |err| err.map(move |_| msg));
+
+                        async move {
+                            deserialized
+                        }
+                    });
+
+                Ok(Box::new(sink))
+            }),
+
         }
     }
 
