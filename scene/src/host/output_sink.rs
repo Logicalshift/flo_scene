@@ -74,24 +74,6 @@ pub struct OutputSink<TMessage: 'static + Send> {
     wait_for_idle: Option<BoxFuture<'static, ()>>,
 }
 
-impl<TMessage> Clone for OutputSinkTarget<TMessage> 
-where
-    TMessage: 'static + Send
-{
-    #[inline]
-    fn clone(&self) -> Self {
-        use OutputSinkTarget::*;
-
-        match self {
-            Disconnected                => Disconnected,
-            Discard                     => Discard,
-            Input(input)                => Input(Weak::clone(input)),
-            FixedInput(input)           => FixedInput(Weak::clone(input)),
-            CloseWhenDropped(input)     => Input(Weak::clone(input)),           // Only the original output sink target will close when dropped
-        }
-    }
-}
-
 impl<TMessage> Drop for OutputSinkTarget<TMessage>
 where
     TMessage: 'static + Send
@@ -371,16 +353,19 @@ where
 
             if let Err(message) = self.try_send_immediate(message) {
                 // If we still can't send the message, overfill the target buffer
-                let source = self.program_id;
-                let target = self.core.lock().unwrap().target.clone();
+                let source      = self.program_id;
+                let locked_core = self.core.lock().unwrap();
+                let target      = &locked_core.target;
 
-                match &target {
+                match target {
                     OutputSinkTarget::Discard                   => Ok(()),
                     OutputSinkTarget::Disconnected              => Err(SceneSendError::StreamDisconnected(message)),
                     OutputSinkTarget::Input(input)              |
                     OutputSinkTarget::FixedInput(input)         |
                     OutputSinkTarget::CloseWhenDropped(input)   => {
                         if let Some(input) = input.upgrade() {
+                            drop(locked_core);
+
                             let waker = input.lock().unwrap().send_with_overfill(source, message)?;
                             if let Some(waker) = waker {
                                 waker.wake();

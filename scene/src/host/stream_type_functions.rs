@@ -159,15 +159,18 @@ impl StreamTypeFunctions {
 
             active_target: Arc::new(|output_sink_core_any| {
                 let output_sink         = output_sink_core_any.clone().downcast::<Mutex<OutputSinkCore<TMessageType>>>().map_err(|_| ConnectionError::UnexpectedConnectionType)?;
-                let output_sink_target  = output_sink.lock().unwrap().target().clone();
+                let output_sink_locked  = output_sink.lock().unwrap();
+                let output_sink_target  = output_sink_locked.target();
 
-                match &output_sink_target {
+                match output_sink_target {
                     OutputSinkTarget::Disconnected                  => Ok(StreamTarget::Any),
                     OutputSinkTarget::Discard                       => Ok(StreamTarget::None),
                     OutputSinkTarget::Input(input_core)             |
                     OutputSinkTarget::FixedInput(input_core)        |
                     OutputSinkTarget::CloseWhenDropped(input_core)  => {
                         if let Some(input_core) = input_core.upgrade() {
+                            drop(output_sink_locked);
+
                             // Target is the program being run by the input stream core
                             // TODO: properly figure out filters (this will be the 'fake' input program for a filter if a filter is in use)
                             Ok(StreamTarget::Program(input_core.lock().unwrap().target_program_id()))
