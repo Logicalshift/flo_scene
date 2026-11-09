@@ -615,7 +615,8 @@ impl SceneCore {
                     }
 
                     // TODO: Create a program to push messages through the filter into the target core
-                    let filter_stream = InputStream::<TMessageType>::new(*target_program, locked_core, 1);
+                    let filter_stream   = InputStream::<TMessageType>::new(*target_program, locked_core, 1);
+                    filter_core         = Some(filter_stream.core());
                 }
 
                 // Create a waker from those returned by the filter
