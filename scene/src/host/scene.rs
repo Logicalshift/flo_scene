@@ -131,7 +131,7 @@ impl Scene {
             Ok(output_sink)
         } else {
             // Create a new target for this message
-            let (sink_target, waker) = self.core.lock().unwrap().sink_for_target::<TMessage>(&program_id, target)?;
+            let (sink_target, waker) = self.core.lock().unwrap().sink_for_target::<TMessage>(&self.core, &program_id, target)?;
             if let Some(waker) = waker { waker.wake(); }
 
             // Try to attach it to the program (or just read the old version)

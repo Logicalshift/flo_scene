@@ -572,7 +572,7 @@ impl SceneCore {
     ///
     /// Retrieves the target for an output sink on a route
     ///
-    fn sink_target_for_route<TMessageType: SceneMessage>(&mut self, source_program_id: SubProgramId, route: ConnectionRoute) -> Result<(OutputSinkTarget<TMessageType>, Option<Waker>), ConnectionError> {
+    fn sink_target_for_route<TMessageType: SceneMessage>(&mut self, locked_core: &Arc<Mutex<SceneCore>>, source_program_id: SubProgramId, route: ConnectionRoute) -> Result<(OutputSinkTarget<TMessageType>, Option<Waker>), ConnectionError> {
         match route.endpoint() {
             ConnectionRoute::Filter(_, _)   |       // Filters can't be an endpoint, we treat them like 'None' if they show up because of a bug
             ConnectionRoute::None           => {
@@ -615,7 +615,7 @@ impl SceneCore {
                     }
 
                     // TODO: Create a program to push messages through the filter into the target core
-                    // let filter_stream = InputStream::new(*target_program, scene_core.clone(), 1);
+                    let filter_stream = InputStream::<TMessageType>::new(*target_program, locked_core, 1);
                 }
 
                 // Create a waker from those returned by the filter
@@ -650,14 +650,14 @@ impl SceneCore {
     ///
     /// Returns the output sink target configured for a particular stream
     ///
-    pub (crate) fn sink_for_target<TMessageType>(&mut self, source: &SubProgramId, target: StreamTarget) -> Result<(OutputSinkTarget<TMessageType>, Option<Waker>), ConnectionError>
+    pub (crate) fn sink_for_target<TMessageType>(&mut self, locked_core: &Arc<Mutex<SceneCore>>, source: &SubProgramId, target: StreamTarget) -> Result<(OutputSinkTarget<TMessageType>, Option<Waker>), ConnectionError>
     where
         TMessageType: 'static + SceneMessage,
     {
         let stream  = StreamId::with_message_type::<TMessageType>();
         let route   = self.connectome.route_for(&stream, *source, &target);
 
-        match route.and_then(|route| self.sink_target_for_route(*source, route)) {
+        match route.and_then(|route| self.sink_target_for_route(locked_core, *source, route)) {
             Ok((target, waker))                         => Ok((target, waker)),
             Err(ConnectionError::WrongInputType(_, _))  => Ok((OutputSinkTarget::Disconnected, None)),
             Err(ConnectionError::TargetNotInScene)      => Ok((OutputSinkTarget::Disconnected, None)),
@@ -1252,7 +1252,7 @@ impl SceneCore {
         }
 
         // Fetch the input sink for the program
-        let Ok((error_target, waker)) = scene_core.lock().unwrap().sink_for_target::<Error>(&program_id, StreamTarget::Any) else { return Err(panic); };
+        let Ok((error_target, waker)) = scene_core.lock().unwrap().sink_for_target::<Error>(scene_core, &program_id, StreamTarget::Any) else { return Err(panic); };
         if let Some(waker) = waker { waker.wake(); }
 
         match &error_target {
