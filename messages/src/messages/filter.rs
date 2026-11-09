@@ -1,4 +1,5 @@
 use crate::errors::*;
+use super::filter_chain_stream::*;
 use super::stream_id::*;
 use super::traits::*;
 
@@ -38,6 +39,9 @@ struct FilterData {
 
     /// Takes a boxed BoxSceneStream, and creates a boxed BoxStream (as Any) by applying this filter
     create_stream:      Box<dyn 'static + Send + Sync + Fn(Box<dyn 'static + Send + Any>) -> Result<Box<dyn 'static + Send + Any>, ConnectionError>>,
+
+    /// Creates a filter chain for this filter (takes the 'self' filter handle and a BoxSceneStream input as Any, returning a BoxSceneStream wrapped in an Any)
+    create_chain:       Box<dyn 'static + Send + Sync + Fn(&FilterHandle, Box<dyn 'static + Send + Any>) -> Result<Box<dyn 'static + Send + Any>, ConnectionError>>,
 }
 
 impl FilterHandle {
@@ -71,9 +75,24 @@ impl FilterHandle {
         };
         let create_stream = Box::new(create_stream);
 
+        // Create the chaining function
+        let create_chain = move |our_filter_handle: &FilterHandle, source_stream: Box<dyn 'static + Send + Any>| {
+            // Fetch the source stream
+            let Ok(source_stream)   = source_stream.downcast::<BoxSceneStream<TSourceMessage>>() else { return Err(ConnectionError::FilterInputDoesNotMatch) };
+            let source_stream       = *source_stream;
+
+            // Create a chain for this stream
+            let chain_stream = FilterChainStream::<TSourceMessage, TTargetStream::Item>::new(our_filter_handle.clone(), source_stream)?;
+            let chain_stream = chain_stream.into_box();
+            let chain_stream = Box::new(chain_stream);
+
+            Ok(Box::<dyn 'static + Send + Any>::from(chain_stream))
+        };
+        let create_chain = Box::new(create_chain);
+
         // Put into a data structure
         let data = FilterData {
-            source_stream_id, target_stream_id, create_stream,
+            source_stream_id, target_stream_id, create_stream, create_chain,
         };
 
         Self {
@@ -121,6 +140,54 @@ impl FilterHandle {
     {
         let source = Box::new(source.into_box());
         (self.data.create_stream)(source)
+    }
+
+    ///
+    /// Creates a filter that sends the output of this filter to another filter to generate a final result
+    ///
+    pub fn chain(&self, next_filter: FilterHandle) -> Result<FilterHandle, ConnectionError> {
+        if next_filter.source_stream_id().message_type() != self.target_stream_id().message_type() {
+            // Next filter must match the last filter
+            return Err(ConnectionError::FilterInputDoesNotMatch);
+        }
+
+        // Assign a serial number to this new filter
+        let serial = NEXT_SERIAL.fetch_add(1, Ordering::Relaxed);
+
+        // Chaining 'create input' function
+        let our_filter      = self.clone();
+        let their_filter    = next_filter.clone();
+
+        let create_stream = move |source_stream| {
+            let our_output      = (our_filter.data.create_chain)(&our_filter, source_stream)?;
+            let their_output    = (their_filter.data.create_stream)(our_output)?;
+
+            Ok(their_output)
+        };
+
+        // The chained chain function
+        let our_filter      = self.clone();
+        let their_filter    = next_filter.clone();
+
+        let create_chain = move |_chained_filter_handle: &FilterHandle, source_stream| {
+            let our_chain   = (our_filter.data.create_chain)(&our_filter, source_stream)?;
+            let their_chain = (their_filter.data.create_chain)(&their_filter, our_chain)?;
+
+            Ok(their_chain)
+        };
+
+        // Filter data
+        let chained_filter_data = FilterData {
+            source_stream_id:   self.source_stream_id(),
+            target_stream_id:   next_filter.target_stream_id(),
+            create_stream:      Box::new(create_stream),
+            create_chain:       Box::new(create_chain),
+        };
+
+        Ok(FilterHandle {
+            serial: serial,
+            data:   Arc::new(chained_filter_data)
+        })
     }
 }
 
