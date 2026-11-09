@@ -594,7 +594,7 @@ impl SceneCore {
 
                 // Start with the input for the target program
                 let mut target_input        = self.get_target_input(&target_program, &stream)?;
-                let mut close_when_dropped  = false;
+                let mut filter_core         = None;
 
                 // Apply filters in reverse to get the core to connect
                 let mut wakers = vec![];
@@ -614,8 +614,8 @@ impl SceneCore {
                         (filter_output, output_type) = output_type.message_type().chain_filter(filter, filter_output, source_program_id)?;
                     }
 
-                    // TODO: create a program to push messages through the filter into the target core
-                    // TODO: set the target to send via send_msg
+                    // TODO: Create a program to push messages through the filter into the target core
+                    // let filter_stream = InputStream::new(*target_program, scene_core.clone(), 1);
                 }
 
                 // Create a waker from those returned by the filter
@@ -638,8 +638,8 @@ impl SceneCore {
                 };
 
                 let input_core = target_input.downcast().unwrap();
-                if close_when_dropped {
-                    Ok((OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&input_core)), waker))
+                if let Some(filter_core) = filter_core {
+                    Ok((OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filter_core)), waker))
                 } else {
                     Ok((OutputSinkTarget::Input(Arc::downgrade(&input_core)), waker))
                 }
