@@ -602,8 +602,9 @@ impl SceneCore {
                 let mut filters = filters.into_iter();
                 if let Some(filter) = filters.next() {
                     // We have at least one filter: create a channel to run the filter
-                    let (send_msg, recv_msg)    = mpsc::channel::<TMessageType>(0);
-                    let recv_msg                = SingleSourceStream::from_stream(recv_msg, source_program_id);
+                    let filter_stream   = InputStream::<TMessageType>::new(*target_program, locked_core, 1);
+                    filter_core         = Some(filter_stream.core());
+                    let recv_msg        = SingleSourceStream::from_stream(filter_stream, source_program_id);
 
                     // Create the filter output
                     let mut filter_output       = filter.filter_any(recv_msg)?;
@@ -615,8 +616,6 @@ impl SceneCore {
                     }
 
                     // TODO: Create a program to push messages through the filter into the target core
-                    let filter_stream   = InputStream::<TMessageType>::new(*target_program, locked_core, 1);
-                    filter_core         = Some(filter_stream.core());
                 }
 
                 // Create a waker from those returned by the filter
