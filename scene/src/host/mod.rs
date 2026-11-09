@@ -28,7 +28,8 @@ pub use command_trait::*;
 pub use serialization::*;
 pub use serialization_context::*;
 
-pub use flo_scene_messages::*;
+pub use flo_scene_messages::messages::*;
+pub use flo_scene_messages::errors::*;
 
 #[cfg(feature="tokio")]
 pub use error::{ConnectionErrorTokioExt};
