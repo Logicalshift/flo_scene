@@ -437,6 +437,13 @@ impl StreamTypeFunctions {
             .map(|all_functions| Arc::clone(&all_functions.reconnect_sink))
     }
 
+    pub fn deliver_stream(type_id: &TypeId) -> Option<DeliverStreamFn> {
+        let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
+
+        stream_type_functions.get(type_id)
+            .map(|all_functions| Arc::clone(&all_functions.deliver_stream))
+    }
+
     #[cfg(all(feature="postcard", feature="guest_programs"))]
     pub fn run_host_subprogram_postcard(type_id: &TypeId) -> Option<RunHostSubProgramFn> {
         let stream_type_functions = STREAM_TYPE_FUNCTIONS.read().unwrap();
@@ -485,6 +492,7 @@ pub (crate) trait StreamTypeFunctionsExt {
     fn active_program_for_output_sink(&self, output_sink_core: &Arc<dyn Send + Sync + Any>) -> Option<SubProgramId>;
     fn reconnect_output_sink(&self, scene_core: &Arc<Mutex<SceneCore>>, output_sink_core: &Arc<dyn Send + Sync + Any>, source_program: SubProgramId, new_target: StreamTarget) -> Result<Option<Waker>, ConnectionError>;
     fn chain_filter(&self, filter: &FilterHandle, output_scene_stream: Box<dyn Send + Any>, source_program_id: SubProgramId) -> Result<(Box<dyn Send + Any>, StreamId), ConnectionError>;
+    fn deliver_stream(&self, source_program_id: SubProgramId, source_stream: Box<dyn Send + Any>, input_core: Arc<dyn Send + Sync + Any>) -> Result<BoxFuture<'static, ()>, ConnectionError>;
     #[cfg(all(feature="postcard", feature="guest_programs"))]
     fn run_host_subprogram_postcard(&self, program_id: SubProgramId, max_input_waiting: usize, actions: Sender<GuestAction>, results: impl 'static + Send + Stream<Item=GuestResult>) -> Result<SceneControl, ConnectionError>;
     #[cfg(any(feature="postcard", target_family="wasm"))]
@@ -674,6 +682,39 @@ impl StreamTypeFunctionsExt for TypeId {
             Err(ConnectionError::UnexpectedConnectionType)
         }
     }
+    
+    ///
+    /// Sends the output of one filter through another filter
+    ///
+    /// `self` is the message type produced by the previous filter, and `output_scene_stream` is that filter's output (a boxed
+    /// `BoxStream` of that message type). The return value is the output of the new filter and the stream ID it produces.
+    ///
+    fn chain_filter(&self, filter: &FilterHandle, output_scene_stream: Box<dyn Send + Any>, source_program_id: SubProgramId) -> Result<(Box<dyn Send + Any>, StreamId), ConnectionError> {
+        let message_type = *self;
+
+        if let Some(chain_filter) = StreamTypeFunctions::chain_filter(&message_type) {
+            (chain_filter)(filter, output_scene_stream, source_program_id)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
+    
+    ///
+    /// Sends the source_stream (BoxStream<'static, TMessageType> as Any) to the specified input core (Arc<Mutex<InputStreamCore<TMessageType>>> as Any)
+    ///
+    /// Returns a future that runs the stream
+    ///
+    fn deliver_stream(&self, source_program_id: SubProgramId, source_stream: Box<dyn Send + Any>, input_core: Arc<dyn Send + Sync + Any>) -> Result<BoxFuture<'static, ()>, ConnectionError> {
+        let message_type = *self;
+
+        if let Some(deliver_stream) = StreamTypeFunctions::deliver_stream(&message_type) {
+            (deliver_stream)(source_program_id, source_stream, input_core)
+        } else {
+            // Shouldn't happen: the stream type was not registered correctly
+            Err(ConnectionError::UnexpectedConnectionType)
+        }
+    }
 
     ///
     /// Returns the scene control message required to start a guest host subprogram using the postcard encoding for messages 
@@ -701,23 +742,6 @@ impl StreamTypeFunctionsExt for TypeId {
 
         if let Some(send_guest_messages) = StreamTypeFunctions::send_guest_messages(&message_type) {
             (send_guest_messages)(target, context, serialization_context)
-        } else {
-            // Shouldn't happen: the stream type was not registered correctly
-            Err(ConnectionError::UnexpectedConnectionType)
-        }
-    }
-    
-    ///
-    /// Sends the output of one filter through another filter
-    ///
-    /// `self` is the message type produced by the previous filter, and `output_scene_stream` is that filter's output (a boxed
-    /// `BoxStream` of that message type). The return value is the output of the new filter and the stream ID it produces.
-    ///
-    fn chain_filter(&self, filter: &FilterHandle, output_scene_stream: Box<dyn Send + Any>, source_program_id: SubProgramId) -> Result<(Box<dyn Send + Any>, StreamId), ConnectionError> {
-        let message_type = *self;
-
-        if let Some(chain_filter) = StreamTypeFunctions::chain_filter(&message_type) {
-            (chain_filter)(filter, output_scene_stream, source_program_id)
         } else {
             // Shouldn't happen: the stream type was not registered correctly
             Err(ConnectionError::UnexpectedConnectionType)
