@@ -265,43 +265,37 @@ impl StreamTypeFunctions {
                     // Future that reads from the source stream and puts the values into the target input core
                     let mut source_stream = source_stream;
                     while let Some(msg) = source_stream.next().await {
-                        let mut msg = msg;
-                        loop {
-                            // Try to send the message
-                            {
-                                let mut locked_input    = input_core.lock().unwrap();
+                        let mut msg = Some(msg);
+                        // Try to send the message
+                        let still_running = future::poll_fn(|context| {
+                            let mut locked_input = input_core.lock().unwrap();
 
-                                let old_msg = match locked_input.send(source_program, msg) {
-                                    Ok(waker) => {
-                                        drop(locked_input);
-                                        if let Some(waker) = waker { waker.wake(); }
-                                        break;
+                            match locked_input.send(source_program, msg.take().unwrap()) {
+                                Ok(waker) => {
+                                    drop(locked_input);
+                                    if let Some(waker) = waker { waker.wake(); }
+                                    Poll::Ready(true)
+                                }
+
+                                Err(old_msg) => {
+                                    // If closed, then stop
+                                    if locked_input.is_closed() {
+                                        Poll::Ready(false)
+                                    } else {
+                                        // Store the old message
+                                        msg = Some(old_msg);
+
+                                        // Retry when a slot is available
+                                        locked_input.wake_when_slots_available(context);
+                                        Poll::Pending
                                     }
-
-                                    Err(old_msg) => old_msg
-                                };
-
-                                // Message failed to send
-                                msg = old_msg;
-
-                                // Wait for space to send the message
-                                if locked_input.is_closed() {
-                                    // Target is no longer functional
-                                    return;
                                 }
                             }
+                        }).await;
 
-                            // Wait for the core to have space in it
-                            let mut ready = false;
-                            future::poll_fn(|context| {
-                                if !ready {
-                                    ready = true;
-                                    input_core.lock().unwrap().wake_when_slots_available(context);
-                                    Poll::Pending
-                                } else {
-                                    Poll::Ready(())
-                                }
-                            }).await;
+                        // Stop if the input stream is no longer running
+                        if !still_running {
+                            break;
                         }
                     }
                 }.boxed())
