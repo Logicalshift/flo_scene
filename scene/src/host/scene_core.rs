@@ -615,10 +615,13 @@ impl SceneCore {
                     }
 
                     // Create a program to push messages through the filter into the target core
-                    let output_type     = combined_filter.target_stream_id();
-                    let filter_output   = combined_filter.filter_any(recv_msg)?;
-                    let run_filter      = output_type.message_type().deliver_stream(source_program_id, filter_output, target_input.clone()).unwrap();
+                    let target_input_2 = target_input.clone();
                     let (_handle, waker) = self.start_process(async move {
+                        // Perform the filtering in the process so it runs when the core is unlocked
+                        let output_type     = combined_filter.target_stream_id();
+                        let filter_output   = combined_filter.filter_any(recv_msg).unwrap();
+                        let run_filter      = output_type.message_type().deliver_stream(source_program_id, filter_output, target_input_2).unwrap();
+
                         run_filter.await
                     });
                     wakers.extend(waker);
