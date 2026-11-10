@@ -617,9 +617,10 @@ impl SceneCore {
 
                     // Create a program to push messages through the filter into the target core
                     let run_filter = output_type.message_type().deliver_stream(source_program_id, filter_output, target_input.clone())?;
-                    self.start_process(async move {
+                    let (_handle, waker) = self.start_process(async move {
                         run_filter.await
                     });
+                    wakers.extend(waker);
                 }
 
                 // Create a waker from those returned by the filter

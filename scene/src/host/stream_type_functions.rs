@@ -287,7 +287,16 @@ impl StreamTypeFunctions {
                             // Try to send the message
                             {
                                 let mut locked_input    = input_core.lock().unwrap();
-                                let Err(old_msg)        = locked_input.send(source_program, msg) else { break; };
+
+                                let old_msg = match locked_input.send(source_program, msg) {
+                                    Ok(waker) => {
+                                        drop(locked_input);
+                                        if let Some(waker) = waker { waker.wake(); }
+                                        break;
+                                    }
+
+                                    Err(old_msg) => old_msg
+                                };
 
                                 // Message failed to send
                                 msg = old_msg;
