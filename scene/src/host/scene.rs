@@ -377,7 +377,7 @@ impl Scene {
     /// #   let subprogram      = SubProgramId::new();
     /// #   let source_program  = SubProgramId::new();
     /// #   let other_program   = SubProgramId::new();
-    /// #   let example_filter  = FilterHandle::for_filter(|input_stream: InputStream<FilteredMessage>| input_stream.map(|_| ExampleMessage::Test));
+    /// #   let example_filter  = FilterHandle::for_filter(|input_stream: BoxSceneStream<FilteredMessage>| input_stream.map(|_| ExampleMessage::Test));
     /// #
     /// // Connect all the 'ExampleMessage' streams to one program
     /// scene.connect_programs((), &subprogram, StreamId::with_message_type::<ExampleMessage>());
