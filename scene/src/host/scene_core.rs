@@ -593,8 +593,8 @@ impl SceneCore {
                     .unwrap_or_else(|| StreamId::with_message_type::<TMessageType>());
 
                 // Start with the input for the target program
-                let mut target_input        = self.get_target_input(&target_program, &stream)?;
-                let mut filter_core         = None;
+                let target_input    = self.get_target_input(&target_program, &stream)?;
+                let mut filter_core = None;
 
                 // Apply filters in reverse to get the core to connect
                 let mut wakers = vec![];
@@ -615,7 +615,11 @@ impl SceneCore {
                         (filter_output, output_type) = output_type.message_type().chain_filter(filter, filter_output, source_program_id)?;
                     }
 
-                    // TODO: Create a program to push messages through the filter into the target core
+                    // Create a program to push messages through the filter into the target core
+                    let run_filter = output_type.message_type().deliver_stream(source_program_id, filter_output, target_input.clone())?;
+                    self.start_process(async move {
+                        run_filter.await
+                    });
                 }
 
                 // Create a waker from those returned by the filter
