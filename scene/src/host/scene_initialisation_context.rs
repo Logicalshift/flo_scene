@@ -237,7 +237,7 @@ impl<T: InitialisationContext> SceneInitialisationExt for T {
         TProgramFn:     'a + Send + FnOnce(InputStream<TInputMessage>, SceneContext) -> TFuture
     {
         if let Some(context) = self.get_init_context::<SceneInitialisationContext>() {
-            context.add_subprogram(program_id, program, max_input_waiting);
+            SceneInitialisationContext::add_subprogram(context, program_id, program, max_input_waiting);
             Ok(())
         } else {
             Err(ConnectionError::Cancelled)
@@ -247,7 +247,7 @@ impl<T: InitialisationContext> SceneInitialisationExt for T {
     #[inline]
     fn connect_programs(&mut self, source: impl Into<StreamSource>, target: impl Into<StreamTarget>, stream: impl Into<StreamId>) -> Result<ConnectionResult, ConnectionError> {
         if let Some(context) = self.get_init_context::<SceneInitialisationContext>() {
-            context.connect_programs(source, target, stream)
+            SceneInitialisationContext::connect_programs(context, source, target, stream)
         } else {
             Err(ConnectionError::Cancelled)
         }
