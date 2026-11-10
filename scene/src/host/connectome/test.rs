@@ -1,4 +1,5 @@
 use super::*;
+use super::invalidated_streams::*;
 
 use flo_scene_messages::prelude::*;
 
@@ -696,7 +697,7 @@ fn route_to_program_with_mismatched_type_does_not_loop() {
 
     // Without a source filter the route cannot resolve, but it must report a wrong input type rather than looping
     let route = connectome.route_for(&StreamId::with_message_type::<TestMessage>(), source, &StreamTarget::Any);
-    assert!(matches!(route, Err(crate::host::error::ConnectionError::WrongInputType(_, _))), "{:?}", route);
+    assert!(matches!(route, Err(crate::host::ConnectionError::WrongInputType(_, _))), "{:?}", route);
 
     // Adding the source filter makes the connection resolvable
     connectome.connect(&StreamSource::Filtered(filter.clone()), &StreamTarget::Any, StreamId::with_message_type::<TestMessage>()).unwrap();
