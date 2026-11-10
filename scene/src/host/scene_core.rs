@@ -641,10 +641,10 @@ impl SceneCore {
                     Some(waker(Arc::new(WakeAll(Mutex::new(wakers)))))
                 };
 
-                let input_core = target_input.downcast().unwrap();
                 if let Some(filter_core) = filter_core {
                     Ok((OutputSinkTarget::CloseWhenDropped(Arc::downgrade(&filter_core)), waker))
                 } else {
+                    let input_core = target_input.downcast().unwrap();
                     Ok((OutputSinkTarget::Input(Arc::downgrade(&input_core)), waker))
                 }
             },
