@@ -607,16 +607,17 @@ impl SceneCore {
                     let recv_msg        = SingleSourceStream::from_stream(filter_stream, source_program_id);
 
                     // Create the filter output
-                    let mut filter_output       = filter.filter_any(recv_msg)?;
-                    let mut output_type         = filter.target_stream_id();
+                    let mut combined_filter = filter.clone();
 
                     // Apply each following filter
                     for filter in filters {
-                        (filter_output, output_type) = output_type.message_type().chain_filter(filter, filter_output, source_program_id)?;
+                        combined_filter = combined_filter.chain(filter.clone())?;
                     }
 
                     // Create a program to push messages through the filter into the target core
-                    let run_filter = output_type.message_type().deliver_stream(source_program_id, filter_output, target_input.clone())?;
+                    let output_type     = combined_filter.target_stream_id();
+                    let filter_output   = combined_filter.filter_any(recv_msg)?;
+                    let run_filter      = output_type.message_type().deliver_stream(source_program_id, filter_output, target_input.clone()).unwrap();
                     let (_handle, waker) = self.start_process(async move {
                         run_filter.await
                     });
