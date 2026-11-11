@@ -7,6 +7,7 @@ use flo_scene::programs::*;
 use futures::prelude::*;
 use serde::*;
 
+use std::borrow::*;
 use std::collections::{HashMap};
 
 ///
@@ -36,7 +37,7 @@ pub struct ListConnectionsSource {
     pub rust_type_name: String,
 
     /// If the type name is serializable, this is the name used to refer to the rust type by the deserializer
-    pub serialized_type_name: Option<String>,
+    pub serialized_type_name: Option<Cow<'static, str>>,
 }
 
 impl SceneMessage for ListConnectionsResponse {

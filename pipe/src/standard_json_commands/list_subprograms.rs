@@ -25,7 +25,7 @@ pub struct ListSubprogramsResponse {
     pub rust_type_name: String,
 
     /// If the input stream can be serialized, this is the serialization name of the type (can be used with 'Send', say)
-    pub serialized_type_name: Option<String>,
+    pub serialized_type_name: Option<Cow<'static, str>>,
 }
 
 impl SceneMessage for ListSubprogramsResponse {
