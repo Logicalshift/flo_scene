@@ -454,6 +454,8 @@ impl StreamTypeFunctions {
     }
 }
 
+// TODO: only the `run_host_subprogram_postcard` actually needs to be public
+
 ///
 /// Extensions for TypeId that allows arbitrary types to be used in flo_scene streams
 ///
