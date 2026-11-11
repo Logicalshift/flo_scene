@@ -203,6 +203,7 @@ pub use guest::*;
 pub use postcard;
 
 pub use flo_scene_messages::prelude as messages;
+pub use flo_scene_messages::errors as error;
 
 // #[cfg(target_family="wasm")]
 #[cfg(any(feature="postcard", target_family="wasm"))]
