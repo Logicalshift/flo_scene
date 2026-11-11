@@ -27,6 +27,7 @@ pub use output_sink::*;
 pub use command_trait::*;
 pub use serialization::*;
 pub use serialization_context::*;
+pub use stream_type_functions::*;
 
 pub use flo_scene_messages::messages::*;
 pub use flo_scene_messages::errors::*;

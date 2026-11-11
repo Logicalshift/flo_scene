@@ -457,7 +457,7 @@ impl StreamTypeFunctions {
 ///
 /// Extensions for TypeId that allows arbitrary types to be used in flo_scene streams
 ///
-pub (crate) trait StreamTypeFunctionsExt {
+pub trait StreamTypeFunctionsExt {
     fn input_stream_core_type(&self) -> Result<TypeId, ConnectionError>;
     fn close_input(&self, input_stream: &Arc<dyn Send + Sync + Any>) -> Result<Option<Waker>, ConnectionError>;
     fn is_idle(&self, input_stream: &Arc<dyn Send + Sync  + Any>) -> Result<bool, ConnectionError>;
