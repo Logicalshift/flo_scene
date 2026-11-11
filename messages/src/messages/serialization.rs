@@ -42,14 +42,14 @@ impl StreamId {
     ///
     /// Changes a serialization name into a stream ID
     ///
-    pub fn with_serialization_type(type_name: impl Into<Cow<'static, str>>) -> Option<Self> {
-        (*STREAM_ID_FOR_SERIALIZABLE_TYPE).read().unwrap().get(&type_name.into()).cloned()
+    pub fn with_serialization_type(type_name: impl AsRef<str>) -> Option<Self> {
+        (*STREAM_ID_FOR_SERIALIZABLE_TYPE).read().unwrap().get(type_name.as_ref()).cloned()
     }
 
     ///
     /// Changes a serialization name into a stream ID
     ///
-    pub fn with_rust_type(type_name: impl Into<Cow<'static, str>>) -> Option<Self> {
-        (*STREAM_ID_FOR_RUST_TYPE).read().unwrap().get(&type_name.into()).cloned()
+    pub fn with_rust_type(type_name: impl AsRef<str>) -> Option<Self> {
+        (*STREAM_ID_FOR_RUST_TYPE).read().unwrap().get(type_name.as_ref()).cloned()
     }
 }
