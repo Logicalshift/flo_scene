@@ -189,6 +189,21 @@ impl FilterHandle {
             data:   Arc::new(chained_filter_data)
         })
     }
+
+    ///
+    /// Creates a filter that converts between two message types that implements `From`
+    ///
+    /// This will cache the filter handle for specific message types so this won't allocate additional filters every time it's called
+    ///
+    pub fn conversion_filter<TSourceMessage, TTargetMessage>() -> FilterHandle
+    where
+        TSourceMessage: 'static + SceneMessage + Into<TTargetMessage>,
+        TTargetMessage: 'static + SceneMessage,
+    {
+        let new_filter = Self::for_filter(|input| input.map(|source_message: TSourceMessage| source_message.into()));
+
+        new_filter
+    }
 }
 
 impl PartialEq for FilterHandle {

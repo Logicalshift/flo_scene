@@ -78,7 +78,6 @@ fn write_to_filter_target() {
     assert!(has_finished, "Scene did not finish when the programs terminated");
 }
 
-/* -- todo, add conversion_filter back again
 #[test]
 fn write_to_conversion_filter() {
     // List of messages that were received by the subprogram
@@ -134,7 +133,6 @@ fn write_to_conversion_filter() {
     assert!(recv_messages == vec![1.to_string(), 2.to_string(), 3.to_string(), 4.to_string()], "Test program did not send correct numbers (sent {:?})", recv_messages);
     assert!(has_finished, "Scene did not finish when the programs terminated");
 }
-*/
 
 #[test]
 fn apply_filter_to_direct_connection() {
