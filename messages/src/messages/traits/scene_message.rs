@@ -19,7 +19,7 @@ use std::borrow::*;
 /// A basic message type can be declared like this:
 ///
 /// ```
-/// # use flo_scene::*;
+/// # use flo_scene_messages::prelude::*;
 /// # use serde::*;
 /// #[derive(Serialize, Deserialize)]
 /// struct ExampleMessage { some_value: i64 };
@@ -37,7 +37,7 @@ use std::borrow::*;
 /// An implementation like the following can be used for non-serializable messages:
 ///
 /// ```
-/// # use flo_scene::*;
+/// # use flo_scene_messages::prelude::*;
 /// use serde::*;
 /// use serde::de::{Error as DeError};
 /// use serde::ser::{Error as SeError};
@@ -71,7 +71,7 @@ use std::borrow::*;
 /// or deserialization. This can look like this:
 ///
 /// ```
-/// # use flo_scene::*;
+/// # use flo_scene_messages::prelude::*;
 /// use serde::*;
 /// # 
 /// # struct ExampleMessage { real_number: usize }
