@@ -72,7 +72,7 @@ impl SceneMessage for AnimationBindingMessage {
 
     fn serializable() -> bool { false }
 
-    fn initialise(init_context: &impl SceneInitialisationContext) {
+    fn initialise(init_context: &mut impl InitialisationContext) {
         init_context.add_subprogram(*ANIMATION_BINDING_SUBPROGRAM, animation_binding_program, 100);
         init_context.connect_programs((), StreamTarget::Filtered(FilterHandle::for_filter(|msgs| msgs.map(|msg: TimeOut| AnimationBindingMessage::Tick(msg.1, Instant::now()))), *ANIMATION_BINDING_SUBPROGRAM), StreamId::with_message_type::<TimeOut>()).unwrap();
     }

@@ -97,8 +97,8 @@ impl JsonCommand {
 /// Starts a dispatcher that will forward `RunCommand<serde_json::Value, CommandResponse>` requests to the
 /// program that can handle them.
 ///
-pub fn start_json_command_dispatcher(scene: &impl SceneInitialisationContext, program_id: SubProgramId) {
-    scene.add_subprogram(program_id, command_dispatcher_subprogram::<JsonParameter, CommandResponse>, 1)
+pub fn start_json_command_dispatcher(scene: &mut impl InitialisationContext, program_id: SubProgramId) {
+    scene.add_subprogram(program_id, command_dispatcher_subprogram::<JsonParameter, CommandResponse>, 1).unwrap();
 }
 
 impl SceneMessage for JsonCommand {

@@ -203,7 +203,7 @@ pub enum BindingProgram {
 }
 
 impl SceneMessage for BindingProgram {
-    fn initialise(init_context: &impl SceneInitialisationContext) {
+    fn initialise(init_context: &mut impl InitialisationContext) {
         // The binding programs can receive idle notifications and scene updates
         init_context.connect_programs(StreamSource::Filtered(FilterHandle::for_filter(|scene_updates| scene_updates.map(|update| BindingProgram::Update(update)))), (), StreamId::with_message_type::<SceneUpdate>()).ok();
         init_context.connect_programs(StreamSource::Filtered(FilterHandle::for_filter(|idle_updates| idle_updates.map(|_: IdleNotification| BindingProgram::Idle))), (), StreamId::with_message_type::<IdleNotification>()).ok();

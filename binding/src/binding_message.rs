@@ -49,8 +49,6 @@ impl<TValue> SceneMessage for BindingMessage<TValue>
 where 
     TValue: 'static + Default + Clone + PartialEq + SceneMessage,
 {
-    fn initialise(_init_context: &impl flo_scene::SceneInitialisationContext) { }
-
     fn message_type_name() -> String { format!("flo_scene_binding::BindingMessage<{:?}>", TValue::message_type_name()) }
 
     fn serializable() -> bool { false }
