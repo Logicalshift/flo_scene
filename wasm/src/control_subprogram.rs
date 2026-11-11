@@ -96,7 +96,7 @@ pub async fn wasm_control_subprogram(input: InputStream<WasmControl>, context: S
                                 // Run as a subprogram via the streams
                                 let host_stream_id = StreamId::with_serialization_type(guest_stream_id.0.clone());
                                 if let Some(host_stream_id) = host_stream_id {
-                                    match host_stream_id.run_host_subprogram_postcard(program_id, max_input_waiting, actions, results) {
+                                    match host_stream_id.message_type().run_host_subprogram_postcard(program_id, max_input_waiting, actions, results) {
                                         Ok(start_message) => {
                                             match context.send_message(start_message).await {
                                                 Ok(()) => {
