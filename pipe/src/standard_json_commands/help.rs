@@ -14,7 +14,7 @@ use std::collections::{HashSet, HashMap};
 
 /// Filter that maps the 'HelpQueryTopic' message to a CommandHelp
 static HELP_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| 
-    FilterHandle::for_filter(|stream: InputStream<HelpQueryTopic>| 
+    FilterHandle::for_filter(|stream: BoxSceneStream<HelpQueryTopic>| 
         stream.map(|HelpQueryTopic(target, topic): HelpQueryTopic| CommandHelp::Query(target, topic))));
 
 static DEFAULT_MSG: &'static [u8] = include_bytes!("help-intro.md");

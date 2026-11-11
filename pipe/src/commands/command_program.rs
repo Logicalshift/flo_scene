@@ -24,7 +24,7 @@ use std::iter;
 use std::sync::*;
 
 /// Filter that maps the 'Query' message to a CommandSessionRequest message
-static COMMAND_SESSION_VARIABLE_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: InputStream<Query<CommandVariable>>| stream.map(|msg| CommandSessionRequest::QueryAllVariables(msg.target()))));
+static COMMAND_SESSION_VARIABLE_QUERY_FILTER: Lazy<FilterHandle> = Lazy::new(|| FilterHandle::for_filter(|stream: BoxSceneStream<Query<CommandVariable>>| stream.map(|msg| CommandSessionRequest::QueryAllVariables(msg.target()))));
 
 ///
 /// A connection to a simple command program
