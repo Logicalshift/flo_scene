@@ -601,9 +601,14 @@ impl SceneCore {
 
                 let mut filters = filters.into_iter();
                 if let Some(filter) = filters.next() {
+                    // Thread stealing will try to push through filter values quickly (filters can't really know when a value is retired,
+                    // so it's possible for two sends to the same program to arrive in a reversed order. Thread stealing tries harder to push
+                    // the filtered value through)
+
                     // We have at least one filter: create a channel to run the filter
                     let filter_stream   = InputStream::<TMessageType>::new(*target_program, locked_core, 1);
                     filter_core         = Some(filter_stream.core());
+                    filter_stream.allow_thread_stealing(true);
                     let recv_msg        = SingleSourceStream::from_stream(filter_stream, source_program_id);
 
                     // Create the filter output
