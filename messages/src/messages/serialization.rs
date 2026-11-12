@@ -25,9 +25,9 @@ impl StreamId {
         if !with_shared(&*SERIALIZABLE_MESSAGE_TYPE_NAMES, |type_names| type_names.contains(&type_id)) {
             let type_name: Cow<'static, str> = TMessageType::message_type_name().into();
 
-            with_shared(&*SERIALIZABLE_MESSAGE_TYPE_NAMES,  |stream_ids| stream_ids.entry(type_id).or_insert_with(|| type_name.clone()));
-            with_shared(&*STREAM_ID_FOR_SERIALIZABLE_TYPE,  |stream_ids| stream_ids.entry(type_name.clone()).or_insert_with(|| self.clone()));
-            with_shared(&*STREAM_ID_FOR_RUST_TYPE,          |stream_ids| stream_ids.entry(type_name.clone()).or_insert_with(|| self.clone()));
+            with_shared(&*SERIALIZABLE_MESSAGE_TYPE_NAMES,  |stream_ids| { stream_ids.entry(type_id).or_insert_with(|| type_name.clone()); });
+            with_shared(&*STREAM_ID_FOR_SERIALIZABLE_TYPE,  |stream_ids| { stream_ids.entry(type_name.clone()).or_insert_with(|| self.clone()); });
+            with_shared(&*STREAM_ID_FOR_RUST_TYPE,          |stream_ids| { stream_ids.entry(type_name.clone()).or_insert_with(|| self.clone()); });
         }
     }
 
