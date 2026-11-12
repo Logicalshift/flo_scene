@@ -2,19 +2,17 @@ use super::stream_id::*;
 use super::traits::*;
 use crate::no_std::*;
 
-use alloc::collections::*;
 use alloc::borrow::*;
 use core::any::*;
-use core::sync::*;
 
 /// The known type names of serialized types
-static SERIALIZABLE_MESSAGE_TYPE_NAMES: StaticLazy<RwLock<BTreeMap<TypeId, Cow<'static, str>>>> = StaticLazy::new(|| RwLock::new(HashMap::new()));
+static SERIALIZABLE_MESSAGE_TYPE_NAMES: StaticLazy<Shared<OrderedVec<TypeId, Cow<'static, str>>>> = StaticLazy::new(|| share(OrderedVec::new()));
 
 /// The stream ID for a known serializable type
-static STREAM_ID_FOR_SERIALIZABLE_TYPE: StaticLazy<RwLock<BTreeMap<Cow<'static, str>, StreamId>>> = StaticLazy::new(|| RwLock::new(HashMap::new()));
+static STREAM_ID_FOR_SERIALIZABLE_TYPE: StaticLazy<Shared<OrderedVec<Cow<'static, str>, StreamId>>> = StaticLazy::new(|| share(OrderedVec::new()));
 
 /// The stream ID for a rust type name
-static STREAM_ID_FOR_RUST_TYPE: StaticLazy<RwLock<BTreeMap<Cow<'static, str>, StreamId>>> = StaticLazy::new(|| RwLock::new(HashMap::new()));
+static STREAM_ID_FOR_RUST_TYPE: StaticLazy<Shared<OrderedVec<Cow<'static, str>, StreamId>>> = StaticLazy::new(|| share(OrderedVec::new()));
 
 impl StreamId {
     #[inline]
@@ -24,12 +22,12 @@ impl StreamId {
     {
         let type_id = TypeId::of::<TMessageType>();
 
-        if !SERIALIZABLE_MESSAGE_TYPE_NAMES.read().unwrap().contains_key(&type_id) {
+        if !with_shared(&*SERIALIZABLE_MESSAGE_TYPE_NAMES, |type_names| type_names.contains(&type_id)) {
             let type_name: Cow<'static, str> = TMessageType::message_type_name().into();
 
-            SERIALIZABLE_MESSAGE_TYPE_NAMES.write().unwrap().entry(type_id).or_insert_with(|| type_name.clone());
-            STREAM_ID_FOR_SERIALIZABLE_TYPE.write().unwrap().entry(type_name.clone()).or_insert_with(|| self.clone());
-            STREAM_ID_FOR_RUST_TYPE.write().unwrap().entry(type_name.clone()).or_insert_with(|| self.clone());
+            with_shared(&*SERIALIZABLE_MESSAGE_TYPE_NAMES,  |stream_ids| stream_ids.entry(type_id).or_insert_with(|| type_name.clone()));
+            with_shared(&*STREAM_ID_FOR_SERIALIZABLE_TYPE,  |stream_ids| stream_ids.entry(type_name.clone()).or_insert_with(|| self.clone()));
+            with_shared(&*STREAM_ID_FOR_RUST_TYPE,          |stream_ids| stream_ids.entry(type_name.clone()).or_insert_with(|| self.clone()));
         }
     }
 
@@ -37,20 +35,20 @@ impl StreamId {
     /// If this stream can be serialized, then this is the serialization type name that can be used to specify it
     ///
     pub fn serialization_type_name(&self) -> Option<Cow<'static, str>> {
-        (*SERIALIZABLE_MESSAGE_TYPE_NAMES).read().unwrap().get(&self.message_type()).cloned()
+        with_shared(&*SERIALIZABLE_MESSAGE_TYPE_NAMES, |type_names| type_names.get(&self.message_type()).cloned())
     }
 
     ///
     /// Changes a serialization name into a stream ID
     ///
     pub fn with_serialization_type(type_name: impl AsRef<str>) -> Option<Self> {
-        (*STREAM_ID_FOR_SERIALIZABLE_TYPE).read().unwrap().get(type_name.as_ref()).cloned()
+        with_shared(&*STREAM_ID_FOR_SERIALIZABLE_TYPE, |stream_ids| stream_ids.get(type_name.as_ref()).cloned())
     }
 
     ///
     /// Changes a serialization name into a stream ID
     ///
     pub fn with_rust_type(type_name: impl AsRef<str>) -> Option<Self> {
-        (*STREAM_ID_FOR_RUST_TYPE).read().unwrap().get(type_name.as_ref()).cloned()
+        with_shared(&*STREAM_ID_FOR_RUST_TYPE, |stream_ids| stream_ids.get(type_name.as_ref()).cloned())
     }
 }
