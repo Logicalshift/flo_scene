@@ -11,7 +11,7 @@ use serde_json;
 #[cfg(feature="postcard")]
 use postcard;
 
-use core::borrow::*;
+use alloc::borrow::*;
 
 ///
 /// Trait implemented by messages that can be sent via a scene
