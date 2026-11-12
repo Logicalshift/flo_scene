@@ -18,7 +18,7 @@ default             = [ "one_thread" ]
 use-std             = [ "postcard/use-std", "futures/std", "flo_scene_messages/use-std" ]
 
 # If std is not applied, assume that we're running in single-threaded mode
-one_thread          = [ "spin", "flo_scene_messages/one_thread" ]
+one_thread          = [ "spin", "flo_scene_messages/one-thread" ]
 
 # Adds support for JSON encoding
 json                = [ "serde_json", "flo_scene_messages/json" ]

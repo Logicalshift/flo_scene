@@ -15,7 +15,7 @@ default         = [ "use-std" ]
 json            = [ "serde_json" ]
 postcard        = [ "dep:postcard" ]
 use-std         = [ "postcard?/use-std", "uuid/std", "uuid/v4", "futures/std", "serde/std", "serde_json?/std" ]
-use-random      = [ "uuid/u4" ]
+use-random      = [ "uuid/v4" ]
 one-thread      = [ "spin" ]
 
 [dependencies]
