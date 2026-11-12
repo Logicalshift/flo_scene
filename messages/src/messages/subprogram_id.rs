@@ -4,7 +4,7 @@ use ::serde::*;
 use ::serde::de::*;
 use ::serde::ser::{Error};
 use uuid::*;
-use std::sync::{OnceLock};
+use core::sync::{OnceLock};
 
 use alloc::string::*;
 use alloc::vec::*;

@@ -2,9 +2,9 @@ use super::traits::*;
 use super::stream_target::*;
 use super::subprogram_id::*;
 
-use std::any::*;
-use std::hash::*;
-use std::sync::*;
+use core::any::*;
+use core::hash::*;
+use core::sync::*;
 
 use core::fmt;
 
@@ -153,7 +153,7 @@ mod serialization {
 
     use serde::*;
 
-    use std::borrow::*;
+    use core::borrow::*;
 
     #[derive(Serialize, Deserialize)]
     enum SerializedStreamId {

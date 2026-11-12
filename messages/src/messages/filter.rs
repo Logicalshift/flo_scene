@@ -7,11 +7,11 @@ use serde::*;
 use futures::prelude::*;
 use futures::stream::{BoxStream};
 
-use std::any::*;
-use std::fmt::{Debug};
-use std::hash::{Hash, Hasher};
-use std::sync::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use core::any::*;
+use core::fmt::{Debug};
+use core::hash::{Hash, Hasher};
+use core::sync::*;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 static NEXT_SERIAL: AtomicUsize = AtomicUsize::new(0);
 

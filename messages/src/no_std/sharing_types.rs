@@ -1,6 +1,6 @@
 #[cfg(feature="use-std")]
 mod std_sharing_types {
-    use std::sync::*;
+    use core::sync::*;
 
     /// A shared reference type that can be cloned
     pub type Shared<T> = Arc<Mutex<T>>;

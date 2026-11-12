@@ -4,7 +4,7 @@ use crate::messages::subprogram_id::*;
 use futures::prelude::*;
 use futures::stream::{BoxStream};
 
-use std::pin::*;
+use core::pin::*;
 
 ///
 /// Trait implemented by input streams for a flo_scene scene

@@ -7,9 +7,9 @@ use futures::prelude::*;
 use futures::stream::{BoxStream};
 use futures::task::{Context, Poll};
 
-use std::any::{TypeId};
-use std::pin::*;
-use std::sync::*;
+use core::any::{TypeId};
+use core::pin::*;
+use core::sync::*;
 
 ///
 /// Stream that re-applies program IDs to the other side of a filter stream

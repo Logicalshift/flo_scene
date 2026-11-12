@@ -1,10 +1,10 @@
 use super::stream_id::*;
 use super::traits::*;
 
-use std::any::*;
-use std::borrow::*;
-use std::collections::*;
-use std::sync::*;
+use core::any::*;
+use core::borrow::*;
+use core::collections::*;
+use core::sync::*;
 
 /// The known type names of serialized types
 static SERIALIZABLE_MESSAGE_TYPE_NAMES: LazyLock<RwLock<HashMap<TypeId, Cow<'static, str>>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
