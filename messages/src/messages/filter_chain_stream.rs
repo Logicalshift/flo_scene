@@ -1,4 +1,5 @@
 use crate::errors::*;
+use crate::no_std::*;
 use super::filter::*;
 use super::subprogram_id::*;
 use super::traits::*;
@@ -28,7 +29,7 @@ pub struct FilterChainStream<TSourceMessage, TTargetMessage> {
     filter: FilterHandle,
 
     /// Source for the filter
-    source: Arc<Mutex<FilterChainSource<TSourceMessage>>>,
+    source: Shared<FilterChainSource<TSourceMessage>>,
 
     /// The program ID and the output of the currently running filter
     current: Option<(SubProgramId, BoxStream<'static, TTargetMessage>)>,
@@ -56,7 +57,7 @@ struct FilterSegmentStream<TSourceMessage> {
     program_id: SubProgramId,
 
     /// The source stream
-    source: Arc<Mutex<FilterChainSource<TSourceMessage>>>,
+    source: Shared<FilterChainSource<TSourceMessage>>,
 
     /// Set to true once the program ID changes or the source finishes
     finished: bool,
@@ -70,34 +71,35 @@ impl<TSourceMessage> Stream for FilterSegmentStream<TSourceMessage> {
 
         let program_id  = self.program_id;
         let source      = Arc::clone(&self.source);
-        let mut source  = source.lock().unwrap();
 
-        // Read a message (either the one waiting in the source, or the next message from the stream)
-        let next = if let Some(pending) = source.pending.take() {
-            pending
-        } else if let Some(stream) = source.stream.as_mut() {
-            match stream.poll_next_unpin(cx) {
-                Poll::Pending           => { return Poll::Pending; }
-                Poll::Ready(Some(next)) => next,
-                Poll::Ready(None)       => {
-                    source.stream   = None;
-                    self.finished   = true;
-                    return Poll::Ready(None);
+        with_shared(&source, |source| {
+            // Read a message (either the one waiting in the source, or the next message from the stream)
+            let next = if let Some(pending) = source.pending.take() {
+                pending
+            } else if let Some(stream) = source.stream.as_mut() {
+                match stream.poll_next_unpin(cx) {
+                    Poll::Pending           => { return Poll::Pending; }
+                    Poll::Ready(Some(next)) => next,
+                    Poll::Ready(None)       => {
+                        source.stream   = None;
+                        self.finished   = true;
+                        return Poll::Ready(None);
+                    }
                 }
-            }
-        } else {
-            self.finished = true;
-            return Poll::Ready(None);
-        };
+            } else {
+                self.finished = true;
+                return Poll::Ready(None);
+            };
 
-        if next.0 == program_id {
-            Poll::Ready(Some(next.1))
-        } else {
-            // The program ID has changed: leave the message for the next filter and close this input stream
-            source.pending  = Some(next);
-            self.finished   = true;
-            Poll::Ready(None)
-        }
+            if next.0 == program_id {
+                Poll::Ready(Some(next.1))
+            } else {
+                // The program ID has changed: leave the message for the next filter and close this input stream
+                source.pending  = Some(next);
+                self.finished   = true;
+                Poll::Ready(None)
+            }
+        })
     }
 }
 
@@ -131,7 +133,7 @@ where
 
         Ok(Self {
             filter:     filter,
-            source:     Arc::new(Mutex::new(source)),
+            source:     share(source),
             current:    None,
             draining:   None,
         })
@@ -156,23 +158,27 @@ where
             }
 
             // Wait for a message with a new program ID to arrive
-            let next_program_id = {
-                let mut source = self.source.lock().unwrap();
+            enum NextProgram {
+                Pending,
+                None,
+                ProgramId(SubProgramId),
+            }
 
+            let next_program_id = with_shared(&self.source, |source| {
                 loop {
                     let next = if let Some(pending) = source.pending.take() {
                         pending
                     } else if let Some(stream) = source.stream.as_mut() {
                         match stream.poll_next_unpin(cx) {
-                            Poll::Pending           => { return Poll::Pending; }
+                            Poll::Pending           => { return NextProgram::Pending; }
                             Poll::Ready(Some(next)) => next,
                             Poll::Ready(None)       => {
                                 source.stream = None;
-                                return Poll::Ready(None);
+                                return NextProgram::None;
                             }
                         }
                     } else {
-                        return Poll::Ready(None);
+                        return NextProgram::None;
                     };
 
                     if Some(next.0) == self.draining {
@@ -185,14 +191,20 @@ where
                     source.pending  = Some(next);
                     self.draining   = None;
 
-                    break program_id;
+                    return NextProgram::ProgramId(program_id);
                 }
+            });
+
+            let next_program_id = match next_program_id {
+                NextProgram::Pending                    => { return Poll::Pending; },
+                NextProgram::None                       => { return Poll::Ready(None); },
+                NextProgram::ProgramId(sub_program_id)  => sub_program_id,
             };
 
             // Start a new filter for this program
             let segment = FilterSegmentStream {
                 program_id: next_program_id,
-                source:     Arc::clone(&self.source),
+                source:     self.source.clone(),
                 finished:   false,
             };
 
