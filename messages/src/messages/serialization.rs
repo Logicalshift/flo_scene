@@ -1,19 +1,19 @@
 use super::stream_id::*;
 use super::traits::*;
 
+use alloc::collections::*;
+use alloc::borrow::*;
 use core::any::*;
-use core::borrow::*;
-use core::collections::*;
 use core::sync::*;
 
 /// The known type names of serialized types
-static SERIALIZABLE_MESSAGE_TYPE_NAMES: LazyLock<RwLock<HashMap<TypeId, Cow<'static, str>>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
+static SERIALIZABLE_MESSAGE_TYPE_NAMES: LazyLock<RwLock<BTreeMap<TypeId, Cow<'static, str>>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// The stream ID for a known serializable type
-static STREAM_ID_FOR_SERIALIZABLE_TYPE: LazyLock<RwLock<HashMap<Cow<'static, str>, StreamId>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
+static STREAM_ID_FOR_SERIALIZABLE_TYPE: LazyLock<RwLock<BTreeMap<Cow<'static, str>, StreamId>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// The stream ID for a rust type name
-static STREAM_ID_FOR_RUST_TYPE: LazyLock<RwLock<HashMap<Cow<'static, str>, StreamId>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
+static STREAM_ID_FOR_RUST_TYPE: LazyLock<RwLock<BTreeMap<Cow<'static, str>, StreamId>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
 impl StreamId {
     #[inline]
