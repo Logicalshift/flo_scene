@@ -247,7 +247,7 @@ impl<'de> Deserialize<'de> for SubProgramNameId {
 ///
 /// A static subprogram ID can be used to declare a subprogram ID in a static variable
 ///
-pub struct StaticSubProgramId(&'static str, OnceLock<SubProgramId>);
+pub struct StaticSubProgramId(&'static str, StaticOnce<SubProgramId>);
 
 impl StaticSubProgramId {
     ///
@@ -255,7 +255,7 @@ impl StaticSubProgramId {
     ///
     #[inline]
     pub const fn called(name: &'static str) -> StaticSubProgramId {
-        StaticSubProgramId(name, OnceLock::new())
+        StaticSubProgramId(name, StaticOnce::new())
     }
 }
 
@@ -264,12 +264,7 @@ impl Deref for StaticSubProgramId {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        self.1.get()
-            .unwrap_or_else(|| {
-                let subprogram = SubProgramId::called(self.0);
-                self.1.set(subprogram).ok();
-                self.1.get().unwrap()
-            })
+        self.1.get_or_init(|| SubProgramId::called(self.0))
     }
 }
 
