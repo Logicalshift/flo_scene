@@ -2,7 +2,7 @@
 //!
 //!
 
-#![cfg_attr(not(feature="use-std"), no_std)]
+#![cfg_attr(not(any(feature="use-std", test)), no_std)]
 
 /// Import alloc so we can support compiling in no_std mode
 #[macro_use]
