@@ -4,7 +4,6 @@ use ::serde::*;
 use ::serde::de::*;
 use ::serde::ser::{Error};
 use uuid::*;
-use core::sync::{OnceLock};
 
 use alloc::string::*;
 use alloc::vec::*;
@@ -13,12 +12,12 @@ use core::fmt;
 use core::fmt::{Debug, Formatter};
 use core::ops::{Deref};
 
-static IDS_FOR_NAMES: OnceLock<Shared<OrderedVec<String, SubProgramNameId>>> = OnceLock::new();
-static NAMES_FOR_IDS: OnceLock<Shared<Vec<String>>>                          = OnceLock::new();
+static IDS_FOR_NAMES: StaticLazy<Shared<OrderedVec<String, SubProgramNameId>>> = StaticLazy::new(|| share(OrderedVec::new()));
+static NAMES_FOR_IDS: StaticLazy<Shared<Vec<String>>>                          = StaticLazy::new(|| share(vec![]));
 
 fn id_for_name(name: &str) -> SubProgramNameId {
-    let ids_for_names   = IDS_FOR_NAMES.get_or_init(|| share(OrderedVec::new()));
-    let names_for_ids   = NAMES_FOR_IDS.get_or_init(|| share(Vec::new()));
+    let ids_for_names   = &*IDS_FOR_NAMES;
+    let names_for_ids   = &*NAMES_FOR_IDS;
 
     let id = with_shared(&*ids_for_names, |ids_for_names| ids_for_names.get(name).copied());
 
@@ -51,11 +50,7 @@ fn id_for_name(name: &str) -> SubProgramNameId {
 }
 
 fn name_for_id(id: SubProgramNameId) -> Option<String> {
-    if let Some(names_for_ids) = NAMES_FOR_IDS.get() {
-        with_shared(&*names_for_ids, |names_for_ids| names_for_ids.get(id.0).cloned())
-    } else {
-        None
-    }
+    with_shared(&*NAMES_FOR_IDS, |names_for_ids| names_for_ids.get(id.0).cloned())
 }
 
 ///
