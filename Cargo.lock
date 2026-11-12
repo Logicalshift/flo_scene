@@ -931,6 +931,7 @@ dependencies = [
  "postcard",
  "serde",
  "serde_json",
+ "spin 0.10.1",
  "uuid",
 ]
 

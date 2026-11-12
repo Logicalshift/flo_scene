@@ -15,13 +15,13 @@ keywords            = [ "message-queue" ]
 default             = [ "one_thread" ]
 
 # Use std after all, protect shared data with shared mutexes
-use-std             = [ "postcard/use-std", "futures/std" ]
+use-std             = [ "postcard/use-std", "futures/std", "flo_scene_messages/use-std" ]
 
 # If std is not applied, assume that we're running in single-threaded mode
-one_thread          = [ "spin" ]
+one_thread          = [ "spin", "flo_scene_messages/one_thread" ]
 
 # Adds support for JSON encoding
-json                = [ "serde_json" ]
+json                = [ "serde_json", "flo_scene_messages/json" ]
 
 # Allow internal random number generation (for generating UUIDs)
 use-random          = [ "uuid/v4" ]

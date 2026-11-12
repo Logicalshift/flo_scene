@@ -12,8 +12,9 @@ keywords            = [ "message-queue" ]
 
 [features]
 json                = [ "serde_json", "flo_scene_guest/json", "flo_scene_messages/json" ]
-guest_programs      = [ "json", "postcard" ]
+guest_programs      = [ "json", "postcard", "flo_scene_messages/postcard" ]
 tokio_support       = [ "tokio" ]
+postcard            = [ "dep:postcard", "flo_scene_messages/postcard" ]
 
 [dependencies]
 flo_scene_messages  = "0.3"
