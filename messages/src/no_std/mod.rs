@@ -8,12 +8,23 @@ mod ordered_vec;
 pub use sharing_types::*;
 pub use ordered_vec::*;
 
-#[cfg(not(feature="use-std"))]
-mod no_std {
-    mod imports;
+#[cfg(feature="one-thread")]
+mod static_lazy {
+    mod one_thread;
+    pub use one_thread::*;
+}
 
-    pub use imports::*;
+#[cfg(all(feature="use-std", not(feature="one-thread")))]
+mod static_lazy {
+    mod std;
+    pub use std::*;
 }
 
 #[cfg(not(feature="use-std"))]
+mod imports;
+#[cfg(not(feature="use-std"))]
+pub use imports::*;
+
+#[cfg(not(feature="use-std"))]
 pub use no_std::*;
+pub use static_lazy::*;
