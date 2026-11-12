@@ -43,3 +43,39 @@ where
         &mut *self.lazy_init
     }
 }
+
+///
+/// Type that is lazily initialised
+///
+/// (We need our own version of LazyLock to support no_std. This is the no_std version, which uses a spinlock)
+///
+pub struct StaticOnce<T> {
+    value:  OnceLock<T>,
+}
+
+impl<T> StaticOnce<T> {
+    ///
+    /// Create a new StaticLazy object
+    ///
+    pub const fn new() -> Self {
+        Self { 
+            value: OnceLock::new(),       
+        }
+    }
+
+    ///
+    /// Retrieves this value if it's been initialised
+    ///
+    #[inline]
+    pub fn get(&self) -> Option<&T> {
+        self.value.get()
+    }
+
+    ///
+    /// Retrieves this value, initialising it if it's empty
+    ///
+    #[inline]
+    pub fn get_or_init(&self, init: impl FnOnce() -> T) -> &T {
+        self.value.get_or_init(init)
+    }
+}
