@@ -11,5 +11,6 @@ lto         = true
 opt-level   = 'z'
 
 [patch.crates-io]
-flo_scene       = { path = "../scene" }
-flo_scene_guest = { path = "../guest-nostd" }
+flo_scene           = { path = "../scene" }
+flo_scene_guest     = { path = "../guest-nostd" }
+flo_scene_messages  = { path = "../messages" }
