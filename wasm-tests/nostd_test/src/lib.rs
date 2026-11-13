@@ -3,6 +3,7 @@
 extern crate alloc;
 
 use flo_scene_guest::*;
+use flo_scene_guest::messages::*;
 use serde::*;
 use futures::prelude::*;
 
