@@ -1,4 +1,3 @@
-use crate::SceneInitialisationContext;
 use crate::host::error::*;
 use crate::host::input_stream::*;
 use crate::host::output_sink::*;
@@ -6,6 +5,7 @@ use crate::host::scene::*;
 use crate::host::scene_context::*;
 use crate::host::scene_core::*;
 use crate::host::single_source_stream::*;
+use crate::host::scene_initialisation_context::*;
 use crate::host::serialization::*;
 use crate::host::programs::{SceneControl};
 
