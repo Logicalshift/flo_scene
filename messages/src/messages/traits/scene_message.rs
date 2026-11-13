@@ -192,7 +192,7 @@ pub trait SceneMessage :
     #[inline]
     fn to_guest_message(self, context: &impl SerializationContext) -> Result<Vec<u8>, SceneSendError<Self>> {
         let _ = context;
-        postcard::to_stdvec(&self)
+        postcard::to_allocvec(&self)
             .map_err(move |postcard_error| SceneSendError::CannotSerialize(self, format!("{:?}", postcard_error)))
     }
 
