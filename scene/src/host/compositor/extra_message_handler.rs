@@ -1,4 +1,4 @@
-use crate::compositor::either_message::*;
+use crate::host::compositor::either_message::*;
 use crate::host::input_stream::*;
 use crate::host::scene_context::*;
 
