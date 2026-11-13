@@ -35,7 +35,12 @@ mod imports;
 #[cfg(not(feature="use-std"))]
 pub use imports::*;
 
-#[cfg(not(feature="use-std"))]
-pub use no_std::*;
 pub use static_lazy::*;
 pub use sharing_types::*;
+
+#[cfg(not(feature="use-std"))]
+pub use alloc::string::{String};
+#[cfg(not(feature="use-std"))]
+pub use alloc::vec::{Vec};
+#[cfg(not(feature="use-std"))]
+pub use alloc::boxed::{Box};

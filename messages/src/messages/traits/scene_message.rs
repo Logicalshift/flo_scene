@@ -3,6 +3,9 @@ use crate::messages::stream_target::*;
 use super::initialisation_context::*;
 use super::serialization_context::*;
 
+#[cfg(not(feature="use-std"))]
+pub use crate::no_std::*;
+
 use serde::*;
 
 #[cfg(feature="json")]
@@ -12,6 +15,7 @@ use serde_json;
 use postcard;
 
 use alloc::borrow::*;
+use core::any;
 
 ///
 /// Trait implemented by messages that can be sent via a scene
@@ -157,7 +161,7 @@ pub trait SceneMessage :
     /// but this does not have a guaranteed format between Rust versions and may not be unique, so it's strongly recommended 
     /// to override this function to return a specific value.
     ///
-    fn message_type_name() -> String { std::any::type_name::<Self>().into() }
+    fn message_type_name() -> String { any::type_name::<Self>().into() }
 
     ///
     /// With the 'json' feature turned on, converts this message to JSON format

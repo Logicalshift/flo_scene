@@ -9,6 +9,7 @@ use futures::stream::{BoxStream};
 
 use alloc::sync::*;
 use core::any::*;
+use core::fmt;
 use core::fmt::{Debug};
 use core::hash::{Hash, Hasher};
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -242,7 +243,7 @@ impl<'de> Deserialize<'de> for FilterHandle {
 }
 
 impl Debug for FilterHandle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let source_stream_id = self.data.source_stream_id.clone();
         let target_stream_id = self.data.target_stream_id.clone();
 
