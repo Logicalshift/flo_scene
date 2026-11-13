@@ -30,9 +30,7 @@ mod static_lazy {
     pub use std::*;
 }
 
-#[cfg(not(feature="use-std"))]
 mod imports;
-#[cfg(not(feature="use-std"))]
 pub use imports::*;
 
 pub use static_lazy::*;
