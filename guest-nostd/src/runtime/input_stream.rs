@@ -4,6 +4,8 @@ use super::core::*;
 use super::input_stream_core::*;
 use super::serialization_context::*;
 
+use flo_scene_messages::prelude::*;
+
 use futures::prelude::*;
 use futures::task::{Context, Poll};
 
@@ -13,7 +15,7 @@ use alloc::collections::{VecDeque};
 ///
 /// A guest input stream works with the reads deserialized messages from the host side
 ///
-pub struct GuestInputStream<TMessageType: SceneGuestMessage> {
+pub struct GuestInputStream<TMessageType: SceneMessage> {
     /// The core is shared with the runtime for managing the input stream
     core: Shared<GuestInputStreamCore>,
 
@@ -32,7 +34,7 @@ pub struct GuestInputStream<TMessageType: SceneGuestMessage> {
 
 impl<TMessageType> GuestInputStream<TMessageType>
 where
-    TMessageType: SceneGuestMessage,
+    TMessageType: SceneMessage,
 {
     /// Creates a new guest input stream
     pub (super) fn new(program_handle: GuestSubProgramHandle, runtime_core: &Shared<GuestRuntimeCore>, serialization_context: GuestSerializationContext) -> Self {
@@ -59,7 +61,7 @@ where
 
 impl<TMessageType> Stream for GuestInputStream<TMessageType> 
 where
-    TMessageType: SceneGuestMessage,
+    TMessageType: SceneMessage,
 {
     type Item = TMessageType;
 

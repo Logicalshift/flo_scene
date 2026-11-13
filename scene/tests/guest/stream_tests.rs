@@ -14,7 +14,7 @@ pub struct SimpleTestMessage {
     value: String,
 }
 
-impl SceneGuestMessage for SimpleTestMessage {
+impl SceneMessage for SimpleTestMessage {
     fn message_type_name() -> String {
         "flo_scene_tests::stream_tests::SimpleTestMessage".into()
     }

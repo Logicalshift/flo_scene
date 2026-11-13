@@ -1,4 +1,4 @@
-use super::scene_guest_message::*;
+use flo_scene_messages::prelude::*;
 
 use serde::*;
 use alloc::string::*;
@@ -26,7 +26,7 @@ impl HostStreamId {
     /// Creates a HostStreamId for a message with a type
     ///
     #[inline]
-    pub fn for_message<TMessage: SceneGuestMessage>() -> Self {
+    pub fn for_message<TMessage: SceneMessage>() -> Self {
         HostStreamId(TMessage::message_type_name())
     }
 }

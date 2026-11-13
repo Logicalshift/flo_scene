@@ -18,13 +18,13 @@ mod with_guest_programs {
         value: String,
     }
 
-    impl SceneGuestMessage for SimpleTestMessage {
+    impl SceneMessage for SimpleTestMessage {
         fn message_type_name() -> String {
             "flo_scene_tests::guest_subprogram_tests::SimpleTestMessage".into()
         }
     }
 
-    impl SceneGuestMessage for SimpleResponseMessage {
+    impl SceneMessage for SimpleResponseMessage {
         fn message_type_name() -> String {
             "flo_scene_tests::guest_subprogram_tests::SimpleResponseMessage".into()
         }

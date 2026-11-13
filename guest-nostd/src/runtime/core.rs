@@ -88,7 +88,7 @@ impl GuestRuntimeCore {
     ///
     /// Creates a new input stream in a runtime core
     ///
-    pub (crate) fn create_input_stream<TMessageType: SceneGuestMessage>(runtime_core: &Shared<Self>) -> (usize, GuestInputStream<TMessageType>) {
+    pub (crate) fn create_input_stream<TMessageType: SceneMessage>(runtime_core: &Shared<Self>) -> (usize, GuestInputStream<TMessageType>) {
         with_shared(&runtime_core, |core| {
             // Assign a handle to the input stream
             let stream_handle = core.next_stream_handle;

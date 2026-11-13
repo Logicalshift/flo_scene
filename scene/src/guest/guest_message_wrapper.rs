@@ -28,7 +28,7 @@ impl<'de, TMessage: Deserialize<'de>> Deserialize<'de> for GuestMessageWrapper<T
     }
 }
 
-impl<TMessage: SceneMessage> SceneGuestMessage for GuestMessageWrapper<TMessage> {
+impl<TMessage: SceneMessage> SceneMessage for GuestMessageWrapper<TMessage> {
     #[inline]
     fn message_type_name() -> String { TMessage::message_type_name() }
 

@@ -15,7 +15,7 @@ pub struct SimpleTestMessage {
     value: String,
 }
 
-impl SceneGuestMessage for SimpleTestMessage {
+impl SceneMessage for SimpleTestMessage {
     fn message_type_name() -> String {
         "flo_scene_tests::function_tests::SimpleTestMessage".into()
     }
@@ -30,7 +30,7 @@ pub struct TestFunctionMessage(Arc<dyn Send + Sync + Fn(Vec<u8>) -> BoxFuture<'s
 #[derive(Serialize, Deserialize)]
 struct SerializedTestFunctionMessage(SerializationId);
 
-impl SceneGuestMessage for TestFunctionMessage {
+impl SceneMessage for TestFunctionMessage {
     #[cfg(any(feature="postcard", target_family="wasm"))]
     #[inline]
     fn to_guest_message(self, context: &impl SerializationContext) -> Result<Vec<u8>, SceneSendError<Self>> {

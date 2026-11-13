@@ -48,7 +48,7 @@ impl GuestSceneContext {
     ///
     pub fn send<TMessageType>(&self, target: impl ToHostStreamTarget) -> Result<impl Unpin + Sink<TMessageType, Error=SceneSendError<Vec<u8>>>, ConnectionError>
     where
-        TMessageType: 'static + SceneGuestMessage,
+        TMessageType: 'static + SceneMessage,
     {
         // Set up the state
         let connection              = None;
@@ -100,7 +100,7 @@ impl GuestSceneContext {
     ///
     pub async fn send_message<TMessageType>(&self, message: TMessageType) -> Result<(), ConnectionError> 
     where
-        TMessageType: 'static + SceneGuestMessage,
+        TMessageType: 'static + SceneMessage,
     {
         let mut target = self.send::<TMessageType>(())?;
 

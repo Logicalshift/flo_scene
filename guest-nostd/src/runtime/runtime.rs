@@ -37,7 +37,7 @@ impl GuestRuntime {
     ///
     pub fn with_default_subprogram<TMessageType, TFuture>(program_id: SubProgramId, subprogram: impl FnOnce(GuestInputStream<TMessageType>, GuestSceneContext) -> TFuture) -> Self 
     where
-        TMessageType:   SceneGuestMessage,
+        TMessageType:   SceneMessage,
         TFuture:        'static + Send + Future<Output=()>,
     {
         // Create the runtime
@@ -84,7 +84,7 @@ impl GuestRuntime {
     /// Creates a guest input stream in this runtime, returning the stream and the handle for the stream
     ///
     #[inline]
-    pub fn create_input_stream<TMessageType: SceneGuestMessage>(&self) -> (usize, GuestInputStream<TMessageType>) {
+    pub fn create_input_stream<TMessageType: SceneMessage>(&self) -> (usize, GuestInputStream<TMessageType>) {
         GuestRuntimeCore::create_input_stream(&self.core)
     }
 

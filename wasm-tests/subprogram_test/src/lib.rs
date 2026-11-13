@@ -11,7 +11,7 @@ pub struct SampleMessage {
     value: String
 }
 
-impl SceneGuestMessage for SampleMessage {
+impl SceneMessage for SampleMessage {
     fn message_type_name() -> String {
         "flo_scene_tests::guest_subprogram_tests::SimpleTestMessage".into()
     }
@@ -43,7 +43,7 @@ pub struct ProgramIdMessage {
     id: SubProgramId
 }
 
-impl SceneGuestMessage for ProgramIdMessage {
+impl SceneMessage for ProgramIdMessage {
     fn message_type_name() -> String {
         "flo_scene_tests::guest_subprogram_tests::ProgramIdMessage".into()
     }

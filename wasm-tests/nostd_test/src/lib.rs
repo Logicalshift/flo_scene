@@ -20,7 +20,7 @@ pub struct SampleMessage {
     value: String
 }
 
-impl SceneGuestMessage for SampleMessage {
+impl SceneMessage for SampleMessage {
     fn message_type_name() -> String {
         "flo_scene_tests::guest_subprogram_tests::SimpleTestMessage".into()
     }
