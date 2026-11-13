@@ -1,5 +1,6 @@
 use uuid::{Uuid};
 
+#[link(wasm_import_module = "env")]
 extern "C" {
     #[cfg(not(feature="use-random"))]
     fn scene_request_new_uuid(bytes: &mut [u8; 16]);

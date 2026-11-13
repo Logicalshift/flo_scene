@@ -5,6 +5,7 @@
 mod uuid_impl {
     use uuid::{Uuid};
 
+    #[link(wasm_import_module = "env")]
     extern "C" {
         ///
         /// Externally-provided function that generates a UUID for use by this guest program

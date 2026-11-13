@@ -21,6 +21,7 @@ mod uuid_impl {
 mod uuid_impl {
     use uuid::{Uuid};
 
+    #[link(wasm_import_module = "env")]
     extern "C" {
         fn scene_request_new_uuid(bytes: &mut [u8; 16]);
     }
